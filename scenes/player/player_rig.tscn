@@ -1,0 +1,35 @@
+[gd_scene format=3 uid="uid://cplayerrig001"]
+
+[ext_resource type="PackedScene" uid="uid://dvblpji1vy3ao" path="res://scenes/player/glider.tscn" id="1_glider"]
+[ext_resource type="PackedScene" path="res://scenes/player/on_foot_player.tscn" id="2_onfoot"]
+[ext_resource type="Script" path="res://scripts/player/player_rig.gd" id="3_rig"]
+[ext_resource type="Script" path="res://scripts/input/glider_input.gd" id="4_input"]
+[ext_resource type="Script" path="res://scripts/game/player_cargo.gd" id="5_cargo"]
+[ext_resource type="Script" path="res://scripts/game/player_interactor.gd" id="6_interactor"]
+[ext_resource type="PackedScene" path="res://scenes/ui/glider_hud.tscn" id="7_hud"]
+[ext_resource type="PackedScene" path="res://scenes/ui/loot_overlay.tscn" id="8_loot"]
+[ext_resource type="Script" path="res://scripts/player/radar_pulse.gd" id="9_radar"]
+
+[node name="PlayerRig" type="Node3D"]
+script = ExtResource("3_rig")
+
+[node name="Glider" parent="." instance=ExtResource("1_glider")]
+collision_mask = 0
+
+[node name="OnFoot" parent="." instance=ExtResource("2_onfoot")]
+
+[node name="GliderInput" type="Node" parent="."]
+script = ExtResource("4_input")
+
+[node name="PlayerCargo" type="Node" parent="."]
+script = ExtResource("5_cargo")
+
+[node name="PlayerInteractor" type="Node" parent="."]
+script = ExtResource("6_interactor")
+
+[node name="GliderHUD" parent="." instance=ExtResource("7_hud")]
+
+[node name="LootOverlay" parent="." instance=ExtResource("8_loot")]
+
+[node name="RadarPulse" type="Node" parent="."]
+script = ExtResource("9_radar")

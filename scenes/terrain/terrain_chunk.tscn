@@ -1,0 +1,9 @@
+[gd_scene format=3 uid="uid://dvipeutdthgpe"]
+
+[node name="TerrainChunk" type="Node3D" unique_id=985900361]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1162830766]
+
+[node name="StaticBody3D" type="StaticBody3D" parent="." unique_id=1711061870]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StaticBody3D" unique_id=1092439200]

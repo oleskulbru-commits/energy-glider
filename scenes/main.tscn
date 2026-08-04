@@ -1,0 +1,29 @@
+[gd_scene format=3 uid="uid://woaifkulicyc"]
+
+[ext_resource type="Script" uid="uid://c73d4na6e5088" path="res://scripts/rendering/pixel_viewport.gd" id="1_pixel_viewport"]
+[ext_resource type="PackedScene" path="res://scenes/game_world.tscn" id="2_game_world"]
+[ext_resource type="Shader" uid="uid://ckmws4jowb56t" path="res://shaders/pixel_present.gdshader" id="3_present_shader"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_present"]
+shader = ExtResource("3_present_shader")
+shader_parameter/present_dither_strength = 0.12
+
+[node name="Main" type="SubViewportContainer" unique_id=436419643]
+material = SubResource("ShaderMaterial_present")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+stretch = true
+script = ExtResource("1_pixel_viewport")
+pixel_scale = 2
+
+[node name="SubViewport" type="SubViewport" parent="." unique_id=167199366]
+handle_input_locally = false
+size = Vector2i(1920, 1080)
+render_target_update_mode = 4
+
+[node name="GameWorld" parent="SubViewport" unique_id=1548790125 instance=ExtResource("2_game_world")]
+
+[editable path="SubViewport/GameWorld"]

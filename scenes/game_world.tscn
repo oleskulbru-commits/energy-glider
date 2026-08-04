@@ -1,0 +1,95 @@
+[gd_scene load_steps=13 format=3 uid="uid://cgame_world001"]
+
+[ext_resource type="Script" uid="uid://ceqhf3n5dule0" path="res://scripts/terrain/terrain_manager.gd" id="1_terrain"]
+[ext_resource type="Material" uid="uid://suwp2571pfe0" path="res://materials/sand.tres" id="2_sand"]
+[ext_resource type="PackedScene" path="res://scenes/player/player_rig.tscn" id="3_player_rig"]
+[ext_resource type="Material" path="res://materials/desert_sky.tres" id="4_sky"]
+[ext_resource type="Script" path="res://scripts/game/run_score.gd" id="5_run_score"]
+[ext_resource type="Script" path="res://scripts/world/outpost_spawner.gd" id="8_outpost_spawner"]
+[ext_resource type="Script" path="res://scripts/game/antenna_state.gd" id="9_antenna_state"]
+[ext_resource type="Script" path="res://scripts/world/wind_field.gd" id="10_wind_field"]
+[ext_resource type="Script" path="res://scripts/world/wind_streaks.gd" id="11_wind_streaks"]
+[ext_resource type="Script" path="res://scripts/world/ripple_spawner.gd" id="12_ripple_spawner"]
+[ext_resource type="Script" path="res://scripts/game/expedition_state.gd" id="13_expedition"]
+[ext_resource type="Script" path="res://scripts/world/day_night_cycle.gd" id="14_daynight"]
+
+[sub_resource type="Sky" id="Sky_main"]
+sky_material = ExtResource("4_sky")
+
+[sub_resource type="Environment" id="Environment_main"]
+background_mode = 2
+sky = SubResource("Sky_main")
+ambient_light_source = 2
+ambient_light_color = Color(1, 1, 1, 1)
+ambient_light_energy = 0.02
+reflected_light_source = 2
+tonemap_mode = 2
+tonemap_exposure = 0.85
+fog_enabled = true
+fog_light_color = Color(0.55, 0.58, 0.62, 1)
+fog_density = 0.00085
+fog_aerial_perspective = 0.12
+
+[node name="GameWorld" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_main")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.05233616, -0.27525946, 0.95994455, 0, 0.96126115, 0.27563742, -0.99862975, -0.01442579, 0.050308745, 0, 80, 0)
+light_color = Color(1, 0.88, 0.72, 1)
+light_energy = 1.35
+shadow_enabled = true
+shadow_opacity = 0.85
+
+[node name="TerrainManager" type="Node3D" parent="."]
+script = ExtResource("1_terrain")
+sand_material = ExtResource("2_sand")
+track_node_path = NodePath("../PlayerRig/Glider")
+
+[node name="RunScore" type="Node" parent="."]
+script = ExtResource("5_run_score")
+player_path = NodePath("../PlayerRig")
+terrain_manager_path = NodePath("../TerrainManager")
+
+[node name="ExpeditionState" type="Node" parent="."]
+script = ExtResource("13_expedition")
+player_rig_path = NodePath("../PlayerRig")
+run_score_path = NodePath("../RunScore")
+day_night_path = NodePath("../DayNightCycle")
+
+[node name="DayNightCycle" type="Node" parent="."]
+script = ExtResource("14_daynight")
+sun_path = NodePath("../Sun")
+world_environment_path = NodePath("../WorldEnvironment")
+
+[node name="AntennaState" type="Node" parent="."]
+script = ExtResource("9_antenna_state")
+
+[node name="WindField" type="Node" parent="."]
+script = ExtResource("10_wind_field")
+
+[node name="WindStreaks" type="Node3D" parent="."]
+script = ExtResource("11_wind_streaks")
+track_node_path = NodePath("../PlayerRig/Glider")
+
+[node name="OutpostSpawner" type="Node3D" parent="."]
+script = ExtResource("8_outpost_spawner")
+terrain_manager_path = NodePath("../TerrainManager")
+outpost_spacing_m = 5000.0
+ring_count = 1
+
+[node name="RippleSpawner" type="Node3D" parent="."]
+script = ExtResource("12_ripple_spawner")
+terrain_manager_path = NodePath("../TerrainManager")
+ripple_count = 8
+first_ripple_center_m = 1200.0
+ripple_spacing_m = 1200.0
+
+[node name="PlayerRig" parent="." instance=ExtResource("3_player_rig")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 20, 0)
+terrain_manager_path = NodePath("../TerrainManager")
+
+[node name="Glider" parent="PlayerRig" index="0"]
+collision_mask = 0
+terrain_manager_path = NodePath("../../TerrainManager")

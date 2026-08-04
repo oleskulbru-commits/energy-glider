@@ -1,0 +1,25 @@
+[gd_scene format=3 uid="uid://c7clqt3v2y4ee"]
+
+[ext_resource type="Script" path="res://scripts/player/on_foot_controller.gd" id="1_onfoot"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+radius = 0.35
+height = 1.6
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
+radius = 0.35
+height = 1.6
+
+[node name="OnFoot" type="CharacterBody3D"]
+collision_layer = 2
+collision_mask = 1
+floor_snap_length = 0.25
+script = ExtResource("1_onfoot")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.85, 0)
+shape = SubResource("CapsuleShape3D_body")
+
+[node name="Visual" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.85, 0)
+mesh = SubResource("CapsuleMesh_body")

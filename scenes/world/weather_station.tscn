@@ -1,0 +1,10 @@
+[gd_scene format=3 uid="uid://c7gfackoa1eg5"]
+
+[ext_resource type="Script" uid="uid://dq7weather001" path="res://scripts/world/weather_station.gd" id="1_station"]
+[ext_resource type="Script" uid="uid://dew2v6tfaglt0" path="res://scripts/world/outpost_visual.gd" id="2_visual"]
+
+[node name="WeatherStation" type="Node3D" unique_id=1479026199]
+script = ExtResource("1_station")
+
+[node name="OutpostVisual" type="Node3D" parent="." unique_id=167491216]
+script = ExtResource("2_visual")

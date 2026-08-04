@@ -1,0 +1,14 @@
+---
+description: Glider surf controller feel — read glider-game-feel skill before tuning physics
+globs: scripts/player/glider_player.gd,scripts/player/glider_camera.gd,scripts/player/verify_glider.gd,scenes/player/glider.tscn
+alwaysApply: false
+---
+
+# Glider feel
+
+When editing player physics, camera follow, or verification tests:
+
+1. Read `.cursor/skills/glider-game-feel/SKILL.md` first.
+2. Keep raycast surf (`collision_mask = 0`); do not enable terrain collision or floor snap to fix clips.
+3. Change one feel subsystem per pass; run `scripts/run-verify.ps1` after physics edits.
+4. Do not weaken `verify_glider.gd` assertions — fix the controller or revert.

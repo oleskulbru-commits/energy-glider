@@ -1,0 +1,289 @@
+[gd_scene load_steps=3 format=3 uid="uid://cglider_hud001"]
+
+[ext_resource type="Script" path="res://scripts/ui/glider_hud.gd" id="1_hud"]
+[ext_resource type="Theme" path="res://themes/hud_theme.tres" id="2_theme"]
+[ext_resource type="Script" path="res://scripts/ui/compass_bar.gd" id="3_compass"]
+
+[node name="GliderHUD" type="CanvasLayer"]
+layer = 10
+script = ExtResource("1_hud")
+theme = ExtResource("2_theme")
+
+[node name="TopCenter" type="MarginContainer" parent="."]
+anchors_preset = 10
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -320.0
+offset_right = 320.0
+offset_top = 12.0
+grow_horizontal = 2
+theme_override_constants/margin_top = 8
+
+[node name="VBox" type="VBoxContainer" parent="TopCenter"]
+theme_override_constants/separation = 4
+
+[node name="DayLabel" type="Label" parent="TopCenter/VBox"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "DAY 1"
+horizontal_alignment = 1
+
+[node name="CompassBar" type="Control" parent="TopCenter/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(640, 36)
+script = ExtResource("3_compass")
+
+[node name="TopLeft" type="MarginContainer" parent="."]
+anchors_preset = 0
+offset_right = 200.0
+offset_bottom = 80.0
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+
+[node name="CargoChip" type="PanelContainer" parent="TopLeft"]
+unique_name_in_owner = true
+theme_type_variation = &"HudPanel"
+custom_minimum_size = Vector2(120, 0)
+
+[node name="CargoLabel" type="Label" parent="TopLeft/CargoChip"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "ANTENNA PART"
+horizontal_alignment = 1
+
+[node name="BottomLeft" type="MarginContainer" parent="."]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_top = -88.0
+offset_right = 280.0
+grow_vertical = 0
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_bottom = 24
+
+[node name="PowerPanel" type="PanelContainer" parent="BottomLeft"]
+theme_type_variation = &"HudPanel"
+custom_minimum_size = Vector2(220, 0)
+
+[node name="VBox" type="VBoxContainer" parent="BottomLeft/PowerPanel"]
+theme_override_constants/separation = 6
+
+[node name="Header" type="HBoxContainer" parent="BottomLeft/PowerPanel/VBox"]
+theme_override_constants/separation = 8
+
+[node name="PowerLabel" type="Label" parent="BottomLeft/PowerPanel/VBox/Header"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "Thruster Charge"
+
+[node name="SolarChip" type="PanelContainer" parent="BottomLeft/PowerPanel/VBox/Header"]
+unique_name_in_owner = true
+visible = false
+theme_type_variation = &"HudSolarChip"
+
+[node name="SolarLabel" type="Label" parent="BottomLeft/PowerPanel/VBox/Header/SolarChip"]
+theme_type_variation = &"HudSolarLabel"
+text = "SOLAR"
+
+[node name="Spacer" type="Control" parent="BottomLeft/PowerPanel/VBox/Header"]
+size_flags_horizontal = 3
+
+[node name="PowerPercent" type="Label" parent="BottomLeft/PowerPanel/VBox/Header"]
+unique_name_in_owner = true
+theme_type_variation = &"HudValue"
+text = "100%"
+horizontal_alignment = 2
+
+[node name="PowerBar" type="ProgressBar" parent="BottomLeft/PowerPanel/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(196, 7)
+max_value = 100.0
+show_percentage = false
+value = 100.0
+
+[node name="StoppedOverlay" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -140.0
+offset_top = -70.0
+offset_right = 140.0
+offset_bottom = 70.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"HudOverlay"
+
+[node name="VBox" type="VBoxContainer" parent="StoppedOverlay"]
+theme_override_constants/separation = 10
+
+[node name="StoppedTitle" type="Label" parent="StoppedOverlay/VBox"]
+theme_type_variation = &"HudStoppedTitle"
+text = "Stopped"
+horizontal_alignment = 1
+
+[node name="StoppedDistance" type="Label" parent="StoppedOverlay/VBox"]
+unique_name_in_owner = true
+theme_type_variation = &"HudStoppedDistance"
+text = "0 m"
+horizontal_alignment = 1
+
+[node name="StoppedSummary" type="Label" parent="StoppedOverlay/VBox"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = ""
+horizontal_alignment = 1
+
+[node name="DaySummaryPanel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -180.0
+offset_top = -60.0
+offset_right = 180.0
+offset_bottom = 60.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"HudOverlay"
+
+[node name="DaySummaryLabel" type="Label" parent="DaySummaryPanel"]
+unique_name_in_owner = true
+theme_type_variation = &"HudStoppedTitle"
+text = "DAY COMPLETE"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="OutpostBoard" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -280.0
+offset_top = 24.0
+offset_right = -24.0
+offset_bottom = 140.0
+grow_horizontal = 0
+theme_type_variation = &"HudPanel"
+
+[node name="OutpostBoardLabel" type="Label" parent="OutpostBoard"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "OUTPOSTS"
+horizontal_alignment = 0
+autowrap_mode = 2
+
+[node name="InteractChip" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -90.0
+offset_top = -120.0
+offset_right = 90.0
+offset_bottom = -72.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 0
+theme_type_variation = &"HudPanel"
+
+[node name="VBox" type="VBoxContainer" parent="InteractChip"]
+theme_override_constants/separation = 4
+
+[node name="InteractLabel" type="Label" parent="InteractChip/VBox"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "HARVEST"
+horizontal_alignment = 1
+
+[node name="InteractBar" type="ProgressBar" parent="InteractChip/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 6)
+max_value = 1.0
+show_percentage = false
+
+[node name="StopChip" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -120.0
+offset_top = -120.0
+offset_right = -24.0
+offset_bottom = -72.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 0
+theme_type_variation = &"HudPanel"
+
+[node name="StopLabel" type="Label" parent="StopChip"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "STOP"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="SailChip" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -120.0
+offset_top = -168.0
+offset_right = -24.0
+offset_bottom = -120.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 0
+theme_type_variation = &"HudPanel"
+
+[node name="SailLabel" type="Label" parent="SailChip"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "SAIL"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PulseChip" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -120.0
+offset_top = -216.0
+offset_right = -24.0
+offset_bottom = -168.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_type_variation = &"HudPanel"
+
+[node name="VBox" type="VBoxContainer" parent="PulseChip"]
+theme_override_constants/separation = 4
+
+[node name="PulseLabel" type="Label" parent="PulseChip/VBox"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "PULSE [Q]"
+horizontal_alignment = 1
+
+[node name="PulseBar" type="ProgressBar" parent="PulseChip/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(80, 6)
+max_value = 1.0
+show_percentage = false

@@ -1,0 +1,109 @@
+[gd_resource type="Theme" format=3 uid="uid://s5b1yypr4pif"]
+
+[ext_resource type="FontFile" uid="uid://duytivu16vfdb" path="res://assets/fonts/Rajdhani-Bold.ttf" id="1_bold"]
+[ext_resource type="FontFile" uid="uid://be1kfy8btia1f" path="res://assets/fonts/Rajdhani-Medium.ttf" id="2_medium"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_pill"]
+content_margin_left = 8.0
+content_margin_top = 2.0
+content_margin_right = 8.0
+content_margin_bottom = 2.0
+bg_color = Color(0.12, 0.11, 0.1, 0.85)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.85, 0.72, 0.55, 0.25)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_overlay"]
+content_margin_left = 20.0
+content_margin_top = 16.0
+content_margin_right = 20.0
+content_margin_bottom = 16.0
+bg_color = Color(0.04, 0.04, 0.06, 0.88)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.85, 0.72, 0.55, 0.45)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+content_margin_left = 12.0
+content_margin_top = 10.0
+content_margin_right = 12.0
+content_margin_bottom = 10.0
+bg_color = Color(0.04, 0.04, 0.06, 0.55)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.85, 0.72, 0.55, 0.35)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_solar"]
+content_margin_left = 6.0
+content_margin_top = 1.0
+content_margin_right = 6.0
+content_margin_bottom = 1.0
+bg_color = Color(0.98, 0.82, 0.28, 0.18)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.98, 0.82, 0.28, 0.55)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bar_bg"]
+bg_color = Color(0.08, 0.08, 0.1, 0.9)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bar_fill"]
+bg_color = Color(0.35, 0.88, 0.95, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[resource]
+default_font = ExtResource("2_medium")
+default_font_size = 14
+HudDistanceCaption/colors/font_color = Color(0.72, 0.68, 0.58, 0.85)
+HudDistanceCaption/font_sizes/font_size = 11
+HudDistanceValue/font_sizes/font_size = 32
+HudDistanceValue/fonts/font = ExtResource("1_bold")
+HudLabel/colors/font_color = Color(0.72, 0.92, 0.98, 1)
+HudLabel/font_sizes/font_size = 13
+HudModePill/styles/panel = SubResource("StyleBoxFlat_pill")
+HudMuted/colors/font_color = Color(0.72, 0.68, 0.58, 0.85)
+HudOverlay/styles/panel = SubResource("StyleBoxFlat_overlay")
+HudPanel/styles/panel = SubResource("StyleBoxFlat_panel")
+HudSolarChip/styles/panel = SubResource("StyleBoxFlat_solar")
+HudSolarLabel/colors/font_color = Color(0.98, 0.82, 0.28, 1)
+HudSolarLabel/font_sizes/font_size = 11
+HudStoppedDistance/colors/font_color = Color(0.88, 0.82, 0.62, 1)
+HudStoppedDistance/font_sizes/font_size = 22
+HudStoppedTitle/colors/font_color = Color(0.98, 0.94, 0.82, 1)
+HudStoppedTitle/font_sizes/font_size = 32
+HudStoppedTitle/fonts/font = ExtResource("1_bold")
+HudValue/colors/font_color = Color(0.95, 0.92, 0.85, 1)
+HudValue/font_sizes/font_size = 15
+ProgressBar/constants/minimum_vertical_size = 7
+ProgressBar/styles/background = SubResource("StyleBoxFlat_bar_bg")
+ProgressBar/styles/fill = SubResource("StyleBoxFlat_bar_fill")
