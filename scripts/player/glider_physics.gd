@@ -185,7 +185,7 @@ class Context:
 
 
 static func horizontal_velocity(velocity: Vector3) -> Vector3:
-	return Vector3(velocity.x, 0.0, velocity.z)
+	return MathUtil.horizontal(velocity)
 
 
 static func clamp_tangent_speed(tangent_vel: Vector3, max_speed: float) -> Vector3:

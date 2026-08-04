@@ -4,7 +4,7 @@ extends Node
 const INTERACT_HOLD_SEC := 0.75
 const INTERACT_MAX_SPEED := 2.5
 
-var _rig: Node3D
+var _rig: PlayerRig
 var _glider: GliderPlayer
 var _cargo: PlayerCargo
 var _antenna_state: AntennaState
@@ -19,7 +19,7 @@ var _prompt := { "visible": false, "label": "", "progress": 0.0, "tap_action": f
 
 
 func _ready() -> void:
-	_rig = get_parent() as Node3D
+	_rig = get_parent() as PlayerRig
 	if _rig != null:
 		_glider = _rig.get_node_or_null("Glider") as GliderPlayer
 	_cargo = get_parent().get_node_or_null("PlayerCargo") as PlayerCargo
@@ -36,7 +36,7 @@ func _process(delta: float) -> void:
 	_resolve_world_refs()
 	_mount_blocked_frame = false
 
-	var mount_prompt: Dictionary = _rig.call("get_mount_prompt") if _rig.has_method("get_mount_prompt") else {}
+	var mount_prompt: Dictionary = _rig.get_mount_prompt()
 	if mount_prompt.get("visible", false):
 		_prompt = mount_prompt.duplicate()
 		_prompt["progress"] = 0.0
@@ -134,33 +134,20 @@ func _find_nearest_station() -> WeatherStation:
 	var origin := body.global_position if body != null else (
 		_glider.global_position if _glider != null else Vector3.ZERO
 	)
-	var best: WeatherStation = null
-	var best_dist := INF
-	for node in get_tree().get_nodes_in_group("weather_station"):
-		var station := node as WeatherStation
-		if station == null or not is_instance_valid(station):
-			continue
-		var dist := Vector2(
-			station.global_position.x - origin.x,
-			station.global_position.z - origin.z
-		).length()
-		if dist < best_dist:
-			best_dist = dist
-			best = station
-	return best
+	return WorldQueries.nearest_in_group(get_tree(), "weather_station", origin) as WeatherStation
 
 
 func _get_active_body() -> PhysicsBody3D:
 	if _rig == null:
 		return null
-	return _rig.call("get_active_body") as PhysicsBody3D
+	return _rig.get_active_body()
 
 
 func _is_slow_enough() -> bool:
 	var body := _get_active_body()
 	if body == null:
 		return false
-	return Vector2(body.velocity.x, body.velocity.z).length() <= INTERACT_MAX_SPEED
+	return MathUtil.horizontal_speed(body.velocity) <= INTERACT_MAX_SPEED
 
 
 func _resolve_action() -> Dictionary:
@@ -206,7 +193,7 @@ func _complete_rest() -> void:
 func _can_loot() -> bool:
 	if _rig == null:
 		return false
-	if _rig.has_method("is_mounted") and _rig.call("is_mounted"):
+	if _rig.is_mounted():
 		return false
 	var body := _get_active_body()
 	if body == null:

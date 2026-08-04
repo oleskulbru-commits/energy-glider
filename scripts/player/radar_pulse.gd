@@ -7,14 +7,14 @@ signal pulse_fired(target_ripple: int)
 const COOLDOWN_SEC := 5.0
 const BEAM_DURATION_SEC := 4.0
 
-var _rig: Node3D
-var _interactor: Node
+var _rig: PlayerRig
+var _interactor: PlayerInteractor
 var _cooldown_remaining := 0.0
 
 
 func _ready() -> void:
-	_rig = get_parent() as Node3D
-	_interactor = _rig.get_node_or_null("PlayerInteractor") if _rig != null else null
+	_rig = get_parent() as PlayerRig
+	_interactor = _rig.get_node_or_null("PlayerInteractor") as PlayerInteractor if _rig != null else null
 
 
 func _process(delta: float) -> void:
@@ -102,11 +102,10 @@ static func _is_radar_poi(node: Object) -> bool:
 func _can_pulse() -> bool:
 	if _rig == null:
 		return false
-	if _rig.has_method("is_mounted") and not _rig.call("is_mounted"):
+	if not _rig.is_mounted():
 		return false
 	if _interactor == null:
-		_interactor = _rig.get_node_or_null("PlayerInteractor")
-	if _interactor != null and _interactor.has_method("is_loot_ui_open"):
-		if _interactor.call("is_loot_ui_open"):
-			return false
+		_interactor = _rig.get_node_or_null("PlayerInteractor") as PlayerInteractor
+	if _interactor != null and _interactor.is_loot_ui_open():
+		return false
 	return true

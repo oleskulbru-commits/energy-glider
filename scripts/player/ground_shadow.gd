@@ -32,29 +32,32 @@ func _physics_process(_delta: float) -> void:
 		return
 
 	var clearance := player.get_clearance()
-	var from := player.global_position + Vector3(0.0, 2.0, 0.0)
-	var to := from + Vector3.DOWN * RAY_LENGTH
-	var space_state := get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(from, to)
-	query.collision_mask = 1
-	query.exclude = [player.get_rid()]
-	var hit := space_state.intersect_ray(query)
+	var terrain: TerrainManager = null
+	if player.terrain_manager_path != NodePath():
+		terrain = player.get_node_or_null(player.terrain_manager_path) as TerrainManager
 
-	if hit.is_empty():
+	var world := get_world_3d()
+	var space := world.direct_space_state if world != null else null
+	var surface := TerrainQuery.sample_surface(
+		terrain,
+		space,
+		player.global_position.x,
+		player.global_position.z,
+		player.global_position.y,
+		1.5,
+		[player.get_rid()],
+		2.0,
+		RAY_LENGTH
+	)
+	if surface.is_empty():
 		_mesh.visible = false
 		return
 
 	_mesh.visible = true
-	var surface_point: Vector3 = hit.position + hit.normal * SHADOW_GROUND_OFFSET
+	var surface_normal: Vector3 = surface.normal
+	var surface_point: Vector3 = surface.position + surface_normal * SHADOW_GROUND_OFFSET
 	global_position = surface_point
-	var basis := Basis()
-	basis.y = hit.normal
-	basis.x = Vector3.UP.cross(hit.normal)
-	if basis.x.length_squared() < 0.0001:
-		basis.x = Vector3.RIGHT.cross(hit.normal)
-	basis.x = basis.x.normalized()
-	basis.z = basis.x.cross(basis.y)
-	global_basis = basis
+	global_basis = TerrainQuery.basis_from_up(surface_normal)
 
 	var scale_factor := lerpf(1.0, 2.4, clampf(clearance / MAX_CLEARANCE, 0.0, 1.0))
 	_mesh.scale = Vector3(scale_factor, 1.0, scale_factor)

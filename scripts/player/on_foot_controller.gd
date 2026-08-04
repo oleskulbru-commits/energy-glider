@@ -15,7 +15,7 @@ var _camera_yaw := 0.0
 var _move_forward := Vector3.BACK
 var _move_right := Vector3.RIGHT
 var _locomotion_enabled := false
-var _rig: Node
+var _rig: PlayerRig
 
 
 func _ready() -> void:
@@ -25,7 +25,7 @@ func _ready() -> void:
 	safe_margin = 0.08
 	visible = false
 	set_physics_process(false)
-	_rig = get_parent()
+	_rig = get_parent() as PlayerRig
 
 
 func set_active(active: bool) -> void:
@@ -41,7 +41,7 @@ func set_locomotion_enabled(enabled: bool) -> void:
 
 func set_camera_yaw(yaw: float) -> void:
 	_camera_yaw = yaw
-	_move_forward = Vector3(sin(yaw), 0.0, cos(yaw))
+	_move_forward = MathUtil.yaw_forward(yaw)
 	_move_right = Vector3.UP.cross(_move_forward).normalized()
 
 
@@ -55,7 +55,7 @@ func sync_camera_movement_axes(camera: Camera3D) -> void:
 	if forward.length_squared() > 0.0001:
 		forward = forward.normalized()
 	else:
-		forward = Vector3(sin(_camera_yaw), 0.0, cos(_camera_yaw))
+		forward = MathUtil.yaw_forward(_camera_yaw)
 	if right.length_squared() > 0.0001:
 		right = right.normalized()
 	else:
@@ -129,19 +129,21 @@ func _snap_to_ground() -> void:
 
 
 func _query_ground_y(world_x: float, world_z: float) -> float:
-	var space_state := get_world_3d().direct_space_state
-	if space_state != null:
-		var from := Vector3(world_x, global_position.y + GROUND_RAY_START_ABOVE, world_z)
-		var to := Vector3(world_x, global_position.y - GROUND_RAY_LENGTH, world_z)
-		var query := PhysicsRayQueryParameters3D.create(from, to)
-		query.collision_mask = 1
-		var hit := space_state.intersect_ray(query)
-		if not hit.is_empty():
-			return hit.position.y
-
-	if _rig != null and _rig.has_method("get_terrain_manager"):
-		var terrain := _rig.call("get_terrain_manager") as TerrainManager
-		if terrain != null:
-			return terrain.sample_height(world_x, world_z)
-
+	var space := get_world_3d().direct_space_state if get_world_3d() != null else null
+	var terrain := _rig.get_terrain_manager() if _rig != null else null
+	# Prefer collision mesh when available so foot placement matches walkable geometry.
+	var ray_y := TerrainQuery.sample_height(
+		null,
+		space,
+		world_x,
+		world_z,
+		global_position.y,
+		[],
+		GROUND_RAY_START_ABOVE,
+		GROUND_RAY_LENGTH
+	)
+	if not is_nan(ray_y):
+		return ray_y
+	if terrain != null:
+		return terrain.sample_height(world_x, world_z)
 	return NAN

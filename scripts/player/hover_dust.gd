@@ -53,34 +53,23 @@ func _configure_particle_mesh() -> void:
 
 
 func _sample_surface_contact(player: GliderPlayer) -> Dictionary:
+	var terrain: TerrainManager = null
 	if player.terrain_manager_path != NodePath():
-		var terrain := player.get_node_or_null(player.terrain_manager_path) as TerrainManager
-		if terrain != null:
-			var world_x := player.global_position.x
-			var world_z := player.global_position.z
-			var height := terrain.sample_height(world_x, world_z)
-			return {
-				"position": Vector3(world_x, height, world_z),
-				"normal": terrain.sample_normal(world_x, world_z, 1.5),
-			}
+		terrain = player.get_node_or_null(player.terrain_manager_path) as TerrainManager
 
 	var world := get_world_3d()
-	if world == null:
-		return {}
-
-	var from := player.global_position + Vector3(0.0, 2.0, 0.0)
-	var to := from + Vector3.DOWN * RAY_LENGTH
-	var query := PhysicsRayQueryParameters3D.create(from, to)
-	query.collision_mask = 1
-	query.exclude = [player.get_rid()]
-	var hit := world.direct_space_state.intersect_ray(query)
-	if hit.is_empty():
-		return {}
-
-	return {
-		"position": hit.position,
-		"normal": hit.normal.normalized(),
-	}
+	var space := world.direct_space_state if world != null else null
+	return TerrainQuery.sample_surface(
+		terrain,
+		space,
+		player.global_position.x,
+		player.global_position.z,
+		player.global_position.y,
+		1.5,
+		[player.get_rid()],
+		2.0,
+		RAY_LENGTH
+	)
 
 
 func _physics_process(_delta: float) -> void:
@@ -104,14 +93,7 @@ func _physics_process(_delta: float) -> void:
 
 	var surface_normal: Vector3 = surface.normal
 	global_position = surface.position + surface_normal * GROUND_OFFSET
-	var basis := Basis()
-	basis.y = surface_normal
-	basis.x = Vector3.UP.cross(surface_normal)
-	if basis.x.length_squared() < 0.0001:
-		basis.x = Vector3.RIGHT.cross(surface_normal)
-	basis.x = basis.x.normalized()
-	basis.z = basis.x.cross(basis.y)
-	global_basis = basis
+	global_basis = TerrainQuery.basis_from_up(surface_normal)
 
 	var height_strength := 1.0 - smoothstep(
 		GliderPhysicsScript.GLIDE_ENTER_HEIGHT,
@@ -123,7 +105,7 @@ func _physics_process(_delta: float) -> void:
 		0.0,
 		1.0
 	)
-	var horizontal_speed := Vector2(player.velocity.x, player.velocity.z).length()
+	var horizontal_speed := MathUtil.horizontal_speed(player.velocity)
 	var speed_strength := clampf(horizontal_speed / 8.0, 0.35, 1.0)
 	var intensity := clampf(height_strength * lerpf(0.55, 1.0, compression) * speed_strength, 0.0, 1.0)
 

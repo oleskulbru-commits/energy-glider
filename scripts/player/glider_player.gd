@@ -96,6 +96,11 @@ const CLEARANCE_SETTLE_RATE := 12.0
 const HOVER_DECK_PLANE_BLEND := 0.5
 const HOVER_DECK_PLANE_BLEND_MIN := 0.18
 const DECK_PLANE_DISAGREE_REF_DEG := 14.0
+const RISE_FACE_GRADE := 0.12
+const CREST_LIP_MIN_GRADE := 0.08
+const AHEAD_FAR_RISE_SCALE := 0.28
+const GROUND_RAY_UP := 8.0
+const GROUND_RAY_DOWN := 24.0
 
 # Charge / boost
 const CHARGE_MAX := 1.0
@@ -304,7 +309,7 @@ func _corner_hover_samples() -> Array:
 	for sample in _predictive_surface.samples:
 		if not sample.valid:
 			continue
-		if sample.tag == "corner" or (include_nose and sample.tag in ["nose", "nose_corner"]):
+		if sample.tag == "corner" or (include_nose and TerrainProbesScript.is_nose_tag(sample.tag)):
 			pass
 		else:
 			continue
@@ -324,18 +329,7 @@ func _corner_hover_samples() -> Array:
 func _corner_clearance_spread() -> float:
 	if _predictive_surface == null:
 		return 0.0
-	var min_clearance := INF
-	var max_clearance := -INF
-	for sample in _predictive_surface.samples:
-		if not sample.valid:
-			continue
-		if sample.tag not in ["corner", "nose", "tail", "center", "nose_corner"]:
-			continue
-		min_clearance = minf(min_clearance, sample.clearance)
-		max_clearance = maxf(max_clearance, sample.clearance)
-	if min_clearance == INF:
-		return 0.0
-	return max_clearance - min_clearance
+	return TerrainProbesScript.clearance_spread(_predictive_surface.samples)
 
 
 func _apply_hover_forces(
@@ -410,7 +404,7 @@ func _sample_terrain(delta: float) -> void:
 	# Only accelerate normal tracking on clear rising faces — avoid flat-noise false crest launches.
 	if rise_lead > 0.0 and (
 		_is_climbing(_downhill_dir(), _board_forward_on_ground())
-		or _slope_grade() > 0.12
+		or _slope_grade() > RISE_FACE_GRADE
 	):
 		max_normal_step_deg = lerpf(
 			max_normal_step_deg,
@@ -481,10 +475,11 @@ func _ahead_rise_amount() -> float:
 		match sample.tag:
 			"center":
 				center_c = sample.clearance
-			"nose", "nose_corner":
-				nose_c = minf(nose_c, sample.clearance)
-			"ahead_center", "ahead_left", "ahead_right":
-				far_c = minf(far_c, sample.clearance)
+			_:
+				if TerrainProbesScript.is_nose_tag(sample.tag):
+					nose_c = minf(nose_c, sample.clearance)
+				elif TerrainProbesScript.is_ahead_tag(sample.tag):
+					far_c = minf(far_c, sample.clearance)
 	if is_nan(center_c) or nose_c == INF:
 		return 0.0
 
@@ -495,7 +490,7 @@ func _ahead_rise_amount() -> float:
 		for sample in _predictive_surface.samples:
 			if not sample.valid:
 				continue
-			if sample.tag in ["nose", "nose_corner"]:
+			if TerrainProbesScript.is_nose_tag(sample.tag):
 				deck_nose = minf(deck_nose, _deck_probe_clearance_at(sample.local_offset))
 		if deck_nose != INF:
 			board_rise = maxf(deck_center - deck_nose, 0.0)
@@ -506,7 +501,7 @@ func _ahead_rise_amount() -> float:
 
 	# True thruster climbs need foresight up the face; damp far probes so they don't saturate lead.
 	if _is_boost_active() and far_c != INF:
-		var far_rise := maxf(center_c - far_c, 0.0) * 0.28
+		var far_rise := maxf(center_c - far_c, 0.0) * AHEAD_FAR_RISE_SCALE
 		return maxf(board_rise, far_rise)
 	return board_rise
 
@@ -528,7 +523,7 @@ func _derive_probe_normal() -> Vector3:
 	var rise_lead := _ahead_rise_lead()
 	if rise_lead > 0.0 and (
 		_is_climbing(_downhill_dir(), _board_forward_on_ground())
-		or _slope_grade() > 0.12
+		or _slope_grade() > RISE_FACE_GRADE
 	):
 		ahead_weight *= lerpf(1.0, AHEAD_RISE_WEIGHT_SCALE, rise_lead)
 		ahead_weight = maxf(ahead_weight, rise_lead)
@@ -540,13 +535,12 @@ func _derive_probe_normal() -> Vector3:
 		if not sample.valid:
 			continue
 		var weight := 0.0
-		match sample.tag:
-			"corner", "nose", "nose_corner", "tail", "center":
-				weight = 1.0
-			"ahead_center", "ahead_left", "ahead_right":
-				weight = ahead_weight
-			"velocity":
-				weight = velocity_weight
+		if TerrainProbesScript.is_board_tag(sample.tag):
+			weight = 1.0
+		elif TerrainProbesScript.is_ahead_tag(sample.tag):
+			weight = ahead_weight
+		elif sample.tag == "velocity":
+			weight = velocity_weight
 		if weight <= 0.0001:
 			continue
 		var aligned := sample.normal
@@ -629,13 +623,7 @@ func _min_board_probe_clearance() -> float:
 	var min_clearance := _get_raw_clearance()
 	if _predictive_surface == null:
 		return min_clearance
-	for sample in _predictive_surface.samples:
-		if not sample.valid:
-			continue
-		match sample.tag:
-			"corner", "nose", "tail", "center", "nose_corner":
-				min_clearance = minf(min_clearance, sample.clearance)
-	return min_clearance
+	return TerrainProbesScript.min_tagged_clearance(_predictive_surface.samples, min_clearance)
 
 
 func _live_min_board_probe_clearance() -> float:
@@ -644,21 +632,21 @@ func _live_min_board_probe_clearance() -> float:
 		return min_clearance
 	var probe_bottom_y := _probe_bottom_y_offset()
 	var yaw_basis := Basis.from_euler(Vector3(0.0, _yaw, 0.0))
-	for sample in _predictive_surface.samples:
-		if not sample.valid:
-			continue
-		if sample.tag not in ["corner", "nose", "tail", "center", "nose_corner"]:
-			continue
-		var world_offset: Vector3 = yaw_basis * sample.local_offset
-		var probe_y := global_position.y + probe_bottom_y
-		var ground_y := _get_ground_y(
-			global_position.x + world_offset.x,
-			global_position.z + world_offset.z
-		)
-		if is_nan(ground_y):
-			continue
-		min_clearance = minf(min_clearance, probe_y - ground_y)
-	return min_clearance
+	return TerrainProbesScript.min_tagged_clearance(
+		_predictive_surface.samples,
+		min_clearance,
+		Callable(TerrainProbesScript, "is_board_tag"),
+		func(sample) -> float:
+			var world_offset: Vector3 = yaw_basis * sample.local_offset
+			var probe_y := global_position.y + probe_bottom_y
+			var ground_y := _get_ground_y(
+				global_position.x + world_offset.x,
+				global_position.z + world_offset.z
+			)
+			if is_nan(ground_y):
+				return min_clearance
+			return probe_y - ground_y
+	)
 
 
 func _live_min_deck_probe_clearance() -> float:
@@ -666,13 +654,13 @@ func _live_min_deck_probe_clearance() -> float:
 	var min_clearance := _get_raw_clearance()
 	if _predictive_surface == null:
 		return min_clearance
-	for sample in _predictive_surface.samples:
-		if not sample.valid:
-			continue
-		if sample.tag not in ["corner", "nose", "tail", "center", "nose_corner"]:
-			continue
-		min_clearance = minf(min_clearance, _deck_probe_clearance_at(sample.local_offset))
-	return min_clearance
+	return TerrainProbesScript.min_tagged_clearance(
+		_predictive_surface.samples,
+		min_clearance,
+		Callable(TerrainProbesScript, "is_board_tag"),
+		func(sample) -> float:
+			return _deck_probe_clearance_at(sample.local_offset)
+	)
 
 
 func _deck_probe_clearance_at(local_offset: Vector3) -> float:
@@ -824,33 +812,43 @@ func _target_terrain_normal(predict_blend: float) -> Vector3:
 
 
 func _sample_terrain_normal(world_x: float, world_z: float) -> Vector3:
-	if _terrain_manager != null:
-		return _terrain_manager.sample_normal(world_x, world_z, TERRAIN_NORMAL_EPSILON)
-	var hit := _raycast_ground(world_x, world_z)
-	if hit.is_empty():
-		return Vector3.UP
-	return hit.normal
+	return TerrainQuery.sample_normal(
+		_terrain_manager,
+		get_world_3d().direct_space_state if get_world_3d() != null else null,
+		world_x,
+		world_z,
+		global_position.y,
+		TERRAIN_NORMAL_EPSILON,
+		[get_rid()],
+		GROUND_RAY_UP,
+		GROUND_RAY_DOWN
+	)
 
 
 func _get_ground_y(world_x: float, world_z: float) -> float:
-	if _terrain_manager != null:
-		return _terrain_manager.sample_height(world_x, world_z)
-	var hit := _raycast_ground(world_x, world_z)
-	if hit.is_empty():
-		return NAN
-	return hit.position.y
+	return TerrainQuery.sample_height(
+		_terrain_manager,
+		get_world_3d().direct_space_state if get_world_3d() != null else null,
+		world_x,
+		world_z,
+		global_position.y,
+		[get_rid()],
+		GROUND_RAY_UP,
+		GROUND_RAY_DOWN
+	)
 
 
 func _raycast_ground(world_x: float, world_z: float) -> Dictionary:
-	var space := get_world_3d().direct_space_state
-	if space == null:
-		return {}
-	var from := Vector3(world_x, global_position.y + 8.0, world_z)
-	var to := Vector3(world_x, global_position.y - 24.0, world_z)
-	var query := PhysicsRayQueryParameters3D.create(from, to)
-	query.collision_mask = 1
-	query.exclude = [get_rid()]
-	return space.intersect_ray(query)
+	var space := get_world_3d().direct_space_state if get_world_3d() != null else null
+	return TerrainQuery.raycast_ground(
+		space,
+		world_x,
+		world_z,
+		global_position.y,
+		GROUND_RAY_UP,
+		GROUND_RAY_DOWN,
+		[get_rid()]
+	)
 
 
 func _get_raw_clearance() -> float:
@@ -1010,7 +1008,7 @@ func _forward_support_lost() -> bool:
 		return false
 	if velocity.slide(_ground_normal).length() < CREST_LIP_MIN_SPEED:
 		return false
-	if _slope_grade() < 0.08:
+	if _slope_grade() < CREST_LIP_MIN_GRADE:
 		return false
 
 	var probes := _crest_board_clearances()
@@ -1235,7 +1233,7 @@ func _build_deck_world_basis(world_up: Vector3, bank: float) -> Basis:
 
 	var forward := _flat_yaw_forward().slide(up)
 	if forward.length_squared() < 0.0001:
-		forward = Vector3(sin(_yaw), 0.0, cos(_yaw)).slide(up)
+		forward = MathUtil.yaw_forward(_yaw).slide(up)
 	forward = forward.normalized()
 	var right := up.cross(forward).normalized()
 	forward = right.cross(up).normalized()
@@ -1389,10 +1387,9 @@ func _board_forward_on_ground() -> Vector3:
 
 
 func _resolve_follow_camera() -> GliderCameraScript:
-	if _uses_external_camera():
-		var parent := get_parent()
-		if parent != null and parent.has_method("get_follow_camera"):
-			return parent.call("get_follow_camera") as GliderCameraScript
+	var parent := get_parent()
+	if parent is PlayerRig:
+		return (parent as PlayerRig).get_follow_camera()
 	return _camera
 
 
@@ -1406,14 +1403,7 @@ func _camera_forward_on_ground() -> Vector3:
 
 
 func _downhill_dir() -> Vector3:
-	if _terrain_manager == null:
-		return Vector3.ZERO
-	var eps := 1.0
-	var h_x := _terrain_manager.sample_height(global_position.x + eps, global_position.z)
-	var h_mx := _terrain_manager.sample_height(global_position.x - eps, global_position.z)
-	var h_z := _terrain_manager.sample_height(global_position.x, global_position.z + eps)
-	var h_mz := _terrain_manager.sample_height(global_position.x, global_position.z - eps)
-	var downhill := Vector3(h_mx - h_x, 0.0, h_mz - h_z)
+	var downhill := Vector3(-_ground_normal.x, 0.0, -_ground_normal.z)
 	return downhill.normalized() if downhill.length_squared() > 0.0001 else Vector3.ZERO
 
 
@@ -1511,11 +1501,11 @@ func _update_camera(delta: float) -> void:
 
 
 func _flat_yaw_forward() -> Vector3:
-	return Vector3(sin(_yaw), 0.0, cos(_yaw))
+	return MathUtil.yaw_forward(_yaw)
 
 
 func _horizontal_velocity() -> Vector3:
-	return Vector3(velocity.x, 0.0, velocity.z)
+	return MathUtil.horizontal(velocity)
 
 
 func _yaw_from_horizontal(horizontal: Vector3) -> float:
@@ -1563,8 +1553,7 @@ func _resolve_input() -> GliderInputScript:
 
 
 func _uses_external_camera() -> bool:
-	var parent := get_parent()
-	return parent != null and parent.has_method("get_follow_camera")
+	return get_parent() is PlayerRig
 
 
 # --- Public API ---
