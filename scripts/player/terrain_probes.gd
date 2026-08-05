@@ -3,6 +3,13 @@ extends RefCounted
 
 ## Multi-direction terrain probe fan. Pure math + sampling callbacks — no nodes.
 
+const BOARD_TAGS: Array[String] = ["corner", "nose", "tail", "center", "nose_corner"]
+## Plane fit excludes nose_corner — same XZ as front corners; including them double-weights the nose.
+const BOARD_PLANE_TAGS: Array[String] = ["corner", "nose", "tail", "center"]
+const NOSE_TAGS: Array[String] = ["nose", "nose_corner"]
+const AHEAD_TAGS: Array[String] = ["ahead_center", "ahead_left", "ahead_right"]
+
+
 class ProbeSpec:
 	var local_x: float = 0.0
 	var local_z: float = 0.0
@@ -35,6 +42,62 @@ class SurfaceResult:
 	var nose_ground_y: float = NAN
 	var tail_ground_y: float = NAN
 	var center_ground_y: float = NAN
+
+
+static func is_board_tag(tag: String) -> bool:
+	return tag in BOARD_TAGS
+
+
+static func is_board_plane_tag(tag: String) -> bool:
+	return tag in BOARD_PLANE_TAGS
+
+
+static func is_nose_tag(tag: String) -> bool:
+	return tag in NOSE_TAGS
+
+
+static func is_ahead_tag(tag: String) -> bool:
+	return tag in AHEAD_TAGS
+
+
+static func min_tagged_clearance(
+	samples: Array[ProbeSample],
+	fallback: float,
+	tag_filter: Callable = Callable(),
+	clearance_of: Callable = Callable()
+) -> float:
+	var min_clearance := fallback
+	for sample in samples:
+		if not sample.valid:
+			continue
+		if tag_filter.is_valid() and not bool(tag_filter.call(sample.tag)):
+			continue
+		elif not tag_filter.is_valid() and not is_board_tag(sample.tag):
+			continue
+		var clearance: float = (
+			float(clearance_of.call(sample))
+			if clearance_of.is_valid()
+			else sample.clearance
+		)
+		min_clearance = minf(min_clearance, clearance)
+	return min_clearance
+
+
+static func clearance_spread(samples: Array[ProbeSample], tag_filter: Callable = Callable()) -> float:
+	var min_clearance := INF
+	var max_clearance := -INF
+	for sample in samples:
+		if not sample.valid:
+			continue
+		if tag_filter.is_valid() and not bool(tag_filter.call(sample.tag)):
+			continue
+		elif not tag_filter.is_valid() and not is_board_tag(sample.tag):
+			continue
+		min_clearance = minf(min_clearance, sample.clearance)
+		max_clearance = maxf(max_clearance, sample.clearance)
+	if min_clearance == INF:
+		return 0.0
+	return max_clearance - min_clearance
 
 
 static func average_normals(normals: Array[Vector3], reference: Vector3 = Vector3.UP) -> Vector3:
@@ -159,7 +222,7 @@ static func build_surface(
 
 		normals.append(normal)
 		ground_points.append(ground_world)
-		if spec.tag in ["corner", "nose", "tail", "center"]:
+		if is_board_plane_tag(spec.tag):
 			board_points.append(ground_world)
 		result.min_clearance = minf(result.min_clearance, clearance)
 		clearance_sum += clearance

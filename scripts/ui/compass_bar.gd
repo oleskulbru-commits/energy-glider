@@ -42,7 +42,7 @@ static func yaw_to_cardinal_index(yaw: float) -> String:
 
 
 static func angle_diff(from_yaw: float, to_yaw: float) -> float:
-	return wrapf(to_yaw - from_yaw, -PI, PI)
+	return MathUtil.angle_diff(from_yaw, to_yaw)
 
 
 func _draw() -> void:

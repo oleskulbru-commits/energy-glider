@@ -6,16 +6,18 @@ const MOUNT_MAX_DISTANCE := 2.5
 const DISMOUNT_SIDE_OFFSET := 1.2
 const ON_FOOT_FOOT_OFFSET := 0.05
 const ON_FOOT_SPAWN_LIFT := 0.1
+const DISMOUNT_RAY_UP := 20.0
+const DISMOUNT_RAY_DOWN := 200.0
 
 @export var terrain_manager_path: NodePath
 
 var _glider: GliderPlayer
-var _on_foot: CharacterBody3D
+var _on_foot: OnFootController
 const GliderInputScript = preload("res://scripts/input/glider_input.gd")
 
 var _input: GliderInputScript
 var _camera: GliderCamera
-var _interactor: Node
+var _interactor: PlayerInteractor
 var _loot_overlay: LootOverlay
 var _terrain_manager: TerrainManager
 var _mounted := true
@@ -25,9 +27,9 @@ var _mouse_captured := false
 
 func _ready() -> void:
 	_glider = get_node_or_null("Glider") as GliderPlayer
-	_on_foot = get_node_or_null("OnFoot") as CharacterBody3D
+	_on_foot = get_node_or_null("OnFoot") as OnFootController
 	_input = get_node_or_null("GliderInput") as GliderInputScript
-	_interactor = get_node_or_null("PlayerInteractor")
+	_interactor = get_node_or_null("PlayerInteractor") as PlayerInteractor
 	_loot_overlay = get_node_or_null("LootOverlay") as LootOverlay
 	if _loot_overlay != null:
 		_loot_overlay.opened.connect(_on_loot_overlay_opened)
@@ -39,8 +41,8 @@ func _ready() -> void:
 	if terrain_manager_path != NodePath():
 		_terrain_manager = get_node_or_null(terrain_manager_path) as TerrainManager
 
-	if _on_foot != null and _on_foot.has_method("set_active"):
-		_on_foot.call("set_active", false)
+	if _on_foot != null:
+		_on_foot.set_active(false)
 
 	_set_mounted(true, true)
 
@@ -127,7 +129,7 @@ func can_dismount() -> bool:
 		return false
 	if not _glider.is_grounded():
 		return false
-	return _horizontal_speed(_glider.velocity) <= MOUNT_MAX_SPEED
+	return MathUtil.horizontal_speed(_glider.velocity) <= MOUNT_MAX_SPEED
 
 
 func can_mount() -> bool:
@@ -135,7 +137,7 @@ func can_mount() -> bool:
 		return false
 	if _glider.is_run_ended():
 		return false
-	if _horizontal_speed(_on_foot.velocity) > MOUNT_MAX_SPEED:
+	if MathUtil.horizontal_speed(_on_foot.velocity) > MOUNT_MAX_SPEED:
 		return false
 	var offset: Vector3 = _on_foot.global_position - _glider.global_position
 	offset.y = 0.0
@@ -202,10 +204,8 @@ func _set_mounted(mounted: bool, instant: bool = false) -> void:
 		_input.set_locomotion_enabled(mounted)
 
 	if _on_foot != null:
-		if _on_foot.has_method("set_active"):
-			_on_foot.call("set_active", not mounted)
-		if _on_foot.has_method("set_locomotion_enabled"):
-			_on_foot.call("set_locomotion_enabled", not mounted)
+		_on_foot.set_active(not mounted)
+		_on_foot.set_locomotion_enabled(not mounted)
 
 	if _glider != null:
 		_glider.set_piloted(mounted)
@@ -239,7 +239,7 @@ func _update_glider_camera(delta: float) -> void:
 		_terrain_manager,
 		_glider.get_yaw_velocity(),
 		false,
-		_glider.get_camera_air_blend() if _glider.has_method("get_camera_air_blend") else -1.0,
+		_glider.get_camera_air_blend(),
 		steering
 	)
 
@@ -259,12 +259,7 @@ func _update_on_foot_camera(delta: float) -> void:
 		0.0,
 		true
 	)
-	if _on_foot.has_method("sync_camera_movement_axes"):
-		_on_foot.call("sync_camera_movement_axes", _camera)
-
-
-func _horizontal_speed(vel: Vector3) -> float:
-	return Vector2(vel.x, vel.z).length()
+	_on_foot.sync_camera_movement_axes(_camera)
 
 
 func _is_loot_ui_open() -> bool:
@@ -274,8 +269,8 @@ func _is_loot_ui_open() -> bool:
 func _blocks_mount_toggle() -> bool:
 	if _is_loot_ui_open():
 		return true
-	if _interactor != null and _interactor.has_method("blocks_mount_toggle"):
-		return _interactor.call("blocks_mount_toggle")
+	if _interactor != null:
+		return _interactor.blocks_mount_toggle()
 	return false
 
 
@@ -313,7 +308,18 @@ func _update_terrain_track_node() -> void:
 
 
 func _dismount_spawn_y(world_x: float, world_z: float) -> float:
-	var ground_y := _raycast_ground_y(world_x, world_z)
+	var origin_y := _glider.global_position.y if _glider != null else global_position.y
+	var space := get_world_3d().direct_space_state if get_world_3d() != null else null
+	var ground_y := TerrainQuery.sample_height(
+		null,
+		space,
+		world_x,
+		world_z,
+		origin_y,
+		[],
+		DISMOUNT_RAY_UP,
+		DISMOUNT_RAY_DOWN
+	)
 	if is_nan(ground_y):
 		var terrain := get_terrain_manager()
 		if terrain != null:
@@ -323,18 +329,3 @@ func _dismount_spawn_y(world_x: float, world_z: float) -> float:
 		else:
 			ground_y = global_position.y
 	return ground_y - ON_FOOT_FOOT_OFFSET + ON_FOOT_SPAWN_LIFT
-
-
-func _raycast_ground_y(world_x: float, world_z: float) -> float:
-	var space_state := get_world_3d().direct_space_state
-	if space_state == null:
-		return NAN
-	var origin_y := _glider.global_position.y if _glider != null else global_position.y
-	var from := Vector3(world_x, origin_y + 20.0, world_z)
-	var to := Vector3(world_x, origin_y - 200.0, world_z)
-	var query := PhysicsRayQueryParameters3D.create(from, to)
-	query.collision_mask = 1
-	var hit := space_state.intersect_ray(query)
-	if hit.is_empty():
-		return NAN
-	return hit.position.y

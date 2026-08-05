@@ -152,7 +152,7 @@ func follow(
 		_update_chase_yaw(chase_target, speed, steering, delta)
 
 	var aim_yaw := _chase_yaw + _look_yaw_offset
-	var boom_forward := Vector3(sin(aim_yaw), 0.0, cos(aim_yaw))
+	var boom_forward := MathUtil.yaw_forward(aim_yaw)
 	var boom_right := Vector3.UP.cross(boom_forward).normalized()
 
 	if foot_mode:
@@ -211,8 +211,7 @@ func get_follow_yaw() -> float:
 
 
 func get_forward_flat() -> Vector3:
-	var yaw := _get_aim_yaw()
-	return Vector3(sin(yaw), 0.0, cos(yaw))
+	return MathUtil.yaw_forward(_get_aim_yaw())
 
 
 func apply_look_input(rel_x: float, rel_y: float) -> void:
@@ -264,7 +263,7 @@ func reset_follow_state() -> void:
 
 
 static func angle_diff(from_yaw: float, to_yaw: float) -> float:
-	return wrapf(to_yaw - from_yaw, -PI, PI)
+	return MathUtil.angle_diff(from_yaw, to_yaw)
 
 
 static func step_chase_yaw(

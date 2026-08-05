@@ -30,21 +30,21 @@ const GliderInputScript = preload("res://scripts/input/glider_input.gd")
 @onready var _pulse_label: Label = %PulseLabel
 @onready var _pulse_bar: ProgressBar = %PulseBar
 @onready var _day_label: Label = %DayLabel
-@onready var _compass_bar: Control = %CompassBar
+@onready var _compass_bar: CompassBar = %CompassBar
 @onready var _stopped_summary: Label = %StoppedSummary
 @onready var _day_summary_panel: PanelContainer = %DaySummaryPanel
 @onready var _day_summary_label: Label = %DaySummaryLabel
 @onready var _outpost_board: PanelContainer = %OutpostBoard
 @onready var _outpost_board_label: Label = %OutpostBoardLabel
 
-var _rig: Node3D
+var _rig: PlayerRig
 var _player: GliderPlayer
 var _camera: GliderCamera
 var _input: GliderInputScript
 var _radar_pulse: RadarPulse
 var _run_score: RunScore
 var _expedition: ExpeditionState
-var _interactor: Node
+var _interactor: PlayerInteractor
 var _cargo: PlayerCargo
 var _power_fill: StyleBoxFlat
 var _solar_pulse_time := 0.0
@@ -55,20 +55,20 @@ var _day_summary_timer := 0.0
 
 func _ready() -> void:
 	layer = 10
-	_rig = get_parent() as Node3D
+	_rig = get_parent() as PlayerRig
 	if _rig != null:
 		_player = _rig.get_node_or_null("Glider") as GliderPlayer
 		_input = _rig.get_node_or_null("GliderInput") as GliderInputScript
-		_interactor = _rig.get_node_or_null("PlayerInteractor")
+		_interactor = _rig.get_node_or_null("PlayerInteractor") as PlayerInteractor
 		_cargo = _rig.get_node_or_null("PlayerCargo") as PlayerCargo
 		_radar_pulse = _rig.get_node_or_null("RadarPulse") as RadarPulse
 		_camera = _rig.get_node_or_null("Glider/Camera3D") as GliderCamera
 	else:
 		_player = get_parent() as GliderPlayer
 		_input = _player.get_node_or_null("GliderInput") as GliderInputScript
-		_interactor = _player.get_node_or_null("PlayerInteractor")
+		_interactor = _player.get_node_or_null("PlayerInteractor") as PlayerInteractor
 		if _interactor == null:
-			_interactor = _player.get_node_or_null("GliderInteractor")
+			_interactor = _player.get_node_or_null("GliderInteractor") as PlayerInteractor
 
 	_run_score = get_tree().get_first_node_in_group("run_score") as RunScore
 	_expedition = get_tree().get_first_node_in_group("expedition_state") as ExpeditionState
@@ -115,7 +115,7 @@ func _process(delta: float) -> void:
 
 
 func _update_power_meter(delta: float) -> void:
-	var power_ratio := _player.get_power_ratio()
+	var power_ratio := _player.get_charge_ratio()
 	var overheat_ratio := _player.get_overheat_cooldown_ratio()
 	var cooling_progress := 1.0 - overheat_ratio
 
@@ -124,7 +124,7 @@ func _update_power_meter(delta: float) -> void:
 
 	if _player.is_run_ended():
 		_power_label.text = "STOPPED"
-	elif _rig != null and _rig.has_method("is_mounted") and not _rig.call("is_mounted"):
+	elif _rig != null and not _rig.is_mounted():
 		_power_label.text = "ON FOOT"
 	elif _player.is_overheated():
 		_power_label.text = "COOLING"
@@ -132,7 +132,7 @@ func _update_power_meter(delta: float) -> void:
 		_power_label.text = "Thruster Charge"
 
 	var solar_active := _player.is_solar_charging()
-	_solar_chip.visible = solar_active and (_rig == null or not _rig.has_method("is_mounted") or _rig.call("is_mounted"))
+	_solar_chip.visible = solar_active and (_rig == null or _rig.is_mounted())
 
 	if _power_fill == null:
 		return
@@ -163,7 +163,7 @@ func _on_day_ended(summary: Dictionary) -> void:
 	var score := int(summary.get("score", 0))
 	_day_summary_label.text = "DAY %d COMPLETE\n%s  +%d pts" % [
 		int(summary.get("day", 1)),
-		_format_day_distance(distance_m),
+		MathUtil.format_distance_m(distance_m),
 		score,
 	]
 	_day_summary_panel.visible = true
@@ -198,9 +198,7 @@ func _update_compass() -> void:
 	var yaw := _camera.get_follow_yaw()
 	_compass_bar.set_yaw(yaw)
 
-	var track_pos := _player.global_position
-	if _rig != null and _rig.has_method("get_tracking_position"):
-		track_pos = _rig.call("get_tracking_position")
+	var track_pos := _tracking_position()
 
 	var poi_bearing := _resolve_poi_bearing(track_pos)
 	if is_nan(poi_bearing):
@@ -208,23 +206,22 @@ func _update_compass() -> void:
 	else:
 		_compass_bar.set_poi_bearing(poi_bearing)
 
-	if _compass_bar.has_method("set_outpost_bearings"):
-		_compass_bar.call("set_outpost_bearings", _resolve_outpost_bearings(track_pos, 3))
+	_compass_bar.set_outpost_bearings(_resolve_outpost_bearings(track_pos, 3))
+
+
+func _tracking_position() -> Vector3:
+	if _rig != null:
+		return _rig.get_tracking_position()
+	return _player.global_position
 
 
 func _resolve_outpost_bearings(track_pos: Vector3, limit: int) -> Array:
-	var ranked: Array = []
-	for node in get_tree().get_nodes_in_group("weather_station"):
-		var station := node as Node3D
-		if station == null:
-			continue
-		var dx := station.global_position.x - track_pos.x
-		var dz := station.global_position.z - track_pos.z
-		var dist := Vector2(dx, dz).length()
-		if dist < 40.0:
-			continue
-		ranked.append({ "dist": dist, "bearing": atan2(dx, dz) })
-	ranked.sort_custom(func(a, b): return float(a.dist) < float(b.dist))
+	var ranked := WorldQueries.ranked_in_group(
+		get_tree(),
+		"weather_station",
+		track_pos,
+		40.0
+	)
 	var bearings: Array = []
 	for i in mini(limit, ranked.size()):
 		bearings.append(float(ranked[i].bearing))
@@ -234,45 +231,33 @@ func _resolve_outpost_bearings(track_pos: Vector3, limit: int) -> Array:
 func _update_outpost_board() -> void:
 	if _outpost_board == null or _outpost_board_label == null or _player == null:
 		return
-	var track_pos := _player.global_position
-	if _rig != null and _rig.has_method("get_tracking_position"):
-		track_pos = _rig.call("get_tracking_position")
+	var track_pos := _tracking_position()
 
-	var hub: Node3D = null
-	var hub_dist := INF
-	for node in get_tree().get_nodes_in_group("weather_station"):
-		var station := node as Node3D
-		if station == null:
-			continue
-		var dist := Vector2(
-			station.global_position.x - track_pos.x,
-			station.global_position.z - track_pos.z
-		).length()
-		if dist < hub_dist:
-			hub_dist = dist
-			hub = station
+	var ranked := WorldQueries.ranked_in_group(get_tree(), "weather_station", track_pos)
+	if ranked.is_empty():
+		_outpost_board.visible = false
+		return
 
+	var hub := ranked[0].node as Node3D
+	var hub_dist := float(ranked[0].dist)
 	if hub == null or hub_dist > AntennaState.HUB_RADIUS_M:
 		_outpost_board.visible = false
 		return
 
-	var neighbors: Array = []
-	for node in get_tree().get_nodes_in_group("weather_station"):
-		var station := node as Node3D
-		if station == null or station == hub:
-			continue
-		var dx := station.global_position.x - hub.global_position.x
-		var dz := station.global_position.z - hub.global_position.z
-		var dist := Vector2(dx, dz).length()
-		neighbors.append({ "dist": dist, "bearing": atan2(dx, dz) })
-	neighbors.sort_custom(func(a, b): return float(a.dist) < float(b.dist))
+	var neighbors := WorldQueries.ranked_in_group(
+		get_tree(),
+		"weather_station",
+		hub.global_position,
+		0.0,
+		hub
+	)
 
 	var lines: PackedStringArray = PackedStringArray(["NEARBY OUTPOSTS"])
 	for i in mini(3, neighbors.size()):
 		var entry: Dictionary = neighbors[i]
 		lines.append("%s  %s" % [
 			_bearing_to_compass_label(float(entry.bearing)),
-			_format_day_distance(float(entry.dist)),
+			MathUtil.format_distance_m(float(entry.dist)),
 		])
 	_outpost_board_label.text = "\n".join(lines)
 	_outpost_board.visible = true
@@ -302,15 +287,7 @@ func _resolve_poi_bearing(track_pos: Vector3) -> float:
 				found = true
 	if not found:
 		return NAN
-	var dx := best_pos.x - track_pos.x
-	var dz := best_pos.z - track_pos.z
-	return atan2(dx, dz)
-
-
-func _format_day_distance(distance_m: float) -> String:
-	if distance_m >= 1000.0:
-		return "%.1f km" % (distance_m / 1000.0)
-	return "%d m" % int(roundf(distance_m))
+	return MathUtil.bearing_to(track_pos, best_pos)
 
 
 func _on_cargo_changed(_used_slots: int, _capacity: int) -> void:
@@ -339,6 +316,7 @@ func _update_landing_feedback() -> void:
 		_sail_chip.visible = false
 		return
 
+	# SailChip nodes host landing HARD/SKIM feedback in the current HUD scene.
 	_sail_chip.visible = true
 	_sail_label.text = feedback.get("label", "")
 	_sail_label.remove_theme_color_override("font_color")
@@ -349,7 +327,7 @@ func _update_interact_prompt() -> void:
 		_interact_chip.visible = false
 		return
 
-	var prompt: Dictionary = _interactor.call("get_interact_prompt") if _interactor.has_method("get_interact_prompt") else {}
+	var prompt: Dictionary = _interactor.get_interact_prompt()
 	_interact_chip.visible = prompt.get("visible", false)
 	if not _interact_chip.visible:
 		return
@@ -367,11 +345,11 @@ func _update_stop_chip() -> void:
 	if _player == null or _stop_chip == null:
 		return
 
-	if _rig != null and _rig.has_method("is_mounted") and not _rig.call("is_mounted"):
+	if _rig != null and not _rig.is_mounted():
 		_stop_chip.visible = false
 		return
 
-	var speed := Vector2(_player.velocity.x, _player.velocity.z).length()
+	var speed := MathUtil.horizontal_speed(_player.velocity)
 	var show_chip := (_player.is_braking() or speed > 0.8) and not _player.is_run_ended()
 	_stop_chip.visible = show_chip
 	if not show_chip:
@@ -398,11 +376,7 @@ func _update_pulse_chip(delta: float = 0.0) -> void:
 	if _radar_pulse == null and _rig != null:
 		_radar_pulse = _rig.get_node_or_null("RadarPulse") as RadarPulse
 
-	var mounted: bool = (
-		_rig == null
-		or not _rig.has_method("is_mounted")
-		or bool(_rig.call("is_mounted"))
-	)
+	var mounted: bool = _rig == null or _rig.is_mounted()
 	_pulse_chip.visible = mounted and _player != null and not _player.is_run_ended()
 	if not _pulse_chip.visible:
 		return
@@ -445,8 +419,8 @@ func _on_interact_chip_gui_input(event: InputEvent) -> void:
 			if mouse.pressed:
 				_interact_tap_down = true
 				if _interactor.get_interact_prompt().get("tap_action", false):
-					if _rig != null and _rig.has_method("request_mount_toggle"):
-						_rig.call("request_mount_toggle")
+					if _rig != null:
+						_rig.request_mount_toggle()
 					return
 			else:
 				_interact_tap_down = false

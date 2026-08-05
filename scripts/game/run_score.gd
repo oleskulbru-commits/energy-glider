@@ -5,7 +5,7 @@ extends Node
 @export var terrain_manager_path: NodePath
 
 var _player: GliderPlayer
-var _rig: Node3D
+var _rig: PlayerRig
 var _terrain_manager: TerrainManager
 var _distance_m := 0.0
 var _day_start_distance_m := 0.0
@@ -18,7 +18,7 @@ func _ready() -> void:
 
 	if player_path != NodePath():
 		var node := get_node_or_null(player_path)
-		_rig = node as Node3D
+		_rig = node as PlayerRig
 		if _rig != null:
 			_player = _rig.get_node_or_null("Glider") as GliderPlayer
 		else:
@@ -43,8 +43,8 @@ func _process(_delta: float) -> void:
 
 
 func _get_track_position() -> Vector3:
-	if _rig != null and _rig.has_method("get_tracking_position"):
-		return _rig.call("get_tracking_position")
+	if _rig != null:
+		return _rig.get_tracking_position()
 	if _player != null:
 		return _player.global_position
 	return Vector3.ZERO
@@ -78,7 +78,4 @@ func get_final_distance_m() -> float:
 
 
 func format_distance() -> String:
-	var distance := get_distance_m()
-	if distance >= 1000.0:
-		return "%.1f km" % (distance / 1000.0)
-	return "%d m" % int(roundf(distance))
+	return MathUtil.format_distance_m(get_distance_m())

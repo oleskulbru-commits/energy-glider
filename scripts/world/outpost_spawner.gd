@@ -29,7 +29,7 @@ func _spawn_outposts() -> void:
 		var radius := outpost_spacing_m * float(ring)
 		for i in 6:
 			var angle := float(i) / 6.0 * TAU + (0.0 if ring % 2 == 1 else TAU / 12.0)
-			planned.append(origin + Vector3(sin(angle) * radius, 0.0, cos(angle) * radius))
+			planned.append(origin + MathUtil.yaw_forward(angle) * radius)
 
 	for pos in planned:
 		_spawn_one(pos, terrain)

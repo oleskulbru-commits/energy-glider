@@ -73,18 +73,21 @@ func _snap_to_terrain(delta: float) -> void:
 
 
 func _sample_ground_height() -> float:
-	var space_state := get_world_3d().direct_space_state
-	var from := global_position + Vector3(0.0, 3.0, 0.0)
-	var to := from + Vector3.DOWN * GROUND_RAY_LENGTH
-	var query := PhysicsRayQueryParameters3D.create(from, to)
-	query.collision_mask = 1
-	var hit := space_state.intersect_ray(query)
-	if not hit.is_empty():
-		return hit.position.y
-
+	var space := get_world_3d().direct_space_state if get_world_3d() != null else null
+	var ray_y := TerrainQuery.sample_height(
+		null,
+		space,
+		global_position.x,
+		global_position.z,
+		global_position.y,
+		[],
+		3.0,
+		GROUND_RAY_LENGTH
+	)
+	if not is_nan(ray_y):
+		return ray_y
 	if _terrain_manager != null:
 		return _terrain_manager.sample_height(global_position.x, global_position.z)
-
 	return NAN
 
 

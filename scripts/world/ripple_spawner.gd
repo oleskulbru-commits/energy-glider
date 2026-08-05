@@ -324,7 +324,7 @@ static func _try_place_entry(
 		if ripple_index == 0:
 			angle_offset *= 0.35
 		var theta := bearing_rad + angle_offset
-		var offset := Vector3(sin(theta) * radius, 0.0, cos(theta) * radius)
+		var offset := MathUtil.yaw_forward(theta) * radius
 		var world_pos := origin + offset
 		if terrain != null:
 			# Height/normal sampling does not need meshes; avoid sync chunk loads (editor freeze).
@@ -358,7 +358,7 @@ static func _place_fallback_entry(
 	max_slope: float
 ) -> void:
 	var theta := bearing_rad
-	var offset := Vector3(sin(theta) * center_dist, 0.0, cos(theta) * center_dist)
+	var offset := MathUtil.yaw_forward(theta) * center_dist
 	var world_pos := origin + offset
 	if terrain != null:
 		world_pos.y = terrain.sample_height(world_pos.x, world_pos.z)
