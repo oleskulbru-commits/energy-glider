@@ -4,6 +4,8 @@ extends RefCounted
 ## Multi-direction terrain probe fan. Pure math + sampling callbacks — no nodes.
 
 const BOARD_TAGS: Array[String] = ["corner", "nose", "tail", "center", "nose_corner"]
+## Plane fit excludes nose_corner — same XZ as front corners; including them double-weights the nose.
+const BOARD_PLANE_TAGS: Array[String] = ["corner", "nose", "tail", "center"]
 const NOSE_TAGS: Array[String] = ["nose", "nose_corner"]
 const AHEAD_TAGS: Array[String] = ["ahead_center", "ahead_left", "ahead_right"]
 
@@ -44,6 +46,10 @@ class SurfaceResult:
 
 static func is_board_tag(tag: String) -> bool:
 	return tag in BOARD_TAGS
+
+
+static func is_board_plane_tag(tag: String) -> bool:
+	return tag in BOARD_PLANE_TAGS
 
 
 static func is_nose_tag(tag: String) -> bool:
@@ -216,7 +222,7 @@ static func build_surface(
 
 		normals.append(normal)
 		ground_points.append(ground_world)
-		if is_board_tag(spec.tag):
+		if is_board_plane_tag(spec.tag):
 			board_points.append(ground_world)
 		result.min_clearance = minf(result.min_clearance, clearance)
 		clearance_sum += clearance
