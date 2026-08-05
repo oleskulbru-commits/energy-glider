@@ -114,3 +114,15 @@ static func basis_from_up(normal: Vector3) -> Basis:
 	basis.x = basis.x.normalized()
 	basis.z = basis.x.cross(basis.y)
 	return basis
+
+
+static func downhill_dir(terrain: TerrainManager, world_x: float, world_z: float, epsilon: float = 1.0) -> Vector3:
+	if terrain == null:
+		return Vector3.ZERO
+	var h_x := terrain.sample_height(world_x + epsilon, world_z)
+	var h_mx := terrain.sample_height(world_x - epsilon, world_z)
+	var h_z := terrain.sample_height(world_x, world_z + epsilon)
+	var h_mz := terrain.sample_height(world_x, world_z - epsilon)
+	# Finite difference of height points downhill (same sign as sample_normal XZ).
+	var downhill := Vector3(h_mx - h_x, 0.0, h_mz - h_z)
+	return downhill.normalized() if downhill.length_squared() > 0.0001 else Vector3.ZERO

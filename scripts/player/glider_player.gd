@@ -1403,8 +1403,7 @@ func _camera_forward_on_ground() -> Vector3:
 
 
 func _downhill_dir() -> Vector3:
-	var downhill := Vector3(-_ground_normal.x, 0.0, -_ground_normal.z)
-	return downhill.normalized() if downhill.length_squared() > 0.0001 else Vector3.ZERO
+	return TerrainQuery.downhill_dir(_terrain_manager, global_position.x, global_position.z)
 
 
 func _slope_grade() -> float:
