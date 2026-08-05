@@ -5,6 +5,7 @@ $ErrorActionPreference = "Stop"
 
 $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..\..\..")
 $GodotCandidates = @(
+    "D:\Godot\Godot_v4.7.1-stable_win64_console.exe",
     "C:\Users\olema\OneDrive\Documents\heathen\.tools\Godot_v4.6.3-stable_win64_console.exe",
     "godot",
     "Godot_v4.6.3-stable_win64_console.exe"
@@ -29,6 +30,13 @@ if (-not $Godot) {
 
 Write-Host "Project: $ProjectRoot"
 Write-Host "Godot:   $Godot"
+Write-Host ""
+
+# Ensure global class_name scripts (MathUtil, TerrainQuery, …) are registered
+# before --script loads. Fresh clones / new helper scripts need this pass.
+Write-Host "Importing project (class cache)..."
+& $Godot --headless --path $ProjectRoot --import
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Write-Host ""
 
 & $Godot --headless --path $ProjectRoot --script res://scripts/player/verify_glider.gd
