@@ -74,6 +74,10 @@ func _boot() -> void:
 func _process(_delta: float) -> void:
 	if _eon == null or phase != Phase.AWAITING_EON or _rig == null:
 		return
+	var glider := _get_glider()
+	var run_ended := glider != null and glider.is_run_ended()
+	if not can_collect_eon_while(awaiting_death_choice, run_ended):
+		return
 	var body := _rig.get_active_body()
 	if body != null and _eon.try_collect(body):
 		_on_eon_collected()
@@ -290,3 +294,7 @@ static func apply_death_integrity_loss(current: int, loss: int = INTEGRITY_LOSS_
 
 static func can_try_again_with_integrity(current: int) -> bool:
 	return current > 0
+
+
+static func can_collect_eon_while(awaiting_death: bool, run_ended: bool) -> bool:
+	return not awaiting_death and not run_ended

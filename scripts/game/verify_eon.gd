@@ -17,6 +17,7 @@ func _run_tests() -> void:
 	_verify_integrity_loss()
 	_verify_try_again_gate()
 	_verify_objective_text()
+	_verify_pickup_blocked_while_dead()
 	print("E.O.N verification passed.")
 	quit(0)
 
@@ -55,4 +56,23 @@ func _verify_objective_text() -> void:
 	_fail_unless(
 		EonDirectorScript.OBJECTIVE_RETRIEVE == "Retrieve the E.O.N",
 		"Retrieve objective should use E.O.N display name"
+	)
+
+
+func _verify_pickup_blocked_while_dead() -> void:
+	_fail_unless(
+		EonDirectorScript.can_collect_eon_while(false, false),
+		"Pickup should be allowed while alive and not on death screen"
+	)
+	_fail_unless(
+		not EonDirectorScript.can_collect_eon_while(true, false),
+		"Pickup should be blocked while awaiting death choice"
+	)
+	_fail_unless(
+		not EonDirectorScript.can_collect_eon_while(false, true),
+		"Pickup should be blocked while run is ended"
+	)
+	_fail_unless(
+		not EonDirectorScript.can_collect_eon_while(true, true),
+		"Pickup should be blocked while dead and awaiting choice"
 	)
