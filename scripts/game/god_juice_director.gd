@@ -208,7 +208,7 @@ func _spawn_juice_at(world_pos: Vector3) -> void:
 	_despawn_juice()
 	var placed_xz := _pick_ridge_xz(world_pos)
 	var height := _sample_ground_y(placed_xz.x, placed_xz.y)
-	var spawn_pos := Vector3(placed_xz.x, height + 1.2, placed_xz.y)
+	var spawn_pos := Vector3(placed_xz.x, height + 0.08, placed_xz.y)
 
 	_juice = GodJuicePickupScene.instantiate() as GodJuicePickupScript
 	add_child(_juice)

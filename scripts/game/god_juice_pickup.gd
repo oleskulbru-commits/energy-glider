@@ -8,19 +8,24 @@ const BOB_SPEED := 2.4
 const BOB_HEIGHT := 0.18
 const SPIN_SPEED := 1.6
 
-var _base_y := 0.0
+@onready var _visual: Node3D = $Visual
+
+var _visual_base_y := 0.0
 var _bob_time := 0.0
 
 
 func _ready() -> void:
 	add_to_group("god_juice")
-	_base_y = global_position.y
+	if _visual != null:
+		_visual_base_y = _visual.position.y
 
 
 func _process(delta: float) -> void:
+	if _visual == null:
+		return
 	_bob_time += delta
-	global_position.y = _base_y + sin(_bob_time * BOB_SPEED) * BOB_HEIGHT
-	rotate_y(SPIN_SPEED * delta)
+	_visual.position.y = _visual_base_y + sin(_bob_time * BOB_SPEED) * BOB_HEIGHT
+	_visual.rotate_y(SPIN_SPEED * delta)
 
 
 func try_collect(body: Node3D) -> bool:
