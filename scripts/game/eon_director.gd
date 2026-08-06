@@ -205,9 +205,10 @@ func _on_player_run_ended() -> void:
 	if awaiting_death_choice:
 		return
 	death_position = _rig.get_tracking_position() if _rig != null else Vector3.ZERO
-	# After first pickup, every death drops the E.O.N at the death spot on soft retry.
-	# Before first pickup it still exists — leave it where it is.
-	_respawn_eon_at_death = should_respawn_eon_at_death(_run_bootstrapped)
+	# Only re-drop at death if the E.O.N was collected this attempt (despawned).
+	# If it is already on the ground awaiting pickup, leave it where it is.
+	# Integrity still deteriorates after the first-ever pickup for this run.
+	_respawn_eon_at_death = should_respawn_eon_at_death(phase == Phase.RUNNING)
 	phase = Phase.AWAITING_EON
 	if should_apply_integrity_loss_on_death(_run_bootstrapped):
 		integrity = apply_death_integrity_loss(integrity)
@@ -311,8 +312,8 @@ static func should_apply_integrity_loss_on_death(has_collected_eon: bool) -> boo
 	return has_collected_eon
 
 
-static func should_respawn_eon_at_death(has_collected_eon: bool) -> bool:
-	return has_collected_eon
+static func should_respawn_eon_at_death(was_carrying_eon: bool) -> bool:
+	return was_carrying_eon
 
 
 static func can_collect_eon_while(awaiting_death: bool, run_ended: bool) -> bool:

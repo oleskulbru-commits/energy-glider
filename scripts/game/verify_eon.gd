@@ -92,19 +92,19 @@ func _verify_integrity_loss_requires_pickup() -> void:
 
 
 func _verify_sticky_integrity_after_first_collect() -> void:
-	# After first pickup, deaths while awaiting re-pickup still cost integrity and
-	# still re-drop the E.O.N at the latest death spot (not gated on phase RUNNING).
+	# After first pickup, deaths while awaiting re-pickup still cost integrity,
+	# but the grounded E.O.N only moves if it was collected again this attempt.
 	_fail_unless(
 		EonDirectorScript.should_apply_integrity_loss_on_death(true),
 		"Integrity should keep dropping on death while awaiting re-pickup"
 	)
 	_fail_unless(
 		EonDirectorScript.should_respawn_eon_at_death(true),
-		"E.O.N should re-drop at death after first collect even before re-pickup"
+		"E.O.N should re-drop at death when it was picked up this attempt"
 	)
 	_fail_unless(
 		not EonDirectorScript.should_respawn_eon_at_death(false),
-		"E.O.N should not re-drop at death before first collect"
+		"E.O.N should stay put when dying before re-pickup"
 	)
 	var integrity := 100
 	integrity = EonDirectorScript.apply_death_integrity_loss(integrity)
