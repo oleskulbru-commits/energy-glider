@@ -1,31 +1,36 @@
-class_name GodJuiceDirector
+class_name EonDirector
 extends Node
 
-signal juice_spawned(position: Vector3)
-signal juice_collected
+signal eon_spawned(position: Vector3)
+signal eon_collected
 signal integrity_changed(integrity: int)
 signal run_started
 signal player_died(position: Vector3)
+signal objective_changed(text: String)
 
-enum Phase { AWAITING_JUICE, RUNNING }
+enum Phase { AWAITING_EON, RUNNING }
 
 const INTEGRITY_START := 100
 const INTEGRITY_LOSS_PER_DEATH := 20
-const JUICE_REVEAL_DISTANCE_M := 1000.0
-const JUICE_FIRST_SPAWN_MIN_M := 80.0
-const JUICE_FIRST_SPAWN_MAX_M := 150.0
-const JUICE_RIDGE_SAMPLE_RADIUS_M := 80.0
-const JUICE_RIDGE_SAMPLE_STEPS := 8
+const EON_REVEAL_DISTANCE_M := 1000.0
+const EON_FIRST_SPAWN_MIN_M := 80.0
+const EON_FIRST_SPAWN_MAX_M := 150.0
+const EON_RIDGE_SAMPLE_RADIUS_M := 80.0
+const EON_RIDGE_SAMPLE_STEPS := 8
+const OBJECTIVE_RETRIEVE := "Retrieve the E.O.N"
 
-const GodJuicePickupScene := preload("res://scenes/game/god_juice_pickup.tscn")
-const GodJuicePickupScript := preload("res://scripts/game/god_juice_pickup.gd")
+const EonPickupScene := preload("res://scenes/game/eon_pickup.tscn")
+const EonPickupScript := preload("res://scripts/game/eon_pickup.gd")
 
 @export var player_rig_path: NodePath
 @export var terrain_manager_path: NodePath
 @export var run_score_path: NodePath
 @export var expedition_state_path: NodePath
 
-var phase: Phase = Phase.AWAITING_JUICE
+## Stub for future relay tower progression (displayed after E.O.N pickup).
+var next_relay_label := "x"
+
+var phase: Phase = Phase.AWAITING_EON
 var integrity: int = INTEGRITY_START
 var death_position := Vector3.ZERO
 var awaiting_death_choice := false
@@ -34,7 +39,7 @@ var _rig: PlayerRig
 var _terrain: TerrainManager
 var _run_score: RunScore
 var _expedition: ExpeditionState
-var _juice: GodJuicePickupScript
+var _eon: EonPickupScript
 var _spawn_position := Vector3.ZERO
 var _spawn_yaw := 0.0
 var _run_bootstrapped := false
@@ -42,7 +47,7 @@ var _rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
-	add_to_group("god_juice_director")
+	add_to_group("eon_director")
 	_rng.randomize()
 	if player_rig_path != NodePath():
 		_rig = get_node_or_null(player_rig_path) as PlayerRig
@@ -60,16 +65,17 @@ func _boot() -> void:
 	await get_tree().process_frame
 	_capture_spawn_pose()
 	_connect_player()
-	_spawn_juice_near_start()
-	phase = Phase.AWAITING_JUICE
+	_spawn_eon_near_start()
+	phase = Phase.AWAITING_EON
+	objective_changed.emit(get_objective_text())
 
 
 func _process(_delta: float) -> void:
-	if _juice == null or phase != Phase.AWAITING_JUICE or _rig == null:
+	if _eon == null or phase != Phase.AWAITING_EON or _rig == null:
 		return
 	var body := _rig.get_active_body()
-	if body != null and _juice.try_collect(body):
-		_on_juice_collected()
+	if body != null and _eon.try_collect(body):
+		_on_eon_collected()
 
 
 func _connect_player() -> void:
@@ -93,8 +99,8 @@ func _get_glider() -> GliderPlayer:
 	return _rig.get_glider()
 
 
-func is_awaiting_juice() -> bool:
-	return phase == Phase.AWAITING_JUICE
+func is_awaiting_eon() -> bool:
+	return phase == Phase.AWAITING_EON
 
 
 func is_run_active() -> bool:
@@ -105,31 +111,37 @@ func can_try_again() -> bool:
 	return integrity > 0
 
 
-func get_juice_position() -> Vector3:
-	if _juice == null or not is_instance_valid(_juice):
+func get_objective_text() -> String:
+	if phase == Phase.AWAITING_EON:
+		return OBJECTIVE_RETRIEVE
+	return "Travel west and get to relay tower %s" % next_relay_label
+
+
+func get_eon_position() -> Vector3:
+	if _eon == null or not is_instance_valid(_eon):
 		return Vector3.ZERO
-	return _juice.get_world_position()
+	return _eon.get_world_position()
 
 
-func get_juice_distance(from: Vector3) -> float:
-	var juice_pos := get_juice_position()
-	if juice_pos == Vector3.ZERO:
+func get_eon_distance(from: Vector3) -> float:
+	var eon_pos := get_eon_position()
+	if eon_pos == Vector3.ZERO:
 		return INF
-	return MathUtil.horizontal_distance(from, juice_pos)
+	return MathUtil.horizontal_distance(from, eon_pos)
 
 
-func should_show_juice_tracker(from: Vector3) -> bool:
+func should_show_eon_tracker(from: Vector3) -> bool:
 	return (
-		phase == Phase.AWAITING_JUICE
-		and get_juice_distance(from) <= JUICE_REVEAL_DISTANCE_M
+		phase == Phase.AWAITING_EON
+		and get_eon_distance(from) <= EON_REVEAL_DISTANCE_M
 	)
 
 
-func get_juice_bearing(from: Vector3) -> float:
-	var juice_pos := get_juice_position()
-	if juice_pos == Vector3.ZERO:
+func get_eon_bearing(from: Vector3) -> float:
+	var eon_pos := get_eon_position()
+	if eon_pos == Vector3.ZERO:
 		return NAN
-	return MathUtil.bearing_to(from, juice_pos)
+	return MathUtil.bearing_to(from, eon_pos)
 
 
 func request_try_again() -> void:
@@ -149,12 +161,13 @@ func kill_player_for_debug() -> void:
 		glider.end_run("death")
 
 
-func _on_juice_collected() -> void:
-	_despawn_juice()
+func _on_eon_collected() -> void:
+	_despawn_eon()
 	phase = Phase.RUNNING
-	juice_collected.emit()
+	eon_collected.emit()
 	_bootstrap_run()
 	run_started.emit()
+	objective_changed.emit(get_objective_text())
 
 
 func _bootstrap_run() -> void:
@@ -177,11 +190,12 @@ func _on_player_run_ended() -> void:
 	if phase != Phase.RUNNING:
 		return
 	death_position = _rig.get_tracking_position()
-	phase = Phase.AWAITING_JUICE
+	phase = Phase.AWAITING_EON
 	integrity = apply_death_integrity_loss(integrity)
 	integrity_changed.emit(integrity)
 	awaiting_death_choice = true
 	player_died.emit(death_position)
+	objective_changed.emit(get_objective_text())
 
 
 func _soft_retry() -> void:
@@ -192,34 +206,35 @@ func _soft_retry() -> void:
 		glider.reset_for_respawn()
 	if _run_score != null:
 		_run_score.reset_after_death()
-	_spawn_juice_at(death_position)
-	phase = Phase.AWAITING_JUICE
+	_spawn_eon_at(death_position)
+	phase = Phase.AWAITING_EON
+	objective_changed.emit(get_objective_text())
 
 
-func _spawn_juice_near_start() -> void:
+func _spawn_eon_near_start() -> void:
 	var bearing := _rng.randf_range(0.0, TAU)
-	var distance := _rng.randf_range(JUICE_FIRST_SPAWN_MIN_M, JUICE_FIRST_SPAWN_MAX_M)
+	var distance := _rng.randf_range(EON_FIRST_SPAWN_MIN_M, EON_FIRST_SPAWN_MAX_M)
 	var offset := MathUtil.yaw_forward(bearing) * distance
 	var approx := _spawn_position + offset
-	_spawn_juice_at(approx)
+	_spawn_eon_at(approx)
 
 
-func _spawn_juice_at(world_pos: Vector3) -> void:
-	_despawn_juice()
+func _spawn_eon_at(world_pos: Vector3) -> void:
+	_despawn_eon()
 	var placed_xz := _pick_ridge_xz(world_pos)
 	var height := _sample_ground_y(placed_xz.x, placed_xz.y)
 	var spawn_pos := Vector3(placed_xz.x, height + 0.08, placed_xz.y)
 
-	_juice = GodJuicePickupScene.instantiate() as GodJuicePickupScript
-	add_child(_juice)
-	_juice.global_position = spawn_pos
-	juice_spawned.emit(spawn_pos)
+	_eon = EonPickupScene.instantiate() as EonPickupScript
+	add_child(_eon)
+	_eon.global_position = spawn_pos
+	eon_spawned.emit(spawn_pos)
 
 
-func _despawn_juice() -> void:
-	if _juice != null and is_instance_valid(_juice):
-		_juice.queue_free()
-	_juice = null
+func _despawn_eon() -> void:
+	if _eon != null and is_instance_valid(_eon):
+		_eon.queue_free()
+	_eon = null
 
 
 func _pick_ridge_xz(approx: Vector3) -> Vector2:
@@ -227,11 +242,11 @@ func _pick_ridge_xz(approx: Vector3) -> Vector2:
 	if _terrain == null:
 		return best
 	var best_h := _terrain.sample_height(best.x, best.y)
-	var steps := maxi(JUICE_RIDGE_SAMPLE_STEPS, 1)
+	var steps := maxi(EON_RIDGE_SAMPLE_STEPS, 1)
 	for i in steps:
 		var angle := float(i) / float(steps) * TAU
-		var x := approx.x + cos(angle) * JUICE_RIDGE_SAMPLE_RADIUS_M
-		var z := approx.z + sin(angle) * JUICE_RIDGE_SAMPLE_RADIUS_M
+		var x := approx.x + cos(angle) * EON_RIDGE_SAMPLE_RADIUS_M
+		var z := approx.z + sin(angle) * EON_RIDGE_SAMPLE_RADIUS_M
 		var h := _terrain.sample_height(x, z)
 		if h > best_h:
 			best_h = h

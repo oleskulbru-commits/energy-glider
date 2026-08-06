@@ -1,4 +1,4 @@
-class_name GodJuicePickup
+class_name EonPickup
 extends Node3D
 
 signal collected
@@ -15,7 +15,7 @@ var _bob_time := 0.0
 
 
 func _ready() -> void:
-	add_to_group("god_juice")
+	add_to_group("eon")
 	if _visual != null:
 		_visual_base_y = _visual.position.y
 

@@ -51,5 +51,5 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & $Godot --headless --path $ProjectRoot --script res://scripts/world/verify_outpost_spawner.gd
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-& $Godot --headless --path $ProjectRoot --script res://scripts/game/verify_god_juice.gd
+& $Godot --headless --path $ProjectRoot --script res://scripts/game/verify_eon.gd
 exit $LASTEXITCODE

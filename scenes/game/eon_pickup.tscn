@@ -1,6 +1,6 @@
-[gd_scene load_steps=6 format=3 uid="uid://cgodjuicepickup01"]
+[gd_scene load_steps=6 format=3 uid="uid://ceonpickup001"]
 
-[ext_resource type="Script" path="res://scripts/game/god_juice_pickup.gd" id="1_script"]
+[ext_resource type="Script" path="res://scripts/game/eon_pickup.gd" id="1_script"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_body"]
 albedo_color = Color(1, 1, 1, 1)
@@ -35,7 +35,7 @@ radial_segments = 16
 rings = 1
 material = SubResource("StandardMaterial3D_beam")
 
-[node name="GodJuicePickup" type="Node3D"]
+[node name="EonPickup" type="Node3D"]
 script = ExtResource("1_script")
 
 [node name="Visual" type="Node3D" parent="."]

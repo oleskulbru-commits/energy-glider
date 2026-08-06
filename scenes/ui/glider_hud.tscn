@@ -35,17 +35,38 @@ script = ExtResource("3_compass")
 
 [node name="TopLeft" type="MarginContainer" parent="."]
 anchors_preset = 0
-offset_right = 200.0
-offset_bottom = 80.0
+offset_right = 280.0
+offset_bottom = 160.0
 theme_override_constants/margin_left = 24
 theme_override_constants/margin_top = 24
 
-[node name="CargoChip" type="PanelContainer" parent="TopLeft"]
+[node name="TopLeftVBox" type="VBoxContainer" parent="TopLeft"]
+theme_override_constants/separation = 8
+
+[node name="ObjectivePanel" type="PanelContainer" parent="TopLeft/TopLeftVBox"]
+unique_name_in_owner = true
+theme_type_variation = &"HudPanel"
+custom_minimum_size = Vector2(240, 0)
+
+[node name="ObjectiveVBox" type="VBoxContainer" parent="TopLeft/TopLeftVBox/ObjectivePanel"]
+theme_override_constants/separation = 4
+
+[node name="ObjectiveTitle" type="Label" parent="TopLeft/TopLeftVBox/ObjectivePanel/ObjectiveVBox"]
+theme_type_variation = &"HudLabel"
+text = "OBJECTIVE"
+
+[node name="ObjectiveLabel" type="Label" parent="TopLeft/TopLeftVBox/ObjectivePanel/ObjectiveVBox"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "Retrieve the E.O.N"
+autowrap_mode = 2
+
+[node name="CargoChip" type="PanelContainer" parent="TopLeft/TopLeftVBox"]
 unique_name_in_owner = true
 theme_type_variation = &"HudPanel"
 custom_minimum_size = Vector2(120, 0)
 
-[node name="CargoLabel" type="Label" parent="TopLeft/CargoChip"]
+[node name="CargoLabel" type="Label" parent="TopLeft/TopLeftVBox/CargoChip"]
 unique_name_in_owner = true
 theme_type_variation = &"HudLabel"
 text = "ANTENNA PART"
@@ -169,7 +190,7 @@ theme_override_constants/separation = 6
 [node name="IntegrityLabel" type="Label" parent="IntegrityPanel/IntegrityVBox"]
 unique_name_in_owner = true
 theme_type_variation = &"HudLabel"
-text = "God Juice Integrity"
+text = "E.O.N Integrity"
 
 [node name="IntegrityBar" type="ProgressBar" parent="IntegrityPanel/IntegrityVBox"]
 unique_name_in_owner = true
@@ -178,7 +199,7 @@ max_value = 100.0
 show_percentage = false
 value = 100.0
 
-[node name="JuiceTracker" type="PanelContainer" parent="."]
+[node name="EonTracker" type="PanelContainer" parent="."]
 unique_name_in_owner = true
 visible = false
 anchors_preset = 5
@@ -191,10 +212,10 @@ offset_bottom = 92.0
 grow_horizontal = 2
 theme_type_variation = &"HudPanel"
 
-[node name="JuiceTrackerLabel" type="Label" parent="JuiceTracker"]
+[node name="EonTrackerLabel" type="Label" parent="EonTracker"]
 unique_name_in_owner = true
 theme_type_variation = &"HudLabel"
-text = "GOD JUICE  1000 m"
+text = "E.O.N  1000 m"
 horizontal_alignment = 1
 vertical_alignment = 1
 

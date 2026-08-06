@@ -10,7 +10,7 @@ const POWER_COLOR_OVERHEAT := Color(0.98, 0.45, 0.18)
 const PULSE_COLOR := Color(1.0, 0.82, 0.28, 1.0)
 
 const GliderInputScript = preload("res://scripts/input/glider_input.gd")
-const GodJuiceDirectorScript = preload("res://scripts/game/god_juice_director.gd")
+const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 
 @onready var _power_label: Label = %PowerLabel
 @onready var _power_percent_label: Label = %PowerPercent
@@ -24,8 +24,10 @@ const GodJuiceDirectorScript = preload("res://scripts/game/god_juice_director.gd
 @onready var _restart_button: Button = %RestartButton
 @onready var _integrity_bar: ProgressBar = %IntegrityBar
 @onready var _integrity_label: Label = %IntegrityLabel
-@onready var _juice_tracker: PanelContainer = %JuiceTracker
-@onready var _juice_tracker_label: Label = %JuiceTrackerLabel
+@onready var _eon_tracker: PanelContainer = %EonTracker
+@onready var _eon_tracker_label: Label = %EonTrackerLabel
+@onready var _objective_panel: PanelContainer = %ObjectivePanel
+@onready var _objective_label: Label = %ObjectiveLabel
 @onready var _interact_chip: PanelContainer = %InteractChip
 @onready var _interact_label: Label = %InteractLabel
 @onready var _interact_bar: ProgressBar = %InteractBar
@@ -55,7 +57,7 @@ var _run_score: RunScore
 var _expedition: ExpeditionState
 var _interactor: PlayerInteractor
 var _cargo: PlayerCargo
-var _director: GodJuiceDirectorScript
+var _director: EonDirectorScript
 var _power_fill: StyleBoxFlat
 var _solar_pulse_time := 0.0
 var _interact_tap_down := false
@@ -82,13 +84,15 @@ func _ready() -> void:
 
 	_run_score = get_tree().get_first_node_in_group("run_score") as RunScore
 	_expedition = get_tree().get_first_node_in_group("expedition_state") as ExpeditionState
-	_director = get_tree().get_first_node_in_group("god_juice_director") as GodJuiceDirectorScript
+	_director = get_tree().get_first_node_in_group("eon_director") as EonDirectorScript
 	if _expedition != null:
 		_expedition.day_started.connect(_on_day_started)
 		_expedition.day_ended.connect(_on_day_ended)
 	if _director != null:
 		_director.integrity_changed.connect(_on_integrity_changed)
+		_director.objective_changed.connect(_on_objective_changed)
 		_on_integrity_changed(_director.integrity)
+		_on_objective_changed(_director.get_objective_text())
 	if _try_again_button != null:
 		_try_again_button.pressed.connect(_on_try_again_pressed)
 	if _restart_button != null:
@@ -130,7 +134,7 @@ func _process(delta: float) -> void:
 	_update_outpost_board()
 	_update_day_summary(delta)
 	_update_integrity_bar()
-	_update_juice_tracker()
+	_update_eon_tracker()
 
 	var show_death_overlay := _is_death_overlay_active()
 	_stopped_overlay.visible = show_death_overlay or (_player.is_run_ended() and not show_death_overlay)
@@ -153,6 +157,13 @@ func _on_integrity_changed(value: int) -> void:
 	_update_integrity_bar(value)
 
 
+func _on_objective_changed(text: String) -> void:
+	if _objective_label != null:
+		_objective_label.text = text
+	if _objective_panel != null:
+		_objective_panel.visible = true
+
+
 func _update_integrity_bar(value: int = -1) -> void:
 	if _integrity_bar == null:
 		return
@@ -162,21 +173,21 @@ func _update_integrity_bar(value: int = -1) -> void:
 		value = 100
 	_integrity_bar.value = float(value)
 	if _integrity_label != null:
-		_integrity_label.text = "God Juice Integrity  %d%%" % value
+		_integrity_label.text = "E.O.N Integrity  %d%%" % value
 
 
-func _update_juice_tracker() -> void:
-	if _juice_tracker == null or _juice_tracker_label == null or _director == null:
+func _update_eon_tracker() -> void:
+	if _eon_tracker == null or _eon_tracker_label == null or _director == null:
 		return
 	var track_pos := _tracking_position()
-	var should_show_tracker := _director.should_show_juice_tracker(track_pos)
-	_juice_tracker.visible = should_show_tracker
+	var should_show_tracker := _director.should_show_eon_tracker(track_pos)
+	_eon_tracker.visible = should_show_tracker
 	if not should_show_tracker:
 		if _compass_bar != null:
-			_compass_bar.set_god_juice_bearing(NAN)
+			_compass_bar.set_eon_bearing(NAN)
 		return
-	var juice_dist := _director.get_juice_distance(track_pos)
-	_juice_tracker_label.text = "GOD JUICE  %s" % MathUtil.format_distance_m(juice_dist)
+	var eon_dist := _director.get_eon_distance(track_pos)
+	_eon_tracker_label.text = "E.O.N  %s" % MathUtil.format_distance_m(eon_dist)
 
 
 func _update_death_overlay() -> void:
@@ -187,7 +198,7 @@ func _update_death_overlay() -> void:
 		_stopped_distance.text = _run_score.format_distance()
 	if _stopped_summary != null:
 		if _director != null and not _director.can_try_again():
-			_stopped_summary.text = "God Juice integrity depleted"
+			_stopped_summary.text = "E.O.N integrity depleted"
 		elif _expedition != null:
 			_stopped_summary.text = "Score %d" % _expedition.total_score
 		else:
@@ -309,10 +320,10 @@ func _update_compass() -> void:
 
 	_compass_bar.set_outpost_bearings(_resolve_outpost_bearings(track_pos, 3))
 
-	if _director != null and _director.should_show_juice_tracker(track_pos):
-		_compass_bar.set_god_juice_bearing(_director.get_juice_bearing(track_pos))
+	if _director != null and _director.should_show_eon_tracker(track_pos):
+		_compass_bar.set_eon_bearing(_director.get_eon_bearing(track_pos))
 	else:
-		_compass_bar.set_god_juice_bearing(NAN)
+		_compass_bar.set_eon_bearing(NAN)
 
 
 func _tracking_position() -> Vector3:

@@ -12,7 +12,7 @@
 [ext_resource type="Script" path="res://scripts/world/ripple_spawner.gd" id="12_ripple_spawner"]
 [ext_resource type="Script" path="res://scripts/game/expedition_state.gd" id="13_expedition"]
 [ext_resource type="Script" path="res://scripts/world/day_night_cycle.gd" id="14_daynight"]
-[ext_resource type="Script" path="res://scripts/game/god_juice_director.gd" id="15_god_juice"]
+[ext_resource type="Script" path="res://scripts/game/eon_director.gd" id="15_eon"]
 
 [sub_resource type="Sky" id="Sky_main"]
 sky_material = ExtResource("4_sky")
@@ -59,8 +59,8 @@ player_rig_path = NodePath("../PlayerRig")
 run_score_path = NodePath("../RunScore")
 day_night_path = NodePath("../DayNightCycle")
 
-[node name="GodJuiceDirector" type="Node" parent="."]
-script = ExtResource("15_god_juice")
+[node name="EonDirector" type="Node" parent="."]
+script = ExtResource("15_eon")
 player_rig_path = NodePath("../PlayerRig")
 terrain_manager_path = NodePath("../TerrainManager")
 run_score_path = NodePath("../RunScore")
