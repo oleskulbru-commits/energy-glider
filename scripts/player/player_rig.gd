@@ -85,10 +85,23 @@ func reset_to_spawn() -> void:
 	_glider.global_position = _spawn_position
 	_glider.rotation.y = _spawn_yaw
 	_glider.velocity = Vector3.ZERO
+	if _terrain_manager != null:
+		_terrain_manager.ensure_loaded_at(_spawn_position)
 	if _camera != null:
 		_camera.reset_follow_state()
 		_camera.snap_follow_yaw(_spawn_yaw)
+		snap_camera_now()
 	_capture_mouse()
+
+
+func snap_camera_now() -> void:
+	if _camera == null:
+		return
+	_camera.request_hard_snap()
+	if _mounted:
+		_update_glider_camera(1.0)
+	else:
+		_update_on_foot_camera(1.0)
 
 
 func _physics_process(delta: float) -> void:

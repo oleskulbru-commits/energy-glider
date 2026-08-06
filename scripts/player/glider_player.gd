@@ -1581,6 +1581,10 @@ func end_run(reason: String = "") -> void:
 		return
 	_end_reason = reason
 	_run_ended = true
+	linear_velocity = Vector3.ZERO
+	_yaw_velocity = 0.0
+	_turn_rate = 0.0
+	angular_velocity = Vector3.ZERO
 	run_ended.emit()
 
 

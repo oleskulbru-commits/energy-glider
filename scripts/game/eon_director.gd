@@ -43,6 +43,7 @@ var _eon: EonPickupScript
 var _spawn_position := Vector3.ZERO
 var _spawn_yaw := 0.0
 var _run_bootstrapped := false
+var _respawn_eon_at_death := false
 var _rng := RandomNumberGenerator.new()
 
 
@@ -111,6 +112,10 @@ func can_try_again() -> bool:
 	return integrity > 0
 
 
+func has_collected_eon() -> bool:
+	return _run_bootstrapped
+
+
 func get_objective_text() -> String:
 	if phase == Phase.AWAITING_EON:
 		return OBJECTIVE_RETRIEVE
@@ -151,7 +156,13 @@ func request_try_again() -> void:
 	_soft_retry()
 
 
+const RUN_SESSION_PATH := "user://run_session.cfg"
+
+
 func request_restart() -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("terrain", "world_seed", randi())
+	cfg.save(RUN_SESSION_PATH)
 	get_tree().reload_current_scene()
 
 
@@ -187,9 +198,12 @@ func _on_player_run_ended() -> void:
 	var glider := _get_glider()
 	if glider == null or glider.get_end_reason() != "death":
 		return
-	if phase != Phase.RUNNING:
+	if awaiting_death_choice:
 		return
-	death_position = _rig.get_tracking_position()
+	death_position = _rig.get_tracking_position() if _rig != null else Vector3.ZERO
+	# After pickup the E.O.N is gone — soft retry places it at the death spot.
+	# Before pickup it still exists — leave it where it is.
+	_respawn_eon_at_death = phase == Phase.RUNNING
 	phase = Phase.AWAITING_EON
 	integrity = apply_death_integrity_loss(integrity)
 	integrity_changed.emit(integrity)
@@ -204,9 +218,16 @@ func _soft_retry() -> void:
 	var glider := _get_glider()
 	if glider != null:
 		glider.reset_for_respawn()
+	if _rig != null:
+		# Snap again after respawn height correction so the camera does not lerp.
+		_rig.snap_camera_now()
 	if _run_score != null:
 		_run_score.reset_after_death()
-	_spawn_eon_at(death_position)
+	if _respawn_eon_at_death:
+		_spawn_eon_at(death_position)
+	elif _eon == null or not is_instance_valid(_eon):
+		_spawn_eon_near_start()
+	_respawn_eon_at_death = false
 	phase = Phase.AWAITING_EON
 	objective_changed.emit(get_objective_text())
 

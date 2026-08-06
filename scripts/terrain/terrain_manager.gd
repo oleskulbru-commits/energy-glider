@@ -18,6 +18,7 @@ var _track_node: Node3D
 
 
 func _ready() -> void:
+	_apply_session_seed()
 	_height_sampler = DuneHeight.new(world_seed)
 	run_origin = Vector2(global_position.x, global_position.z)
 	_height_sampler.set_run_origin(run_origin)
@@ -29,6 +30,14 @@ func _ready() -> void:
 	if Engine.is_editor_hint():
 		return
 	_load_initial_chunks_sync()
+
+
+func _apply_session_seed() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load("user://run_session.cfg") != OK:
+		return
+	if cfg.has_section_key("terrain", "world_seed"):
+		world_seed = int(cfg.get_value("terrain", "world_seed"))
 
 
 func _load_initial_chunks_sync() -> void:

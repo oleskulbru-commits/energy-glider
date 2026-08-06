@@ -36,7 +36,7 @@ script = ExtResource("3_compass")
 [node name="TopLeft" type="MarginContainer" parent="."]
 anchors_preset = 0
 offset_right = 280.0
-offset_bottom = 160.0
+offset_bottom = 240.0
 theme_override_constants/margin_left = 24
 theme_override_constants/margin_top = 24
 
@@ -60,6 +60,31 @@ unique_name_in_owner = true
 theme_type_variation = &"HudLabel"
 text = "Retrieve the E.O.N"
 autowrap_mode = 2
+
+[node name="IntegrityPanel" type="PanelContainer" parent="TopLeft/TopLeftVBox"]
+unique_name_in_owner = true
+visible = false
+theme_type_variation = &"HudPanel"
+custom_minimum_size = Vector2(240, 0)
+
+[node name="IntegrityVBox" type="VBoxContainer" parent="TopLeft/TopLeftVBox/IntegrityPanel"]
+theme_override_constants/separation = 6
+
+[node name="IntegrityLabel" type="Label" parent="TopLeft/TopLeftVBox/IntegrityPanel/IntegrityVBox"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "E.O.N Integrity"
+
+[node name="IntegrityBar" type="ProgressBar" parent="TopLeft/TopLeftVBox/IntegrityPanel/IntegrityVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(196, 8)
+max_value = 100.0
+show_percentage = false
+value = 100.0
+
+[node name="KillTestButton" type="Button" parent="TopLeft/TopLeftVBox"]
+unique_name_in_owner = true
+text = "Kill button - press k"
 
 [node name="CargoChip" type="PanelContainer" parent="TopLeft/TopLeftVBox"]
 unique_name_in_owner = true
@@ -122,94 +147,92 @@ max_value = 100.0
 show_percentage = false
 value = 100.0
 
+[node name="FailFade" type="ColorRect" parent="."]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 0)
+
 [node name="StoppedOverlay" type="PanelContainer" parent="."]
 unique_name_in_owner = true
 visible = false
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -140.0
-offset_top = -70.0
-offset_right = 140.0
-offset_bottom = 70.0
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 0
 theme_type_variation = &"HudOverlay"
 
-[node name="VBox" type="VBoxContainer" parent="StoppedOverlay"]
-theme_override_constants/separation = 10
+[node name="Center" type="CenterContainer" parent="StoppedOverlay"]
+layout_mode = 2
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 
-[node name="StoppedTitle" type="Label" parent="StoppedOverlay/VBox"]
+[node name="VBox" type="VBoxContainer" parent="StoppedOverlay/Center"]
+layout_mode = 2
+theme_override_constants/separation = 16
+custom_minimum_size = Vector2(480, 0)
+
+[node name="StoppedTitle" type="Label" parent="StoppedOverlay/Center/VBox"]
 unique_name_in_owner = true
 theme_type_variation = &"HudStoppedTitle"
-text = "Stopped"
+text = "You have failed your mission. Fix it."
 horizontal_alignment = 1
+autowrap_mode = 2
 
-[node name="StoppedDistance" type="Label" parent="StoppedOverlay/VBox"]
+[node name="StoppedDistance" type="Label" parent="StoppedOverlay/Center/VBox"]
 unique_name_in_owner = true
+visible = false
 theme_type_variation = &"HudStoppedDistance"
 text = "0 m"
 horizontal_alignment = 1
 
-[node name="StoppedSummary" type="Label" parent="StoppedOverlay/VBox"]
+[node name="StoppedSummary" type="Label" parent="StoppedOverlay/Center/VBox"]
 unique_name_in_owner = true
+visible = false
 theme_type_variation = &"HudLabel"
 text = ""
 horizontal_alignment = 1
 
-[node name="DeathButtons" type="HBoxContainer" parent="StoppedOverlay/VBox"]
+[node name="DeathButtons" type="HBoxContainer" parent="StoppedOverlay/Center/VBox"]
 unique_name_in_owner = true
-theme_override_constants/separation = 12
+theme_override_constants/separation = 16
 alignment = 1
 
-[node name="TryAgainButton" type="Button" parent="StoppedOverlay/VBox/DeathButtons"]
+[node name="TryAgainButton" type="Button" parent="StoppedOverlay/Center/VBox/DeathButtons"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 36)
 text = "Try again"
 
-[node name="RestartButton" type="Button" parent="StoppedOverlay/VBox/DeathButtons"]
+[node name="RestartButton" type="Button" parent="StoppedOverlay/Center/VBox/DeathButtons"]
 unique_name_in_owner = true
-text = "Restart"
-
-[node name="IntegrityPanel" type="PanelContainer" parent="."]
-unique_name_in_owner = true
-anchors_preset = 1
-anchor_left = 1.0
-anchor_right = 1.0
-offset_left = -240.0
-offset_top = 150.0
-offset_right = -24.0
-offset_bottom = 220.0
-grow_horizontal = 0
-theme_type_variation = &"HudPanel"
-
-[node name="IntegrityVBox" type="VBoxContainer" parent="IntegrityPanel"]
-theme_override_constants/separation = 6
-
-[node name="IntegrityLabel" type="Label" parent="IntegrityPanel/IntegrityVBox"]
-unique_name_in_owner = true
-theme_type_variation = &"HudLabel"
-text = "E.O.N Integrity"
-
-[node name="IntegrityBar" type="ProgressBar" parent="IntegrityPanel/IntegrityVBox"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(196, 8)
-max_value = 100.0
-show_percentage = false
-value = 100.0
+custom_minimum_size = Vector2(140, 36)
+text = "New game"
 
 [node name="EonTracker" type="PanelContainer" parent="."]
 unique_name_in_owner = true
 visible = false
-anchors_preset = 5
+anchors_preset = 7
 anchor_left = 0.5
+anchor_top = 1.0
 anchor_right = 0.5
-offset_left = -120.0
-offset_top = 56.0
-offset_right = 120.0
-offset_bottom = 92.0
+anchor_bottom = 1.0
+offset_left = -100.0
+offset_top = -64.0
+offset_right = 100.0
+offset_bottom = -28.0
 grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
 theme_type_variation = &"HudPanel"
 
 [node name="EonTrackerLabel" type="Label" parent="EonTracker"]
