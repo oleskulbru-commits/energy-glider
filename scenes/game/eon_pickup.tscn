@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3 uid="uid://ceonpickup001"]
+[gd_scene format=3 uid="uid://ceonpickup001"]
 
 [ext_resource type="Script" path="res://scripts/game/eon_pickup.gd" id="1_script"]
 
