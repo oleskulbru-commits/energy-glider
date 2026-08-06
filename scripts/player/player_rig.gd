@@ -23,6 +23,9 @@ var _terrain_manager: TerrainManager
 var _mounted := true
 var _mount_toggle_queued := false
 var _mouse_captured := false
+var _spawn_position := Vector3.ZERO
+var _spawn_yaw := 0.0
+var _spawn_pose_ready := false
 
 
 func _ready() -> void:
@@ -45,6 +48,59 @@ func _ready() -> void:
 		_on_foot.set_active(false)
 
 	_set_mounted(true, true)
+	call_deferred("_capture_spawn_pose")
+
+
+func _capture_spawn_pose() -> void:
+	if _glider == null:
+		return
+	_spawn_position = _glider.global_position
+	_spawn_yaw = _glider.get_yaw()
+	_spawn_pose_ready = true
+
+
+func get_spawn_position() -> Vector3:
+	if not _spawn_pose_ready:
+		_capture_spawn_pose()
+	return _spawn_position
+
+
+func get_spawn_yaw() -> float:
+	if not _spawn_pose_ready:
+		_capture_spawn_pose()
+	return _spawn_yaw
+
+
+func reset_to_spawn() -> void:
+	if _glider == null:
+		return
+	if not _spawn_pose_ready:
+		_capture_spawn_pose()
+
+	if _on_foot != null:
+		_on_foot.velocity = Vector3.ZERO
+		_on_foot.set_active(false)
+
+	_set_mounted(true, true)
+	if _terrain_manager != null:
+		_terrain_manager.ensure_loaded_at(_spawn_position)
+	_glider.teleport_to(_spawn_position, _spawn_yaw)
+	_glider.velocity = Vector3.ZERO
+	if _camera != null:
+		_camera.reset_follow_state()
+		_camera.snap_follow_yaw(_spawn_yaw)
+		snap_camera_now()
+	_capture_mouse()
+
+
+func snap_camera_now() -> void:
+	if _camera == null:
+		return
+	_camera.request_hard_snap()
+	if _mounted:
+		_update_glider_camera(1.0)
+	else:
+		_update_on_foot_camera(1.0)
 
 
 func _physics_process(delta: float) -> void:

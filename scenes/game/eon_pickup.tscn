@@ -1,0 +1,72 @@
+[gd_scene format=3 uid="uid://ceonpickup001"]
+
+[ext_resource type="Script" path="res://scripts/game/eon_pickup.gd" id="1_script"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_body"]
+albedo_color = Color(1, 1, 1, 1)
+emission_enabled = true
+emission = Color(1, 1, 1, 1)
+emission_energy_multiplier = 3.5
+roughness = 0.15
+metallic = 0.0
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_body"]
+top_radius = 0.28
+bottom_radius = 0.28
+height = 0.9
+radial_segments = 24
+rings = 1
+material = SubResource("StandardMaterial3D_body")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_beam"]
+transparency = 1
+shading_mode = 0
+albedo_color = Color(1, 1, 1, 0.28)
+emission_enabled = true
+emission = Color(1, 1, 1, 1)
+emission_energy_multiplier = 1.8
+cull_mode = 2
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_beam"]
+top_radius = 0.08
+bottom_radius = 0.18
+height = 100.0
+radial_segments = 16
+rings = 1
+material = SubResource("StandardMaterial3D_beam")
+
+[node name="EonPickup" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="Body" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
+cast_shadow = 0
+mesh = SubResource("CylinderMesh_body")
+
+[node name="SkyBeam" type="MeshInstance3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 50.45, 0)
+cast_shadow = 0
+gi_mode = 0
+mesh = SubResource("CylinderMesh_beam")
+
+[node name="OmniLight3D" type="OmniLight3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
+light_color = Color(1, 1, 1, 1)
+light_energy = 4.5
+light_indirect_energy = 0.0
+light_volumetric_fog_energy = 1.5
+omni_range = 18.0
+omni_attenuation = 1.2
+
+[node name="SpotLight3D" type="SpotLight3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0.9, 0)
+light_color = Color(1, 1, 1, 1)
+light_energy = 8.0
+light_indirect_energy = 0.0
+light_volumetric_fog_energy = 2.5
+spot_range = 120.0
+spot_attenuation = 0.6
+spot_angle = 12.0
+spot_angle_attenuation = 0.8

@@ -74,6 +74,7 @@ var _look_offset_pitch_velocity := 0.0
 var _mouse_look_enabled := true
 var _look_idle_time := 0.0
 var _fov_blend := 0.0
+var _hard_snap := false
 
 
 func _ready() -> void:
@@ -95,13 +96,17 @@ func follow(
 	air_blend: float = -1.0,
 	steering: bool = false
 ) -> void:
+	var snap := _hard_snap
+	_hard_snap = false
+
 	var foot_target := 1.0 if foot_mode else 0.0
-	_foot_blend = lerpf(_foot_blend, foot_target, clampf(CAMERA_BLEND_RATE * delta, 0.0, 1.0))
+	var blend_t := 1.0 if snap else clampf(CAMERA_BLEND_RATE * delta, 0.0, 1.0)
+	_foot_blend = lerpf(_foot_blend, foot_target, blend_t)
 
 	var target_blend := 0.0 if grounded else 1.0
 	if air_blend >= 0.0:
 		target_blend = clampf(air_blend, 0.0, 1.0)
-	_blend = lerpf(_blend, target_blend, clampf(CAMERA_BLEND_RATE * delta, 0.0, 1.0))
+	_blend = lerpf(_blend, target_blend, blend_t)
 
 	var surf_height := lerpf(GLIDE_CAMERA_HEIGHT, SURF_CAMERA_HEIGHT, _blend)
 	var surf_distance := lerpf(GLIDE_CAMERA_DISTANCE, SURF_CAMERA_DISTANCE, _blend)
@@ -125,31 +130,36 @@ func follow(
 	player_pos.y += focus_lift
 	var pivot := player_pos + Vector3(0.0, pivot_height, 0.0)
 
-	if not _focus_initialized:
-		_focus = player_pos
-		_look_focus = player_pos + Vector3(0.0, look_height, 0.0)
+	if snap or not _focus_initialized:
+		_focus = pivot
+		_look_focus = pivot + Vector3(0.0, look_height, 0.0)
 		_focus_initialized = true
 
-	var xz_rate := clampf(FOCUS_RATE_XZ * delta, 0.0, 1.0)
-	var y_rate := clampf(FOCUS_RATE_Y * delta, 0.0, 1.0)
+	var xz_rate := 1.0 if snap else clampf(FOCUS_RATE_XZ * delta, 0.0, 1.0)
+	var y_rate := 1.0 if snap else clampf(FOCUS_RATE_Y * delta, 0.0, 1.0)
 	_focus.x = lerpf(_focus.x, pivot.x, xz_rate)
 	_focus.z = lerpf(_focus.z, pivot.z, xz_rate)
 	_focus.y = lerpf(_focus.y, pivot.y, y_rate)
 
-	if not _chase_initialized:
+	if snap or not _chase_initialized:
 		_chase_yaw = yaw
 		_chase_yaw_velocity = 0.0
 		_chase_initialized = true
 
 	if foot_mode:
-		_chase_yaw = lerp_angle(_chase_yaw, yaw, clampf(10.0 * delta, 0.0, 1.0))
+		_chase_yaw = yaw if snap else lerp_angle(_chase_yaw, yaw, clampf(10.0 * delta, 0.0, 1.0))
 		_chase_yaw_velocity = 0.0
-		_decay_look_offsets(horizontal_vel, steering, delta)
-	else:
-		if _mouse_look_enabled:
+		if not snap:
 			_decay_look_offsets(horizontal_vel, steering, delta)
-		var chase_target := _compute_chase_target_yaw(yaw, horizontal_vel, steering)
-		_update_chase_yaw(chase_target, speed, steering, delta)
+	else:
+		if _mouse_look_enabled and not snap:
+			_decay_look_offsets(horizontal_vel, steering, delta)
+		if snap:
+			_chase_yaw = yaw
+			_chase_yaw_velocity = 0.0
+		else:
+			var chase_target := _compute_chase_target_yaw(yaw, horizontal_vel, steering)
+			_update_chase_yaw(chase_target, speed, steering, delta)
 
 	var aim_yaw := _chase_yaw + _look_yaw_offset
 	var boom_forward := MathUtil.yaw_forward(aim_yaw)
@@ -157,6 +167,8 @@ func follow(
 
 	if foot_mode:
 		_follow_pitch = _look_pitch_offset
+	elif snap:
+		_follow_pitch = 0.0
 	else:
 		_update_follow_pitch(target, velocity, grounded, foot_mode, delta)
 
@@ -168,7 +180,8 @@ func follow(
 	desired_pos = _resolve_camera_collision(pivot, desired_pos, target)
 	desired_pos = _enforce_camera_floor(desired_pos, terrain_manager)
 
-	global_position = global_position.lerp(desired_pos, clampf(CAMERA_POS_RATE * delta, 0.0, 1.0))
+	var pos_t := 1.0 if snap else clampf(CAMERA_POS_RATE * delta, 0.0, 1.0)
+	global_position = global_position.lerp(desired_pos, pos_t)
 	_snap_camera_above_floor(terrain_manager)
 
 	var aim_forward := boom_forward
@@ -192,17 +205,20 @@ func follow(
 		var ground_ahead := Vector3(ahead_x, ahead_y + 0.5, ahead_z)
 		look_target = look_target.lerp(ground_ahead, _blend * LOOK_AHEAD_BLEND)
 
-	_look_focus = _look_focus.lerp(look_target, clampf(LOOK_RATE * delta, 0.0, 1.0))
+	var look_t := 1.0 if snap else clampf(LOOK_RATE * delta, 0.0, 1.0)
+	_look_focus = _look_focus.lerp(look_target, look_t)
 
 	var bank_scale := lerpf(1.0, 1.35, speed_t)
 	var target_bank := 0.0
 	if _foot_blend <= 0.5:
 		target_bank = clampf(-yaw_velocity * 2.0, -1.0, 1.0) * MAX_BANK_ANGLE * bank_scale
-	_bank_angle = lerpf(_bank_angle, target_bank, clampf(BANK_RATE * delta, 0.0, 1.0))
+	var bank_t := 1.0 if snap else clampf(BANK_RATE * delta, 0.0, 1.0)
+	_bank_angle = lerpf(_bank_angle, target_bank, bank_t)
 	_apply_look_with_bank(_look_focus, _bank_angle)
 
 	var target_fov_blend := speed_t if _foot_blend < 0.5 else 0.0
-	_fov_blend = lerpf(_fov_blend, target_fov_blend, clampf(FOV_RATE * delta, 0.0, 1.0))
+	var fov_t := 1.0 if snap else clampf(FOV_RATE * delta, 0.0, 1.0)
+	_fov_blend = lerpf(_fov_blend, target_fov_blend, fov_t)
 	fov = lerpf(CAMERA_FOV, CAMERA_FOV + CAMERA_FOV_SPEED_BOOST, _fov_blend)
 
 
@@ -243,6 +259,10 @@ func snap_follow_yaw(yaw: float) -> void:
 	_look_offset_pitch_velocity = 0.0
 	_chase_initialized = true
 	_look_idle_time = 0.0
+
+
+func request_hard_snap() -> void:
+	_hard_snap = true
 
 
 func reset_follow_state() -> void:

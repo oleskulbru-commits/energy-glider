@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3 uid="uid://cgame_world001"]
+[gd_scene load_steps=14 format=3 uid="uid://cgame_world001"]
 
 [ext_resource type="Script" uid="uid://ceqhf3n5dule0" path="res://scripts/terrain/terrain_manager.gd" id="1_terrain"]
 [ext_resource type="Material" uid="uid://suwp2571pfe0" path="res://materials/sand.tres" id="2_sand"]
@@ -12,6 +12,7 @@
 [ext_resource type="Script" path="res://scripts/world/ripple_spawner.gd" id="12_ripple_spawner"]
 [ext_resource type="Script" path="res://scripts/game/expedition_state.gd" id="13_expedition"]
 [ext_resource type="Script" path="res://scripts/world/day_night_cycle.gd" id="14_daynight"]
+[ext_resource type="Script" path="res://scripts/game/eon_director.gd" id="15_eon"]
 
 [sub_resource type="Sky" id="Sky_main"]
 sky_material = ExtResource("4_sky")
@@ -57,6 +58,13 @@ script = ExtResource("13_expedition")
 player_rig_path = NodePath("../PlayerRig")
 run_score_path = NodePath("../RunScore")
 day_night_path = NodePath("../DayNightCycle")
+
+[node name="EonDirector" type="Node" parent="."]
+script = ExtResource("15_eon")
+player_rig_path = NodePath("../PlayerRig")
+terrain_manager_path = NodePath("../TerrainManager")
+run_score_path = NodePath("../RunScore")
+expedition_state_path = NodePath("../ExpeditionState")
 
 [node name="DayNightCycle" type="Node" parent="."]
 script = ExtResource("14_daynight")

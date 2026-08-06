@@ -10,13 +10,27 @@ const POWER_COLOR_OVERHEAT := Color(0.98, 0.45, 0.18)
 const PULSE_COLOR := Color(1.0, 0.82, 0.28, 1.0)
 
 const GliderInputScript = preload("res://scripts/input/glider_input.gd")
+const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 
 @onready var _power_label: Label = %PowerLabel
 @onready var _power_percent_label: Label = %PowerPercent
 @onready var _solar_chip: PanelContainer = %SolarChip
 @onready var _power_bar: ProgressBar = %PowerBar
 @onready var _stopped_overlay: PanelContainer = %StoppedOverlay
+@onready var _fail_fade: ColorRect = %FailFade
+@onready var _stopped_title: Label = %StoppedTitle
 @onready var _stopped_distance: Label = %StoppedDistance
+@onready var _death_buttons: HBoxContainer = %DeathButtons
+@onready var _try_again_button: Button = %TryAgainButton
+@onready var _restart_button: Button = %RestartButton
+@onready var _integrity_panel: PanelContainer = %IntegrityPanel
+@onready var _integrity_bar: ProgressBar = %IntegrityBar
+@onready var _integrity_label: Label = %IntegrityLabel
+@onready var _kill_test_button: Button = %KillTestButton
+@onready var _eon_tracker: PanelContainer = %EonTracker
+@onready var _eon_tracker_label: Label = %EonTrackerLabel
+@onready var _objective_panel: PanelContainer = %ObjectivePanel
+@onready var _objective_label: Label = %ObjectiveLabel
 @onready var _interact_chip: PanelContainer = %InteractChip
 @onready var _interact_label: Label = %InteractLabel
 @onready var _interact_bar: ProgressBar = %InteractBar
@@ -46,11 +60,15 @@ var _run_score: RunScore
 var _expedition: ExpeditionState
 var _interactor: PlayerInteractor
 var _cargo: PlayerCargo
+var _director: EonDirectorScript
 var _power_fill: StyleBoxFlat
 var _solar_pulse_time := 0.0
 var _interact_tap_down := false
 var _pulse_scan_timer := 0.0
 var _day_summary_timer := 0.0
+var _fail_fade_tween: Tween
+var _fail_fade_active := false
+var _fail_overlay_style: StyleBoxEmpty
 
 
 func _ready() -> void:
@@ -72,16 +90,45 @@ func _ready() -> void:
 
 	_run_score = get_tree().get_first_node_in_group("run_score") as RunScore
 	_expedition = get_tree().get_first_node_in_group("expedition_state") as ExpeditionState
+	_director = get_tree().get_first_node_in_group("eon_director") as EonDirectorScript
 	if _expedition != null:
 		_expedition.day_started.connect(_on_day_started)
 		_expedition.day_ended.connect(_on_day_ended)
-		_on_day_started(_expedition.current_day)
+	if _director != null:
+		_director.integrity_changed.connect(_on_integrity_changed)
+		_director.objective_changed.connect(_on_objective_changed)
+		_director.run_started.connect(_on_run_started)
+		_on_integrity_changed(_director.integrity)
+		_on_objective_changed(_director.get_objective_text())
+		_update_integrity_panel_visibility()
+	if _try_again_button != null:
+		_try_again_button.pressed.connect(_on_try_again_pressed)
+	if _restart_button != null:
+		_restart_button.pressed.connect(_on_restart_pressed)
+		_restart_button.text = "New game"
+	if _kill_test_button != null:
+		_kill_test_button.pressed.connect(_on_kill_test_pressed)
+	if _day_label != null:
+		_day_label.visible = false
+	if _death_buttons != null:
+		_death_buttons.visible = false
+	if _integrity_panel != null:
+		_integrity_panel.visible = false
+	if _fail_fade != null:
+		_fail_fade.visible = false
+		_fail_fade.color = Color(0, 0, 0, 0)
+		_fail_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_fail_fade.z_index = 100
+	if _stopped_overlay != null:
+		_stopped_overlay.z_index = 101
+	_fail_overlay_style = StyleBoxEmpty.new()
 	_power_fill = _power_bar.get_theme_stylebox("fill").duplicate() as StyleBoxFlat
 	_power_bar.add_theme_stylebox_override("fill", _power_fill)
 	_interact_chip.gui_input.connect(_on_interact_chip_gui_input)
 	_stop_chip.gui_input.connect(_on_stop_chip_gui_input)
 	if _sail_chip != null:
 		_sail_chip.visible = false
+	_lock_eon_tracker_layout()
 	if _cargo != null:
 		_cargo.cargo_changed.connect(_on_cargo_changed)
 		_update_cargo_display()
@@ -89,6 +136,25 @@ func _ready() -> void:
 		_radar_pulse.pulse_fired.connect(_on_pulse_fired)
 		_radar_pulse.cooldown_changed.connect(_on_pulse_cooldown_changed)
 	_update_pulse_chip()
+
+
+func _lock_eon_tracker_layout() -> void:
+	if _eon_tracker == null:
+		return
+	# Bottom-center under the DISMOUNT / interact chip; fixed offsets so soft retry
+	# and overlay visibility cannot shove this into the compass.
+	_eon_tracker.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_eon_tracker.anchor_left = 0.5
+	_eon_tracker.anchor_right = 0.5
+	_eon_tracker.anchor_top = 1.0
+	_eon_tracker.anchor_bottom = 1.0
+	_eon_tracker.offset_left = -100.0
+	_eon_tracker.offset_right = 100.0
+	_eon_tracker.offset_top = -64.0
+	_eon_tracker.offset_bottom = -28.0
+	_eon_tracker.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_eon_tracker.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_eon_tracker.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 
 func _process(delta: float) -> void:
@@ -108,10 +174,152 @@ func _process(delta: float) -> void:
 	_update_compass()
 	_update_outpost_board()
 	_update_day_summary(delta)
+	_update_integrity_bar()
+	_update_eon_tracker()
 
-	_stopped_overlay.visible = _player.is_run_ended()
-	if _player.is_run_ended():
+	var show_death_overlay := _is_death_overlay_active()
+	if show_death_overlay:
+		_stopped_overlay.visible = true
+		_update_death_overlay()
+	elif _player.is_run_ended():
+		_hide_fail_fade()
+		_stopped_overlay.visible = true
 		_update_stopped_overlay()
+	else:
+		_hide_fail_fade()
+		_stopped_overlay.visible = false
+
+
+func _is_death_overlay_active() -> bool:
+	return (
+		_player.is_run_ended()
+		and _player.get_end_reason() == "death"
+		and _director != null
+		and _director.awaiting_death_choice
+	)
+
+
+func _on_integrity_changed(value: int) -> void:
+	_update_integrity_bar(value)
+	_update_integrity_panel_visibility()
+
+
+func _on_run_started() -> void:
+	_update_integrity_panel_visibility()
+
+
+func _on_objective_changed(text: String) -> void:
+	if _objective_label != null:
+		_objective_label.text = text
+	if _objective_panel != null:
+		_objective_panel.visible = true
+	_update_integrity_panel_visibility()
+
+
+func _update_integrity_panel_visibility() -> void:
+	if _integrity_panel == null:
+		return
+	_integrity_panel.visible = _director != null and _director.has_collected_eon()
+
+
+func _update_integrity_bar(value: int = -1) -> void:
+	if _integrity_bar == null:
+		return
+	if value < 0 and _director != null:
+		value = _director.integrity
+	if value < 0:
+		value = 100
+	_integrity_bar.value = float(value)
+	if _integrity_label != null:
+		_integrity_label.text = "E.O.N Integrity  %d%%" % value
+	_update_integrity_panel_visibility()
+
+
+func _update_eon_tracker() -> void:
+	if _eon_tracker == null or _eon_tracker_label == null or _director == null:
+		return
+	var track_pos := _tracking_position()
+	var should_show_tracker := _director.should_show_eon_tracker(track_pos)
+	if should_show_tracker and not _eon_tracker.visible:
+		_lock_eon_tracker_layout()
+	_eon_tracker.visible = should_show_tracker
+	if not should_show_tracker:
+		if _compass_bar != null:
+			_compass_bar.set_eon_bearing(NAN)
+		return
+	var eon_dist := _director.get_eon_distance(track_pos)
+	_eon_tracker_label.text = "E.O.N  %s" % MathUtil.format_distance_m(eon_dist)
+
+
+func _update_death_overlay() -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_start_fail_fade()
+	if _stopped_overlay != null:
+		_stopped_overlay.add_theme_stylebox_override("panel", _fail_overlay_style)
+	var can_retry := _director != null and _director.can_try_again()
+	if _stopped_title != null:
+		if can_retry:
+			_stopped_title.text = "You have failed your mission. Fix it."
+		else:
+			_stopped_title.text = (
+				"You have failed your mission. The eternals condemn you for all eternity."
+			)
+	if _stopped_distance != null:
+		_stopped_distance.visible = false
+	if _stopped_summary != null:
+		_stopped_summary.visible = false
+	if _death_buttons != null:
+		_death_buttons.visible = true
+	if _try_again_button != null:
+		_try_again_button.visible = true
+		_try_again_button.disabled = not can_retry
+		_try_again_button.modulate = (
+			Color(1, 1, 1, 1) if can_retry else Color(0.55, 0.55, 0.55, 0.85)
+		)
+	if _restart_button != null:
+		_restart_button.text = "New game"
+		_restart_button.disabled = false
+		_restart_button.modulate = Color(1, 1, 1, 1)
+
+
+func _start_fail_fade() -> void:
+	if _fail_fade == null or _fail_fade_active:
+		return
+	_fail_fade_active = true
+	_fail_fade.visible = true
+	_fail_fade.color = Color(0, 0, 0, 0)
+	if _fail_fade_tween != null:
+		_fail_fade_tween.kill()
+	_fail_fade_tween = create_tween()
+	_fail_fade_tween.tween_property(_fail_fade, "color:a", 1.0, 0.5)
+
+
+func _hide_fail_fade() -> void:
+	_fail_fade_active = false
+	if _fail_fade_tween != null:
+		_fail_fade_tween.kill()
+		_fail_fade_tween = null
+	if _fail_fade != null:
+		_fail_fade.visible = false
+		_fail_fade.color = Color(0, 0, 0, 0)
+
+
+func _on_try_again_pressed() -> void:
+	if _director != null:
+		_director.request_try_again()
+		_hide_fail_fade()
+
+
+func _on_restart_pressed() -> void:
+	if _director != null:
+		_director.request_restart()
+
+
+func _on_kill_test_pressed() -> void:
+	if _director != null:
+		_director.kill_player_for_debug()
+	elif _player != null and not _player.is_run_ended():
+		_player.end_run("death")
 
 
 func _update_power_meter(delta: float) -> void:
@@ -154,6 +362,7 @@ func _update_power_meter(delta: float) -> void:
 func _on_day_started(day: int) -> void:
 	if _day_label != null:
 		_day_label.text = "DAY %d" % day
+		_day_label.visible = true
 
 
 func _on_day_ended(summary: Dictionary) -> void:
@@ -181,10 +390,20 @@ func _update_day_summary(delta: float) -> void:
 
 
 func _update_stopped_overlay() -> void:
-	if _run_score != null:
-		_stopped_distance.text = _run_score.format_distance()
-	if _stopped_summary != null and _expedition != null:
-		_stopped_summary.text = "Score %d" % _expedition.total_score
+	if _stopped_overlay != null:
+		_stopped_overlay.remove_theme_stylebox_override("panel")
+	if _stopped_title != null:
+		_stopped_title.text = "Stopped"
+	if _death_buttons != null:
+		_death_buttons.visible = false
+	if _stopped_distance != null:
+		_stopped_distance.visible = true
+		if _run_score != null:
+			_stopped_distance.text = _run_score.format_distance()
+	if _stopped_summary != null:
+		_stopped_summary.visible = true
+		if _expedition != null:
+			_stopped_summary.text = "Score %d" % _expedition.total_score
 
 
 func _update_compass() -> void:
@@ -207,6 +426,11 @@ func _update_compass() -> void:
 		_compass_bar.set_poi_bearing(poi_bearing)
 
 	_compass_bar.set_outpost_bearings(_resolve_outpost_bearings(track_pos, 3))
+
+	if _director != null and _director.should_show_eon_tracker(track_pos):
+		_compass_bar.set_eon_bearing(_director.get_eon_bearing(track_pos))
+	else:
+		_compass_bar.set_eon_bearing(NAN)
 
 
 func _tracking_position() -> Vector3:
