@@ -209,8 +209,9 @@ func _on_player_run_ended() -> void:
 	# Before pickup it still exists — leave it where it is.
 	_respawn_eon_at_death = phase == Phase.RUNNING
 	phase = Phase.AWAITING_EON
-	integrity = apply_death_integrity_loss(integrity)
-	integrity_changed.emit(integrity)
+	if should_apply_integrity_loss_on_death(_run_bootstrapped):
+		integrity = apply_death_integrity_loss(integrity)
+		integrity_changed.emit(integrity)
 	awaiting_death_choice = true
 	player_died.emit(death_position)
 	objective_changed.emit(get_objective_text())
@@ -294,6 +295,10 @@ static func apply_death_integrity_loss(current: int, loss: int = INTEGRITY_LOSS_
 
 static func can_try_again_with_integrity(current: int) -> bool:
 	return current > 0
+
+
+static func should_apply_integrity_loss_on_death(has_collected_eon: bool) -> bool:
+	return has_collected_eon
 
 
 static func can_collect_eon_while(awaiting_death: bool, run_ended: bool) -> bool:

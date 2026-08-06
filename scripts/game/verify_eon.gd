@@ -18,6 +18,7 @@ func _run_tests() -> void:
 	_verify_try_again_gate()
 	_verify_objective_text()
 	_verify_pickup_blocked_while_dead()
+	_verify_integrity_loss_requires_pickup()
 	print("E.O.N verification passed.")
 	quit(0)
 
@@ -75,4 +76,15 @@ func _verify_pickup_blocked_while_dead() -> void:
 	_fail_unless(
 		not EonDirectorScript.can_collect_eon_while(true, true),
 		"Pickup should be blocked while dead and awaiting choice"
+	)
+
+
+func _verify_integrity_loss_requires_pickup() -> void:
+	_fail_unless(
+		not EonDirectorScript.should_apply_integrity_loss_on_death(false),
+		"Integrity should not drop before the E.O.N has been collected"
+	)
+	_fail_unless(
+		EonDirectorScript.should_apply_integrity_loss_on_death(true),
+		"Integrity should drop on death after the E.O.N has been collected"
 	)
