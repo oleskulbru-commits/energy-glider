@@ -121,6 +121,7 @@ theme_type_variation = &"HudOverlay"
 theme_override_constants/separation = 10
 
 [node name="StoppedTitle" type="Label" parent="StoppedOverlay/VBox"]
+unique_name_in_owner = true
 theme_type_variation = &"HudStoppedTitle"
 text = "Stopped"
 horizontal_alignment = 1
@@ -136,6 +137,66 @@ unique_name_in_owner = true
 theme_type_variation = &"HudLabel"
 text = ""
 horizontal_alignment = 1
+
+[node name="DeathButtons" type="HBoxContainer" parent="StoppedOverlay/VBox"]
+unique_name_in_owner = true
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="TryAgainButton" type="Button" parent="StoppedOverlay/VBox/DeathButtons"]
+unique_name_in_owner = true
+text = "Try again"
+
+[node name="RestartButton" type="Button" parent="StoppedOverlay/VBox/DeathButtons"]
+unique_name_in_owner = true
+text = "Restart"
+
+[node name="IntegrityPanel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -240.0
+offset_top = 150.0
+offset_right = -24.0
+offset_bottom = 220.0
+grow_horizontal = 0
+theme_type_variation = &"HudPanel"
+
+[node name="IntegrityVBox" type="VBoxContainer" parent="IntegrityPanel"]
+theme_override_constants/separation = 6
+
+[node name="IntegrityLabel" type="Label" parent="IntegrityPanel/IntegrityVBox"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "God Juice Integrity"
+
+[node name="IntegrityBar" type="ProgressBar" parent="IntegrityPanel/IntegrityVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(196, 8)
+max_value = 100.0
+show_percentage = false
+value = 100.0
+
+[node name="JuiceTracker" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -120.0
+offset_top = 56.0
+offset_right = 120.0
+offset_bottom = 92.0
+grow_horizontal = 2
+theme_type_variation = &"HudPanel"
+
+[node name="JuiceTrackerLabel" type="Label" parent="JuiceTracker"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "GOD JUICE  1000 m"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="DaySummaryPanel" type="PanelContainer" parent="."]
 unique_name_in_owner = true

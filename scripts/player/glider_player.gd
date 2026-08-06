@@ -208,6 +208,11 @@ func _ready() -> void:
 		_input.set_boost_input_enabled(_boost_unlocked)
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("kill_player") and not _run_ended:
+		end_run("death")
+
+
 func _physics_process(delta: float) -> void:
 	if _input == null:
 		_input = _resolve_input()
@@ -1087,6 +1092,8 @@ func _on_ground_contact() -> void:
 		if damage > 0.0:
 			_hull_integrity = maxf(_hull_integrity - damage, 0.0)
 			_landing_feedback_label = "HARD"
+			if _hull_integrity <= 0.0:
+				end_run("death")
 
 
 func _apply_steering(delta: float) -> void:
@@ -1575,6 +1582,42 @@ func end_run(reason: String = "") -> void:
 	_end_reason = reason
 	_run_ended = true
 	run_ended.emit()
+
+
+func reset_for_respawn() -> void:
+	_run_ended = false
+	_end_reason = ""
+	_state = State.GROUNDED
+	velocity = Vector3.ZERO
+	_yaw_velocity = 0.0
+	_turn_rate = 0.0
+	_charge = CHARGE_MAX
+	_overheat_timer = 0.0
+	_coast_timer = 0.0
+	_brake_hold_time = 0.0
+	_landing_feedback_timer = 0.0
+	_landing_stabilize_timer = 0.0
+	_landing_impact_timer = 0.0
+	_contact_recover_timer = 0.0
+	_grounded_lock_timer = 0.0
+	_airborne_time = 0.0
+	_jump_cooldown = 0.0
+	_hull_integrity = 1.0
+	_contact_damage_applied = false
+	_ground_contact_active = false
+	_landing_blend = 0.0
+	_landing_feedback_label = ""
+	if _terrain_manager != null:
+		var spawn_x := global_position.x
+		var spawn_z := global_position.z
+		global_position.y = _terrain_manager.sample_height(spawn_x, spawn_z) + GliderPhysicsScript.BASE_HEIGHT + 0.05
+		_ground_normal = _terrain_manager.sample_normal(spawn_x, spawn_z)
+		_smoothed_predictive_normal = _ground_normal
+		_smoothed_center_normal = _ground_normal
+		_smoothed_pitch_normal = _ground_normal
+		_smoothed_clearance = _get_raw_clearance()
+		_prev_raw_clearance = _smoothed_clearance
+		_sync_visual_basis_from_ground()
 
 
 func get_end_reason() -> String:

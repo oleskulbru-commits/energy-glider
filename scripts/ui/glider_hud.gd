@@ -10,13 +10,22 @@ const POWER_COLOR_OVERHEAT := Color(0.98, 0.45, 0.18)
 const PULSE_COLOR := Color(1.0, 0.82, 0.28, 1.0)
 
 const GliderInputScript = preload("res://scripts/input/glider_input.gd")
+const GodJuiceDirectorScript = preload("res://scripts/game/god_juice_director.gd")
 
 @onready var _power_label: Label = %PowerLabel
 @onready var _power_percent_label: Label = %PowerPercent
 @onready var _solar_chip: PanelContainer = %SolarChip
 @onready var _power_bar: ProgressBar = %PowerBar
 @onready var _stopped_overlay: PanelContainer = %StoppedOverlay
+@onready var _stopped_title: Label = %StoppedTitle
 @onready var _stopped_distance: Label = %StoppedDistance
+@onready var _death_buttons: HBoxContainer = %DeathButtons
+@onready var _try_again_button: Button = %TryAgainButton
+@onready var _restart_button: Button = %RestartButton
+@onready var _integrity_bar: ProgressBar = %IntegrityBar
+@onready var _integrity_label: Label = %IntegrityLabel
+@onready var _juice_tracker: PanelContainer = %JuiceTracker
+@onready var _juice_tracker_label: Label = %JuiceTrackerLabel
 @onready var _interact_chip: PanelContainer = %InteractChip
 @onready var _interact_label: Label = %InteractLabel
 @onready var _interact_bar: ProgressBar = %InteractBar
@@ -46,6 +55,7 @@ var _run_score: RunScore
 var _expedition: ExpeditionState
 var _interactor: PlayerInteractor
 var _cargo: PlayerCargo
+var _director: GodJuiceDirectorScript
 var _power_fill: StyleBoxFlat
 var _solar_pulse_time := 0.0
 var _interact_tap_down := false
@@ -72,10 +82,21 @@ func _ready() -> void:
 
 	_run_score = get_tree().get_first_node_in_group("run_score") as RunScore
 	_expedition = get_tree().get_first_node_in_group("expedition_state") as ExpeditionState
+	_director = get_tree().get_first_node_in_group("god_juice_director") as GodJuiceDirectorScript
 	if _expedition != null:
 		_expedition.day_started.connect(_on_day_started)
 		_expedition.day_ended.connect(_on_day_ended)
-		_on_day_started(_expedition.current_day)
+	if _director != null:
+		_director.integrity_changed.connect(_on_integrity_changed)
+		_on_integrity_changed(_director.integrity)
+	if _try_again_button != null:
+		_try_again_button.pressed.connect(_on_try_again_pressed)
+	if _restart_button != null:
+		_restart_button.pressed.connect(_on_restart_pressed)
+	if _day_label != null:
+		_day_label.visible = false
+	if _death_buttons != null:
+		_death_buttons.visible = false
 	_power_fill = _power_bar.get_theme_stylebox("fill").duplicate() as StyleBoxFlat
 	_power_bar.add_theme_stylebox_override("fill", _power_fill)
 	_interact_chip.gui_input.connect(_on_interact_chip_gui_input)
@@ -108,10 +129,85 @@ func _process(delta: float) -> void:
 	_update_compass()
 	_update_outpost_board()
 	_update_day_summary(delta)
+	_update_integrity_bar()
+	_update_juice_tracker()
 
-	_stopped_overlay.visible = _player.is_run_ended()
-	if _player.is_run_ended():
+	var show_death_overlay := _is_death_overlay_active()
+	_stopped_overlay.visible = show_death_overlay or (_player.is_run_ended() and not show_death_overlay)
+	if show_death_overlay:
+		_update_death_overlay()
+	elif _player.is_run_ended():
 		_update_stopped_overlay()
+
+
+func _is_death_overlay_active() -> bool:
+	return (
+		_player.is_run_ended()
+		and _player.get_end_reason() == "death"
+		and _director != null
+		and _director.awaiting_death_choice
+	)
+
+
+func _on_integrity_changed(value: int) -> void:
+	_update_integrity_bar(value)
+
+
+func _update_integrity_bar(value: int = -1) -> void:
+	if _integrity_bar == null:
+		return
+	if value < 0 and _director != null:
+		value = _director.integrity
+	if value < 0:
+		value = 100
+	_integrity_bar.value = float(value)
+	if _integrity_label != null:
+		_integrity_label.text = "God Juice Integrity  %d%%" % value
+
+
+func _update_juice_tracker() -> void:
+	if _juice_tracker == null or _juice_tracker_label == null or _director == null:
+		return
+	var track_pos := _tracking_position()
+	var should_show_tracker := _director.should_show_juice_tracker(track_pos)
+	_juice_tracker.visible = should_show_tracker
+	if not should_show_tracker:
+		if _compass_bar != null:
+			_compass_bar.set_god_juice_bearing(NAN)
+		return
+	var juice_dist := _director.get_juice_distance(track_pos)
+	_juice_tracker_label.text = "GOD JUICE  %s" % MathUtil.format_distance_m(juice_dist)
+
+
+func _update_death_overlay() -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	if _stopped_title != null:
+		_stopped_title.text = "You died"
+	if _run_score != null:
+		_stopped_distance.text = _run_score.format_distance()
+	if _stopped_summary != null:
+		if _director != null and not _director.can_try_again():
+			_stopped_summary.text = "God Juice integrity depleted"
+		elif _expedition != null:
+			_stopped_summary.text = "Score %d" % _expedition.total_score
+		else:
+			_stopped_summary.text = ""
+	if _death_buttons != null:
+		_death_buttons.visible = true
+	if _try_again_button != null:
+		_try_again_button.visible = _director != null and _director.can_try_again()
+	if _restart_button != null:
+		_restart_button.text = "New game" if _director != null and not _director.can_try_again() else "Restart"
+
+
+func _on_try_again_pressed() -> void:
+	if _director != null:
+		_director.request_try_again()
+
+
+func _on_restart_pressed() -> void:
+	if _director != null:
+		_director.request_restart()
 
 
 func _update_power_meter(delta: float) -> void:
@@ -154,6 +250,7 @@ func _update_power_meter(delta: float) -> void:
 func _on_day_started(day: int) -> void:
 	if _day_label != null:
 		_day_label.text = "DAY %d" % day
+		_day_label.visible = true
 
 
 func _on_day_ended(summary: Dictionary) -> void:
@@ -181,6 +278,10 @@ func _update_day_summary(delta: float) -> void:
 
 
 func _update_stopped_overlay() -> void:
+	if _stopped_title != null:
+		_stopped_title.text = "Stopped"
+	if _death_buttons != null:
+		_death_buttons.visible = false
 	if _run_score != null:
 		_stopped_distance.text = _run_score.format_distance()
 	if _stopped_summary != null and _expedition != null:
@@ -207,6 +308,11 @@ func _update_compass() -> void:
 		_compass_bar.set_poi_bearing(poi_bearing)
 
 	_compass_bar.set_outpost_bearings(_resolve_outpost_bearings(track_pos, 3))
+
+	if _director != null and _director.should_show_juice_tracker(track_pos):
+		_compass_bar.set_god_juice_bearing(_director.get_juice_bearing(track_pos))
+	else:
+		_compass_bar.set_god_juice_bearing(NAN)
 
 
 func _tracking_position() -> Vector3:

@@ -12,6 +12,7 @@ const CARDINALS := {
 
 var yaw_rad := 0.0
 var poi_bearing_rad := NAN
+var god_juice_bearing_rad := NAN
 var outpost_bearings: Array = []
 
 var _font: Font
@@ -28,6 +29,11 @@ func set_yaw(radians: float) -> void:
 
 func set_poi_bearing(radians: float) -> void:
 	poi_bearing_rad = radians
+	queue_redraw()
+
+
+func set_god_juice_bearing(radians: float) -> void:
+	god_juice_bearing_rad = radians
 	queue_redraw()
 
 
@@ -105,3 +111,17 @@ func _draw() -> void:
 		if absf(poi_delta) <= VISIBLE_DEGREES * 0.5:
 			var poi_x := center.x + poi_delta * px_per_deg
 			draw_circle(Vector2(poi_x, size.y - 6.0), 4.0, Color(1.0, 0.82, 0.28, 0.95))
+
+	if not is_nan(god_juice_bearing_rad):
+		var juice_delta := -rad_to_deg(angle_diff(yaw_rad, god_juice_bearing_rad))
+		if absf(juice_delta) <= VISIBLE_DEGREES * 0.5:
+			var juice_x := center.x + juice_delta * px_per_deg
+			var juice_center := Vector2(juice_x, size.y - 8.0)
+			draw_colored_polygon(
+				PackedVector2Array([
+					juice_center + Vector2(0.0, -7.0),
+					juice_center + Vector2(-5.0, 3.0),
+					juice_center + Vector2(5.0, 3.0),
+				]),
+				Color(0.92, 0.35, 1.0, 0.98)
+			)

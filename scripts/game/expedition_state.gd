@@ -17,6 +17,7 @@ var last_day_summary: Dictionary = {}
 var _run_score: RunScore
 var _day_night: DayNightCycle
 var _rig: Node3D
+var _bootstrapped := false
 
 
 func _ready() -> void:
@@ -27,10 +28,12 @@ func _ready() -> void:
 		_day_night = get_node_or_null(day_night_path) as DayNightCycle
 	if player_rig_path != NodePath():
 		_rig = get_node_or_null(player_rig_path) as Node3D
-	call_deferred("_bootstrap_day")
 
 
-func _bootstrap_day() -> void:
+func bootstrap_day() -> void:
+	if _bootstrapped:
+		return
+	_bootstrapped = true
 	if _run_score != null:
 		_run_score.begin_new_day()
 	day_started.emit(current_day)

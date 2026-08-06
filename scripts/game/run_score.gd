@@ -11,6 +11,7 @@ var _distance_m := 0.0
 var _day_start_distance_m := 0.0
 var _ended := false
 var _final_distance_m := 0.0
+var _scoring_enabled := false
 
 
 func _ready() -> void:
@@ -31,7 +32,7 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	if _ended or _terrain_manager == null:
+	if _ended or _terrain_manager == null or not _scoring_enabled:
 		return
 
 	var track_pos := _get_track_position()
@@ -79,3 +80,16 @@ func get_final_distance_m() -> float:
 
 func format_distance() -> String:
 	return MathUtil.format_distance_m(get_distance_m())
+
+
+func set_scoring_enabled(enabled: bool) -> void:
+	_scoring_enabled = enabled
+
+
+func is_scoring_enabled() -> bool:
+	return _scoring_enabled
+
+
+func reset_after_death() -> void:
+	_ended = false
+	_final_distance_m = 0.0
