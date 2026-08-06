@@ -19,6 +19,7 @@ func _run_tests() -> void:
 	_verify_objective_text()
 	_verify_pickup_blocked_while_dead()
 	_verify_integrity_loss_requires_pickup()
+	_verify_sticky_integrity_after_first_collect()
 	print("E.O.N verification passed.")
 	quit(0)
 
@@ -87,4 +88,29 @@ func _verify_integrity_loss_requires_pickup() -> void:
 	_fail_unless(
 		EonDirectorScript.should_apply_integrity_loss_on_death(true),
 		"Integrity should drop on death after the E.O.N has been collected"
+	)
+
+
+func _verify_sticky_integrity_after_first_collect() -> void:
+	# After first pickup, deaths while awaiting re-pickup still cost integrity and
+	# still re-drop the E.O.N at the latest death spot (not gated on phase RUNNING).
+	_fail_unless(
+		EonDirectorScript.should_apply_integrity_loss_on_death(true),
+		"Integrity should keep dropping on death while awaiting re-pickup"
+	)
+	_fail_unless(
+		EonDirectorScript.should_respawn_eon_at_death(true),
+		"E.O.N should re-drop at death after first collect even before re-pickup"
+	)
+	_fail_unless(
+		not EonDirectorScript.should_respawn_eon_at_death(false),
+		"E.O.N should not re-drop at death before first collect"
+	)
+	var integrity := 100
+	integrity = EonDirectorScript.apply_death_integrity_loss(integrity)
+	_fail_unless(integrity == 80, "First post-collect death should leave 80 integrity")
+	integrity = EonDirectorScript.apply_death_integrity_loss(integrity)
+	_fail_unless(
+		integrity == 60,
+		"Second death while awaiting re-pickup should still deteriorate to 60"
 	)

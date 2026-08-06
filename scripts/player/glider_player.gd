@@ -1614,7 +1614,12 @@ func reset_for_respawn() -> void:
 	if _terrain_manager != null:
 		var spawn_x := global_position.x
 		var spawn_z := global_position.z
-		global_position.y = _terrain_manager.sample_height(spawn_x, spawn_z) + GliderPhysicsScript.BASE_HEIGHT + 0.05
+		var spawn_y := (
+			_terrain_manager.sample_height(spawn_x, spawn_z)
+			+ GliderPhysicsScript.BASE_HEIGHT
+			+ 0.05
+		)
+		teleport_to(Vector3(spawn_x, spawn_y, spawn_z), _yaw)
 		_ground_normal = _terrain_manager.sample_normal(spawn_x, spawn_z)
 		_smoothed_predictive_normal = _ground_normal
 		_smoothed_center_normal = _ground_normal
@@ -1622,6 +1627,24 @@ func reset_for_respawn() -> void:
 		_smoothed_clearance = _get_raw_clearance()
 		_prev_raw_clearance = _smoothed_clearance
 		_sync_visual_basis_from_ground()
+
+
+## RigidBody3D teleports must sync PhysicsServer or the body snaps back next tick.
+func teleport_to(world_pos: Vector3, yaw: float) -> void:
+	_yaw = yaw
+	_yaw_velocity = 0.0
+	_turn_rate = 0.0
+	linear_velocity = Vector3.ZERO
+	angular_velocity = Vector3.ZERO
+	var xf := Transform3D(Basis.from_euler(Vector3(0.0, yaw, 0.0)), world_pos)
+	global_transform = xf
+	PhysicsServer3D.body_set_state(get_rid(), PhysicsServer3D.BODY_STATE_TRANSFORM, xf)
+	PhysicsServer3D.body_set_state(
+		get_rid(), PhysicsServer3D.BODY_STATE_LINEAR_VELOCITY, Vector3.ZERO
+	)
+	PhysicsServer3D.body_set_state(
+		get_rid(), PhysicsServer3D.BODY_STATE_ANGULAR_VELOCITY, Vector3.ZERO
+	)
 
 
 func get_end_reason() -> String:

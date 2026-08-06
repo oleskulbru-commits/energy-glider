@@ -82,11 +82,10 @@ func reset_to_spawn() -> void:
 		_on_foot.set_active(false)
 
 	_set_mounted(true, true)
-	_glider.global_position = _spawn_position
-	_glider.rotation.y = _spawn_yaw
-	_glider.velocity = Vector3.ZERO
 	if _terrain_manager != null:
 		_terrain_manager.ensure_loaded_at(_spawn_position)
+	_glider.teleport_to(_spawn_position, _spawn_yaw)
+	_glider.velocity = Vector3.ZERO
 	if _camera != null:
 		_camera.reset_follow_state()
 		_camera.snap_follow_yaw(_spawn_yaw)

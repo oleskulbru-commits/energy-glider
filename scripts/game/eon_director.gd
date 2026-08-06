@@ -205,9 +205,9 @@ func _on_player_run_ended() -> void:
 	if awaiting_death_choice:
 		return
 	death_position = _rig.get_tracking_position() if _rig != null else Vector3.ZERO
-	# After pickup the E.O.N is gone — soft retry places it at the death spot.
-	# Before pickup it still exists — leave it where it is.
-	_respawn_eon_at_death = phase == Phase.RUNNING
+	# After first pickup, every death drops the E.O.N at the death spot on soft retry.
+	# Before first pickup it still exists — leave it where it is.
+	_respawn_eon_at_death = should_respawn_eon_at_death(_run_bootstrapped)
 	phase = Phase.AWAITING_EON
 	if should_apply_integrity_loss_on_death(_run_bootstrapped):
 		integrity = apply_death_integrity_loss(integrity)
@@ -218,21 +218,23 @@ func _on_player_run_ended() -> void:
 
 
 func _soft_retry() -> void:
+	# Teleport first while the run is still ended so proximity pickup cannot fire
+	# against a death-spot E.O.N before the player is back at start.
 	if _rig != null:
 		_rig.reset_to_spawn()
+	if _run_score != null:
+		_run_score.reset_after_death()
+	if _respawn_eon_at_death:
+		_spawn_eon_at_ground(death_position)
+	elif _eon == null or not is_instance_valid(_eon):
+		_spawn_eon_near_start()
+	_respawn_eon_at_death = false
 	var glider := _get_glider()
 	if glider != null:
 		glider.reset_for_respawn()
 	if _rig != null:
 		# Snap again after respawn height correction so the camera does not lerp.
 		_rig.snap_camera_now()
-	if _run_score != null:
-		_run_score.reset_after_death()
-	if _respawn_eon_at_death:
-		_spawn_eon_at(death_position)
-	elif _eon == null or not is_instance_valid(_eon):
-		_spawn_eon_near_start()
-	_respawn_eon_at_death = false
 	phase = Phase.AWAITING_EON
 	objective_changed.emit(get_objective_text())
 
@@ -242,12 +244,20 @@ func _spawn_eon_near_start() -> void:
 	var distance := _rng.randf_range(EON_FIRST_SPAWN_MIN_M, EON_FIRST_SPAWN_MAX_M)
 	var offset := MathUtil.yaw_forward(bearing) * distance
 	var approx := _spawn_position + offset
-	_spawn_eon_at(approx)
+	_spawn_eon_at(approx, true)
 
 
-func _spawn_eon_at(world_pos: Vector3) -> void:
+func _spawn_eon_at_ground(world_pos: Vector3) -> void:
+	_spawn_eon_at(world_pos, false)
+
+
+func _spawn_eon_at(world_pos: Vector3, snap_to_ridge: bool = true) -> void:
 	_despawn_eon()
-	var placed_xz := _pick_ridge_xz(world_pos)
+	if _terrain != null:
+		_terrain.ensure_loaded_at(world_pos)
+	var placed_xz := (
+		_pick_ridge_xz(world_pos) if snap_to_ridge else Vector2(world_pos.x, world_pos.z)
+	)
 	var height := _sample_ground_y(placed_xz.x, placed_xz.y)
 	var spawn_pos := Vector3(placed_xz.x, height + 0.08, placed_xz.y)
 
@@ -298,6 +308,10 @@ static func can_try_again_with_integrity(current: int) -> bool:
 
 
 static func should_apply_integrity_loss_on_death(has_collected_eon: bool) -> bool:
+	return has_collected_eon
+
+
+static func should_respawn_eon_at_death(has_collected_eon: bool) -> bool:
 	return has_collected_eon
 
 
