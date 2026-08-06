@@ -52,4 +52,7 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 & $Godot --headless --path $ProjectRoot --script res://scripts/game/verify_eon.gd
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& $Godot --headless --path $ProjectRoot --script res://scripts/world/verify_night_survival.gd
 exit $LASTEXITCODE

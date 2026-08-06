@@ -12,7 +12,6 @@ enum Phase { AWAITING_EON, RUNNING }
 
 const INTEGRITY_START := 100
 const INTEGRITY_LOSS_PER_DEATH := 20
-const EON_REVEAL_DISTANCE_M := 1000.0
 const EON_FIRST_SPAWN_MIN_M := 80.0
 const EON_FIRST_SPAWN_MAX_M := 150.0
 const EON_RIDGE_SAMPLE_RADIUS_M := 80.0
@@ -26,6 +25,7 @@ const EonPickupScript := preload("res://scripts/game/eon_pickup.gd")
 @export var terrain_manager_path: NodePath
 @export var run_score_path: NodePath
 @export var expedition_state_path: NodePath
+@export var day_night_path: NodePath
 
 ## Stub for future relay tower progression (displayed after E.O.N pickup).
 var next_relay_label := "x"
@@ -39,6 +39,7 @@ var _rig: PlayerRig
 var _terrain: TerrainManager
 var _run_score: RunScore
 var _expedition: ExpeditionState
+var _day_night: DayNightCycle
 var _eon: EonPickupScript
 var _spawn_position := Vector3.ZERO
 var _spawn_yaw := 0.0
@@ -58,6 +59,10 @@ func _ready() -> void:
 		_run_score = get_node_or_null(run_score_path) as RunScore
 	if expedition_state_path != NodePath():
 		_expedition = get_node_or_null(expedition_state_path) as ExpeditionState
+	if day_night_path != NodePath():
+		_day_night = get_node_or_null(day_night_path) as DayNightCycle
+	if _day_night == null:
+		_day_night = get_tree().get_first_node_in_group("day_night_cycle") as DayNightCycle
 	call_deferred("_boot")
 
 
@@ -139,10 +144,10 @@ func get_eon_distance(from: Vector3) -> float:
 	return MathUtil.horizontal_distance(from, eon_pos)
 
 
-func should_show_eon_tracker(from: Vector3) -> bool:
-	return (
-		phase == Phase.AWAITING_EON
-		and get_eon_distance(from) <= EON_REVEAL_DISTANCE_M
+func should_show_eon_tracker(_from: Vector3) -> bool:
+	return should_show_eon_tracker_for(
+		phase == Phase.AWAITING_EON,
+		get_eon_position() != Vector3.ZERO
 	)
 
 
@@ -236,6 +241,8 @@ func _soft_retry() -> void:
 	if _rig != null:
 		# Snap again after respawn height correction so the camera does not lerp.
 		_rig.snap_camera_now()
+	if _day_night != null:
+		_day_night.skip_to_dawn()
 	phase = Phase.AWAITING_EON
 	objective_changed.emit(get_objective_text())
 
@@ -314,6 +321,10 @@ static func should_apply_integrity_loss_on_death(has_collected_eon: bool) -> boo
 
 static func should_respawn_eon_at_death(was_carrying_eon: bool) -> bool:
 	return was_carrying_eon
+
+
+static func should_show_eon_tracker_for(phase_awaiting: bool, eon_exists: bool) -> bool:
+	return phase_awaiting and eon_exists
 
 
 static func can_collect_eon_while(awaiting_death: bool, run_ended: bool) -> bool:

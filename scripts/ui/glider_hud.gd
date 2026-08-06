@@ -48,6 +48,10 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _stopped_summary: Label = %StoppedSummary
 @onready var _day_summary_panel: PanelContainer = %DaySummaryPanel
 @onready var _day_summary_label: Label = %DaySummaryLabel
+@onready var _night_warning_panel: PanelContainer = %NightWarningPanel
+@onready var _night_warning_label: Label = %NightWarningLabel
+@onready var _safe_chip: PanelContainer = %SafeChip
+@onready var _safe_label: Label = %SafeLabel
 @onready var _outpost_board: PanelContainer = %OutpostBoard
 @onready var _outpost_board_label: Label = %OutpostBoardLabel
 
@@ -61,11 +65,14 @@ var _expedition: ExpeditionState
 var _interactor: PlayerInteractor
 var _cargo: PlayerCargo
 var _director: EonDirectorScript
+var _night_survival: NightSurvival
 var _power_fill: StyleBoxFlat
 var _solar_pulse_time := 0.0
 var _interact_tap_down := false
 var _pulse_scan_timer := 0.0
 var _day_summary_timer := 0.0
+var _night_warning_timer := 0.0
+var _safe_pulse_time := 0.0
 var _fail_fade_tween: Tween
 var _fail_fade_active := false
 var _fail_overlay_style: StyleBoxEmpty
@@ -91,6 +98,7 @@ func _ready() -> void:
 	_run_score = get_tree().get_first_node_in_group("run_score") as RunScore
 	_expedition = get_tree().get_first_node_in_group("expedition_state") as ExpeditionState
 	_director = get_tree().get_first_node_in_group("eon_director") as EonDirectorScript
+	_night_survival = get_tree().get_first_node_in_group("night_survival") as NightSurvival
 	if _expedition != null:
 		_expedition.day_started.connect(_on_day_started)
 		_expedition.day_ended.connect(_on_day_ended)
@@ -101,6 +109,14 @@ func _ready() -> void:
 		_on_integrity_changed(_director.integrity)
 		_on_objective_changed(_director.get_objective_text())
 		_update_integrity_panel_visibility()
+	if _night_survival != null:
+		_night_survival.night_warning.connect(_on_night_warning)
+		_night_survival.safe_changed.connect(_on_night_safe_changed)
+		_on_night_safe_changed(_night_survival.is_safe())
+	if _night_warning_panel != null:
+		_night_warning_panel.visible = false
+	if _safe_chip != null:
+		_safe_chip.visible = false
 	if _try_again_button != null:
 		_try_again_button.pressed.connect(_on_try_again_pressed)
 	if _restart_button != null:
@@ -174,6 +190,8 @@ func _process(delta: float) -> void:
 	_update_compass()
 	_update_outpost_board()
 	_update_day_summary(delta)
+	_update_night_warning(delta)
+	_update_safe_chip(delta)
 	_update_integrity_bar()
 	_update_eon_tracker()
 
@@ -305,9 +323,13 @@ func _hide_fail_fade() -> void:
 
 
 func _on_try_again_pressed() -> void:
+	# Clear the black fail fade before resetting lighting so dawn isn't
+	# revealed from under a night-tinted death screen.
+	_hide_fail_fade()
+	if _stopped_overlay != null:
+		_stopped_overlay.visible = false
 	if _director != null:
 		_director.request_try_again()
-		_hide_fail_fade()
 
 
 func _on_restart_pressed() -> void:
@@ -387,6 +409,43 @@ func _update_day_summary(delta: float) -> void:
 	_day_summary_timer = maxf(_day_summary_timer - delta, 0.0)
 	if _day_summary_timer <= 0.0 and _day_summary_panel != null:
 		_day_summary_panel.visible = false
+
+
+func _on_night_warning() -> void:
+	if _night_warning_panel == null:
+		return
+	if _night_warning_label != null:
+		_night_warning_label.text = NightSurvival.NIGHT_WARNING_TEXT
+	_night_warning_panel.visible = true
+	_night_warning_timer = 3.0
+
+
+func _update_night_warning(delta: float) -> void:
+	if _night_warning_timer <= 0.0:
+		if _night_warning_panel != null:
+			_night_warning_panel.visible = false
+		return
+	_night_warning_timer = maxf(_night_warning_timer - delta, 0.0)
+	if _night_warning_timer <= 0.0 and _night_warning_panel != null:
+		_night_warning_panel.visible = false
+
+
+func _on_night_safe_changed(is_safe: bool) -> void:
+	if _safe_chip == null:
+		return
+	_safe_chip.visible = is_safe
+	if is_safe:
+		_safe_pulse_time = 0.0
+
+
+func _update_safe_chip(delta: float) -> void:
+	if _safe_chip == null or not _safe_chip.visible:
+		return
+	_safe_pulse_time += delta
+	var pulse := 0.72 + 0.28 * (0.5 + 0.5 * sin(_safe_pulse_time * 2.4))
+	_safe_chip.modulate = Color(1.0, 1.0, 1.0, pulse)
+	if _safe_label != null:
+		_safe_label.modulate = Color(0.45, 0.92, 0.55, pulse)
 
 
 func _update_stopped_overlay() -> void:
