@@ -72,9 +72,9 @@ day_night_path = NodePath("../DayNightCycle")
 script = ExtResource("14_daynight")
 sun_path = NodePath("../Sun")
 world_environment_path = NodePath("../WorldEnvironment")
-day_phase_sec = 180.0
-night_phase_sec = 180.0
-start_offset_sec = 10.0
+day_phase_sec = 240.0
+night_phase_sec = 240.0
+start_offset_sec = 20.0
 
 [node name="NightSurvival" type="Node" parent="."]
 script = ExtResource("16_night")

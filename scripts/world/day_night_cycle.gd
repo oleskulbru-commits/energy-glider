@@ -7,10 +7,10 @@ signal time_changed(normalized: float)
 
 @export var sun_path: NodePath
 @export var world_environment_path: NodePath
-@export var day_phase_sec := 180.0
-@export var night_phase_sec := 180.0
+@export var day_phase_sec := 240.0
+@export var night_phase_sec := 240.0
 ## Seconds into the full day+night cycle when the scene loads (skips the darkest dawn).
-@export var start_offset_sec := 10.0
+@export var start_offset_sec := 20.0
 
 const TRANSITION_BLEND := 0.04
 const SKY_DAY_TOP := Color(0.35, 0.55, 0.85)
