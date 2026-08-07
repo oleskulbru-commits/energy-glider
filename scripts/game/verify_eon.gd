@@ -20,6 +20,7 @@ func _run_tests() -> void:
 	_verify_pickup_blocked_while_dead()
 	_verify_integrity_loss_requires_pickup()
 	_verify_sticky_integrity_after_first_collect()
+	_verify_eon_tracker_always_while_awaiting()
 	print("E.O.N verification passed.")
 	quit(0)
 
@@ -113,4 +114,19 @@ func _verify_sticky_integrity_after_first_collect() -> void:
 	_fail_unless(
 		integrity == 60,
 		"Second death while awaiting re-pickup should still deteriorate to 60"
+	)
+
+
+func _verify_eon_tracker_always_while_awaiting() -> void:
+	_fail_unless(
+		EonDirectorScript.should_show_eon_tracker_for(true, true),
+		"Tracker/compass should show while awaiting with an E.O.N present"
+	)
+	_fail_unless(
+		not EonDirectorScript.should_show_eon_tracker_for(true, false),
+		"Tracker should hide when no E.O.N exists"
+	)
+	_fail_unless(
+		not EonDirectorScript.should_show_eon_tracker_for(false, true),
+		"Tracker should hide after E.O.N is collected (run active)"
 	)

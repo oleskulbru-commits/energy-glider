@@ -7,9 +7,12 @@ signal time_changed(normalized: float)
 
 @export var sun_path: NodePath
 @export var world_environment_path: NodePath
-@export var day_duration_sec := 900.0
-@export var start_time := 0.25
+@export var day_phase_sec := 240.0
+@export var night_phase_sec := 240.0
+## Seconds into the full day+night cycle when the scene loads (skips the darkest dawn).
+@export var start_offset_sec := 20.0
 
+const TRANSITION_BLEND := 0.04
 const SKY_DAY_TOP := Color(0.35, 0.55, 0.85)
 const SKY_DAY_HORIZON := Color(0.85, 0.72, 0.55)
 const SKY_NIGHT_TOP := Color(0.04, 0.06, 0.14)
@@ -17,17 +20,18 @@ const SKY_NIGHT_HORIZON := Color(0.12, 0.1, 0.18)
 const FOG_DAY := Color(0.55, 0.58, 0.62)
 const FOG_NIGHT := Color(0.08, 0.09, 0.14)
 
-var time_normalized := 0.25
+var time_normalized := 0.0
 
 var _sun: DirectionalLight3D
 var _environment: WorldEnvironment
 var _sky_material: ProceduralSkyMaterial
-var _dusk_sent := false
+var _was_night := false
 
 
 func _ready() -> void:
 	add_to_group("day_night_cycle")
-	time_normalized = clampf(start_time, 0.0, 1.0)
+	time_normalized = _boot_time_normalized()
+	_was_night = is_night()
 	if sun_path != NodePath():
 		_sun = get_node_or_null(sun_path) as DirectionalLight3D
 	if world_environment_path != NodePath():
@@ -40,37 +44,94 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if day_duration_sec <= 0.0:
+	var cycle := get_full_cycle_sec()
+	if cycle <= 0.0:
 		return
 	var prev := time_normalized
-	time_normalized = fmod(time_normalized + delta / day_duration_sec, 1.0)
-	if prev > 0.7 and time_normalized < 0.1:
-		_dusk_sent = false
-		dawn.emit()
+	time_normalized = fmod(time_normalized + delta / cycle, 1.0)
+	_emit_phase_transitions(prev, time_normalized)
 	_apply_time_visuals()
-	if not _dusk_sent and time_normalized >= 0.75 and prev < 0.75:
-		_dusk_sent = true
-		dusk.emit()
 	if not is_equal_approx(prev, time_normalized):
 		time_changed.emit(time_normalized)
 
 
+func get_full_cycle_sec() -> float:
+	return maxf(day_phase_sec, 0.0) + maxf(night_phase_sec, 0.0)
+
+
+func get_day_fraction() -> float:
+	var cycle := get_full_cycle_sec()
+	if cycle <= 0.0:
+		return 0.5
+	return maxf(day_phase_sec, 0.0) / cycle
+
+
 func skip_to_dawn() -> void:
-	time_normalized = 0.25
-	_dusk_sent = false
+	_ensure_visual_bindings()
+	time_normalized = _boot_time_normalized()
+	_was_night = false
+	# Always emit so night survival clears even if phase detection raced.
 	dawn.emit()
 	_apply_time_visuals()
+	# Re-apply next idle in case another system overwrote lighting this frame.
+	call_deferred("_apply_time_visuals")
 	time_changed.emit(time_normalized)
 
 
+func _boot_time_normalized() -> float:
+	var cycle := get_full_cycle_sec()
+	if cycle <= 0.0:
+		return 0.0
+	return clampf(start_offset_sec / cycle, 0.0, 1.0)
+
+
+func _ensure_visual_bindings() -> void:
+	if _sun == null and sun_path != NodePath():
+		_sun = get_node_or_null(sun_path) as DirectionalLight3D
+	if _environment == null and world_environment_path != NodePath():
+		_environment = get_node_or_null(world_environment_path) as WorldEnvironment
+	if (
+		_sky_material == null
+		and _environment != null
+		and _environment.environment != null
+		and _environment.environment.sky != null
+		and _environment.environment.sky.sky_material is ProceduralSkyMaterial
+	):
+		_sky_material = _environment.environment.sky.sky_material as ProceduralSkyMaterial
+
+
 func get_heat_factor() -> float:
-	var noon_dist := absf(time_normalized - 0.5)
-	var daylight := 1.0 - clampf((noon_dist - 0.2) / 0.3, 0.0, 1.0)
+	if is_night():
+		return 0.4
+	# Noon sits at the midpoint of the day half.
+	var noon := get_day_fraction() * 0.5
+	var noon_dist := absf(time_normalized - noon)
+	var daylight := 1.0 - clampf((noon_dist - 0.1) / 0.15, 0.0, 1.0)
 	return lerpf(0.4, 1.0, daylight)
 
 
 func is_night() -> bool:
-	return time_normalized >= 0.75 or time_normalized < 0.2
+	return time_normalized >= get_day_fraction()
+
+
+static func night_starts_at_fraction(day_phase: float, night_phase: float) -> float:
+	var cycle := maxf(day_phase, 0.0) + maxf(night_phase, 0.0)
+	if cycle <= 0.0:
+		return 0.5
+	return maxf(day_phase, 0.0) / cycle
+
+
+func _emit_phase_transitions(prev: float, next: float) -> void:
+	var day_end := get_day_fraction()
+	var crossed_dusk := prev < day_end and next >= day_end
+	var wrapped_to_dawn := prev > next
+	var crossed_dawn := wrapped_to_dawn or (prev >= day_end and next < day_end)
+	if crossed_dusk:
+		_was_night = true
+		dusk.emit()
+	elif crossed_dawn:
+		_was_night = false
+		dawn.emit()
 
 
 func _apply_time_visuals() -> void:
@@ -91,12 +152,12 @@ func _apply_time_visuals() -> void:
 
 
 func _daylight_blend() -> float:
-	if time_normalized < 0.2:
-		return clampf(time_normalized / 0.2, 0.0, 1.0) * 0.35
-	if time_normalized > 0.8:
-		return clampf((1.0 - time_normalized) / 0.2, 0.0, 1.0) * 0.35
-	if time_normalized < 0.3:
-		return lerpf(0.35, 1.0, (time_normalized - 0.2) / 0.1)
-	if time_normalized > 0.7:
-		return lerpf(1.0, 0.35, (time_normalized - 0.7) / 0.1)
-	return 1.0
+	var day_end := get_day_fraction()
+	var blend := TRANSITION_BLEND
+	if time_normalized < blend:
+		return lerpf(0.0, 1.0, time_normalized / maxf(blend, 0.001))
+	if time_normalized < day_end - blend:
+		return 1.0
+	if time_normalized < day_end:
+		return lerpf(1.0, 0.0, (time_normalized - (day_end - blend)) / maxf(blend, 0.001))
+	return 0.0

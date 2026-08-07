@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3 uid="uid://cgame_world001"]
+[gd_scene load_steps=15 format=3 uid="uid://cgame_world001"]
 
 [ext_resource type="Script" uid="uid://ceqhf3n5dule0" path="res://scripts/terrain/terrain_manager.gd" id="1_terrain"]
 [ext_resource type="Material" uid="uid://suwp2571pfe0" path="res://materials/sand.tres" id="2_sand"]
@@ -13,6 +13,7 @@
 [ext_resource type="Script" path="res://scripts/game/expedition_state.gd" id="13_expedition"]
 [ext_resource type="Script" path="res://scripts/world/day_night_cycle.gd" id="14_daynight"]
 [ext_resource type="Script" path="res://scripts/game/eon_director.gd" id="15_eon"]
+[ext_resource type="Script" path="res://scripts/world/night_survival.gd" id="16_night"]
 
 [sub_resource type="Sky" id="Sky_main"]
 sky_material = ExtResource("4_sky")
@@ -27,8 +28,8 @@ reflected_light_source = 2
 tonemap_mode = 2
 tonemap_exposure = 0.85
 fog_enabled = true
-fog_light_color = Color(0.55, 0.58, 0.62, 1)
-fog_density = 0.00085
+fog_light_color = Color(0.4, 0.42, 0.47, 1)
+fog_density = 0.00125
 fog_aerial_perspective = 0.12
 
 [node name="GameWorld" type="Node3D"]
@@ -38,8 +39,8 @@ environment = SubResource("Environment_main")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.05233616, -0.27525946, 0.95994455, 0, 0.96126115, 0.27563742, -0.99862975, -0.01442579, 0.050308745, 0, 80, 0)
-light_color = Color(1, 0.88, 0.72, 1)
-light_energy = 1.35
+light_color = Color(0.86, 0.8, 0.78, 1)
+light_energy = 1.01
 shadow_enabled = true
 shadow_opacity = 0.85
 
@@ -65,11 +66,20 @@ player_rig_path = NodePath("../PlayerRig")
 terrain_manager_path = NodePath("../TerrainManager")
 run_score_path = NodePath("../RunScore")
 expedition_state_path = NodePath("../ExpeditionState")
+day_night_path = NodePath("../DayNightCycle")
 
 [node name="DayNightCycle" type="Node" parent="."]
 script = ExtResource("14_daynight")
 sun_path = NodePath("../Sun")
 world_environment_path = NodePath("../WorldEnvironment")
+day_phase_sec = 240.0
+night_phase_sec = 240.0
+start_offset_sec = 20.0
+
+[node name="NightSurvival" type="Node" parent="."]
+script = ExtResource("16_night")
+day_night_path = NodePath("../DayNightCycle")
+player_rig_path = NodePath("../PlayerRig")
 
 [node name="AntennaState" type="Node" parent="."]
 script = ExtResource("9_antenna_state")
