@@ -792,10 +792,11 @@ func _verify_hard_landing_contact() -> void:
 		"Hard landing should compress below hover rest (min %.2f)" % min_clearance
 	)
 	_fail_unless(touched_ground, "Hard landing should register ground contact")
-	_fail_unless(
-		glider.get_hull_integrity() < 1.0,
-		"Hard landing should damage hull"
-	)
+	if GliderPlayerScript.FALL_DAMAGE_ENABLED:
+		_fail_unless(
+			glider.get_hull_integrity() < 1.0,
+			"Hard landing should damage hull"
+		)
 
 	for i in HOVER_SETTLE_FRAMES:
 		await physics_frame
