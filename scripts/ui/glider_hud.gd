@@ -66,6 +66,7 @@ var _interactor: PlayerInteractor
 var _cargo: PlayerCargo
 var _director: EonDirectorScript
 var _night_survival: NightSurvival
+var _day_night: DayNightCycle
 var _power_fill: StyleBoxFlat
 var _solar_pulse_time := 0.0
 var _interact_tap_down := false
@@ -113,6 +114,9 @@ func _ready() -> void:
 		_night_survival.night_warning.connect(_on_night_warning)
 		_night_survival.safe_changed.connect(_on_night_safe_changed)
 		_on_night_safe_changed(_night_survival.is_safe())
+	_day_night = get_tree().get_first_node_in_group("day_night_cycle") as DayNightCycle
+	if _day_night != null:
+		_day_night.dawn.connect(_clear_night_warning)
 	if _night_warning_panel != null:
 		_night_warning_panel.visible = false
 	if _safe_chip != null:
@@ -420,14 +424,20 @@ func _on_night_warning() -> void:
 	_night_warning_timer = 3.0
 
 
+func _clear_night_warning() -> void:
+	_night_warning_timer = 0.0
+	if _night_warning_panel != null:
+		_night_warning_panel.visible = false
+
+
 func _update_night_warning(delta: float) -> void:
 	if _night_warning_timer <= 0.0:
 		if _night_warning_panel != null:
 			_night_warning_panel.visible = false
 		return
 	_night_warning_timer = maxf(_night_warning_timer - delta, 0.0)
-	if _night_warning_timer <= 0.0 and _night_warning_panel != null:
-		_night_warning_panel.visible = false
+	if _night_warning_timer <= 0.0:
+		_clear_night_warning()
 
 
 func _on_night_safe_changed(is_safe: bool) -> void:
