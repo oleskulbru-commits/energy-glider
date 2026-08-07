@@ -1,7 +1,7 @@
 extends SceneTree
 
 const OutpostSpawnerScript = preload("res://scripts/world/outpost_spawner.gd")
-const WeatherStationScript = preload("res://scripts/world/weather_station.gd")
+const UpgradeTowerScript = preload("res://scripts/world/upgrade_tower.gd")
 const TerrainManagerScript = preload("res://scripts/terrain/terrain_manager.gd")
 const SandMaterial = preload("res://materials/sand.tres")
 
@@ -21,21 +21,21 @@ func _run() -> void:
 	root_node.add_child(terrain)
 	await process_frame
 
-	var station: WeatherStation = WeatherStationScript.new()
-	station.name = "OffsetStation"
-	root_node.add_child(station)
-	station.terrain_manager_path = station.get_path_to(terrain)
-	station.global_position = Vector3(250.0, 0.0, -180.0)
-	station.snap_to_terrain()
+	var tower: UpgradeTower = UpgradeTowerScript.new()
+	tower.name = "OffsetTower"
+	root_node.add_child(tower)
+	tower.terrain_manager_path = tower.get_path_to(terrain)
+	tower.global_position = Vector3(250.0, 0.0, -180.0)
+	tower.snap_to_terrain()
 	_fail_unless(
-		absf(station.global_position.x - 250.0) < 0.01
-		and absf(station.global_position.z + 180.0) < 0.01,
-		"Station snap should keep XZ (got %s)" % station.global_position
+		absf(tower.global_position.x - 250.0) < 0.01
+		and absf(tower.global_position.z + 180.0) < 0.01,
+		"Tower snap should keep XZ (got %s)" % tower.global_position
 	)
 	var expected_y := terrain.sample_height(250.0, -180.0) + 0.05
 	_fail_unless(
-		absf(station.global_position.y - expected_y) < 0.05,
-		"Station should snap Y to terrain height"
+		absf(tower.global_position.y - expected_y) < 0.05,
+		"Tower should snap Y to terrain height"
 	)
 
 	var spawner: Node = OutpostSpawnerScript.new()
@@ -52,9 +52,9 @@ func _run() -> void:
 	var spawned := 0
 	var home_found := false
 	var ring_ok := 0
-	for node in get_nodes_in_group("weather_station"):
+	for node in get_nodes_in_group("upgrade_tower"):
 		var s := node as Node3D
-		if s == null or s == station:
+		if s == null or s == tower:
 			continue
 		spawned += 1
 		var flat := Vector2(

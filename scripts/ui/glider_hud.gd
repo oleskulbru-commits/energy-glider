@@ -511,7 +511,7 @@ func _tracking_position() -> Vector3:
 func _resolve_outpost_bearings(track_pos: Vector3, limit: int) -> Array:
 	var ranked := WorldQueries.ranked_in_group(
 		get_tree(),
-		"weather_station",
+		"upgrade_tower",
 		track_pos,
 		40.0
 	)
@@ -526,7 +526,7 @@ func _update_outpost_board() -> void:
 		return
 	var track_pos := _tracking_position()
 
-	var ranked := WorldQueries.ranked_in_group(get_tree(), "weather_station", track_pos)
+	var ranked := WorldQueries.ranked_in_group(get_tree(), "upgrade_tower", track_pos)
 	if ranked.is_empty():
 		_outpost_board.visible = false
 		return
@@ -539,7 +539,7 @@ func _update_outpost_board() -> void:
 
 	var neighbors := WorldQueries.ranked_in_group(
 		get_tree(),
-		"weather_station",
+		"upgrade_tower",
 		hub.global_position,
 		0.0,
 		hub

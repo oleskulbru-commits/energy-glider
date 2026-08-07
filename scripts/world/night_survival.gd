@@ -5,7 +5,7 @@ signal night_warning
 signal safe_changed(is_safe: bool)
 
 const UNPROTECTED_KILL_SEC := 30.0
-const NIGHT_WARNING_TEXT := "Night has arrived. Get to a relay tower or face the darkness."
+const NIGHT_WARNING_TEXT := "Night has arrived. Get to an upgrade tower or face the darkness."
 
 @export var day_night_path: NodePath
 @export var player_rig_path: NodePath
@@ -72,7 +72,7 @@ func is_safe_in_hub() -> bool:
 
 
 func _any_hub_contains(world_pos: Vector3) -> bool:
-	for node in get_tree().get_nodes_in_group("weather_station"):
+	for node in get_tree().get_nodes_in_group("upgrade_tower"):
 		if not (node is Node3D):
 			continue
 		var hub := node as Node3D

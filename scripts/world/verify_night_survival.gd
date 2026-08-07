@@ -36,7 +36,7 @@ func _verify_phase_lengths() -> void:
 func _verify_night_gate() -> void:
 	_fail_unless(
 		NightSurvivalScript.NIGHT_WARNING_TEXT
-		== "Night has arrived. Get to a relay tower or face the darkness.",
+		== "Night has arrived. Get to an upgrade tower or face the darkness.",
 		"Night warning copy mismatch"
 	)
 	_fail_unless(

@@ -1,4 +1,4 @@
-class_name WeatherStation
+class_name UpgradeTower
 extends Node3D
 
 const GROUND_OFFSET := 0.05
@@ -7,7 +7,7 @@ const GROUND_OFFSET := 0.05
 
 
 func _ready() -> void:
-	add_to_group("weather_station")
+	add_to_group("upgrade_tower")
 	call_deferred("snap_to_terrain")
 
 

@@ -27,8 +27,8 @@ const EonPickupScript := preload("res://scripts/game/eon_pickup.gd")
 @export var expedition_state_path: NodePath
 @export var day_night_path: NodePath
 
-## Stub for future relay tower progression (displayed after E.O.N pickup).
-var next_relay_label := "x"
+## Stub for future upgrade tower progression (displayed after E.O.N pickup).
+var next_upgrade_tower_label := "x"
 
 var phase: Phase = Phase.AWAITING_EON
 var integrity: int = INTEGRITY_START
@@ -128,7 +128,7 @@ func has_collected_eon() -> bool:
 func get_objective_text() -> String:
 	if phase == Phase.AWAITING_EON:
 		return OBJECTIVE_RETRIEVE
-	return "Travel west and get to relay tower %s" % next_relay_label
+	return "Travel west and get to upgrade tower %s" % next_upgrade_tower_label
 
 
 func get_eon_position() -> Vector3:

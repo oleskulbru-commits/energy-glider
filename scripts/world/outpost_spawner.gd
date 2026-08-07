@@ -1,7 +1,7 @@
 class_name OutpostSpawner
 extends Node3D
 
-const STATION_SCENE := preload("res://scenes/world/weather_station.tscn")
+const UPGRADE_TOWER_SCENE := preload("res://scenes/world/upgrade_tower.tscn")
 
 @export var terrain_manager_path: NodePath
 @export var outpost_spacing_m := 5000.0
@@ -37,12 +37,12 @@ func _spawn_outposts() -> void:
 
 func _spawn_one(approx: Vector3, terrain: TerrainManager) -> void:
 	var placed_xz := _pick_ridge_xz(approx, terrain)
-	var station: WeatherStation = STATION_SCENE.instantiate() as WeatherStation
-	add_child(station)
+	var tower: UpgradeTower = UPGRADE_TOWER_SCENE.instantiate() as UpgradeTower
+	add_child(tower)
 	if terrain != null:
-		station.terrain_manager_path = station.get_path_to(terrain)
-	station.global_position = Vector3(placed_xz.x, 0.0, placed_xz.y)
-	station.snap_to_terrain()
+		tower.terrain_manager_path = tower.get_path_to(terrain)
+	tower.global_position = Vector3(placed_xz.x, 0.0, placed_xz.y)
+	tower.snap_to_terrain()
 
 
 func _pick_ridge_xz(approx: Vector3, terrain: TerrainManager) -> Vector2:
