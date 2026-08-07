@@ -54,6 +54,7 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _safe_label: Label = %SafeLabel
 @onready var _outpost_board: PanelContainer = %OutpostBoard
 @onready var _outpost_board_label: Label = %OutpostBoardLabel
+@onready var _speed_label: Label = %SpeedLabel
 
 var _rig: PlayerRig
 var _player: GliderPlayer
@@ -198,6 +199,7 @@ func _process(delta: float) -> void:
 	_update_safe_chip(delta)
 	_update_integrity_bar()
 	_update_eon_tracker()
+	_update_speedometer()
 
 	var show_death_overlay := _is_death_overlay_active()
 	if show_death_overlay:
@@ -653,6 +655,13 @@ func _update_stop_chip() -> void:
 		_stop_label.add_theme_color_override("font_color", Color(0.98, 0.82, 0.45, 1))
 	else:
 		_stop_label.remove_theme_color_override("font_color")
+
+
+func _update_speedometer() -> void:
+	if _speed_label == null or _player == null:
+		return
+	var speed := MathUtil.horizontal_speed(_player.velocity)
+	_speed_label.text = "%d m/s" % int(roundf(speed))
 
 
 func _on_pulse_fired(_target_ripple: int) -> void:

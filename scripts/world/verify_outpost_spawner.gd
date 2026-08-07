@@ -3,6 +3,7 @@ extends SceneTree
 const OutpostSpawnerScript = preload("res://scripts/world/outpost_spawner.gd")
 const UpgradeTowerScript = preload("res://scripts/world/upgrade_tower.gd")
 const TerrainManagerScript = preload("res://scripts/terrain/terrain_manager.gd")
+const LevelLayoutScript = preload("res://scripts/game/level_layout.gd")
 const SandMaterial = preload("res://materials/sand.tres")
 
 
@@ -38,12 +39,24 @@ func _run() -> void:
 		"Tower should snap Y to terrain height"
 	)
 
+	var expected_offsets: Array[float] = LevelLayoutScript.tower_x_offsets_from_origin()
+	_fail_unless(expected_offsets.size() == 5, "Expected 5 west tower offsets")
+	_fail_unless(
+		is_equal_approx(expected_offsets[0], -1000.0)
+		and is_equal_approx(expected_offsets[1], -3000.0)
+		and is_equal_approx(expected_offsets[2], -5500.0)
+		and is_equal_approx(expected_offsets[3], -8000.0)
+		and is_equal_approx(expected_offsets[4], -11000.0),
+		"Unexpected level tower offsets: %s" % str(expected_offsets)
+	)
+	_fail_unless(LevelLayoutScript.level_at_world_x(40.0) == 1, "Spawn X should be level 1")
+	_fail_unless(LevelLayoutScript.level_at_world_x(-1000.0) == 2, "At first west tower should be level 2")
+	_fail_unless(LevelLayoutScript.level_at_world_x(-11000.0) == 5, "Past last tower should clamp at level 5")
+
 	var spawner: Node = OutpostSpawnerScript.new()
 	spawner.name = "OutpostSpawner"
 	root_node.add_child(spawner)
 	spawner.set("terrain_manager_path", spawner.get_path_to(terrain))
-	spawner.set("outpost_spacing_m", 5000.0)
-	spawner.set("west_tower_count", 3)
 	spawner.set("include_home", true)
 	await process_frame
 	await process_frame
@@ -52,7 +65,6 @@ func _run() -> void:
 	var spawned := 0
 	var home_found := false
 	var west_ok := 0
-	var expected_west := [5000.0, 10000.0, 15000.0]
 	for node in get_nodes_in_group("upgrade_tower"):
 		var s := node as Node3D
 		if s == null or s == tower:
@@ -63,19 +75,18 @@ func _run() -> void:
 		if absf(dx) < 1.0 and absf(dz) < 1.0:
 			home_found = true
 			continue
-		# West chain: −X, near expected spacing, little Z drift (ridge pick ≤ ~80 m).
 		if dx >= -100.0:
 			continue
 		if absf(dz) > 300.0:
 			continue
-		for dist in expected_west:
-			if absf(-dx - dist) < 300.0:
+		for offset_x in expected_offsets:
+			if absf(dx - offset_x) < 300.0:
 				west_ok += 1
 				break
 
 	_fail_unless(home_found, "Expected home tower at run origin")
-	_fail_unless(spawned == 4, "Expected home+3 west towers, got %d spawned" % spawned)
-	_fail_unless(west_ok == 3, "Expected 3 west towers on −X at 5/10/15 km, got %d" % west_ok)
+	_fail_unless(spawned == 6, "Expected home+5 west towers, got %d spawned" % spawned)
+	_fail_unless(west_ok == 5, "Expected 5 west towers at level distances, got %d" % west_ok)
 
 	print("Outpost spawner verification passed.")
 	quit(0)

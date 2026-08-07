@@ -4,9 +4,6 @@ extends Node3D
 const UPGRADE_TOWER_SCENE := preload("res://scenes/world/upgrade_tower.tscn")
 
 @export var terrain_manager_path: NodePath
-@export var outpost_spacing_m := 5000.0
-## Towers ahead of home along −X (west). Total spawned = home + this count when include_home.
-@export var west_tower_count := 3
 @export var include_home := true
 @export var ridge_sample_radius_m := 80.0
 @export var ridge_sample_steps := 8
@@ -26,8 +23,8 @@ func _spawn_outposts() -> void:
 	if include_home:
 		planned.append({ "pos": origin, "is_home": true })
 
-	for i in range(1, maxi(west_tower_count, 0) + 1):
-		var west := origin + Vector3(-outpost_spacing_m * float(i), 0.0, 0.0)
+	for offset_x in LevelLayout.tower_x_offsets_from_origin():
+		var west := origin + Vector3(offset_x, 0.0, 0.0)
 		planned.append({ "pos": west, "is_home": false })
 
 	for entry in planned:

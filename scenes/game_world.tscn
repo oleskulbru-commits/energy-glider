@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=3 uid="uid://cgame_world001"]
+[gd_scene load_steps=16 format=3 uid="uid://cgame_world001"]
 
 [ext_resource type="Script" uid="uid://ceqhf3n5dule0" path="res://scripts/terrain/terrain_manager.gd" id="1_terrain"]
 [ext_resource type="Material" uid="uid://suwp2571pfe0" path="res://materials/sand.tres" id="2_sand"]
@@ -14,6 +14,7 @@
 [ext_resource type="Script" path="res://scripts/world/day_night_cycle.gd" id="14_daynight"]
 [ext_resource type="Script" path="res://scripts/game/eon_director.gd" id="15_eon"]
 [ext_resource type="Script" path="res://scripts/world/night_survival.gd" id="16_night"]
+[ext_resource type="Script" path="res://scripts/game/level_progress.gd" id="17_level"]
 
 [sub_resource type="Sky" id="Sky_main"]
 sky_material = ExtResource("4_sky")
@@ -81,6 +82,11 @@ script = ExtResource("16_night")
 day_night_path = NodePath("../DayNightCycle")
 player_rig_path = NodePath("../PlayerRig")
 
+[node name="LevelProgress" type="Node" parent="."]
+script = ExtResource("17_level")
+player_rig_path = NodePath("../PlayerRig")
+terrain_manager_path = NodePath("../TerrainManager")
+
 [node name="AntennaState" type="Node" parent="."]
 script = ExtResource("9_antenna_state")
 
@@ -94,8 +100,6 @@ track_node_path = NodePath("../PlayerRig/Glider")
 [node name="OutpostSpawner" type="Node3D" parent="."]
 script = ExtResource("8_outpost_spawner")
 terrain_manager_path = NodePath("../TerrainManager")
-outpost_spacing_m = 5000.0
-west_tower_count = 3
 
 [node name="RippleSpawner" type="Node3D" parent="."]
 script = ExtResource("12_ripple_spawner")
