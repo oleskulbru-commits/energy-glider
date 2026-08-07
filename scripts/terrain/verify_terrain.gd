@@ -15,12 +15,14 @@ const MIN_CREST_DROPOFF := 2.0
 const MAX_CREST_DROPOFF := 7.0
 const SLOPE_SCAN_STEP := 4.0
 const PLAY_ZONE_SIZE := 512.0
-const MAX_SLOPE_DEGREES := 32.0
+const MAX_SLOPE_DEGREES := 34.0
 const SLOPE_PERCENTILE := 0.95
 const MIN_MEDIAN_SLOPE_DEGREES := 12.0
 const MAX_MEDIAN_SLOPE_DEGREES := 24.0
 const PEAK_SCAN_STEP := 12.0
 const MIN_PEAK_HEIGHT_SPREAD := 8.0
+const START_PEAK_MID_DROP_MIN := 8.0
+const START_PEAK_EDGE_DROP_MIN := 4.0
 
 
 func _init() -> void:
@@ -30,6 +32,7 @@ func _init() -> void:
 	_verify_chunk_seams(sampler)
 	_verify_chunk_builder(sampler)
 	_verify_distance_tiers(sampler)
+	_verify_start_peak(sampler)
 	_verify_crest_sharpness(sampler)
 	_verify_peak_height_variation(sampler)
 	_verify_climbable_slopes(sampler)
@@ -93,6 +96,43 @@ func _verify_distance_tiers(sampler: RefCounted) -> void:
 	var far_height: float = sampler.sample_height(6000.0, 0.0)
 	assert(absf(near_height) < 200.0)
 	assert(absf(far_height) < 200.0)
+
+
+func _verify_start_peak(sampler: RefCounted) -> void:
+	var origin: float = sampler.sample_height(0.0, 0.0)
+	var bearings: Array[Vector2] = [
+		Vector2(1.0, 0.0),
+		Vector2(-1.0, 0.0),
+		Vector2(0.0, 1.0),
+		Vector2(0.0, -1.0),
+		Vector2(0.707, 0.707),
+	]
+	for dir: Vector2 in bearings:
+		var mid: Vector2 = dir * 250.0
+		var edge: Vector2 = dir * 500.0
+		var beyond: Vector2 = dir * 650.0
+		var h_mid: float = sampler.sample_height(mid.x, mid.y)
+		var h_edge: float = sampler.sample_height(edge.x, edge.y)
+		var h_beyond: float = sampler.sample_height(beyond.x, beyond.y)
+		_fail_unless(
+			origin > h_mid + START_PEAK_MID_DROP_MIN,
+			"Start peak should stand above mid-slope (origin %.1f vs mid %.1f @ %s)" % [origin, h_mid, dir]
+		)
+		_fail_unless(
+			h_mid > h_edge + START_PEAK_EDGE_DROP_MIN,
+			"Start peak should fall off by 500 m (mid %.1f vs edge %.1f @ %s)" % [h_mid, h_edge, dir]
+		)
+		_fail_unless(
+			absf(h_beyond) < 200.0,
+			"Height beyond start peak should stay sane (%.1f)" % h_beyond
+		)
+
+
+func _fail_unless(condition: bool, message: String) -> void:
+	if condition:
+		return
+	push_error(message)
+	quit(1)
 
 
 func _verify_crest_sharpness(sampler: RefCounted) -> void:

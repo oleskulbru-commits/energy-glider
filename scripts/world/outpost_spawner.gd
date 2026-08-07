@@ -5,7 +5,8 @@ const UPGRADE_TOWER_SCENE := preload("res://scenes/world/upgrade_tower.tscn")
 
 @export var terrain_manager_path: NodePath
 @export var outpost_spacing_m := 5000.0
-@export var ring_count := 1
+## Towers ahead of home along −X (west). Total spawned = home + this count when include_home.
+@export var west_tower_count := 3
 @export var include_home := true
 @export var ridge_sample_radius_m := 80.0
 @export var ridge_sample_steps := 8
@@ -21,22 +22,22 @@ func _spawn_outposts() -> void:
 	if terrain != null:
 		origin = Vector3(terrain.run_origin.x, 0.0, terrain.run_origin.y)
 
-	var planned: Array[Vector3] = []
+	var planned: Array[Dictionary] = []
 	if include_home:
-		planned.append(origin)
+		planned.append({ "pos": origin, "is_home": true })
 
-	for ring in range(1, maxi(ring_count, 1) + 1):
-		var radius := outpost_spacing_m * float(ring)
-		for i in 6:
-			var angle := float(i) / 6.0 * TAU + (0.0 if ring % 2 == 1 else TAU / 12.0)
-			planned.append(origin + MathUtil.yaw_forward(angle) * radius)
+	for i in range(1, maxi(west_tower_count, 0) + 1):
+		var west := origin + Vector3(-outpost_spacing_m * float(i), 0.0, 0.0)
+		planned.append({ "pos": west, "is_home": false })
 
-	for pos in planned:
-		_spawn_one(pos, terrain)
+	for entry in planned:
+		_spawn_one(entry.pos as Vector3, terrain, bool(entry.is_home))
 
 
-func _spawn_one(approx: Vector3, terrain: TerrainManager) -> void:
-	var placed_xz := _pick_ridge_xz(approx, terrain)
+func _spawn_one(approx: Vector3, terrain: TerrainManager, is_home: bool) -> void:
+	var placed_xz := Vector2(approx.x, approx.z)
+	if not is_home:
+		placed_xz = _pick_ridge_xz(approx, terrain)
 	var tower: UpgradeTower = UPGRADE_TOWER_SCENE.instantiate() as UpgradeTower
 	add_child(tower)
 	if terrain != null:

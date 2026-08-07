@@ -43,7 +43,7 @@ func _run() -> void:
 	root_node.add_child(spawner)
 	spawner.set("terrain_manager_path", spawner.get_path_to(terrain))
 	spawner.set("outpost_spacing_m", 5000.0)
-	spawner.set("ring_count", 1)
+	spawner.set("west_tower_count", 3)
 	spawner.set("include_home", true)
 	await process_frame
 	await process_frame
@@ -51,24 +51,31 @@ func _run() -> void:
 
 	var spawned := 0
 	var home_found := false
-	var ring_ok := 0
+	var west_ok := 0
+	var expected_west := [5000.0, 10000.0, 15000.0]
 	for node in get_nodes_in_group("upgrade_tower"):
 		var s := node as Node3D
 		if s == null or s == tower:
 			continue
 		spawned += 1
-		var flat := Vector2(
-			s.global_position.x - terrain.run_origin.x,
-			s.global_position.z - terrain.run_origin.y
-		)
-		if flat.length() < 200.0:
+		var dx := s.global_position.x - terrain.run_origin.x
+		var dz := s.global_position.z - terrain.run_origin.y
+		if absf(dx) < 1.0 and absf(dz) < 1.0:
 			home_found = true
-		elif absf(flat.length() - 5000.0) < 300.0:
-			ring_ok += 1
+			continue
+		# West chain: −X, near expected spacing, little Z drift (ridge pick ≤ ~80 m).
+		if dx >= -100.0:
+			continue
+		if absf(dz) > 300.0:
+			continue
+		for dist in expected_west:
+			if absf(-dx - dist) < 300.0:
+				west_ok += 1
+				break
 
-	_fail_unless(home_found, "Expected a home outpost near run origin")
-	_fail_unless(spawned >= 7, "Expected home+6 outposts, got %d spawned" % spawned)
-	_fail_unless(ring_ok >= 5, "Expected ~6 ring outposts near 5 km, got %d" % ring_ok)
+	_fail_unless(home_found, "Expected home tower at run origin")
+	_fail_unless(spawned == 4, "Expected home+3 west towers, got %d spawned" % spawned)
+	_fail_unless(west_ok == 3, "Expected 3 west towers on −X at 5/10/15 km, got %d" % west_ok)
 
 	print("Outpost spawner verification passed.")
 	quit(0)

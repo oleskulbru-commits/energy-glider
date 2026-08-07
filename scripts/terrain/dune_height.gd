@@ -27,6 +27,9 @@ const FLAT_FIELD_START := 0.66
 const FLAT_FIELD_END := 0.88
 const FLAT_MACRO_SUPPRESS := 0.72
 const FLAT_DETAIL_SUPPRESS := 0.15
+## Radial start peak under the home tower — gentle dome, ~500 m falloff.
+const START_PEAK_RADIUS_M := 500.0
+const START_PEAK_RISE_M := 70.0
 
 var world_seed: int = 0
 var run_origin: Vector2 = Vector2.ZERO
@@ -137,7 +140,19 @@ func sample_height(world_x: float, world_z: float) -> float:
 	var detail := _detail_noise.get_noise_2d(world_x, world_z) * DETAIL_AMPLITUDE
 	detail *= lerpf(1.0, FLAT_DETAIL_SUPPRESS, flat_mask)
 
-	return ridge * amplitude * macro_amplitude * envelope_scale * peak_scale + detail
+	var base := ridge * amplitude * macro_amplitude * envelope_scale * peak_scale + detail
+	return base + _start_peak_rise(world_x, world_z)
+
+
+func _start_peak_rise(world_x: float, world_z: float) -> float:
+	var dist := Vector2(world_x, world_z).distance_to(run_origin)
+	if dist >= START_PEAK_RADIUS_M or START_PEAK_RADIUS_M <= 0.0:
+		return 0.0
+	var t := dist / START_PEAK_RADIUS_M
+	# Cosine dome: 1 at center, 0 at radius — lifts dunes without erasing them.
+	var dome := cos(t * PI * 0.5)
+	dome *= dome
+	return START_PEAK_RISE_M * dome
 
 
 func sample_normal(world_x: float, world_z: float, epsilon: float = 1.0) -> Vector3:

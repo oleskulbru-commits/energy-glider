@@ -95,7 +95,7 @@ track_node_path = NodePath("../PlayerRig/Glider")
 script = ExtResource("8_outpost_spawner")
 terrain_manager_path = NodePath("../TerrainManager")
 outpost_spacing_m = 5000.0
-ring_count = 1
+west_tower_count = 3
 
 [node name="RippleSpawner" type="Node3D" parent="."]
 script = ExtResource("12_ripple_spawner")
@@ -105,7 +105,7 @@ first_ripple_center_m = 1200.0
 ripple_spacing_m = 1200.0
 
 [node name="PlayerRig" parent="." instance=ExtResource("3_player_rig")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 20, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 20, 0)
 terrain_manager_path = NodePath("../TerrainManager")
 
 [node name="Glider" parent="PlayerRig" index="0"]

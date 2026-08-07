@@ -8,12 +8,16 @@ const ON_FOOT_FOOT_OFFSET := 0.05
 const ON_FOOT_SPAWN_LIFT := 0.1
 const DISMOUNT_RAY_UP := 20.0
 const DISMOUNT_RAY_DOWN := 200.0
+## East of home tower so the tower sits behind when facing west (−X).
+const SPAWN_EAST_OFFSET_M := 40.0
+const SPAWN_YAW_WEST := -PI / 2.0
 
 @export var terrain_manager_path: NodePath
 
 var _glider: GliderPlayer
 var _on_foot: OnFootController
 const GliderInputScript = preload("res://scripts/input/glider_input.gd")
+const GliderPhysicsScript = preload("res://scripts/player/glider_physics.gd")
 
 var _input: GliderInputScript
 var _camera: GliderCamera
@@ -48,7 +52,37 @@ func _ready() -> void:
 		_on_foot.set_active(false)
 
 	_set_mounted(true, true)
-	call_deferred("_capture_spawn_pose")
+	call_deferred("_setup_west_start_pose")
+
+
+func _setup_west_start_pose() -> void:
+	if _glider == null:
+		return
+
+	var origin_x := 0.0
+	var origin_z := 0.0
+	if _terrain_manager != null:
+		origin_x = _terrain_manager.run_origin.x
+		origin_z = _terrain_manager.run_origin.y
+
+	var spawn_x := origin_x + SPAWN_EAST_OFFSET_M
+	var spawn_z := origin_z
+	var spawn_y := _glider.global_position.y
+	if _terrain_manager != null:
+		spawn_y = (
+			_terrain_manager.sample_height(spawn_x, spawn_z)
+			+ GliderPhysicsScript.BASE_HEIGHT
+			+ 0.05
+		)
+		_terrain_manager.ensure_loaded_at(Vector3(spawn_x, spawn_y, spawn_z))
+
+	_glider.teleport_to(Vector3(spawn_x, spawn_y, spawn_z), SPAWN_YAW_WEST)
+	_glider.velocity = Vector3.ZERO
+	if _camera != null:
+		_camera.reset_follow_state()
+		_camera.snap_follow_yaw(SPAWN_YAW_WEST)
+		snap_camera_now()
+	_capture_spawn_pose()
 
 
 func _capture_spawn_pose() -> void:
