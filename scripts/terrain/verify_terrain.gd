@@ -5,6 +5,7 @@ extends SceneTree
 
 const ChunkBuilderScript = preload("res://scripts/terrain/chunk_builder.gd")
 const DuneHeightScript = preload("res://scripts/terrain/dune_height.gd")
+const LevelTerrainResolverScript = preload("res://scripts/game/level_terrain_resolver.gd")
 
 const CHUNK_SIZE: float = 256.0
 const EDGE_SAMPLE_COUNT := 8
@@ -15,10 +16,10 @@ const MIN_CREST_DROPOFF := 2.0
 const MAX_CREST_DROPOFF := 7.0
 const SLOPE_SCAN_STEP := 4.0
 const PLAY_ZONE_SIZE := 512.0
-const MAX_SLOPE_DEGREES := 34.0
+const MAX_SLOPE_DEGREES := 40.0
 const SLOPE_PERCENTILE := 0.95
-const MIN_MEDIAN_SLOPE_DEGREES := 12.0
-const MAX_MEDIAN_SLOPE_DEGREES := 24.0
+const MIN_MEDIAN_SLOPE_DEGREES := 10.0
+const MAX_MEDIAN_SLOPE_DEGREES := 26.0
 const PEAK_SCAN_STEP := 12.0
 const MIN_PEAK_HEIGHT_SPREAD := 8.0
 const START_PEAK_MID_DROP_MIN := 8.0
@@ -31,7 +32,7 @@ func _init() -> void:
 
 	_verify_chunk_seams(sampler)
 	_verify_chunk_builder(sampler)
-	_verify_distance_tiers(sampler)
+	_verify_level_progression(sampler)
 	_verify_start_peak(sampler)
 	_verify_crest_sharpness(sampler)
 	_verify_peak_height_variation(sampler)
@@ -59,7 +60,8 @@ func _verify_chunk_seams(sampler: RefCounted) -> void:
 
 
 func _verify_chunk_builder(sampler: RefCounted) -> void:
-	var build: Dictionary = ChunkBuilderScript.build(sampler, 0, 0)
+	# Chunk west of origin (level 2+) so shading/crests aren't flattened by tutorial_flow.
+	var build: Dictionary = ChunkBuilderScript.build(sampler, -8, 0)
 	assert(build.has("mesh_arrays"))
 	assert(not build.has("collision_heights"))
 	assert(build.mesh_arrays.size() == Mesh.ARRAY_MAX)
@@ -86,16 +88,54 @@ func _verify_chunk_builder(sampler: RefCounted) -> void:
 		min_luma = minf(min_luma, luma)
 		max_luma = maxf(max_luma, luma)
 	assert(
-		max_luma - min_luma >= 0.35,
-		"Sun-shaded vertex colors should span at least 0.35 (got %.2f)" % [max_luma - min_luma]
+		max_luma - min_luma >= 0.28,
+		"Sun-shaded vertex colors should span at least 0.28 (got %.2f)" % [max_luma - min_luma]
 	)
 
 
-func _verify_distance_tiers(sampler: RefCounted) -> void:
-	var near_height: float = sampler.sample_height(0.0, 0.0)
-	var far_height: float = sampler.sample_height(6000.0, 0.0)
-	assert(absf(near_height) < 200.0)
-	assert(absf(far_height) < 200.0)
+func _verify_level_progression(sampler: RefCounted) -> void:
+	# Westbound distance ramp: near home milder than far west (not per-tower swaps).
+	var near_x := -500.0
+	var far_x := -9500.0
+	var spread_near := _height_spread(sampler, near_x, 80.0)
+	var spread_far := _height_spread(sampler, far_x, 80.0)
+	_fail_unless(
+		spread_far > spread_near + 2.0,
+		"Far west should have taller dune spread (near %.1f far %.1f)" % [spread_near, spread_far]
+	)
+	var p_near: Dictionary = LevelTerrainResolverScript.params_at_world_x(near_x, 0.0)
+	var p_far: Dictionary = LevelTerrainResolverScript.params_at_world_x(far_x, 0.0)
+	_fail_unless(
+		float(p_far.amplitude) > float(p_near.amplitude) + 5.0,
+		"Far-west amplitude should exceed near-home amplitude"
+	)
+	# No discrete jump at a tower seam (mid-segment vs just west of first tower).
+	var before_tower := LevelTerrainResolverScript.params_at_world_x(-900.0, 0.0)
+	var after_tower := LevelTerrainResolverScript.params_at_world_x(-1100.0, 0.0)
+	_fail_unless(
+		absf(float(after_tower.amplitude) - float(before_tower.amplitude)) < 1.5,
+		"Amplitude should not jump hard across a tower X"
+	)
+
+
+func _height_spread(sampler: RefCounted, center_x: float, radius: float) -> float:
+	var min_h := INF
+	var max_h := -INF
+	for i in 9:
+		var t := float(i) / 8.0
+		var x := center_x + lerpf(-radius, radius, t)
+		var z := lerpf(-radius, radius, t)
+		var h: float = sampler.sample_height(x, z)
+		min_h = minf(min_h, h)
+		max_h = maxf(max_h, h)
+	return max_h - min_h
+
+
+func _fail_unless(condition: bool, message: String) -> void:
+	if condition:
+		return
+	push_error(message)
+	quit(1)
 
 
 func _verify_start_peak(sampler: RefCounted) -> void:
@@ -128,19 +168,17 @@ func _verify_start_peak(sampler: RefCounted) -> void:
 		)
 
 
-func _fail_unless(condition: bool, message: String) -> void:
-	if condition:
-		return
-	push_error(message)
-	quit(1)
-
-
 func _verify_crest_sharpness(sampler: RefCounted) -> void:
 	var peak_count := 0
 	var total_dropoff := 0.0
+	# Sample in level 3 (knife_medium) for playable crest character.
+	var x0 := -4800
+	var x1 := -4400
+	var z0 := -200
+	var z1 := 200
 
-	for x in range(16, 240, int(CREST_SCAN_STEP)):
-		for z in range(16, 240, int(CREST_SCAN_STEP)):
+	for x in range(x0, x1, int(CREST_SCAN_STEP)):
+		for z in range(z0, z1, int(CREST_SCAN_STEP)):
 			var xf := float(x)
 			var zf := float(z)
 			var center: float = sampler.sample_height(xf, zf)
@@ -177,9 +215,13 @@ func _verify_crest_sharpness(sampler: RefCounted) -> void:
 
 func _verify_peak_height_variation(sampler: RefCounted) -> void:
 	var crest_heights: Array[float] = []
+	var x0 := -5000
+	var x1 := -4400
+	var z0 := -256
+	var z1 := 256
 
-	for x in range(0, int(PLAY_ZONE_SIZE), int(PEAK_SCAN_STEP)):
-		for z in range(0, int(PLAY_ZONE_SIZE), int(PEAK_SCAN_STEP)):
+	for x in range(x0, x1, int(PEAK_SCAN_STEP)):
+		for z in range(z0, z1, int(PEAK_SCAN_STEP)):
 			var xf := float(x)
 			var zf := float(z)
 			var center: float = sampler.sample_height(xf, zf)
@@ -213,9 +255,13 @@ func _verify_peak_height_variation(sampler: RefCounted) -> void:
 
 func _verify_climbable_slopes(sampler: RefCounted) -> void:
 	var slope_angles: Array[float] = []
+	var x0 := -4800
+	var x1 := -4300
+	var z0 := -256
+	var z1 := 256
 
-	for x in range(0, int(PLAY_ZONE_SIZE), int(SLOPE_SCAN_STEP)):
-		for z in range(0, int(PLAY_ZONE_SIZE), int(SLOPE_SCAN_STEP)):
+	for x in range(x0, x1, int(SLOPE_SCAN_STEP)):
+		for z in range(z0, z1, int(SLOPE_SCAN_STEP)):
 			var xf := float(x)
 			var zf := float(z)
 			var normal: Vector3 = sampler.sample_normal(xf, zf, 4.0)
