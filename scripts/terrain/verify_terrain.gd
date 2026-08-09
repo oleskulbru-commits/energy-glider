@@ -73,12 +73,16 @@ func _verify_chunk_builder(sampler: RefCounted) -> void:
 	var vertices_near: PackedVector3Array = build_near.mesh_arrays[Mesh.ARRAY_VERTEX]
 	assert(vertices_near.size() == near_verts * near_verts)
 
-	# Far-west chunk (~70%+ journey) uses denser mesh.
-	var journey: float = LevelTerrainResolverScript.journey_length_m()
-	var far_chunk_x := int(floor(-(journey * 0.78) / CHUNK_SIZE))
+	# Far-west chunk uses denser mesh once past absolute FAR threshold.
+	var far_chunk_x := int(floor(-(ChunkBuilderScript.DENSE_FAR_WEST_M + 500.0) / CHUNK_SIZE))
 	var build: Dictionary = ChunkBuilderScript.build(sampler, far_chunk_x, 0)
 	assert(int(build.verts_per_side) == ChunkBuilderScript.RENDER_VERTS_FAR)
 	assert(int(build.verts_per_side) > near_verts)
+
+	# Tower-7 region should already be MID (not NEAR) so sharp profiles track better.
+	var mid_chunk_x := int(floor(-10000.0 / CHUNK_SIZE))
+	var build_mid: Dictionary = ChunkBuilderScript.build(sampler, mid_chunk_x, 0)
+	assert(int(build_mid.verts_per_side) >= ChunkBuilderScript.RENDER_VERTS_MID)
 
 	var vertices: PackedVector3Array = build.mesh_arrays[Mesh.ARRAY_VERTEX]
 	assert(vertices.size() == int(build.verts_per_side) * int(build.verts_per_side))
