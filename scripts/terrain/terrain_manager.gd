@@ -5,6 +5,7 @@ const CHUNK_SIZE := ChunkBuilder.CHUNK_SIZE
 const LOAD_RADIUS := 2
 const UNLOAD_RADIUS := 3
 const INITIAL_SYNC_RADIUS := LOAD_RADIUS
+const LevelRunScript = preload("res://scripts/game/level_run.gd")
 
 @export var world_seed: int = 42
 @export var sand_material: Material
@@ -19,6 +20,7 @@ var _track_node: Node3D
 
 func _ready() -> void:
 	_apply_session_seed()
+	LevelRunScript.ensure(world_seed)
 	_height_sampler = DuneHeight.new(world_seed)
 	run_origin = Vector2(global_position.x, global_position.z)
 	_height_sampler.set_run_origin(run_origin)
@@ -35,9 +37,11 @@ func _ready() -> void:
 func _apply_session_seed() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load("user://run_session.cfg") != OK:
+		LevelRunScript.ensure(world_seed)
 		return
 	if cfg.has_section_key("terrain", "world_seed"):
 		world_seed = int(cfg.get_value("terrain", "world_seed"))
+	LevelRunScript.ensure(world_seed)
 
 
 func _load_initial_chunks_sync() -> void:

@@ -8,14 +8,19 @@ const RENDER_VERTS_MID := 97
 const RENDER_VERTS_FAR := 129
 const RENDER_VERTS_PER_SIDE := RENDER_VERTS_NEAR
 const SUN_DIRECTION := Vector3(0.485, 0.824, 0.291)
+const LevelRunScript = preload("res://scripts/game/level_run.gd")
 
 
-## Vertex density by chunk X (west is more negative).
-## Thresholds scaled for the ~7 km authored run.
+## Vertex density by journey progress (west is more negative).
+## Uses run length so a ~175 km map does not force FAR density too early.
 static func verts_per_side_for_chunk(chunk_x: int) -> int:
-	if chunk_x > -10:
+	var journey := maxf(LevelRunScript.journey_length_m(), 1.0)
+	var center_x := (float(chunk_x) + 0.5) * CHUNK_SIZE
+	var west_m := maxf(-center_x, 0.0)
+	var t := clampf(west_m / journey, 0.0, 1.0)
+	if t < 0.35:
 		return RENDER_VERTS_NEAR
-	if chunk_x > -20:
+	if t < 0.70:
 		return RENDER_VERTS_MID
 	return RENDER_VERTS_FAR
 

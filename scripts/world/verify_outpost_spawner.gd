@@ -39,19 +39,23 @@ func _run() -> void:
 		"Tower should snap Y to terrain height"
 	)
 
+	var LevelRunScript = preload("res://scripts/game/level_run.gd")
+	var LevelRunGeneratorScript = preload("res://scripts/game/level_run_generator.gd")
+	LevelRunScript.ensure(42)
+
 	var expected_offsets: Array[float] = LevelLayoutScript.tower_x_offsets_from_origin()
-	_fail_unless(expected_offsets.size() == 5, "Expected 5 west tower offsets")
+	_fail_unless(expected_offsets.size() == 40, "Expected 40 west tower offsets")
+	var journey := LevelRunGeneratorScript.total_journey_m()
 	_fail_unless(
 		is_equal_approx(expected_offsets[0], -1000.0)
 		and is_equal_approx(expected_offsets[1], -2000.0)
-		and is_equal_approx(expected_offsets[2], -3500.0)
-		and is_equal_approx(expected_offsets[3], -5000.0)
-		and is_equal_approx(expected_offsets[4], -7000.0),
+		and is_equal_approx(expected_offsets[4], -7000.0)
+		and is_equal_approx(expected_offsets[39], -journey),
 		"Unexpected level tower offsets: %s" % str(expected_offsets)
 	)
 	_fail_unless(LevelLayoutScript.level_at_world_x(40.0) == 1, "Spawn X should be level 1")
 	_fail_unless(LevelLayoutScript.level_at_world_x(-1000.0) == 2, "At first west tower should be level 2")
-	_fail_unless(LevelLayoutScript.level_at_world_x(-7000.0) == 5, "Past last tower should clamp at level 5")
+	_fail_unless(LevelLayoutScript.level_at_world_x(-journey) == 40, "At last tower should be level 40")
 
 	var spawner: Node = OutpostSpawnerScript.new()
 	spawner.name = "OutpostSpawner"
@@ -85,8 +89,8 @@ func _run() -> void:
 				break
 
 	_fail_unless(home_found, "Expected home tower at run origin")
-	_fail_unless(spawned == 6, "Expected home+5 west towers, got %d spawned" % spawned)
-	_fail_unless(west_ok == 5, "Expected 5 west towers at level distances, got %d" % west_ok)
+	_fail_unless(spawned == 41, "Expected home+40 west towers, got %d spawned" % spawned)
+	_fail_unless(west_ok == 40, "Expected 40 west towers at level distances, got %d" % west_ok)
 
 	print("Outpost spawner verification passed.")
 	quit(0)

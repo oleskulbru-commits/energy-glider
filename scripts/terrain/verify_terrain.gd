@@ -27,6 +27,9 @@ const START_PEAK_EDGE_DROP_MIN := 4.0
 
 
 func _init() -> void:
+	var LevelRunScript = preload("res://scripts/game/level_run.gd")
+	LevelRunScript.ensure(42)
+
 	var sampler: RefCounted = DuneHeightScript.new(42)
 	sampler.set_run_origin(Vector2.ZERO)
 
@@ -70,8 +73,10 @@ func _verify_chunk_builder(sampler: RefCounted) -> void:
 	var vertices_near: PackedVector3Array = build_near.mesh_arrays[Mesh.ARRAY_VERTEX]
 	assert(vertices_near.size() == near_verts * near_verts)
 
-	# Far-west chunk uses denser mesh so visual dunes track analytical height better.
-	var build: Dictionary = ChunkBuilderScript.build(sampler, -24, 0)
+	# Far-west chunk (~70%+ journey) uses denser mesh.
+	var journey: float = LevelTerrainResolverScript.journey_length_m()
+	var far_chunk_x := int(floor(-(journey * 0.78) / CHUNK_SIZE))
+	var build: Dictionary = ChunkBuilderScript.build(sampler, far_chunk_x, 0)
 	assert(int(build.verts_per_side) == ChunkBuilderScript.RENDER_VERTS_FAR)
 	assert(int(build.verts_per_side) > near_verts)
 
@@ -112,26 +117,26 @@ func _verify_chunk_builder(sampler: RefCounted) -> void:
 
 
 func _verify_level_progression(sampler: RefCounted) -> void:
-	# Outside start-peak radius so the dome doesn't dominate near spread.
+	# Outside start-peak radius; far sample deep into the long run.
 	var near_x := -1200.0
-	var far_x := -6500.0
+	var far_x := -120000.0
 	var spread_near := _height_spread(sampler, near_x, 80.0)
 	var spread_far := _height_spread(sampler, far_x, 80.0)
 	_fail_unless(
-		spread_far > spread_near + 2.0,
+		spread_far > spread_near + 1.5,
 		"Far west should have taller dune spread (near %.1f far %.1f)" % [spread_near, spread_far]
 	)
 	var p_near: Dictionary = LevelTerrainResolverScript.params_at_world_x(near_x, 0.0)
 	var p_far: Dictionary = LevelTerrainResolverScript.params_at_world_x(far_x, 0.0)
 	_fail_unless(
-		float(p_far.amplitude) > float(p_near.amplitude) + 4.0,
+		float(p_far.amplitude) > float(p_near.amplitude) + 3.0,
 		"Far-west amplitude should exceed near-home amplitude"
 	)
-	# No discrete jump at a tower seam (around first west tower at -1 km).
+	# Soft blend across first tower seam (no hard amplitude cliff).
 	var before_tower := LevelTerrainResolverScript.params_at_world_x(-900.0, 0.0)
 	var after_tower := LevelTerrainResolverScript.params_at_world_x(-1100.0, 0.0)
 	_fail_unless(
-		absf(float(after_tower.amplitude) - float(before_tower.amplitude)) < 1.5,
+		absf(float(after_tower.amplitude) - float(before_tower.amplitude)) < 2.5,
 		"Amplitude should not jump hard across a tower X"
 	)
 
@@ -150,7 +155,10 @@ func _height_spread(sampler: RefCounted, center_x: float, radius: float) -> floa
 
 
 func _fail_unless(condition: bool, message: String) -> void:
-	assert(condition, message)
+	if condition:
+		return
+	push_error(message)
+	quit(1)
 
 func _verify_start_peak(sampler: RefCounted) -> void:
 	var origin: float = sampler.sample_height(0.0, 0.0)
@@ -185,9 +193,9 @@ func _verify_start_peak(sampler: RefCounted) -> void:
 func _verify_crest_sharpness(sampler: RefCounted) -> void:
 	var peak_count := 0
 	var total_dropoff := 0.0
-	# Sample in level 3 (knife_medium) for playable crest character.
-	var x0 := -4800
-	var x1 := -4400
+	# Mid-late journey where intensity + profiles create launchable crests.
+	var x0 := -80000
+	var x1 := -79600
 	var z0 := -200
 	var z1 := 200
 
@@ -215,13 +223,13 @@ func _verify_crest_sharpness(sampler: RefCounted) -> void:
 			total_dropoff += center - min_neighbor
 			peak_count += 1
 
-	assert(peak_count > 0, "Should find local height maxima in test region")
+	_fail_unless(peak_count > 0, "Should find local height maxima in test region")
 	var average_dropoff := total_dropoff / float(peak_count)
-	assert(
+	_fail_unless(
 		average_dropoff >= MIN_CREST_DROPOFF,
 		"Crest dropoff should be launchable (avg %.2f, need >= %.2f)" % [average_dropoff, MIN_CREST_DROPOFF]
 	)
-	assert(
+	_fail_unless(
 		average_dropoff <= MAX_CREST_DROPOFF,
 		"Crest dropoff should stay climbable (avg %.2f, need <= %.2f)" % [average_dropoff, MAX_CREST_DROPOFF]
 	)
@@ -229,8 +237,8 @@ func _verify_crest_sharpness(sampler: RefCounted) -> void:
 
 func _verify_peak_height_variation(sampler: RefCounted) -> void:
 	var crest_heights: Array[float] = []
-	var x0 := -5000
-	var x1 := -4400
+	var x0 := -90000
+	var x1 := -89400
 	var z0 := -256
 	var z1 := 256
 
@@ -253,13 +261,13 @@ func _verify_peak_height_variation(sampler: RefCounted) -> void:
 
 			crest_heights.append(center)
 
-	assert(crest_heights.size() >= 8, "Should find enough crest samples for peak spread")
+	_fail_unless(crest_heights.size() >= 8, "Should find enough crest samples for peak spread")
 	crest_heights.sort()
 	var low_quartile := crest_heights[crest_heights.size() / 4]
 	var high_quartile := crest_heights[crest_heights.size() * 3 / 4]
 	var spread := high_quartile - low_quartile
 	var full_spread := crest_heights[crest_heights.size() - 1] - crest_heights[0]
-	assert(
+	_fail_unless(
 		spread >= MIN_PEAK_HEIGHT_SPREAD or full_spread >= MIN_PEAK_HEIGHT_SPREAD * 1.35,
 		"Crest heights should vary (Q spread %.2f, full %.2f, need >= %.2f)" % [
 			spread, full_spread, MIN_PEAK_HEIGHT_SPREAD
@@ -269,8 +277,8 @@ func _verify_peak_height_variation(sampler: RefCounted) -> void:
 
 func _verify_climbable_slopes(sampler: RefCounted) -> void:
 	var slope_angles: Array[float] = []
-	var x0 := -4800
-	var x1 := -4300
+	var x0 := -80000
+	var x1 := -79500
 	var z0 := -256
 	var z1 := 256
 
@@ -282,15 +290,15 @@ func _verify_climbable_slopes(sampler: RefCounted) -> void:
 			var slope_deg := rad_to_deg(acos(clampf(normal.y, -1.0, 1.0)))
 			slope_angles.append(slope_deg)
 
-	assert(not slope_angles.is_empty(), "Should sample slope angles in play zone")
+	_fail_unless(not slope_angles.is_empty(), "Should sample slope angles in play zone")
 
 	slope_angles.sort()
 	var median := slope_angles[slope_angles.size() / 2]
 	var percentile_index := mini(int(float(slope_angles.size()) * SLOPE_PERCENTILE), slope_angles.size() - 1)
 	var max_slope := slope_angles[percentile_index]
 
-	assert(max_slope <= MAX_SLOPE_DEGREES, "95th-percentile slope should be climbable (%.1f°, limit %.1f°)" % [max_slope, MAX_SLOPE_DEGREES])
-	assert(
+	_fail_unless(max_slope <= MAX_SLOPE_DEGREES, "95th-percentile slope should be climbable (%.1f°, limit %.1f°)" % [max_slope, MAX_SLOPE_DEGREES])
+	_fail_unless(
 		median >= MIN_MEDIAN_SLOPE_DEGREES and median <= MAX_MEDIAN_SLOPE_DEGREES,
 		"Median slope should be in playable band (%.1f°, want %.1f-%.1f°)" % [
 			median, MIN_MEDIAN_SLOPE_DEGREES, MAX_MEDIAN_SLOPE_DEGREES

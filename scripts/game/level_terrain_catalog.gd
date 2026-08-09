@@ -1,9 +1,8 @@
 class_name LevelTerrainCatalog
 extends RefCounted
 
-## Authoring registry: difficulty bands, terrain profiles, and per-level specs.
-## Live sampling uses a westbound distance ramp in LevelTerrainResolver; this catalog
-## stays for planning / future authored regions (not bound to tower X yet).
+## Authoring registry: difficulty bands, terrain profiles, and prototype level specs.
+## Live runs use LevelRunGenerator (seeded segments + hybrids); catalog supplies profile definitions.
 
 const LevelTerrainBandScript = preload("res://scripts/game/level_terrain_band.gd")
 const LevelTerrainProfileScript = preload("res://scripts/game/level_terrain_profile.gd")

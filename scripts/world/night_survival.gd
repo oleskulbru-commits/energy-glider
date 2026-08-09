@@ -6,6 +6,8 @@ signal safe_changed(is_safe: bool)
 
 const UNPROTECTED_KILL_SEC := 30.0
 const NIGHT_WARNING_TEXT := "Night has arrived. Get to an upgrade tower or face the darkness."
+## Testing: keep night warning/safe chip, but never kill for being unprotected.
+const NIGHT_KILL_ENABLED := false
 
 @export var day_night_path: NodePath
 @export var player_rig_path: NodePath
@@ -49,6 +51,8 @@ func _process(delta: float) -> void:
 			_killed_this_night = false
 
 	if _is_safe or _killed_this_night:
+		return
+	if not NIGHT_KILL_ENABLED:
 		return
 
 	_unprotected_sec += delta
@@ -109,6 +113,8 @@ func _set_safe(value: bool) -> void:
 
 
 func _kill_player() -> void:
+	if not NIGHT_KILL_ENABLED:
+		return
 	var glider := _get_glider()
 	if glider == null or glider.is_run_ended():
 		return
