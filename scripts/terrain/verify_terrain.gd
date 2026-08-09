@@ -60,14 +60,23 @@ func _verify_chunk_seams(sampler: RefCounted) -> void:
 
 
 func _verify_chunk_builder(sampler: RefCounted) -> void:
-	# Chunk west of origin (level 2+) so shading/crests aren't flattened by tutorial_flow.
-	var build: Dictionary = ChunkBuilderScript.build(sampler, -8, 0)
-	assert(build.has("mesh_arrays"))
-	assert(not build.has("collision_heights"))
-	assert(build.mesh_arrays.size() == Mesh.ARRAY_MAX)
+	# Near-home chunk uses base density.
+	var build_near: Dictionary = ChunkBuilderScript.build(sampler, -2, 0)
+	assert(build_near.has("mesh_arrays"))
+	assert(not build_near.has("collision_heights"))
+	assert(build_near.mesh_arrays.size() == Mesh.ARRAY_MAX)
+	var near_verts: int = int(build_near.verts_per_side)
+	assert(near_verts == ChunkBuilderScript.RENDER_VERTS_NEAR)
+	var vertices_near: PackedVector3Array = build_near.mesh_arrays[Mesh.ARRAY_VERTEX]
+	assert(vertices_near.size() == near_verts * near_verts)
+
+	# Far-west chunk uses denser mesh so visual dunes track analytical height better.
+	var build: Dictionary = ChunkBuilderScript.build(sampler, -24, 0)
+	assert(int(build.verts_per_side) == ChunkBuilderScript.RENDER_VERTS_FAR)
+	assert(int(build.verts_per_side) > near_verts)
 
 	var vertices: PackedVector3Array = build.mesh_arrays[Mesh.ARRAY_VERTEX]
-	assert(vertices.size() == ChunkBuilderScript.RENDER_VERTS_PER_SIDE * ChunkBuilderScript.RENDER_VERTS_PER_SIDE)
+	assert(vertices.size() == int(build.verts_per_side) * int(build.verts_per_side))
 
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, build.mesh_arrays)
@@ -92,11 +101,20 @@ func _verify_chunk_builder(sampler: RefCounted) -> void:
 		"Sun-shaded vertex colors should span at least 0.28 (got %.2f)" % [max_luma - min_luma]
 	)
 
+	# Mesh verts should stay close to analytical samples (hover uses the latter).
+	var max_err := 0.0
+	var step := maxi(vertices.size() / 200, 1)
+	for i in range(0, vertices.size(), step):
+		var v: Vector3 = vertices[i]
+		var expected: float = sampler.sample_height(v.x, v.z)
+		max_err = maxf(max_err, absf(v.y - expected))
+	assert(max_err < 0.05, "Mesh vertices should match sampler (err %.3f)" % max_err)
+
 
 func _verify_level_progression(sampler: RefCounted) -> void:
-	# Westbound distance ramp: near home milder than far west (not per-tower swaps).
-	var near_x := -500.0
-	var far_x := -9500.0
+	# Outside start-peak radius so the dome doesn't dominate near spread.
+	var near_x := -1200.0
+	var far_x := -6500.0
 	var spread_near := _height_spread(sampler, near_x, 80.0)
 	var spread_far := _height_spread(sampler, far_x, 80.0)
 	_fail_unless(
@@ -106,10 +124,10 @@ func _verify_level_progression(sampler: RefCounted) -> void:
 	var p_near: Dictionary = LevelTerrainResolverScript.params_at_world_x(near_x, 0.0)
 	var p_far: Dictionary = LevelTerrainResolverScript.params_at_world_x(far_x, 0.0)
 	_fail_unless(
-		float(p_far.amplitude) > float(p_near.amplitude) + 5.0,
+		float(p_far.amplitude) > float(p_near.amplitude) + 4.0,
 		"Far-west amplitude should exceed near-home amplitude"
 	)
-	# No discrete jump at a tower seam (mid-segment vs just west of first tower).
+	# No discrete jump at a tower seam (around first west tower at -1 km).
 	var before_tower := LevelTerrainResolverScript.params_at_world_x(-900.0, 0.0)
 	var after_tower := LevelTerrainResolverScript.params_at_world_x(-1100.0, 0.0)
 	_fail_unless(
@@ -132,11 +150,7 @@ func _height_spread(sampler: RefCounted, center_x: float, radius: float) -> floa
 
 
 func _fail_unless(condition: bool, message: String) -> void:
-	if condition:
-		return
-	push_error(message)
-	quit(1)
-
+	assert(condition, message)
 
 func _verify_start_peak(sampler: RefCounted) -> void:
 	var origin: float = sampler.sample_height(0.0, 0.0)

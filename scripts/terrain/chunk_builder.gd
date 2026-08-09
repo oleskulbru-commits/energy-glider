@@ -2,20 +2,37 @@ class_name ChunkBuilder
 extends RefCounted
 
 const CHUNK_SIZE := 256.0
-const RENDER_VERTS_PER_SIDE := 65
+## Near home (~4 m spacing). Farther west uses denser grids so mesh tracks sharp dunes.
+const RENDER_VERTS_NEAR := 65
+const RENDER_VERTS_MID := 97
+const RENDER_VERTS_FAR := 129
+const RENDER_VERTS_PER_SIDE := RENDER_VERTS_NEAR
 const SUN_DIRECTION := Vector3(0.485, 0.824, 0.291)
+
+
+## Vertex density by chunk X (west is more negative).
+## Thresholds scaled for the ~7 km authored run.
+static func verts_per_side_for_chunk(chunk_x: int) -> int:
+	if chunk_x > -10:
+		return RENDER_VERTS_NEAR
+	if chunk_x > -20:
+		return RENDER_VERTS_MID
+	return RENDER_VERTS_FAR
+
 
 static func build(
 	height_sampler: DuneHeight,
 	chunk_x: int,
 	chunk_z: int
 ) -> Dictionary:
-	var render_data := _build_mesh(height_sampler, chunk_x, chunk_z, RENDER_VERTS_PER_SIDE)
+	var verts := verts_per_side_for_chunk(chunk_x)
+	var render_data := _build_mesh(height_sampler, chunk_x, chunk_z, verts)
 	return {
 		"mesh_arrays": render_data.mesh_arrays,
 		"world_origin_x": float(chunk_x) * CHUNK_SIZE,
 		"world_origin_z": float(chunk_z) * CHUNK_SIZE,
 		"min_height": render_data.min_height,
+		"verts_per_side": verts,
 	}
 
 

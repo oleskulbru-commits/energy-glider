@@ -112,8 +112,9 @@ func _request_chunk(key: Vector2i) -> void:
 
 
 func _is_ahead_of_player(key: Vector2i) -> bool:
+	# Journey is westbound (−X). Prefer sync-building chunks further west.
 	var center := _world_to_chunk(_get_track_position())
-	return key.y > center.y
+	return key.x < center.x
 
 
 func _load_chunk_sync(key: Vector2i) -> void:

@@ -8,10 +8,10 @@ const LevelTerrainCatalogScript = preload("res://scripts/game/level_terrain_cata
 ## Level 1 = home to first west tower; crossing tower N advances past that segment.
 const SEGMENT_DISTANCES_M: Array[float] = [
 	1000.0,
+	1000.0,
+	1500.0,
+	1500.0,
 	2000.0,
-	2500.0,
-	2500.0,
-	3000.0,
 ]
 
 

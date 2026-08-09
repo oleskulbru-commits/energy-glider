@@ -10,12 +10,13 @@ const LevelLayoutScript = preload("res://scripts/game/level_layout.gd")
 const SLAB_M := 256.0
 
 ## Mild near home → firmer far west across the authored run length.
+## Kept below the old extreme so denser meshes can track hover height.
 const INTENSITY_START := 0.08
-const INTENSITY_END := 0.72
+const INTENSITY_END := 0.64
 
-const BAND_AMPLITUDE := {"min": 14.0, "max": 38.0}
-const BAND_WARP := {"min": 22.0, "max": 85.0}
-const BAND_RIDGE := {"min": 1.48, "max": 2.05}
+const BAND_AMPLITUDE := {"min": 14.0, "max": 34.0}
+const BAND_WARP := {"min": 22.0, "max": 72.0}
+const BAND_RIDGE := {"min": 1.48, "max": 2.0}
 
 static var _slab_cache: Dictionary = {} # int -> Dictionary
 static var _journey_m := -1.0
@@ -61,10 +62,10 @@ static func _band_params(intensity: float) -> Dictionary:
 		"amplitude": lerpf(float(BAND_AMPLITUDE["min"]), float(BAND_AMPLITUDE["max"]), t),
 		"warp_strength": lerpf(float(BAND_WARP["min"]), float(BAND_WARP["max"]), t),
 		"ridge_power": lerpf(float(BAND_RIDGE["min"]), float(BAND_RIDGE["max"]), t),
-		"frequency_scale": lerpf(0.72, 1.18, t),
-		"z_scale": lerpf(0.75, 1.25, t),
-		"flat_bias": lerpf(0.12, -0.06, t),
-		"crest_sharpness": lerpf(0.92, 1.08, t),
+		"frequency_scale": lerpf(0.72, 1.10, t),
+		"z_scale": lerpf(0.75, 1.15, t),
+		"flat_bias": lerpf(0.12, -0.05, t),
+		"crest_sharpness": lerpf(0.92, 1.06, t),
 	}
 
 

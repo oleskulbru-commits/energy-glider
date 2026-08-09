@@ -43,15 +43,15 @@ func _run() -> void:
 	_fail_unless(expected_offsets.size() == 5, "Expected 5 west tower offsets")
 	_fail_unless(
 		is_equal_approx(expected_offsets[0], -1000.0)
-		and is_equal_approx(expected_offsets[1], -3000.0)
-		and is_equal_approx(expected_offsets[2], -5500.0)
-		and is_equal_approx(expected_offsets[3], -8000.0)
-		and is_equal_approx(expected_offsets[4], -11000.0),
+		and is_equal_approx(expected_offsets[1], -2000.0)
+		and is_equal_approx(expected_offsets[2], -3500.0)
+		and is_equal_approx(expected_offsets[3], -5000.0)
+		and is_equal_approx(expected_offsets[4], -7000.0),
 		"Unexpected level tower offsets: %s" % str(expected_offsets)
 	)
 	_fail_unless(LevelLayoutScript.level_at_world_x(40.0) == 1, "Spawn X should be level 1")
 	_fail_unless(LevelLayoutScript.level_at_world_x(-1000.0) == 2, "At first west tower should be level 2")
-	_fail_unless(LevelLayoutScript.level_at_world_x(-11000.0) == 5, "Past last tower should clamp at level 5")
+	_fail_unless(LevelLayoutScript.level_at_world_x(-7000.0) == 5, "Past last tower should clamp at level 5")
 
 	var spawner: Node = OutpostSpawnerScript.new()
 	spawner.name = "OutpostSpawner"

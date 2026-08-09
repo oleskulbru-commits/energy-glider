@@ -33,11 +33,11 @@ func _run_test() -> void:
 	await physics_frame
 	_verify_raycast_height(terrain, Vector3(64.0, 0.0, 64.0))
 
-	var checkpoints := [0.0, 256.0, 512.0, 768.0]
-	for z in checkpoints:
-		player.position = Vector3(0.0, 0.0, z)
+	var checkpoints := [0.0, -256.0, -512.0, -768.0]
+	for x in checkpoints:
+		player.position = Vector3(x, 0.0, 0.0)
 		await create_timer(0.15).timeout
-		_verify_forward_chunks_loaded(terrain, player.position)
+		_verify_west_chunks_loaded(terrain, player.position)
 
 	print("Collision and streaming verification passed with %d chunk nodes." % terrain.get_child_count())
 	quit(0)
@@ -70,14 +70,16 @@ func _verify_raycast_height(terrain: TerrainManager, world_pos: Vector3) -> void
 	var hit := space_state.intersect_ray(query)
 	if hit.is_empty():
 		# Headless Jolt may not register trimesh raycasts immediately; verify mesh height instead.
-		var sampler: RefCounted = DuneHeightScript.new(42)
-		sampler.set_run_origin(Vector2.ZERO)
+		var sampler: RefCounted = DuneHeightScript.new(terrain.world_seed)
+		sampler.set_run_origin(terrain.run_origin)
 		var build: Dictionary = ChunkBuilderScript.build(sampler, 0, 0)
 		var vertices: PackedVector3Array = build.mesh_arrays[Mesh.ARRAY_VERTEX]
 		var closest_dist_sq := INF
 		var mesh_y := expected
 		for vertex in vertices:
-			var dist_sq := Vector2(vertex.x, vertex.z).distance_squared_to(Vector2(world_pos.x, world_pos.z))
+			var dist_sq := Vector2(vertex.x, vertex.z).distance_squared_to(
+				Vector2(world_pos.x, world_pos.z)
+			)
 			if dist_sq < closest_dist_sq:
 				closest_dist_sq = dist_sq
 				mesh_y = vertex.y
@@ -87,13 +89,16 @@ func _verify_raycast_height(terrain: TerrainManager, world_pos: Vector3) -> void
 	assert(absf(hit.position.y - expected) < HEIGHT_TOLERANCE, "Collision height should match sampled height")
 
 
-func _verify_forward_chunks_loaded(terrain: Node3D, track_pos: Vector3) -> void:
-	var center_z := int(floor(track_pos.z / 256.0))
-	var ahead_key := "Chunk_0_%d" % (center_z + 1)
+func _verify_west_chunks_loaded(terrain: Node3D, track_pos: Vector3) -> void:
+	var center_x := int(floor(track_pos.x / 256.0))
+	var ahead_key := "Chunk_%d_0" % (center_x - 1)
 	var has_ahead := false
 	for child in terrain.get_children():
-		if child.name == ahead_key or child.name.begins_with("Chunk_"):
-			if child.name == ahead_key:
-				has_ahead = true
-	if center_z >= 0:
-		assert(has_ahead or terrain.get_child_count() >= EXPECTED_INITIAL_CHUNKS, "Forward chunk should be loaded")
+		if child.name == ahead_key:
+			has_ahead = true
+			break
+	if center_x <= 0:
+		assert(
+			has_ahead or terrain.get_child_count() >= EXPECTED_INITIAL_CHUNKS,
+			"Westbound ahead chunk should be loaded"
+		)
