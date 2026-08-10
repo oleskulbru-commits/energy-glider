@@ -25,10 +25,18 @@ const GROUND_ACCEL := 10.5
 const MAX_GROUND_SPEED := 22.0
 const MAX_SURF_SPEED := 28.0
 const BOOST_MULTIPLIER := 1.85
+## Boost top-speed ceiling relative to cruise (accel still uses BOOST_MULTIPLIER).
+const BOOST_SPEED_FACTOR := 1.3
+## Hard ceiling for any horizontal speed (boost or cruise). Upgrades cannot exceed this.
+const BOOST_ABSOLUTE_MAX := 100.0
+## Cruise ceiling so cruise * BOOST_SPEED_FACTOR never exceeds BOOST_ABSOLUTE_MAX.
+const CRUISE_ABSOLUTE_MAX := BOOST_ABSOLUTE_MAX / BOOST_SPEED_FACTOR
 const AIR_BOOST_EXTRA_SCALE := 1.15
 const CRUISE_SPEED_SCALE := 0.95
 const CRUISE_MAX_GROUND_SPEED := MAX_GROUND_SPEED * CRUISE_SPEED_SCALE
 const CRUISE_MAX_GLIDE_SPEED := MAX_SURF_SPEED * CRUISE_SPEED_SCALE
+const BOOST_MAX_GROUND_SPEED := CRUISE_MAX_GROUND_SPEED * BOOST_SPEED_FACTOR
+const BOOST_MAX_SURF_SPEED := CRUISE_MAX_GLIDE_SPEED * BOOST_SPEED_FACTOR
 const CRUISE_GROUND_ACCEL := GROUND_ACCEL * 1.12 * CRUISE_SPEED_SCALE
 const SAIL_GROUND_ACCEL_SCALE := 0.92
 const SAIL_THRUST_VELOCITY_BLEND := 0.5
@@ -196,11 +204,15 @@ static func clamp_tangent_speed(tangent_vel: Vector3, max_speed: float) -> Vecto
 
 
 static func cruise_drive_cap(boost_active: bool) -> float:
-	return MAX_GROUND_SPEED if boost_active else CRUISE_MAX_GROUND_SPEED
+	if boost_active:
+		return minf(BOOST_MAX_GROUND_SPEED, BOOST_ABSOLUTE_MAX)
+	return minf(CRUISE_MAX_GROUND_SPEED, CRUISE_ABSOLUTE_MAX)
 
 
 static func carry_speed_cap(boost_active: bool) -> float:
-	return MAX_SURF_SPEED if boost_active else CARRY_MAX_GROUND_SPEED
+	if boost_active:
+		return minf(BOOST_MAX_SURF_SPEED, BOOST_ABSOLUTE_MAX)
+	return minf(CARRY_MAX_GROUND_SPEED, CRUISE_ABSOLUTE_MAX)
 
 
 static func carry_thrust_fade(speed: float, boost_active: bool) -> float:
@@ -691,7 +703,7 @@ static func apply_velocity_constraints(ctx: Context, velocity: Vector3, mode: in
 		horizontal = horizontal_velocity(v)
 		horizontal = clamp_tangent_speed(
 			horizontal,
-			MAX_SURF_SPEED if ctx.boost_active else CRUISE_MAX_GLIDE_SPEED
+			carry_speed_cap(ctx.boost_active)
 		)
 		v.x = horizontal.x
 		v.z = horizontal.z
@@ -754,7 +766,7 @@ static func apply_touchdown(ctx: Context, braking: bool) -> Dictionary:
 	)
 	velocity = tangent_vel + td_normal * maxf(out_normal, allowed_inward)
 
-	velocity = clamp_tangent_speed(velocity.slide(td_normal), CARRY_MAX_GROUND_SPEED)
+	velocity = clamp_tangent_speed(velocity.slide(td_normal), carry_speed_cap(false))
 	if not hard:
 		var settled_normal := velocity.dot(td_normal)
 		if settled_normal > 0.0:

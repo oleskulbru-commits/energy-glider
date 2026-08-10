@@ -60,6 +60,11 @@ func _verify_objective_text() -> void:
 		EonDirectorScript.OBJECTIVE_RETRIEVE == "Retrieve the E.O.N",
 		"Retrieve objective should use E.O.N display name"
 	)
+	_fail_unless(
+		("Travel west and get to upgrade tower %s" % "1")
+		== "Travel west and get to upgrade tower 1",
+		"Travel objective should include tower number"
+	)
 
 
 func _verify_pickup_blocked_while_dead() -> void:

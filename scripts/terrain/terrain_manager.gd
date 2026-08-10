@@ -5,6 +5,7 @@ const CHUNK_SIZE := ChunkBuilder.CHUNK_SIZE
 const LOAD_RADIUS := 2
 const UNLOAD_RADIUS := 3
 const INITIAL_SYNC_RADIUS := LOAD_RADIUS
+const LevelRunScript = preload("res://scripts/game/level_run.gd")
 
 @export var world_seed: int = 42
 @export var sand_material: Material
@@ -18,7 +19,9 @@ var _track_node: Node3D
 
 
 func _ready() -> void:
+	add_to_group("terrain_manager")
 	_apply_session_seed()
+	LevelRunScript.ensure(world_seed)
 	_height_sampler = DuneHeight.new(world_seed)
 	run_origin = Vector2(global_position.x, global_position.z)
 	_height_sampler.set_run_origin(run_origin)
@@ -35,9 +38,11 @@ func _ready() -> void:
 func _apply_session_seed() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load("user://run_session.cfg") != OK:
+		LevelRunScript.ensure(world_seed)
 		return
 	if cfg.has_section_key("terrain", "world_seed"):
 		world_seed = int(cfg.get_value("terrain", "world_seed"))
+	LevelRunScript.ensure(world_seed)
 
 
 func _load_initial_chunks_sync() -> void:
@@ -112,8 +117,9 @@ func _request_chunk(key: Vector2i) -> void:
 
 
 func _is_ahead_of_player(key: Vector2i) -> bool:
+	# Journey is westbound (−X). Prefer sync-building chunks further west.
 	var center := _world_to_chunk(_get_track_position())
-	return key.y > center.y
+	return key.x < center.x
 
 
 func _load_chunk_sync(key: Vector2i) -> void:

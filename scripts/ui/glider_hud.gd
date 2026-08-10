@@ -54,6 +54,7 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _safe_label: Label = %SafeLabel
 @onready var _outpost_board: PanelContainer = %OutpostBoard
 @onready var _outpost_board_label: Label = %OutpostBoardLabel
+@onready var _speed_label: Label = %SpeedLabel
 
 var _rig: PlayerRig
 var _player: GliderPlayer
@@ -198,6 +199,7 @@ func _process(delta: float) -> void:
 	_update_safe_chip(delta)
 	_update_integrity_bar()
 	_update_eon_tracker()
+	_update_speedometer()
 
 	var show_death_overlay := _is_death_overlay_active()
 	if show_death_overlay:
@@ -494,7 +496,7 @@ func _update_compass() -> void:
 	else:
 		_compass_bar.set_poi_bearing(poi_bearing)
 
-	_compass_bar.set_outpost_bearings(_resolve_outpost_bearings(track_pos, 3))
+	_compass_bar.set_outpost_bearings(_resolve_outpost_bearings(track_pos))
 
 	if _director != null and _director.should_show_eon_tracker(track_pos):
 		_compass_bar.set_eon_bearing(_director.get_eon_bearing(track_pos))
@@ -508,17 +510,51 @@ func _tracking_position() -> Vector3:
 	return _player.global_position
 
 
-func _resolve_outpost_bearings(track_pos: Vector3, limit: int) -> Array:
-	var ranked := WorldQueries.ranked_in_group(
-		get_tree(),
-		"weather_station",
-		track_pos,
-		40.0
-	)
-	var bearings: Array = []
-	for i in mini(limit, ranked.size()):
-		bearings.append(float(ranked[i].bearing))
-	return bearings
+## Only the next objective tower, and only after the E.O.N. run has started.
+func _resolve_outpost_bearings(track_pos: Vector3) -> Array:
+	if _director == null or not _director.is_run_active():
+		return []
+	var tower := _find_next_objective_tower()
+	if tower == null:
+		return []
+	var dist := MathUtil.horizontal_distance(track_pos, tower.global_position)
+	if dist < 40.0:
+		return []
+	return [MathUtil.bearing_to(track_pos, tower.global_position)]
+
+
+func _find_next_objective_tower() -> Node3D:
+	if _director == null:
+		return null
+	var tower_n := int(_director.next_upgrade_tower_label)
+	var offsets: Array[float] = LevelLayout.tower_x_offsets_from_origin()
+	if tower_n < 1 or tower_n > offsets.size():
+		return null
+	var origin_x := _run_origin_x()
+	var target_x := origin_x + offsets[tower_n - 1]
+	var best: Node3D = null
+	var best_dx := INF
+	for node in get_tree().get_nodes_in_group("upgrade_tower"):
+		var spatial := node as Node3D
+		if spatial == null or not is_instance_valid(spatial):
+			continue
+		var dx := absf(spatial.global_position.x - target_x)
+		if dx < best_dx:
+			best_dx = dx
+			best = spatial
+	# Towers are pinned to planned X; allow small float / snap slack.
+	if best == null or best_dx > 50.0:
+		return null
+	return best
+
+
+func _run_origin_x() -> float:
+	var terrain := get_tree().get_first_node_in_group("terrain_manager") as TerrainManager
+	if terrain == null:
+		terrain = get_tree().root.find_child("TerrainManager", true, false) as TerrainManager
+	if terrain != null:
+		return terrain.run_origin.x
+	return 0.0
 
 
 func _update_outpost_board() -> void:
@@ -526,7 +562,7 @@ func _update_outpost_board() -> void:
 		return
 	var track_pos := _tracking_position()
 
-	var ranked := WorldQueries.ranked_in_group(get_tree(), "weather_station", track_pos)
+	var ranked := WorldQueries.ranked_in_group(get_tree(), "upgrade_tower", track_pos)
 	if ranked.is_empty():
 		_outpost_board.visible = false
 		return
@@ -539,7 +575,7 @@ func _update_outpost_board() -> void:
 
 	var neighbors := WorldQueries.ranked_in_group(
 		get_tree(),
-		"weather_station",
+		"upgrade_tower",
 		hub.global_position,
 		0.0,
 		hub
@@ -653,6 +689,13 @@ func _update_stop_chip() -> void:
 		_stop_label.add_theme_color_override("font_color", Color(0.98, 0.82, 0.45, 1))
 	else:
 		_stop_label.remove_theme_color_override("font_color")
+
+
+func _update_speedometer() -> void:
+	if _speed_label == null or _player == null:
+		return
+	var speed := MathUtil.horizontal_speed(_player.velocity)
+	_speed_label.text = "%d m/s" % int(roundf(speed))
 
 
 func _on_pulse_fired(_target_ripple: int) -> void:

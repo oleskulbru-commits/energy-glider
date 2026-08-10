@@ -8,7 +8,7 @@ var _rig: PlayerRig
 var _glider: GliderPlayer
 var _cargo: PlayerCargo
 var _antenna_state: AntennaState
-var _tower: WeatherStation
+var _tower: UpgradeTower
 var _loot_overlay: LootOverlay
 var _expedition: ExpeditionState
 var _hold_progress := 0.0
@@ -120,7 +120,7 @@ func _resolve_loot_overlay() -> void:
 func _resolve_world_refs() -> void:
 	if _antenna_state == null or not is_instance_valid(_antenna_state):
 		_antenna_state = get_tree().get_first_node_in_group("antenna_state") as AntennaState
-	_tower = _find_nearest_station()
+	_tower = _find_nearest_tower()
 	if _glider == null and _rig != null:
 		_glider = _rig.get_node_or_null("Glider") as GliderPlayer
 	if _loot_overlay == null and _rig != null:
@@ -129,12 +129,12 @@ func _resolve_world_refs() -> void:
 		_expedition = get_tree().get_first_node_in_group("expedition_state") as ExpeditionState
 
 
-func _find_nearest_station() -> WeatherStation:
+func _find_nearest_tower() -> UpgradeTower:
 	var body := _get_active_body()
 	var origin := body.global_position if body != null else (
 		_glider.global_position if _glider != null else Vector3.ZERO
 	)
-	return WorldQueries.nearest_in_group(get_tree(), "weather_station", origin) as WeatherStation
+	return WorldQueries.nearest_in_group(get_tree(), "upgrade_tower", origin) as UpgradeTower
 
 
 func _get_active_body() -> PhysicsBody3D:

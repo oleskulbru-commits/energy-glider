@@ -20,6 +20,7 @@ const OBJECTIVE_RETRIEVE := "Retrieve the E.O.N"
 
 const EonPickupScene := preload("res://scenes/game/eon_pickup.tscn")
 const EonPickupScript := preload("res://scripts/game/eon_pickup.gd")
+const LevelLayoutScript = preload("res://scripts/game/level_layout.gd")
 
 @export var player_rig_path: NodePath
 @export var terrain_manager_path: NodePath
@@ -27,8 +28,8 @@ const EonPickupScript := preload("res://scripts/game/eon_pickup.gd")
 @export var expedition_state_path: NodePath
 @export var day_night_path: NodePath
 
-## Stub for future relay tower progression (displayed after E.O.N pickup).
-var next_relay_label := "x"
+## Next westbound upgrade tower (1 = first tower). Updated from LevelProgress.
+var next_upgrade_tower_label := "1"
 
 var phase: Phase = Phase.AWAITING_EON
 var integrity: int = INTEGRITY_START
@@ -71,6 +72,8 @@ func _boot() -> void:
 	await get_tree().process_frame
 	_capture_spawn_pose()
 	_connect_player()
+	_connect_level_progress()
+	_sync_next_tower_label()
 	_spawn_eon_near_start()
 	phase = Phase.AWAITING_EON
 	objective_changed.emit(get_objective_text())
@@ -94,6 +97,33 @@ func _connect_player() -> void:
 		return
 	if not glider.run_ended.is_connected(_on_player_run_ended):
 		glider.run_ended.connect(_on_player_run_ended)
+
+
+func _connect_level_progress() -> void:
+	var progress := get_tree().get_first_node_in_group("level_progress")
+	if progress == null:
+		return
+	if progress.has_signal("level_changed") and not progress.level_changed.is_connected(_on_level_changed):
+		progress.level_changed.connect(_on_level_changed)
+
+
+func _on_level_changed(level: int) -> void:
+	var previous := next_upgrade_tower_label
+	_sync_next_tower_label(level)
+	if phase == Phase.RUNNING and next_upgrade_tower_label != previous:
+		objective_changed.emit(get_objective_text())
+
+
+func _sync_next_tower_label(level: int = -1) -> void:
+	var tower_n := level
+	if tower_n < 1:
+		var progress := get_tree().get_first_node_in_group("level_progress")
+		if progress != null and progress.has_method("get_current_level"):
+			tower_n = int(progress.get_current_level())
+		else:
+			tower_n = 1
+	var max_tower := maxi(LevelLayoutScript.segment_count(), 1)
+	next_upgrade_tower_label = str(clampi(tower_n, 1, max_tower))
 
 
 func _capture_spawn_pose() -> void:
@@ -128,7 +158,7 @@ func has_collected_eon() -> bool:
 func get_objective_text() -> String:
 	if phase == Phase.AWAITING_EON:
 		return OBJECTIVE_RETRIEVE
-	return "Travel west and get to relay tower %s" % next_relay_label
+	return "Travel west and get to upgrade tower %s" % next_upgrade_tower_label
 
 
 func get_eon_position() -> Vector3:
@@ -186,6 +216,7 @@ func _on_eon_collected() -> void:
 	phase = Phase.RUNNING
 	eon_collected.emit()
 	_bootstrap_run()
+	_sync_next_tower_label()
 	run_started.emit()
 	objective_changed.emit(get_objective_text())
 

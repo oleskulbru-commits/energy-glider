@@ -1,13 +1,12 @@
 class_name OutpostSpawner
 extends Node3D
 
-const STATION_SCENE := preload("res://scenes/world/weather_station.tscn")
+const UPGRADE_TOWER_SCENE := preload("res://scenes/world/upgrade_tower.tscn")
 
 @export var terrain_manager_path: NodePath
-@export var outpost_spacing_m := 5000.0
-@export var ring_count := 1
 @export var include_home := true
-@export var ridge_sample_radius_m := 80.0
+## Z-only ridge search. Clamped to hub radius so the westbound line stays inside deposit/night hub.
+@export var ridge_sample_radius_m := 30.0
 @export var ridge_sample_steps := 8
 
 
@@ -21,48 +20,49 @@ func _spawn_outposts() -> void:
 	if terrain != null:
 		origin = Vector3(terrain.run_origin.x, 0.0, terrain.run_origin.y)
 
-	var planned: Array[Vector3] = []
+	var planned: Array[Dictionary] = []
 	if include_home:
-		planned.append(origin)
+		planned.append({ "pos": origin, "is_home": true })
 
-	for ring in range(1, maxi(ring_count, 1) + 1):
-		var radius := outpost_spacing_m * float(ring)
-		for i in 6:
-			var angle := float(i) / 6.0 * TAU + (0.0 if ring % 2 == 1 else TAU / 12.0)
-			planned.append(origin + MathUtil.yaw_forward(angle) * radius)
+	for offset_x in LevelLayout.tower_x_offsets_from_origin():
+		var west := origin + Vector3(offset_x, 0.0, 0.0)
+		planned.append({ "pos": west, "is_home": false })
 
-	for pos in planned:
-		_spawn_one(pos, terrain)
+	for entry in planned:
+		_spawn_one(entry.pos as Vector3, terrain, bool(entry.is_home))
 
 
-func _spawn_one(approx: Vector3, terrain: TerrainManager) -> void:
-	var placed_xz := _pick_ridge_xz(approx, terrain)
-	var station: WeatherStation = STATION_SCENE.instantiate() as WeatherStation
-	add_child(station)
+func _spawn_one(approx: Vector3, terrain: TerrainManager, is_home: bool) -> void:
+	var placed_xz := Vector2(approx.x, approx.z)
+	if not is_home:
+		placed_xz = _pick_ridge_xz(approx, terrain)
+	var tower: UpgradeTower = UPGRADE_TOWER_SCENE.instantiate() as UpgradeTower
+	add_child(tower)
 	if terrain != null:
-		station.terrain_manager_path = station.get_path_to(terrain)
-	station.global_position = Vector3(placed_xz.x, 0.0, placed_xz.y)
-	station.snap_to_terrain()
+		tower.terrain_manager_path = tower.get_path_to(terrain)
+	tower.global_position = Vector3(placed_xz.x, 0.0, placed_xz.y)
+	tower.snap_to_terrain()
 
 
+## Pick a high ridge near the planned spot, but keep X fixed and Z within hub reach.
+## LevelProgress advances on planned west X — shifting X made the objective lag behind the mesh.
+## Hub checks use full XZ distance; Z snap beyond HUB_RADIUS_M would miss deposit/night/hub UI.
 func _pick_ridge_xz(approx: Vector3, terrain: TerrainManager) -> Vector2:
 	var best := Vector2(approx.x, approx.z)
 	if terrain == null:
 		return best
-	var best_h := terrain.sample_height(best.x, best.y)
+	var radius := minf(ridge_sample_radius_m, AntennaState.HUB_RADIUS_M)
+	var best_h := terrain.sample_height(approx.x, approx.z)
 	var steps := maxi(ridge_sample_steps, 1)
 	for i in steps:
-		var angle := float(i) / float(steps) * TAU
-		var x := approx.x + cos(angle) * ridge_sample_radius_m
-		var z := approx.z + sin(angle) * ridge_sample_radius_m
-		var h := terrain.sample_height(x, z)
+		var t := 0.0
+		if steps > 1:
+			t = (float(i) / float(steps - 1)) * 2.0 - 1.0
+		var z := approx.z + t * radius
+		var h := terrain.sample_height(approx.x, z)
 		if h > best_h:
 			best_h = h
-			best = Vector2(x, z)
-	# Also try center.
-	var center_h := terrain.sample_height(approx.x, approx.z)
-	if center_h >= best_h:
-		return Vector2(approx.x, approx.z)
+			best = Vector2(approx.x, z)
 	return best
 
 

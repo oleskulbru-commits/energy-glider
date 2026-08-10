@@ -74,6 +74,8 @@ const CREST_LIP_NOSE_DROP := 0.32
 const CREST_LIP_MIN_SPEED := 3.5
 const LANDING_STABILIZE_DURATION := 0.3
 const LANDING_IMPACT_WINDOW := 0.1
+## Temporary: keep contact-damage math, but do not apply hull loss / death.
+const FALL_DAMAGE_ENABLED := false
 const LANDING_BLEND_DURATION := 0.22
 const LANDING_VELOCITY_BLEND_RATE := 9.0
 const LANDING_MIN_HOVER_RAMP_SOFT := 0.45
@@ -1089,11 +1091,13 @@ func _on_ground_contact() -> void:
 	if not _contact_damage_applied:
 		_contact_damage_applied = true
 		var damage := GliderPhysicsScript.compute_contact_damage(_landing_approach)
-		if damage > 0.0:
+		if damage > 0.0 and FALL_DAMAGE_ENABLED:
 			_hull_integrity = maxf(_hull_integrity - damage, 0.0)
 			_landing_feedback_label = "HARD"
 			if _hull_integrity <= 0.0:
 				end_run("death")
+		elif damage > 0.0:
+			_landing_feedback_label = "HARD"
 
 
 func _apply_steering(delta: float) -> void:
