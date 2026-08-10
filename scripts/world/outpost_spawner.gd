@@ -5,7 +5,8 @@ const UPGRADE_TOWER_SCENE := preload("res://scenes/world/upgrade_tower.tscn")
 
 @export var terrain_manager_path: NodePath
 @export var include_home := true
-@export var ridge_sample_radius_m := 80.0
+## Z-only ridge search. Clamped to hub radius so the westbound line stays inside deposit/night hub.
+@export var ridge_sample_radius_m := 30.0
 @export var ridge_sample_steps := 8
 
 
@@ -43,19 +44,21 @@ func _spawn_one(approx: Vector3, terrain: TerrainManager, is_home: bool) -> void
 	tower.snap_to_terrain()
 
 
-## Pick a high ridge near the planned spot, but keep X fixed.
+## Pick a high ridge near the planned spot, but keep X fixed and Z within hub reach.
 ## LevelProgress advances on planned west X — shifting X made the objective lag behind the mesh.
+## Hub checks use full XZ distance; Z snap beyond HUB_RADIUS_M would miss deposit/night/hub UI.
 func _pick_ridge_xz(approx: Vector3, terrain: TerrainManager) -> Vector2:
 	var best := Vector2(approx.x, approx.z)
 	if terrain == null:
 		return best
+	var radius := minf(ridge_sample_radius_m, AntennaState.HUB_RADIUS_M)
 	var best_h := terrain.sample_height(approx.x, approx.z)
 	var steps := maxi(ridge_sample_steps, 1)
 	for i in steps:
 		var t := 0.0
 		if steps > 1:
 			t = (float(i) / float(steps - 1)) * 2.0 - 1.0
-		var z := approx.z + t * ridge_sample_radius_m
+		var z := approx.z + t * radius
 		var h := terrain.sample_height(approx.x, z)
 		if h > best_h:
 			best_h = h

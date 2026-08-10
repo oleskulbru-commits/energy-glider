@@ -70,6 +70,7 @@ func _run() -> void:
 	var home_found := false
 	var west_ok := 0
 	var matched_offsets: Dictionary = {}
+	var hub_r := AntennaState.HUB_RADIUS_M
 	for node in get_nodes_in_group("upgrade_tower"):
 		var s := node as Node3D
 		if s == null or s == tower:
@@ -80,8 +81,10 @@ func _run() -> void:
 		if absf(dx) < 1.0 and absf(dz) < 1.0:
 			home_found = true
 			continue
-		if absf(dz) > 100.0:
-			continue
+		_fail_unless(
+			absf(dz) <= hub_r + 0.01,
+			"West tower Z snap (%.2f) exceeds hub radius %.2f" % [dz, hub_r]
+		)
 		for offset_x in expected_offsets:
 			# X must stay on the planned west distance (ridge snap is Z-only).
 			if absf(dx - offset_x) < 0.5 and not matched_offsets.has(offset_x):
@@ -92,6 +95,23 @@ func _run() -> void:
 	_fail_unless(home_found, "Expected home tower at run origin")
 	_fail_unless(spawned == 41, "Expected home+40 west towers, got %d spawned" % spawned)
 	_fail_unless(west_ok == 40, "Expected 40 west towers on planned X, got %d" % west_ok)
+
+	# Planned westbound line (Z=0) must still be inside hub for deposit / night safety.
+	for offset_x in expected_offsets:
+		var line_pos := Vector3(terrain.run_origin.x + offset_x, 0.0, terrain.run_origin.y)
+		var nearest_hub := INF
+		for node in get_nodes_in_group("upgrade_tower"):
+			var s := node as Node3D
+			if s == null or s == tower:
+				continue
+			var xz := Vector2(line_pos.x - s.global_position.x, line_pos.z - s.global_position.z)
+			nearest_hub = minf(nearest_hub, xz.length())
+		_fail_unless(
+			nearest_hub <= hub_r,
+			"Westbound line at X offset %.0f is %.2fm from nearest hub (>%s)" % [
+				offset_x, nearest_hub, hub_r
+			]
+		)
 
 	print("Outpost spawner verification passed.")
 	quit(0)
