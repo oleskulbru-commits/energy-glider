@@ -43,24 +43,23 @@ func _spawn_one(approx: Vector3, terrain: TerrainManager, is_home: bool) -> void
 	tower.snap_to_terrain()
 
 
+## Pick a high ridge near the planned spot, but keep X fixed.
+## LevelProgress advances on planned west X — shifting X made the objective lag behind the mesh.
 func _pick_ridge_xz(approx: Vector3, terrain: TerrainManager) -> Vector2:
 	var best := Vector2(approx.x, approx.z)
 	if terrain == null:
 		return best
-	var best_h := terrain.sample_height(best.x, best.y)
+	var best_h := terrain.sample_height(approx.x, approx.z)
 	var steps := maxi(ridge_sample_steps, 1)
 	for i in steps:
-		var angle := float(i) / float(steps) * TAU
-		var x := approx.x + cos(angle) * ridge_sample_radius_m
-		var z := approx.z + sin(angle) * ridge_sample_radius_m
-		var h := terrain.sample_height(x, z)
+		var t := 0.0
+		if steps > 1:
+			t = (float(i) / float(steps - 1)) * 2.0 - 1.0
+		var z := approx.z + t * ridge_sample_radius_m
+		var h := terrain.sample_height(approx.x, z)
 		if h > best_h:
 			best_h = h
-			best = Vector2(x, z)
-	# Also try center.
-	var center_h := terrain.sample_height(approx.x, approx.z)
-	if center_h >= best_h:
-		return Vector2(approx.x, approx.z)
+			best = Vector2(approx.x, z)
 	return best
 
 

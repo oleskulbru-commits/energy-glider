@@ -19,6 +19,7 @@ var _track_node: Node3D
 
 
 func _ready() -> void:
+	add_to_group("terrain_manager")
 	_apply_session_seed()
 	LevelRunScript.ensure(world_seed)
 	_height_sampler = DuneHeight.new(world_seed)

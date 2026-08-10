@@ -69,6 +69,7 @@ func _run() -> void:
 	var spawned := 0
 	var home_found := false
 	var west_ok := 0
+	var matched_offsets: Dictionary = {}
 	for node in get_nodes_in_group("upgrade_tower"):
 		var s := node as Node3D
 		if s == null or s == tower:
@@ -79,18 +80,18 @@ func _run() -> void:
 		if absf(dx) < 1.0 and absf(dz) < 1.0:
 			home_found = true
 			continue
-		if dx >= -100.0:
-			continue
-		if absf(dz) > 300.0:
+		if absf(dz) > 100.0:
 			continue
 		for offset_x in expected_offsets:
-			if absf(dx - offset_x) < 300.0:
+			# X must stay on the planned west distance (ridge snap is Z-only).
+			if absf(dx - offset_x) < 0.5 and not matched_offsets.has(offset_x):
+				matched_offsets[offset_x] = true
 				west_ok += 1
 				break
 
 	_fail_unless(home_found, "Expected home tower at run origin")
 	_fail_unless(spawned == 41, "Expected home+40 west towers, got %d spawned" % spawned)
-	_fail_unless(west_ok == 40, "Expected 40 west towers at level distances, got %d" % west_ok)
+	_fail_unless(west_ok == 40, "Expected 40 west towers on planned X, got %d" % west_ok)
 
 	print("Outpost spawner verification passed.")
 	quit(0)
