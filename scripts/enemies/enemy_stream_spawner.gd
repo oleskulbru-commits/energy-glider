@@ -1,13 +1,18 @@
 class_name EnemyStreamSpawner
 extends Node3D
 
-## Spawns red-pill swarm enemies ahead of the glider while the E.O.N. run is active.
+## Spawns red/green stream enemies ahead of the glider while the E.O.N. run is active.
 
 const SwarmPillScene := preload("res://scenes/enemies/swarm_pill.tscn")
+const ChargerPillScene := preload("res://scenes/enemies/charger_pill.tscn")
 const SwarmPillScript := preload("res://scripts/enemies/swarm_pill.gd")
 const EonDirectorScript := preload("res://scripts/game/eon_director.gd")
 
 const SPAWN_GRACE_SEC := 3.0
+## 1 green per 5 red → one sixth of spawns.
+const CHARGER_SPAWN_CHANCE := 1.0 / 6.0
+## Greens unlock after crossing tower 1 (level 2+).
+const CHARGER_MIN_LEVEL := 2
 
 @export var player_rig_path: NodePath
 @export var terrain_manager_path: NodePath
@@ -80,7 +85,7 @@ func _physics_process(delta: float) -> void:
 	var speed := SwarmPillScript.move_speed_for_level(level)
 	var to_spawn := mini(spawns_per_tick_max, cap - _active.size())
 	for _i in to_spawn:
-		_spawn_one(track, ahead, spread, speed)
+		_spawn_one(track, ahead, spread, speed, level)
 
 	_spawn_cooldown = spawn_interval_sec
 
@@ -122,7 +127,7 @@ func _get_glider() -> GliderPlayer:
 	return _rig.get_glider()
 
 
-func _spawn_one(track: Node3D, ahead: Vector2, spread: float, speed: float) -> void:
+func _spawn_one(track: Node3D, ahead: Vector2, spread: float, speed: float, level: int) -> void:
 	var offset := SwarmPillScript.spawn_offset_xz(ahead.x, ahead.y, spread, _rng)
 	var world_x := track.global_position.x + offset.x
 	var world_z := track.global_position.z + offset.y
@@ -130,7 +135,10 @@ func _spawn_one(track: Node3D, ahead: Vector2, spread: float, speed: float) -> v
 	if _terrain != null:
 		world_y = _terrain.sample_height(world_x, world_z) + SwarmPillScript.HOVER_OFFSET_M
 
-	var pill: SwarmPillScript = SwarmPillScene.instantiate() as SwarmPillScript
+	var scene: PackedScene = SwarmPillScene
+	if level >= CHARGER_MIN_LEVEL and _rng.randf() < CHARGER_SPAWN_CHANCE:
+		scene = ChargerPillScene
+	var pill: SwarmPillScript = scene.instantiate() as SwarmPillScript
 	add_child(pill)
 	pill.global_position = Vector3(world_x, world_y, world_z)
 	pill.configure(_terrain, track, speed)

@@ -10,14 +10,22 @@ const KNOCKBACK_UP_SPEED := 1.5
 const DAMAGE_INTERVAL_SEC := 0.5
 const CONTACT_DAMAGE := 2
 const CONTACT_RADIUS_M := 1.35
+## Ignore hits when the player is clearly jumping/flying over the pill.
+const CONTACT_MAX_ABOVE_M := 1.2
 const DEFAULT_SPEED := 3.5
 
 var move_speed := DEFAULT_SPEED
+var contact_damage := CONTACT_DAMAGE
+var contact_radius_m := CONTACT_RADIUS_M
+var contact_max_above_m := CONTACT_MAX_ABOVE_M
 
 var _target: Node3D
 var _terrain: TerrainManager
 var _in_contact := false
 var _damage_timer := 0.0
+var _last_seek_dir := Vector3.ZERO
+## Subclasses (charger) multiply base move_speed while aggro'd.
+var chase_speed_mult := 1.0
 
 
 func _ready() -> void:
@@ -52,8 +60,15 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 		return
 
-	if to_target.length_squared() > 0.01:
-		velocity = to_target.normalized() * move_speed
+	_update_chase(delta)
+
+	var seek := Vector3(to_target.x, 0.0, to_target.z)
+	if seek.length_squared() > 0.01:
+		_last_seek_dir = seek.normalized()
+		velocity = _last_seek_dir * _get_move_speed()
+	elif _last_seek_dir.length_squared() > 0.01:
+		# On top of / overlapping the player — keep charging; don't drop to a standstill.
+		velocity = _last_seek_dir * _get_move_speed()
 	else:
 		velocity = Vector3.ZERO
 
@@ -61,6 +76,15 @@ func _physics_process(delta: float) -> void:
 	_snap_to_terrain()
 	_orient_to_velocity()
 	_update_contact(delta)
+
+
+## Subclasses adjust chase behavior (e.g. aggro speed ramp).
+func _update_chase(_delta: float) -> void:
+	pass
+
+
+func _get_move_speed() -> float:
+	return move_speed * chase_speed_mult
 
 
 func _snap_to_terrain() -> void:
@@ -77,7 +101,7 @@ func _orient_to_velocity() -> void:
 	rotation.y = lerp_angle(rotation.y, atan2(flat.x, flat.z), 0.2)
 
 
-## XZ proximity — more reliable than Area enter/exit while we snap Y to dunes.
+## XZ proximity with a height gate so airborne flyovers don't clip/damage.
 func _update_contact(delta: float) -> void:
 	var touching := _is_touching_target()
 	if touching:
@@ -98,8 +122,15 @@ func _is_touching_target() -> bool:
 	if _target == null or not is_instance_valid(_target):
 		return false
 	var delta := _target.global_position - global_position
+	# Player jumping / gliding above the pill — no shove or damage.
+	if delta.y > contact_max_above_m:
+		return false
 	var flat := Vector2(delta.x, delta.z)
-	return flat.length() <= CONTACT_RADIUS_M
+	return flat.length() <= contact_radius_m
+
+
+static func is_vertical_contact(player_y: float, pill_y: float, max_above_m: float = CONTACT_MAX_ABOVE_M) -> bool:
+	return (player_y - pill_y) <= max_above_m
 
 
 func _tick_contact() -> void:
@@ -122,7 +153,7 @@ func _apply_contact_damage() -> void:
 	var health := get_tree().get_first_node_in_group("player_health")
 	if health == null or not health.has_method("take_damage"):
 		return
-	health.take_damage(CONTACT_DAMAGE)
+	health.take_damage(contact_damage)
 
 
 ## Horizontal shove (+ slight up) applied as velocity delta via GliderPlayer.queue_knockback.

@@ -1,6 +1,7 @@
 extends SceneTree
 
 const SwarmPillScript = preload("res://scripts/enemies/swarm_pill.gd")
+const ChargerPillScript = preload("res://scripts/enemies/charger_pill.gd")
 const EnemyStreamSpawnerScript = preload("res://scripts/enemies/enemy_stream_spawner.gd")
 
 
@@ -13,6 +14,7 @@ func _run() -> void:
 	_verify_spawn_offset()
 	_verify_knockback()
 	_verify_spawn_grace()
+	_verify_charger()
 	print("Enemy stream verification passed.")
 	quit(0)
 
@@ -49,12 +51,61 @@ func _verify_knockback() -> void:
 	_fail_unless(impulse.y > 0.0, "Knockback should include slight upward")
 	var toward_pill := SwarmPillScript.knockback_impulse_for(body, pill, 10.0)
 	_fail_unless(toward_pill.x < 0.0, "Symmetric case should push other way")
+	_fail_unless(
+		SwarmPillScript.is_vertical_contact(1.0, 1.0),
+		"Same height should allow vertical contact"
+	)
+	_fail_unless(
+		SwarmPillScript.is_vertical_contact(2.0, 1.0),
+		"Slightly above within max should still contact"
+	)
+	_fail_unless(
+		not SwarmPillScript.is_vertical_contact(3.5, 1.0),
+		"Flying well above pill should not contact"
+	)
 
 
 func _verify_spawn_grace() -> void:
 	_fail_unless(
 		is_equal_approx(EnemyStreamSpawnerScript.SPAWN_GRACE_SEC, 3.0),
 		"Spawn grace should be 3 seconds after E.O.N. pickup"
+	)
+
+
+func _verify_charger() -> void:
+	_fail_unless(
+		is_equal_approx(EnemyStreamSpawnerScript.CHARGER_SPAWN_CHANCE, 1.0 / 6.0),
+		"Charger spawn chance should be 1/6 (1:5 vs red)"
+	)
+	_fail_unless(
+		EnemyStreamSpawnerScript.CHARGER_MIN_LEVEL == 2,
+		"Chargers should unlock at level 2 (after tower 1)"
+	)
+	_fail_unless(
+		is_equal_approx(ChargerPillScript.AGGRO_RANGE_M, 15.0),
+		"Charger aggro range should be 15 m"
+	)
+	_fail_unless(
+		ChargerPillScript.CHARGER_CONTACT_DAMAGE == 8,
+		"Charger contact damage should be 8"
+	)
+	_fail_unless(
+		is_equal_approx(ChargerPillScript.AGGRO_SPEED_MULT, 2.0),
+		"Charger aggro speed mult should be 2"
+	)
+	_fail_unless(
+		is_equal_approx(ChargerPillScript.AGGRO_LINGER_SEC, 3.0),
+		"Charger should linger boosted for 3s after leaving range"
+	)
+	var ramped := ChargerPillScript.speed_mult_step(1.0, true, 0.45, 0.45)
+	_fail_unless(
+		is_equal_approx(ramped, 2.0),
+		"Full ramp over AGGRO_RAMP_SEC should reach 2x (got %s)" % ramped
+	)
+	var cooled := ChargerPillScript.speed_mult_step(2.0, false, 0.45, 0.45)
+	_fail_unless(
+		is_equal_approx(cooled, 1.0),
+		"Leaving aggro should ramp back to 1x (got %s)" % cooled
 	)
 
 
