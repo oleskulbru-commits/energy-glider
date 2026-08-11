@@ -1,6 +1,7 @@
 extends SceneTree
 
 const SwarmPillScript = preload("res://scripts/enemies/swarm_pill.gd")
+const EnemyStreamSpawnerScript = preload("res://scripts/enemies/enemy_stream_spawner.gd")
 
 
 func _init() -> void:
@@ -11,6 +12,7 @@ func _run() -> void:
 	_verify_cap_curve()
 	_verify_spawn_offset()
 	_verify_knockback()
+	_verify_spawn_grace()
 	print("Enemy stream verification passed.")
 	quit(0)
 
@@ -47,6 +49,13 @@ func _verify_knockback() -> void:
 	_fail_unless(impulse.y > 0.0, "Knockback should include slight upward")
 	var toward_pill := SwarmPillScript.knockback_impulse_for(body, pill, 10.0)
 	_fail_unless(toward_pill.x < 0.0, "Symmetric case should push other way")
+
+
+func _verify_spawn_grace() -> void:
+	_fail_unless(
+		is_equal_approx(EnemyStreamSpawnerScript.SPAWN_GRACE_SEC, 3.0),
+		"Spawn grace should be 3 seconds after E.O.N. pickup"
+	)
 
 
 func _fail_unless(condition: bool, message: String) -> void:

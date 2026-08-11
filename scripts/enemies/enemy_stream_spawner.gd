@@ -7,6 +7,8 @@ const SwarmPillScene := preload("res://scenes/enemies/swarm_pill.tscn")
 const SwarmPillScript := preload("res://scripts/enemies/swarm_pill.gd")
 const EonDirectorScript := preload("res://scripts/game/eon_director.gd")
 
+const SPAWN_GRACE_SEC := 3.0
+
 @export var player_rig_path: NodePath
 @export var terrain_manager_path: NodePath
 @export var eon_director_path: NodePath
@@ -19,6 +21,7 @@ var _terrain: TerrainManager
 var _director: EonDirectorScript
 var _rng := RandomNumberGenerator.new()
 var _spawn_cooldown := 0.0
+var _grace_left := 0.0
 var _active: Array[Node] = []
 
 
@@ -31,24 +34,32 @@ func _ready() -> void:
 		_terrain = get_node_or_null(terrain_manager_path) as TerrainManager
 	if eon_director_path != NodePath():
 		_director = get_node_or_null(eon_director_path) as EonDirectorScript
-	call_deferred("_connect_glider")
+	call_deferred("_connect_signals")
 
 
-func _connect_glider() -> void:
+func _connect_signals() -> void:
 	var glider := _get_glider()
-	if glider == null:
-		return
-	if not glider.run_ended.is_connected(_on_run_ended):
+	if glider != null and not glider.run_ended.is_connected(_on_run_ended):
 		glider.run_ended.connect(_on_run_ended)
+	if _director != null and _director.has_signal("run_started"):
+		if not _director.run_started.is_connected(_on_run_started):
+			_director.run_started.connect(_on_run_started)
+
+
+func _on_run_started() -> void:
+	_grace_left = SPAWN_GRACE_SEC
 
 
 func _on_run_ended() -> void:
 	clear_stream()
+	_grace_left = 0.0
 
 
 func _physics_process(delta: float) -> void:
 	_cull_active()
 	_spawn_cooldown = maxf(_spawn_cooldown - delta, 0.0)
+	if _grace_left > 0.0:
+		_grace_left = maxf(_grace_left - delta, 0.0)
 
 	if not _should_spawn():
 		return
@@ -83,6 +94,8 @@ func clear_stream() -> void:
 
 func _should_spawn() -> bool:
 	if _director == null or not _director.is_run_active():
+		return false
+	if _grace_left > 0.0:
 		return false
 	var glider := _get_glider()
 	if glider == null or glider.is_run_ended():

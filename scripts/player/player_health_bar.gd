@@ -4,7 +4,6 @@ extends Node3D
 ## World-space HP bar above the glider (billboarded toward the active camera).
 
 const PlayerHealthScript = preload("res://scripts/player/player_health.gd")
-const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 
 const BAR_WIDTH := 1.4
 const BAR_HEIGHT := 0.14
@@ -23,7 +22,6 @@ var _bg: MeshInstance3D
 var _fill: MeshInstance3D
 var _fill_mesh: QuadMesh
 var _float_root: Node3D
-var _visible_for_run := false
 var _rng := RandomNumberGenerator.new()
 
 
@@ -34,9 +32,8 @@ func _ready() -> void:
 	_float_root = Node3D.new()
 	_float_root.name = "DamageFloats"
 	add_child(_float_root)
-	visible = false
+	visible = true
 	call_deferred("_connect_health")
-	call_deferred("_connect_director")
 
 
 func _process(_delta: float) -> void:
@@ -57,30 +54,8 @@ func _connect_health() -> void:
 	_on_health_changed(_health.get_current(), _health.get_max())
 
 
-func _connect_director() -> void:
-	var director := get_tree().get_first_node_in_group("eon_director") as EonDirectorScript
-	if director == null:
-		return
-	if director.has_signal("run_started") and not director.run_started.is_connected(_on_run_started):
-		director.run_started.connect(_on_run_started)
-	if director.has_signal("player_died") and not director.player_died.is_connected(_on_player_died):
-		director.player_died.connect(_on_player_died)
-	if director.is_run_active():
-		_on_run_started()
-
-
-func _on_run_started() -> void:
-	_visible_for_run = true
-	visible = true
-
-
-func _on_player_died(_pos: Vector3) -> void:
-	_visible_for_run = false
-	visible = false
-
-
 func _on_damaged(amount: int) -> void:
-	if amount <= 0 or not _visible_for_run:
+	if amount <= 0:
 		return
 	_spawn_damage_float(amount)
 
@@ -131,7 +106,7 @@ func _on_health_changed(current: int, max_health: int) -> void:
 				0.12,
 				1.0
 			)
-	visible = _visible_for_run
+	visible = true
 
 
 func _billboard() -> void:
