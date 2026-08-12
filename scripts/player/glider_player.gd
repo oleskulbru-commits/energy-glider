@@ -153,6 +153,7 @@ var _overheat_timer := 0.0
 var _run_ended := false
 var _end_reason := ""
 var _piloted := true
+var _pending_knockback := Vector3.ZERO
 var _coast_timer := 0.0
 var _brake_hold_time := 0.0
 var _landing_feedback_timer := 0.0
@@ -303,6 +304,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 		state
 	)
 	_enforce_floor_contact(state)
+	_apply_pending_knockback(state)
 	state.angular_velocity = Vector3(0.0, _yaw_velocity, 0.0)
 
 
@@ -1580,6 +1582,20 @@ func is_run_ended() -> bool:
 	return _run_ended
 
 
+## Swarm / hazard shove. Applied after surf constraints so it isn't wiped the same tick.
+func queue_knockback(velocity_delta: Vector3) -> void:
+	if _run_ended or not _piloted:
+		return
+	_pending_knockback += velocity_delta
+
+
+func _apply_pending_knockback(state: PhysicsDirectBodyState3D) -> void:
+	if _pending_knockback.length_squared() < 0.0001:
+		return
+	state.linear_velocity += _pending_knockback
+	_pending_knockback = Vector3.ZERO
+
+
 func end_run(reason: String = "") -> void:
 	if _run_ended:
 		return
@@ -1597,6 +1613,7 @@ func reset_for_respawn() -> void:
 	_end_reason = ""
 	_state = State.GROUNDED
 	velocity = Vector3.ZERO
+	_pending_knockback = Vector3.ZERO
 	_yaw_velocity = 0.0
 	_turn_rate = 0.0
 	_charge = CHARGE_MAX

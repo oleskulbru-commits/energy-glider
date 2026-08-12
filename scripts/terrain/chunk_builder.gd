@@ -11,7 +11,8 @@ const SUN_DIRECTION := Vector3(0.485, 0.824, 0.291)
 
 ## Absolute west distance for density (not % of full run — MEDIUM profiles arrive early).
 const DENSE_MID_WEST_M := 5000.0
-const DENSE_FAR_WEST_M := 12000.0
+## FAR density before tower 7 (~11.5 km) so sharp mid-run dunes mesh cleanly.
+const DENSE_FAR_WEST_M := 9000.0
 
 
 ## Vertex density by absolute westbound distance.

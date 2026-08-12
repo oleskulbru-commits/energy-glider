@@ -14,7 +14,6 @@ const RadarBeaconScript := preload("res://scripts/world/radar_beacon.gd")
 @export var terrain_manager_path: NodePath
 
 var _drones: Array[ScoutDrone] = []
-var _loot_container: LootContainer
 var _radar_beacon: RadarBeaconScript
 
 
@@ -22,21 +21,12 @@ func _ready() -> void:
 	add_to_group("wreck_site")
 	add_to_group("radar_poi")
 	_setup_radar_beacon()
-	_setup_loot_container()
 	call_deferred("_snap_to_terrain")
 	call_deferred("_spawn_drones")
 
 
-func get_loot_container() -> LootContainer:
-	return _loot_container
-
-
-func is_depleted() -> bool:
-	return _loot_container != null and _loot_container.is_breached() and _loot_container.is_empty()
-
-
 func is_pulse_target_active() -> bool:
-	return not is_depleted()
+	return true
 
 
 func get_radar_beacon() -> RadarBeaconScript:
@@ -55,62 +45,12 @@ func get_drone_count() -> int:
 			return 0
 
 
-func can_interact(body: Node3D) -> bool:
-	if _loot_container == null or is_depleted():
-		return false
-	return _loot_container.can_interact(body)
-
-
-func raise_alarm(target: Node3D) -> void:
-	for drone in _drones:
-		if drone != null and is_instance_valid(drone):
-			drone.raise_alarm(target)
-
-
 func _setup_radar_beacon() -> void:
 	_radar_beacon = get_node_or_null("RadarBeacon") as RadarBeaconScript
 	if _radar_beacon == null:
 		_radar_beacon = RADAR_BEACON_SCENE.instantiate() as RadarBeaconScript
 		_radar_beacon.name = "RadarBeacon"
 		add_child(_radar_beacon)
-
-
-func _setup_loot_container() -> void:
-	_loot_container = LootContainer.new()
-	_loot_container.name = "LootContainer"
-	add_child(_loot_container)
-
-	var table_tier := _to_table_tier(tier)
-	_loot_container.container_name = _container_name_for_tier(tier)
-	_loot_container.breach_duration = LootTable.breach_duration_for_tier(table_tier)
-	_loot_container.set_loot_roll(func() -> Array[LootItem]:
-		return LootTable.roll_for_wreck(table_tier)
-	)
-	_loot_container.contents_changed.connect(_on_loot_contents_changed)
-
-
-func _to_table_tier(wreck_tier: Tier) -> LootTable.WreckTier:
-	match wreck_tier:
-		Tier.TUTORIAL:
-			return LootTable.WreckTier.TUTORIAL
-		Tier.SALVAGE:
-			return LootTable.WreckTier.SALVAGE
-		Tier.MILITARY:
-			return LootTable.WreckTier.MILITARY
-		_:
-			return LootTable.WreckTier.SALVAGE
-
-
-func _container_name_for_tier(wreck_tier: Tier) -> String:
-	match wreck_tier:
-		Tier.TUTORIAL:
-			return "ABANDONED WRECK"
-		Tier.SALVAGE:
-			return "SALVAGE WRECK"
-		Tier.MILITARY:
-			return "MILITARY WRECK"
-		_:
-			return "WRECK"
 
 
 func _spawn_drones() -> void:
@@ -136,17 +76,6 @@ func _snap_to_terrain() -> void:
 	terrain.ensure_loaded_at(global_position)
 	var ground_y := terrain.sample_height(global_position.x, global_position.z)
 	global_position.y = ground_y + GROUND_OFFSET
-
-
-func _on_loot_contents_changed() -> void:
-	if is_depleted():
-		_set_depleted_visual()
-
-
-func _set_depleted_visual() -> void:
-	var visual := get_node_or_null("Visual") as Node3D
-	if visual != null:
-		visual.scale = Vector3.ONE * 0.92
 
 
 func _get_terrain_manager() -> TerrainManager:

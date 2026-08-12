@@ -8,6 +8,7 @@
 [ext_resource type="Script" uid="uid://ddl0fwofkchgi" path="res://scripts/player/ground_shadow.gd" id="7_shadow"]
 [ext_resource type="Script" uid="uid://ri1o7e2s8hwd" path="res://scripts/player/hover_dust.gd" id="9_hover_dust"]
 [ext_resource type="Script" uid="uid://dj08gtkq24u0j" path="res://scripts/player/sail_visual.gd" id="12_sail_visual"]
+[ext_resource type="PackedScene" path="res://scenes/player/player_health_bar.tscn" id="13_hp_bar"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_glider"]
 size = Vector3(0.8, 0.15, 2)
@@ -105,3 +106,6 @@ initial_velocity_max = 5.5
 scale_amount_min = 0.1
 scale_amount_max = 0.22
 color = Color(0.82, 0.66, 0.42, 0.75)
+
+[node name="PlayerHealthBar" parent="." instance=ExtResource("13_hp_bar")]
+player_health_path = NodePath("../../PlayerHealth")
