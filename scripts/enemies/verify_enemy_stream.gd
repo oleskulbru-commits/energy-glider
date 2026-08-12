@@ -70,6 +70,10 @@ func _verify_spawn_grace() -> void:
 		is_equal_approx(EnemyStreamSpawnerScript.SPAWN_GRACE_SEC, 3.0),
 		"Spawn grace should be 3 seconds after E.O.N. pickup"
 	)
+	_fail_unless(
+		SwarmPillScript.CONTACT_DAMAGE == 5,
+		"Red swarm contact damage should be 5"
+	)
 
 
 func _verify_charger() -> void:
@@ -86,8 +90,8 @@ func _verify_charger() -> void:
 		"Charger aggro range should be 15 m"
 	)
 	_fail_unless(
-		ChargerPillScript.CHARGER_CONTACT_DAMAGE == 8,
-		"Charger contact damage should be 8"
+		ChargerPillScript.CHARGER_CONTACT_DAMAGE == 12,
+		"Charger contact damage should be 12"
 	)
 	_fail_unless(
 		is_equal_approx(ChargerPillScript.AGGRO_SPEED_MULT, 2.0),

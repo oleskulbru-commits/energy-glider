@@ -3,7 +3,7 @@ extends SwarmPill
 
 ## Larger green pill: ramps to 2x speed within 15 m and hits harder.
 
-const CHARGER_CONTACT_DAMAGE := 8
+const CHARGER_CONTACT_DAMAGE := 12
 const CHARGER_CONTACT_RADIUS_M := 1.6
 const AGGRO_RANGE_M := 15.0
 const AGGRO_SPEED_MULT := 2.0

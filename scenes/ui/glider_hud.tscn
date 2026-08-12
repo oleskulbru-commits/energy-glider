@@ -90,6 +90,7 @@ text = "Kill button - press k"
 
 [node name="CargoChip" type="PanelContainer" parent="TopLeft/TopLeftVBox"]
 unique_name_in_owner = true
+visible = false
 theme_type_variation = &"HudPanel"
 custom_minimum_size = Vector2(120, 0)
 

@@ -8,7 +8,7 @@ const BEHIND_MARGIN_M := 50.0
 const KNOCKBACK_SPEED := 10.0
 const KNOCKBACK_UP_SPEED := 1.5
 const DAMAGE_INTERVAL_SEC := 0.5
-const CONTACT_DAMAGE := 2
+const CONTACT_DAMAGE := 5
 const CONTACT_RADIUS_M := 1.35
 ## Ignore hits when the player is clearly jumping/flying over the pill.
 const CONTACT_MAX_ABOVE_M := 1.2

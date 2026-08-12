@@ -38,8 +38,6 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _stop_label: Label = %StopLabel
 @onready var _sail_chip: PanelContainer = %SailChip
 @onready var _sail_label: Label = %SailLabel
-@onready var _cargo_chip: PanelContainer = %CargoChip
-@onready var _cargo_label: Label = %CargoLabel
 @onready var _pulse_chip: PanelContainer = %PulseChip
 @onready var _pulse_label: Label = %PulseLabel
 @onready var _pulse_bar: ProgressBar = %PulseBar
@@ -147,8 +145,6 @@ func _ready() -> void:
 	_stop_chip.gui_input.connect(_on_stop_chip_gui_input)
 	if _sail_chip != null:
 		_sail_chip.visible = false
-	if _cargo_chip != null:
-		_cargo_chip.visible = false
 	_lock_eon_tracker_layout()
 	if _radar_pulse != null:
 		_radar_pulse.pulse_fired.connect(_on_pulse_fired)
