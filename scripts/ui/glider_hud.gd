@@ -64,7 +64,6 @@ var _radar_pulse: RadarPulse
 var _run_score: RunScore
 var _expedition: ExpeditionState
 var _interactor: PlayerInteractor
-var _cargo: PlayerCargo
 var _director: EonDirectorScript
 var _night_survival: NightSurvival
 var _day_night: DayNightCycle
@@ -87,7 +86,6 @@ func _ready() -> void:
 		_player = _rig.get_node_or_null("Glider") as GliderPlayer
 		_input = _rig.get_node_or_null("GliderInput") as GliderInputScript
 		_interactor = _rig.get_node_or_null("PlayerInteractor") as PlayerInteractor
-		_cargo = _rig.get_node_or_null("PlayerCargo") as PlayerCargo
 		_radar_pulse = _rig.get_node_or_null("RadarPulse") as RadarPulse
 		_camera = _rig.get_node_or_null("Glider/Camera3D") as GliderCamera
 	else:
@@ -149,10 +147,9 @@ func _ready() -> void:
 	_stop_chip.gui_input.connect(_on_stop_chip_gui_input)
 	if _sail_chip != null:
 		_sail_chip.visible = false
+	if _cargo_chip != null:
+		_cargo_chip.visible = false
 	_lock_eon_tracker_layout()
-	if _cargo != null:
-		_cargo.cargo_changed.connect(_on_cargo_changed)
-		_update_cargo_display()
 	if _radar_pulse != null:
 		_radar_pulse.pulse_fired.connect(_on_pulse_fired)
 		_radar_pulse.cooldown_changed.connect(_on_pulse_cooldown_changed)
@@ -162,7 +159,7 @@ func _ready() -> void:
 func _lock_eon_tracker_layout() -> void:
 	if _eon_tracker == null:
 		return
-	# Bottom-center under the DISMOUNT / interact chip; fixed offsets so soft retry
+	# Bottom-center under the interact chip; fixed offsets so soft retry
 	# and overlay visibility cannot shove this into the compass.
 	_eon_tracker.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	_eon_tracker.anchor_left = 0.5
@@ -190,7 +187,6 @@ func _process(delta: float) -> void:
 	_update_landing_feedback()
 	_update_interact_prompt()
 	_update_stop_chip()
-	_update_cargo_display()
 	_update_pulse_chip(delta)
 	_update_compass()
 	_update_outpost_board()
@@ -360,15 +356,13 @@ func _update_power_meter(delta: float) -> void:
 
 	if _player.is_run_ended():
 		_power_label.text = "STOPPED"
-	elif _rig != null and not _rig.is_mounted():
-		_power_label.text = "ON FOOT"
 	elif _player.is_overheated():
 		_power_label.text = "COOLING"
 	else:
 		_power_label.text = "Thruster Charge"
 
 	var solar_active := _player.is_solar_charging()
-	_solar_chip.visible = solar_active and (_rig == null or _rig.is_mounted())
+	_solar_chip.visible = solar_active
 
 	if _power_fill == null:
 		return
@@ -619,23 +613,6 @@ func _resolve_poi_bearing(track_pos: Vector3) -> float:
 	return MathUtil.bearing_to(track_pos, best_pos)
 
 
-func _on_cargo_changed(_used_slots: int, _capacity: int) -> void:
-	_update_cargo_display()
-
-
-func _update_cargo_display() -> void:
-	if _cargo_chip == null or _cargo_label == null:
-		return
-	if _cargo == null:
-		_cargo = get_tree().get_first_node_in_group("player_cargo") as PlayerCargo
-	if _cargo == null:
-		_cargo_chip.visible = false
-		return
-	_cargo_chip.visible = _cargo.has_cargo()
-	if _cargo_chip.visible:
-		_cargo_label.text = "%s  %s" % [_cargo.get_cargo_label(), _cargo.get_summary_label()]
-
-
 func _update_landing_feedback() -> void:
 	if _sail_chip == null or _sail_label == null or _player == null:
 		return
@@ -674,10 +651,6 @@ func _update_stop_chip() -> void:
 	if _player == null or _stop_chip == null:
 		return
 
-	if _rig != null and not _rig.is_mounted():
-		_stop_chip.visible = false
-		return
-
 	var speed := MathUtil.horizontal_speed(_player.velocity)
 	var show_chip := (_player.is_braking() or speed > 0.8) and not _player.is_run_ended()
 	_stop_chip.visible = show_chip
@@ -712,8 +685,7 @@ func _update_pulse_chip(delta: float = 0.0) -> void:
 	if _radar_pulse == null and _rig != null:
 		_radar_pulse = _rig.get_node_or_null("RadarPulse") as RadarPulse
 
-	var mounted: bool = _rig == null or _rig.is_mounted()
-	_pulse_chip.visible = mounted and _player != null and not _player.is_run_ended()
+	_pulse_chip.visible = _player != null and not _player.is_run_ended()
 	if not _pulse_chip.visible:
 		return
 
@@ -754,13 +726,9 @@ func _on_interact_chip_gui_input(event: InputEvent) -> void:
 		if mouse.button_index == MOUSE_BUTTON_LEFT:
 			if mouse.pressed:
 				_interact_tap_down = true
-				if _interactor.get_interact_prompt().get("tap_action", false):
-					if _rig != null:
-						_rig.request_mount_toggle()
-					return
 			else:
 				_interact_tap_down = false
-			_interactor.set_touch_hold(mouse.pressed and not _interactor.get_interact_prompt().get("tap_action", false))
+			_interactor.set_touch_hold(mouse.pressed)
 
 
 func _on_stop_chip_gui_input(event: InputEvent) -> void:
