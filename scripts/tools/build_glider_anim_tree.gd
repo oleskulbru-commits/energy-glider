@@ -2,6 +2,7 @@ extends SceneTree
 
 const OUT_PATH := "res://resources/anims/glider_anim_state_machine.tres"
 const XFADE := 0.5
+const XFADE_START := 0.05
 const BOOST_TIME_SCALE := 1.35
 
 
@@ -32,9 +33,13 @@ func _build_root_state_machine(locomotion: AnimationNodeStateMachine) -> Animati
 		for to_state in ["grounded", "locomotion", "boost", "brake", "landing", "death"]:
 			if from_state == to_state:
 				continue
-			sm.add_transition(from_state, to_state, _make_transition())
+			sm.add_transition(
+				from_state,
+				to_state,
+				_make_transition(XFADE)
+			)
 
-	var start := _make_transition(0.05)
+	var start := _make_transition(XFADE_START)
 	sm.add_transition("Start", "grounded", start)
 	return sm
 
@@ -45,11 +50,11 @@ func _build_locomotion_state_machine() -> AnimationNodeStateMachine:
 	sm.add_node("turn_left", _make_clip("Eve_Turn_Left"), Vector2(280, -120))
 	sm.add_node("turn_right", _make_clip("Eve_Turn_Right"), Vector2(280, 120))
 
-	sm.add_transition("Start", "forward", _make_transition(0.05))
-	sm.add_transition("forward", "turn_left", _make_transition())
-	sm.add_transition("turn_left", "forward", _make_transition())
-	sm.add_transition("forward", "turn_right", _make_transition())
-	sm.add_transition("turn_right", "forward", _make_transition())
+	sm.add_transition("Start", "forward", _make_transition(XFADE_START))
+	sm.add_transition("forward", "turn_left", _make_transition(XFADE))
+	sm.add_transition("turn_left", "forward", _make_transition(XFADE))
+	sm.add_transition("forward", "turn_right", _make_transition(XFADE))
+	sm.add_transition("turn_right", "forward", _make_transition(XFADE))
 	return sm
 
 
@@ -70,7 +75,7 @@ func _make_clip(name: String) -> AnimationNodeAnimation:
 	return node
 
 
-func _make_transition(xfade: float = XFADE) -> AnimationNodeStateMachineTransition:
+func _make_transition(xfade: float) -> AnimationNodeStateMachineTransition:
 	var transition := AnimationNodeStateMachineTransition.new()
 	transition.xfade_time = xfade
 	return transition
