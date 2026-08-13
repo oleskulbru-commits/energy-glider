@@ -3,7 +3,7 @@ extends SceneTree
 const RippleSpawnerScript = preload("res://scripts/world/ripple_spawner.gd")
 const RippleSpawnManifest := preload("res://scripts/world/ripple_spawn_manifest.gd")
 const TerrainManagerScript = preload("res://scripts/terrain/terrain_manager.gd")
-const SandMaterial = preload("res://materials/sand.tres")
+const SandMaterial = preload("res://assets/materials/sand.tres")
 
 const WORLD_SEED := 42
 const EXPEDITION_INDEX := 0

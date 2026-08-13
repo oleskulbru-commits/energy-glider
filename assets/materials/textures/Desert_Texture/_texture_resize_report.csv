@@ -1,0 +1,13 @@
+﻿source,output,map_type,input_size,output_size,alpha_coverage_preserved,status,message
+C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\128\Sand_Desert_xd0mda1_surface_Preview.png,C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\256\128\Sand_Desert_xd0mda1_surface_Preview.png,color,128x128,128x128,no,OK,
+C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\128\xd0mda1_2K_Albedo.jpg,C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\256\128\xd0mda1_2K_Albedo.jpg,color,128x128,128x128,no,OK,
+C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\128\xd0mda1_2K_AO.jpg,C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\256\128\xd0mda1_2K_AO.jpg,data,128x128,128x128,no,OK,
+C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\128\xd0mda1_2K_Displacement.jpg,C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\256\128\xd0mda1_2K_Displacement.jpg,data,128x128,128x128,no,OK,
+C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\128\xd0mda1_2K_Normal.jpg,C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\256\128\xd0mda1_2K_Normal.jpg,normal,128x128,128x128,no,OK,
+C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\128\xd0mda1_2K_Roughness.jpg,C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\256\128\xd0mda1_2K_Roughness.jpg,data,128x128,128x128,no,OK,
+C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\Sand_Desert_xd0mda1_surface_Preview.png,C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\256\Sand_Desert_xd0mda1_surface_Preview.png,color,720x720,256x256,no,OK,
+C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\xd0mda1_2K_Albedo.jpg,C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\256\xd0mda1_2K_Albedo.jpg,color,2048x2048,256x256,no,OK,
+C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\xd0mda1_2K_AO.jpg,C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\256\xd0mda1_2K_AO.jpg,data,2048x2048,256x256,no,OK,
+C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\xd0mda1_2K_Displacement.jpg,C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\256\xd0mda1_2K_Displacement.jpg,data,2048x2048,256x256,no,OK,
+C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\xd0mda1_2K_Normal.jpg,C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\256\xd0mda1_2K_Normal.jpg,normal,2048x2048,256x256,no,OK,
+C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\xd0mda1_2K_Roughness.jpg,C:\Users\olema\Downloads\Sand_Desert_xd0mda1_2K_surface_ms\256\xd0mda1_2K_Roughness.jpg,data,2048x2048,256x256,no,OK,

@@ -7,7 +7,7 @@ const GliderInputScript = preload("res://scripts/input/glider_input.gd")
 const TerrainManagerScript = preload("res://scripts/terrain/terrain_manager.gd")
 const GliderScene = preload("res://scenes/player/glider.tscn")
 const GliderCameraScript = preload("res://scripts/player/glider_camera.gd")
-const SandMaterial = preload("res://materials/sand.tres")
+const SandMaterial = preload("res://assets/materials/sand.tres")
 
 const PHYSICS_DT := 1.0 / 60.0
 const HOVER_SETTLE_FRAMES := 120

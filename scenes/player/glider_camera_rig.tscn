@@ -1,0 +1,29 @@
+[gd_scene format=3 uid="uid://buehlsu6fk5kl"]
+
+[ext_resource type="Script" path="res://scripts/player/glider_camera.gd" id="1_camera"]
+
+[node name="GliderCamera" type="Node3D"]
+top_level = true
+script = ExtResource("1_camera")
+surf_distance = 8.5
+surf_height = 1.2
+glide_distance = 12.0
+glide_height = 2.5
+pivot_height = 0.9
+look_ahead_distance = 18.0
+camera_fov = 80.0
+camera_fov_speed_boost = 8.0
+
+[node name="Pivot" type="Node3D" parent="."]
+
+[node name="Pitch" type="Node3D" parent="Pivot"]
+
+[node name="SpringArm3D" type="SpringArm3D" parent="Pivot/Pitch"]
+spring_length = 8.5
+margin = 0.5
+collision_mask = 1
+
+[node name="Camera3D" type="Camera3D" parent="Pivot/Pitch/SpringArm3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+current = true
+fov = 80.0

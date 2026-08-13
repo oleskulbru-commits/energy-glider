@@ -43,7 +43,9 @@ func _ready() -> void:
 		_loot_overlay.closed.connect(_on_loot_overlay_closed)
 
 	if _glider != null:
-		_camera = _glider.get_node_or_null("Camera3D") as GliderCamera
+		_camera = _glider.get_node_or_null("GliderCamera") as GliderCamera
+		if _camera == null:
+			_camera = _glider.get_node_or_null("Camera3D") as GliderCamera
 
 	if terrain_manager_path != NodePath():
 		_terrain_manager = get_node_or_null(terrain_manager_path) as TerrainManager
@@ -349,7 +351,7 @@ func _update_on_foot_camera(delta: float) -> void:
 		0.0,
 		true
 	)
-	_on_foot.sync_camera_movement_axes(_camera)
+	_on_foot.sync_camera_movement_axes(_camera.get_camera_node())
 
 
 func _is_loot_ui_open() -> bool:

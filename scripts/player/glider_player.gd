@@ -186,7 +186,9 @@ func _ready() -> void:
 	_terrain_manager = get_node_or_null(terrain_manager_path) as TerrainManager if terrain_manager_path != NodePath() else null
 	_input = _resolve_input()
 	_visual = get_node_or_null("Visual") as Node3D
-	_camera = get_node_or_null("Camera3D") as GliderCameraScript
+	_camera = get_node_or_null("GliderCamera") as GliderCameraScript
+	if _camera == null:
+		_camera = get_node_or_null("Camera3D") as GliderCameraScript
 	_contact_dust = get_node_or_null("ContactDust") as CPUParticles3D
 	_impact_dust = get_node_or_null("ImpactDust") as CPUParticles3D
 	_setup_contact_sparks()
@@ -1574,6 +1576,35 @@ func is_grounded() -> bool:
 
 func is_gliding() -> bool:
 	return _state == State.GLIDING
+
+
+func is_landing() -> bool:
+	return _state == State.LANDING
+
+
+func is_boost_active() -> bool:
+	return _is_boost_active()
+
+
+func is_forward_held() -> bool:
+	return _input != null and _input.is_forward_held()
+
+
+func get_horizontal_speed() -> float:
+	return _horizontal_velocity().length()
+
+
+func get_steer_axis() -> float:
+	if _input == null:
+		return 0.0
+	return clampf(_input.get_steer(), -1.0, 1.0)
+
+
+func get_anim_steer() -> float:
+	var steer := get_steer_axis()
+	if absf(steer) > 0.05:
+		return steer
+	return clampf(_yaw_velocity / MAX_YAW_VELOCITY, -1.0, 1.0)
 
 
 func is_run_ended() -> bool:

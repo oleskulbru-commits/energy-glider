@@ -89,7 +89,9 @@ func _ready() -> void:
 		_interactor = _rig.get_node_or_null("PlayerInteractor") as PlayerInteractor
 		_cargo = _rig.get_node_or_null("PlayerCargo") as PlayerCargo
 		_radar_pulse = _rig.get_node_or_null("RadarPulse") as RadarPulse
-		_camera = _rig.get_node_or_null("Glider/Camera3D") as GliderCamera
+		_camera = _rig.get_node_or_null("Glider/GliderCamera") as GliderCamera
+		if _camera == null:
+			_camera = _rig.get_node_or_null("Glider/Camera3D") as GliderCamera
 	else:
 		_player = get_parent() as GliderPlayer
 		_input = _player.get_node_or_null("GliderInput") as GliderInputScript
@@ -481,7 +483,9 @@ func _update_compass() -> void:
 	if _compass_bar == null:
 		return
 	if _camera == null and _rig != null:
-		_camera = _rig.get_node_or_null("Glider/Camera3D") as GliderCamera
+		_camera = _rig.get_node_or_null("Glider/GliderCamera") as GliderCamera
+		if _camera == null:
+			_camera = _rig.get_node_or_null("Glider/Camera3D") as GliderCamera
 	if _camera == null:
 		return
 

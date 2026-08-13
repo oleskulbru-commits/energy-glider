@@ -1,0 +1,19 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://c6vm3bn1e3pmf"
+
+[deps]
+
+files=["res://assets/materials/textures/Desert_Texture/_texture_resize_report.output.translation", "res://assets/materials/textures/Desert_Texture/_texture_resize_report.map.translation", "res://assets/materials/textures/Desert_Texture/_texture_resize_report.input.translation", "res://assets/materials/textures/Desert_Texture/_texture_resize_report.output.translation", "res://assets/materials/textures/Desert_Texture/_texture_resize_report.alpha.translation", "res://assets/materials/textures/Desert_Texture/_texture_resize_report.status.translation"]
+
+source_file="res://assets/materials/textures/Desert_Texture/_texture_resize_report.csv"
+dest_files=["res://assets/materials/textures/Desert_Texture/_texture_resize_report.output.translation", "res://assets/materials/textures/Desert_Texture/_texture_resize_report.map.translation", "res://assets/materials/textures/Desert_Texture/_texture_resize_report.input.translation", "res://assets/materials/textures/Desert_Texture/_texture_resize_report.output.translation", "res://assets/materials/textures/Desert_Texture/_texture_resize_report.alpha.translation", "res://assets/materials/textures/Desert_Texture/_texture_resize_report.status.translation"]
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true

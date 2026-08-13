@@ -2,6 +2,8 @@ class_name ChunkBuilder
 extends RefCounted
 
 const CHUNK_SIZE := 256.0
+## Mesh UV divisor; keep in sync with SandMaterial.texture_world_scale default.
+const TEXTURE_UV_WORLD_SCALE := 8.0
 ## Near home (~4 m spacing). Farther west uses denser grids so mesh tracks sharp dunes.
 const RENDER_VERTS_NEAR := 65
 const RENDER_VERTS_MID := 97
@@ -69,7 +71,7 @@ static func _build_mesh(
 			min_height = minf(min_height, height)
 			max_height = maxf(max_height, height)
 			vertices[index] = Vector3(world_x, height, world_z)
-			uvs[index] = Vector2(world_x / 8.0, world_z / 8.0)
+			uvs[index] = Vector2(world_x / TEXTURE_UV_WORLD_SCALE, world_z / TEXTURE_UV_WORLD_SCALE)
 
 	var indices := _build_indices(verts_per_side)
 	var normals := _compute_normals_from_indices(vertices, indices)
@@ -101,7 +103,7 @@ static func _compute_normals_from_indices(
 		var a: int = indices[i]
 		var b: int = indices[i + 1]
 		var c: int = indices[i + 2]
-		var face_normal := (vertices[b] - vertices[a]).cross(vertices[c] - vertices[a]).normalized()
+		var face_normal := (vertices[c] - vertices[a]).cross(vertices[b] - vertices[a]).normalized()
 		normals[a] += face_normal
 		normals[b] += face_normal
 		normals[c] += face_normal
@@ -147,10 +149,11 @@ static func _build_indices(verts_per_side: int) -> PackedInt32Array:
 			var top_right := top_left + 1
 			var bottom_left := (iz + 1) * verts_per_side + ix
 			var bottom_right := bottom_left + 1
+			# CCW from above (+Y) so StandardMaterial3D front faces show the desert texture.
 			indices.append(top_left)
-			indices.append(bottom_left)
-			indices.append(top_right)
 			indices.append(top_right)
 			indices.append(bottom_left)
+			indices.append(top_right)
 			indices.append(bottom_right)
+			indices.append(bottom_left)
 	return indices

@@ -1,28 +1,42 @@
 class_name GliderCamera
 extends Camera3D
 
-const SURF_CAMERA_HEIGHT := 1.0
-const SURF_CAMERA_DISTANCE := 7.5
-const GLIDE_CAMERA_HEIGHT := 2.2
-const GLIDE_CAMERA_DISTANCE := 10.0
-const SURF_LOOK_HEIGHT := 1.6
-const GLIDE_LOOK_HEIGHT := 2.4
-const LOOK_AHEAD_DISTANCE := 16.0
-const LOOK_AHEAD_BLEND := 0.35
-const CAMERA_PIVOT_HEIGHT := 0.9
-const CAMERA_POS_RATE := 4.5
-const CAMERA_BLEND_RATE := 4.0
-const FOCUS_RATE_XZ := 10.0
-const FOCUS_RATE_Y := 7.0
-const LOOK_RATE := 3.5
-const VERTICAL_LEAD := 0.04
+@export_group("Surf")
+@export var surf_distance: float = 7.5
+@export var surf_height: float = 1.0
+@export var surf_look_height: float = 1.6
+
+@export_group("Glide")
+@export var glide_distance: float = 10.0
+@export var glide_height: float = 2.2
+@export var glide_look_height: float = 2.4
+
+@export_group("Foot")
+@export var foot_distance: float = 5.0
+@export var foot_height: float = 1.2
+@export var foot_look_height: float = 1.0
+@export var foot_pivot_height: float = 0.9
+
+@export_group("Rig")
+@export var pivot_height: float = 0.9
+@export var look_ahead_distance: float = 16.0
+@export var look_ahead_blend: float = 0.35
+@export var camera_fov: float = 78.0
+@export var camera_fov_speed_boost: float = 6.0
+@export var min_camera_ground_clearance: float = 1.2
+@export var min_camera_arm_length: float = 4.0
+@export var camera_collision_backoff: float = 0.6
+
+@export_group("Motion")
+@export var camera_pos_rate: float = 4.5
+@export var camera_blend_rate: float = 4.0
+@export var focus_rate_xz: float = 10.0
+@export var focus_rate_y: float = 7.0
+@export var look_rate: float = 3.5
+
 const CLEARANCE_FOCUS_BLEND := 0.06
-const MIN_CAMERA_GROUND_CLEARANCE := 1.2
-const MIN_CAMERA_ARM_LENGTH := 4.0
-const CAMERA_COLLISION_BACKOFF := 0.6
+const VERTICAL_LEAD := 0.04
 const MIN_VELOCITY_YAW_SPEED := 1.5
-const CAMERA_FOV := 78.0
-const CAMERA_FOV_SPEED_BOOST := 6.0
 const SPEED_ARM_REF := 22.0
 const SPEED_ARM_SCALE_MAX := 1.18
 const SPEED_BLEND_START := 5.0
@@ -41,11 +55,6 @@ const AIR_PITCH_FOLLOW := 0.78
 const PITCH_VELOCITY_BLEND := 0.32
 const MAX_FOLLOW_PITCH_DEG := 24.0
 const FOV_RATE := 4.0
-
-const FOOT_CAMERA_HEIGHT := 1.2
-const FOOT_CAMERA_DISTANCE := 5.0
-const FOOT_LOOK_HEIGHT := 1.0
-const FOOT_PIVOT_HEIGHT := 0.9
 const MOUSE_YAW_SENSITIVITY := 0.0022
 const MOUSE_PITCH_SENSITIVITY := 0.0018
 const MAX_LOOK_PITCH_DEG := 35.0
@@ -80,7 +89,11 @@ var _hard_snap := false
 func _ready() -> void:
 	top_level = true
 	current = true
-	fov = CAMERA_FOV
+	fov = camera_fov
+
+
+func get_camera_node() -> Camera3D:
+	return self
 
 
 func follow(
@@ -100,7 +113,7 @@ func follow(
 	_hard_snap = false
 
 	var foot_target := 1.0 if foot_mode else 0.0
-	var blend_t := 1.0 if snap else clampf(CAMERA_BLEND_RATE * delta, 0.0, 1.0)
+	var blend_t := 1.0 if snap else clampf(camera_blend_rate * delta, 0.0, 1.0)
 	_foot_blend = lerpf(_foot_blend, foot_target, blend_t)
 
 	var target_blend := 0.0 if grounded else 1.0
@@ -108,13 +121,13 @@ func follow(
 		target_blend = clampf(air_blend, 0.0, 1.0)
 	_blend = lerpf(_blend, target_blend, blend_t)
 
-	var surf_height := lerpf(GLIDE_CAMERA_HEIGHT, SURF_CAMERA_HEIGHT, _blend)
-	var surf_distance := lerpf(GLIDE_CAMERA_DISTANCE, SURF_CAMERA_DISTANCE, _blend)
-	var surf_look := lerpf(GLIDE_LOOK_HEIGHT, SURF_LOOK_HEIGHT, _blend)
-	var camera_height := lerpf(surf_height, FOOT_CAMERA_HEIGHT, _foot_blend)
-	var camera_distance := lerpf(surf_distance, FOOT_CAMERA_DISTANCE, _foot_blend)
-	var look_height := lerpf(surf_look, FOOT_LOOK_HEIGHT, _foot_blend)
-	var pivot_height := lerpf(CAMERA_PIVOT_HEIGHT, FOOT_PIVOT_HEIGHT, _foot_blend)
+	var surf_arm_height := lerpf(glide_height, surf_height, _blend)
+	var surf_arm_distance := lerpf(glide_distance, surf_distance, _blend)
+	var surf_look := lerpf(glide_look_height, surf_look_height, _blend)
+	var camera_height := lerpf(surf_arm_height, foot_height, _foot_blend)
+	var camera_distance := lerpf(surf_arm_distance, foot_distance, _foot_blend)
+	var look_height := lerpf(surf_look, foot_look_height, _foot_blend)
+	var active_pivot_height := lerpf(pivot_height, foot_pivot_height, _foot_blend)
 
 	var horizontal_vel := Vector3(velocity.x, 0.0, velocity.z)
 	var speed := horizontal_vel.length()
@@ -128,15 +141,15 @@ func follow(
 		clampf(_blend, 0.0, 1.0)
 	)
 	player_pos.y += focus_lift
-	var pivot := player_pos + Vector3(0.0, pivot_height, 0.0)
+	var pivot := player_pos + Vector3(0.0, active_pivot_height, 0.0)
 
 	if snap or not _focus_initialized:
 		_focus = pivot
 		_look_focus = pivot + Vector3(0.0, look_height, 0.0)
 		_focus_initialized = true
 
-	var xz_rate := 1.0 if snap else clampf(FOCUS_RATE_XZ * delta, 0.0, 1.0)
-	var y_rate := 1.0 if snap else clampf(FOCUS_RATE_Y * delta, 0.0, 1.0)
+	var xz_rate := 1.0 if snap else clampf(focus_rate_xz * delta, 0.0, 1.0)
+	var y_rate := 1.0 if snap else clampf(focus_rate_y * delta, 0.0, 1.0)
 	_focus.x = lerpf(_focus.x, pivot.x, xz_rate)
 	_focus.z = lerpf(_focus.z, pivot.z, xz_rate)
 	_focus.y = lerpf(_focus.y, pivot.y, y_rate)
@@ -180,7 +193,7 @@ func follow(
 	desired_pos = _resolve_camera_collision(pivot, desired_pos, target)
 	desired_pos = _enforce_camera_floor(desired_pos, terrain_manager)
 
-	var pos_t := 1.0 if snap else clampf(CAMERA_POS_RATE * delta, 0.0, 1.0)
+	var pos_t := 1.0 if snap else clampf(camera_pos_rate * delta, 0.0, 1.0)
 	global_position = global_position.lerp(desired_pos, pos_t)
 	_snap_camera_above_floor(terrain_manager)
 
@@ -196,16 +209,15 @@ func follow(
 		lead_dir = velocity_dir.lerp(aim_forward, low_speed_blend).normalized()
 
 	var look_pitch := _follow_pitch + _look_pitch_offset * 0.35
-	var look_forward := aim_forward.rotated(boom_right, look_pitch * 0.7).normalized()
-	var look_target := _focus + lead_dir * LOOK_AHEAD_DISTANCE + pitched_up * look_height
+	var look_target := _focus + lead_dir * look_ahead_distance + pitched_up * look_height
 	if _blend > 0.01 and terrain_manager != null:
-		var ahead_x := _focus.x + lead_dir.x * LOOK_AHEAD_DISTANCE
-		var ahead_z := _focus.z + lead_dir.z * LOOK_AHEAD_DISTANCE
+		var ahead_x := _focus.x + lead_dir.x * look_ahead_distance
+		var ahead_z := _focus.z + lead_dir.z * look_ahead_distance
 		var ahead_y := terrain_manager.sample_height(ahead_x, ahead_z)
 		var ground_ahead := Vector3(ahead_x, ahead_y + 0.5, ahead_z)
-		look_target = look_target.lerp(ground_ahead, _blend * LOOK_AHEAD_BLEND)
+		look_target = look_target.lerp(ground_ahead, _blend * look_ahead_blend)
 
-	var look_t := 1.0 if snap else clampf(LOOK_RATE * delta, 0.0, 1.0)
+	var look_t := 1.0 if snap else clampf(look_rate * delta, 0.0, 1.0)
 	_look_focus = _look_focus.lerp(look_target, look_t)
 
 	var bank_scale := lerpf(1.0, 1.35, speed_t)
@@ -219,7 +231,7 @@ func follow(
 	var target_fov_blend := speed_t if _foot_blend < 0.5 else 0.0
 	var fov_t := 1.0 if snap else clampf(FOV_RATE * delta, 0.0, 1.0)
 	_fov_blend = lerpf(_fov_blend, target_fov_blend, fov_t)
-	fov = lerpf(CAMERA_FOV, CAMERA_FOV + CAMERA_FOV_SPEED_BOOST, _fov_blend)
+	fov = lerpf(camera_fov, camera_fov + camera_fov_speed_boost, _fov_blend)
 
 
 func get_follow_yaw() -> float:
@@ -279,7 +291,7 @@ func reset_follow_state() -> void:
 	_look_offset_pitch_velocity = 0.0
 	_look_idle_time = 0.0
 	_fov_blend = 0.0
-	fov = CAMERA_FOV
+	fov = camera_fov
 
 
 static func angle_diff(from_yaw: float, to_yaw: float) -> float:
@@ -431,7 +443,7 @@ func _enforce_camera_floor(pos: Vector3, terrain_manager: TerrainManager) -> Vec
 	if terrain_manager == null:
 		return pos
 
-	var floor_y := terrain_manager.sample_height(pos.x, pos.z) + MIN_CAMERA_GROUND_CLEARANCE
+	var floor_y := terrain_manager.sample_height(pos.x, pos.z) + min_camera_ground_clearance
 	pos.y = maxf(pos.y, floor_y)
 	return pos
 
@@ -440,7 +452,7 @@ func _snap_camera_above_floor(terrain_manager: TerrainManager) -> void:
 	if terrain_manager == null:
 		return
 
-	var floor_y := terrain_manager.sample_height(global_position.x, global_position.z) + MIN_CAMERA_GROUND_CLEARANCE
+	var floor_y := terrain_manager.sample_height(global_position.x, global_position.z) + min_camera_ground_clearance
 	if global_position.y < floor_y:
 		global_position.y = floor_y
 
@@ -461,6 +473,6 @@ func _resolve_camera_collision(pivot: Vector3, desired: Vector3, target: Node3D)
 	if hit.is_empty():
 		return desired
 
-	var hit_dist := pivot.distance_to(hit.position) - CAMERA_COLLISION_BACKOFF
-	arm_length = clampf(hit_dist, MIN_CAMERA_ARM_LENGTH, arm_length)
+	var hit_dist := pivot.distance_to(hit.position) - camera_collision_backoff
+	arm_length = clampf(hit_dist, min_camera_arm_length, arm_length)
 	return pivot + direction * arm_length

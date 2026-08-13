@@ -1,0 +1,32 @@
+[gd_scene format=3 uid="uid://cc4m2a3lbllwj"]
+
+[ext_resource type="PackedScene" uid="uid://btugy7urkguc1" path="res://assets/3dmodels/player_models/Glider/The_Glider_Animated_Skin.glb" id="1_kvey2"]
+[ext_resource type="Script" uid="uid://dkdrw05t4sw8n" path="res://scripts/player/glider_anim_controller.gd" id="2_anim"]
+[ext_resource type="AnimationNodeStateMachine" uid="uid://ojsxqc3p5olm" path="res://resources/anims/glider_anim_state_machine.tres" id="3_state_machine"]
+
+[node name="GliderSkin" type="Node3D" unique_id=1976380139]
+
+[node name="Model" parent="." unique_id=678267291 instance=ExtResource("1_kvey2")]
+
+[node name="GliderBoard" parent="Model/GliderRoot" parent_id_path=PackedInt32Array(678267291, 509211911) index="0" unique_id=242455391]
+transform = Transform3D(1.2185017, 0, 0, 0, 1.2185022, 0, 0, 0, 1.2185022, 0.009377981, 0.2850539, -0.4332435)
+
+[node name="RemoteTransform3D" type="RemoteTransform3D" parent="Model/GliderRoot/GliderBoard/MastSocket" parent_id_path=PackedInt32Array(678267291, 1812481564) index="0" unique_id=516736628]
+remote_path = NodePath("../../../SailPivot")
+update_rotation = false
+update_scale = false
+
+[node name="SailPivot" parent="Model/GliderRoot" parent_id_path=PackedInt32Array(678267291, 509211911) index="2" unique_id=1074195257]
+transform = Transform3D(1, 0, 0, 0, 0.9999999, 0, 0, 0, 1, 0.011622356, 0.38094047, 0.28694618)
+
+[node name="AnimationTree" type="AnimationTree" parent="." unique_id=769731501]
+root_node = NodePath("../Model")
+tree_root = ExtResource("3_state_machine")
+anim_player = NodePath("../Model/AnimationPlayer")
+parameters/boost/time_scale/scale = 1.0
+parameters/locomotion/forward/time_scale/scale = 1.0
+
+[node name="GliderAnimController" type="Node" parent="." unique_id=1801887011]
+script = ExtResource("2_anim")
+
+[editable path="Model"]

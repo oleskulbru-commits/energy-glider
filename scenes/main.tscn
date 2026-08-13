@@ -17,7 +17,7 @@ grow_horizontal = 2
 grow_vertical = 2
 stretch = true
 script = ExtResource("1_pixel_viewport")
-pixel_scale = 2
+pixel_scale = 1
 
 [node name="SubViewport" type="SubViewport" parent="." unique_id=167199366]
 handle_input_locally = false
