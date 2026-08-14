@@ -9,7 +9,6 @@
 [ext_resource type="Script" uid="uid://dq7antenna001" path="res://scripts/game/antenna_state.gd" id="9_antenna_state"]
 [ext_resource type="Script" uid="uid://p2cuy6v7c2pb" path="res://scripts/world/wind_field.gd" id="10_wind_field"]
 [ext_resource type="Script" uid="uid://dviu8cndx88wh" path="res://scripts/world/wind_streaks.gd" id="11_wind_streaks"]
-[ext_resource type="Script" uid="uid://d3gq4d10ladej" path="res://scripts/world/ripple_spawner.gd" id="12_ripple_spawner"]
 [ext_resource type="Script" uid="uid://b7jwrfowb1qnq" path="res://scripts/game/expedition_state.gd" id="13_expedition"]
 [ext_resource type="Script" uid="uid://b0trnpq2xw7h7" path="res://scripts/world/day_night_cycle.gd" id="14_daynight"]
 [ext_resource type="Script" uid="uid://cx4g652ulhs8w" path="res://scripts/game/eon_director.gd" id="15_eon"]
@@ -100,13 +99,6 @@ track_node_path = NodePath("../PlayerRig/Glider")
 [node name="OutpostSpawner" type="Node3D" parent="."]
 script = ExtResource("8_outpost_spawner")
 terrain_manager_path = NodePath("../TerrainManager")
-
-[node name="RippleSpawner" type="Node3D" parent="."]
-script = ExtResource("12_ripple_spawner")
-terrain_manager_path = NodePath("../TerrainManager")
-ripple_count = 8
-first_ripple_center_m = 1200.0
-ripple_spacing_m = 1200.0
 
 [node name="PlayerRig" parent="." instance=ExtResource("3_player_rig")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 20, 0)

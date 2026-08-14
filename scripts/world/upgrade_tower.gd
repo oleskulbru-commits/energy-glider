@@ -11,28 +11,6 @@ func _ready() -> void:
 	call_deferred("snap_to_terrain")
 
 
-func try_deposit(
-	body: Node3D,
-	cargo: PlayerCargo,
-	antenna: AntennaState,
-	glider: GliderPlayer
-) -> bool:
-	if body == null or cargo == null or antenna == null or glider == null:
-		return false
-	if not antenna.is_within_hub(body.global_position, global_position):
-		return false
-	if antenna.installed_parts >= antenna.total_parts:
-		return false
-	if not cargo.consume_first_of_type(CargoTypes.Type.ANTENNA_PART):
-		return false
-	if not antenna.install_part():
-		return false
-
-	if antenna.installed_parts >= AntennaState.BOOST_UNLOCK_AT_PART:
-		glider.set_boost_unlocked(true)
-	return true
-
-
 func snap_to_terrain() -> void:
 	var terrain := _get_terrain_manager()
 	if terrain == null:

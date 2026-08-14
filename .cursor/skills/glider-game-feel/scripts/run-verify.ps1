@@ -42,12 +42,6 @@ Write-Host ""
 & $Godot --headless --path $ProjectRoot --script res://scripts/player/verify_glider.gd
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-& $Godot --headless --path $ProjectRoot --script res://scripts/world/verify_ripple_spawner.gd
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-& $Godot --headless --path $ProjectRoot --script res://scripts/world/verify_radar_pulse.gd
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
 & $Godot --headless --path $ProjectRoot --script res://scripts/world/verify_outpost_spawner.gd
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
