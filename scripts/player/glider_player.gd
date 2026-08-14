@@ -1367,7 +1367,8 @@ func _build_physics_context() -> GliderPhysicsScript.Context:
 			ctx.landing_impact,
 			_contact_recover_blend()
 		)
-		if _ground_contact_active:
+		## Dig window only while recovering — zero hover forever deadlock if still compressed.
+		if _ground_contact_active and _contact_recover_timer > 0.0:
 			ctx.hover_yield = 0.0
 	else:
 		ctx.hover_yield = 1.0

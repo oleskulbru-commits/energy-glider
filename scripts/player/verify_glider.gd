@@ -99,6 +99,7 @@ func _yaw_travel_misalign_deg(glider: GliderPlayer) -> float:
 
 func _run_tests() -> void:
 	_verify_chase_camera_math()
+	_verify_boost_climb_target_speed()
 	await _verify_hover_rest()
 	await _verify_terrain_probes_math()
 	await _verify_predictive_surface_sampling()
@@ -126,6 +127,27 @@ func _run_tests() -> void:
 	await _verify_jump_while_boosting()
 	print("Glider controller verification passed.")
 	quit(0)
+
+
+func _verify_boost_climb_target_speed() -> void:
+	var ctx := GliderPhysicsScript.Context.new()
+	ctx.forward_held = true
+	ctx.boost_active = false
+	ctx.velocity = Vector3(0.0, 0.0, 2.0)
+	ctx.board_forward = Vector3(0.0, 0.0, 1.0)
+	ctx.downhill = Vector3(0.0, 0.0, -1.0)
+	ctx.slope_grade = GliderPhysicsScript.UPHILL_GRADE_REF
+	var cruise := GliderPhysicsScript.target_horizontal_speed(ctx)
+	_fail_unless(
+		is_equal_approx(cruise, GliderPhysicsScript.CLIMB_MIN_SPEED),
+		"Steep cruise climb should sit on climb min floor (got %.2f)" % cruise
+	)
+	ctx.boost_active = true
+	var boosted := GliderPhysicsScript.target_horizontal_speed(ctx)
+	_fail_unless(
+		boosted > cruise + 3.0,
+		"Boost on a steep climb should raise target above crawl (cruise %.2f boost %.2f)" % [cruise, boosted]
+	)
 
 
 func _verify_chase_camera_math() -> void:

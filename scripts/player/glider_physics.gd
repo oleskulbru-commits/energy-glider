@@ -33,43 +33,31 @@ const BOOST_ABSOLUTE_MAX := 100.0
 const CRUISE_ABSOLUTE_MAX := BOOST_ABSOLUTE_MAX / BOOST_SPEED_FACTOR
 const AIR_BOOST_EXTRA_SCALE := 1.15
 const CRUISE_SPEED_SCALE := 0.95
-const CRUISE_MAX_GROUND_SPEED := MAX_GROUND_SPEED * CRUISE_SPEED_SCALE
-const CRUISE_MAX_GLIDE_SPEED := MAX_SURF_SPEED * CRUISE_SPEED_SCALE
-const BOOST_MAX_GROUND_SPEED := CRUISE_MAX_GROUND_SPEED * BOOST_SPEED_FACTOR
-const BOOST_MAX_SURF_SPEED := CRUISE_MAX_GLIDE_SPEED * BOOST_SPEED_FACTOR
-const CRUISE_GROUND_ACCEL := GROUND_ACCEL * 1.12 * CRUISE_SPEED_SCALE
-const SAIL_GROUND_ACCEL_SCALE := 0.92
-const SAIL_THRUST_VELOCITY_BLEND := 0.5
-const SAIL_THRUST_MISALIGN_MIN := 0.7
-const CRUISE_THRUST_DRAG_SCALE := 0.38
-## Surplus above cruise drive cap from downhill — bleeds on flats instead of hard-cutting.
-const CARRY_MAX_GROUND_SPEED := CRUISE_MAX_GLIDE_SPEED
-const CARRY_SURPLUS_DRAG_SCALE := 0.58
-const CARRY_THRUST_FADE_POWER := 1.0
-const CARRY_THRUST_FADE_START := 1.25
-const CARRY_CLIMB_GRAVITY_MIN_SCALE := 0.50
+# Ground — XZ target-speed model (slope component along travel)
+## Flat cruise max (= MAX_SURF_SPEED * CRUISE_SPEED_SCALE ≈ 26.6).
+const FLAT_MAX_SPEED := MAX_SURF_SPEED * CRUISE_SPEED_SCALE
+const CLIMB_MIN_SPEED := 4.0
+const FLAT_ACCEL := 14.0
+const BOOST_ACCEL := 22.0
+const COAST_DECEL := 3.0
+const BRAKE_DECEL := 18.0
+## Bleed from boost surplus down to cruise target (W still held, Shift released).
+const SURPLUS_DECEL := 5.5
+## Climb grade that fully drops max to CLIMB_MIN_SPEED; also scales downhill accel bonus.
+const UPHILL_GRADE_REF := 0.35
+const DOWNHILL_ACCEL_BONUS := 0.85
 const CONTACT_SCRAPE_DIG_SCALE := 0.25
-const COAST_FRICTION := 0.82
-const COAST_FRICTION_COASTING := 0.08
 const COAST_DURATION := 4.0
-const COAST_DRAG_PROPULLED := 0.16
-const GROUND_ROLLING_DRAG := 0.36
-const MIN_ROLLING_DRAG := 0.10
-const GROUND_SLOPE_GRAVITY := 17.5
-const SLOPE_GRAVITY_MIN_GRADE := 0.008
-const SAIL_DOWNHILL_GRAVITY_BONUS := 0.14
-const SLOPE_DRIVE_BLEND := 0.52
-const SLOPE_ACCEL_SCALE := 1.35
-const CRUISE_CLIMB_ACCEL_SCALE := 0.98
-const CRUISE_STEEP_CLIMB_ACCEL_SCALE := 1.05
-const CRUISE_CLIMB_DRAG_SCALE := 0.72
-const CRUISE_STEEP_CLIMB_DRAG_SCALE := 0.62
 const STEEP_CLIMB_GRADE := 0.13
-const SLOPE_DRIVE_MIN_GRADE := 0.08
 const CLIMB_DRAG_MIN_GRADE := 0.10
 const CLIMB_FACING_THRESHOLD := -0.08
-const BRAKE_GROUND_FRICTION := 2.4
-const BRAKE_GROUND_DRAG := 0.5
+## Legacy aliases used by caps / player state.
+const CRUISE_MAX_GLIDE_SPEED := FLAT_MAX_SPEED
+const CARRY_MAX_GROUND_SPEED := FLAT_MAX_SPEED
+const CRUISE_MAX_GROUND_SPEED := MAX_GROUND_SPEED * CRUISE_SPEED_SCALE
+const BOOST_MAX_GROUND_SPEED := CRUISE_MAX_GROUND_SPEED * BOOST_SPEED_FACTOR
+const BOOST_MAX_SURF_SPEED := FLAT_MAX_SPEED * BOOST_SPEED_FACTOR
+const CRUISE_GROUND_ACCEL := FLAT_ACCEL
 
 # Air
 const AIR_GRAVITY := 14.5
@@ -203,60 +191,115 @@ static func clamp_tangent_speed(tangent_vel: Vector3, max_speed: float) -> Vecto
 	return tangent_vel * (max_speed / speed)
 
 
-static func cruise_drive_cap(boost_active: bool) -> float:
+static func flat_max_speed(boost_active: bool) -> float:
+	var max_speed := FLAT_MAX_SPEED
 	if boost_active:
-		return minf(BOOST_MAX_GROUND_SPEED, BOOST_ABSOLUTE_MAX)
-	return minf(CRUISE_MAX_GROUND_SPEED, CRUISE_ABSOLUTE_MAX)
+		max_speed *= BOOST_SPEED_FACTOR
+	return minf(max_speed, BOOST_ABSOLUTE_MAX)
+
+
+static func cruise_drive_cap(boost_active: bool) -> float:
+	return flat_max_speed(boost_active)
 
 
 static func carry_speed_cap(boost_active: bool) -> float:
-	if boost_active:
-		return minf(BOOST_MAX_SURF_SPEED, BOOST_ABSOLUTE_MAX)
-	return minf(CARRY_MAX_GROUND_SPEED, CRUISE_ABSOLUTE_MAX)
+	return flat_max_speed(boost_active)
 
 
-static func carry_thrust_fade(speed: float, boost_active: bool) -> float:
-	var drive_cap := cruise_drive_cap(boost_active)
-	var fade_start := drive_cap + CARRY_THRUST_FADE_START
-	if speed <= fade_start:
-		return 1.0
-	var band := maxf(carry_speed_cap(boost_active) - fade_start, 0.01)
-	var t := clampf((speed - fade_start) / band, 0.0, 1.0)
-	return pow(1.0 - t, CARRY_THRUST_FADE_POWER)
+## Hard velocity ceiling (boost max). Soft cruise/boost targets ease via forces — never snap here.
+static func hard_speed_cap() -> float:
+	return flat_max_speed(true)
 
 
-static func slope_gravity_accel(
-	downhill: Vector3,
-	tangent_vel: Vector3,
-	climbing: bool,
-	slope_grade: float,
-	forward_held: bool,
-	boost_active: bool
-) -> Vector3:
-	if downhill == Vector3.ZERO or slope_grade < SLOPE_GRAVITY_MIN_GRADE:
+## Positive = traveling downhill, negative = uphill, ~0 = flat or side-hill.
+static func signed_travel_grade(ctx: Context) -> float:
+	if ctx.slope_grade <= 0.0001:
+		return 0.0
+	var travel := horizontal_velocity(ctx.velocity)
+	if travel.length_squared() < 0.25:
+		travel = MathUtil.horizontal(ctx.board_forward)
+	if travel.length_squared() < 0.0001:
+		return 0.0
+	var downhill_h := MathUtil.horizontal(ctx.downhill)
+	if downhill_h.length_squared() < 0.0001:
+		return 0.0
+	return ctx.slope_grade * travel.normalized().dot(downhill_h.normalized())
+
+
+static func target_horizontal_speed(ctx: Context) -> float:
+	var thrusting := ctx.forward_held or ctx.boost_active
+	var brake := clampf(ctx.brake_strength, 0.0, 1.0)
+	if not thrusting:
+		# Coast / brake toward a stop (brake handled via higher decel rate).
+		return 0.0
+
+	var max_speed := flat_max_speed(ctx.boost_active)
+	var signed_g := signed_travel_grade(ctx)
+	if signed_g < 0.0:
+		## Same m/s penalty for cruise and boost so Shift still has leftover cap.
+		var climb_t := clampf((-signed_g) / UPHILL_GRADE_REF, 0.0, 1.0)
+		max_speed = maxf(max_speed - FLAT_MAX_SPEED * climb_t, CLIMB_MIN_SPEED)
+
+	if brake > 0.0:
+		max_speed *= 1.0 - brake
+	return maxf(max_speed, 0.0)
+
+
+static func horizontal_speed_accel_rate(ctx: Context, speed: float, target: float) -> float:
+	if target > speed + 0.05:
+		var accel := BOOST_ACCEL if ctx.boost_active else FLAT_ACCEL
+		var signed_g := signed_travel_grade(ctx)
+		if signed_g > 0.0:
+			var down_t := clampf(signed_g / UPHILL_GRADE_REF, 0.0, 1.0)
+			accel *= 1.0 + DOWNHILL_ACCEL_BONUS * down_t
+		return accel
+	if target < speed - 0.05:
+		var brake := clampf(ctx.brake_strength, 0.0, 1.0)
+		if brake > 0.05:
+			return lerpf(COAST_DECEL, BRAKE_DECEL, brake)
+		## Above cruise while still thrusting (e.g. just released boost) — ease down, don't snap.
+		if ctx.forward_held or ctx.boost_active:
+			return SURPLUS_DECEL
+		return COAST_DECEL
+	return 0.0
+
+
+static func compute_ground_force(ctx: Context, mass: float, _delta: float) -> Vector3:
+	var h := horizontal_velocity(ctx.velocity)
+	var speed := h.length()
+	var target := target_horizontal_speed(ctx)
+	var rate := horizontal_speed_accel_rate(ctx, speed, target)
+	if rate <= 0.0001 and absf(target - speed) <= 0.05:
 		return Vector3.ZERO
-	var sin_theta := slope_grade / sqrt(1.0 + slope_grade * slope_grade)
-	var accel := GROUND_SLOPE_GRAVITY * sin_theta
-	if climbing:
-		if (forward_held or boost_active) and slope_grade >= STEEP_CLIMB_GRADE:
-			accel *= 0.13
+
+	var board_h := MathUtil.horizontal(ctx.thrust_forward)
+	if board_h.length_squared() < 0.0001:
+		board_h = MathUtil.horizontal(ctx.board_forward)
+	var desired_dir := board_h
+	## Ease speed along travel; only gently bias toward board so yaw/drift stay soft.
+	if speed > 0.5:
+		var travel := h.normalized()
+		if (ctx.forward_held or ctx.boost_active) and board_h.length_squared() > 0.0001:
+			desired_dir = travel.lerp(board_h.normalized(), 0.1).normalized()
 		else:
-			accel *= 0.26
-		if forward_held or boost_active:
-			var speed := tangent_vel.length()
-			var drive_cap := cruise_drive_cap(boost_active)
-			var carry_cap := carry_speed_cap(boost_active)
-			if speed > drive_cap:
-				var t := clampf(
-					(speed - drive_cap) / maxf(carry_cap - drive_cap, 0.01),
-					0.0,
-					1.0
-				)
-				accel *= lerpf(1.0, CARRY_CLIMB_GRAVITY_MIN_SCALE, t)
-	elif forward_held or boost_active:
-		var aligned := maxf(tangent_vel.normalized().dot(downhill), 0.0) if tangent_vel.length_squared() > 0.01 else 0.0
-		accel *= 1.0 + SAIL_DOWNHILL_GRAVITY_BONUS * aligned
-	return downhill * accel
+			desired_dir = travel
+	elif desired_dir.length_squared() < 0.0001:
+		return Vector3.ZERO
+	else:
+		desired_dir = desired_dir.normalized()
+
+	var desired_h := desired_dir * target
+	var delta_v := desired_h - h
+	if delta_v.length_squared() < 0.000001:
+		return Vector3.ZERO
+	if delta_v.length() > rate:
+		delta_v = delta_v.normalized() * rate
+
+	var force := delta_v * mass
+	var tangent := force.slide(ctx.ground_normal)
+	if tangent.length_squared() > 0.0001:
+		return tangent
+	return force
 
 
 static func apply_inertia_jump(
@@ -275,111 +318,6 @@ static func apply_inertia_jump(
 	if up_speed > existing_up:
 		result += launch_normal * (up_speed - maxf(existing_up, 0.0))
 	return result
-
-
-static func sail_thrust_direction(board_forward: Vector3, tangent_vel: Vector3) -> Vector3:
-	if tangent_vel.length_squared() < 1.0:
-		return board_forward
-	var vel_dir := tangent_vel.normalized()
-	var misalign := 1.0 - clampf(vel_dir.dot(board_forward), -1.0, 1.0)
-	return (
-		board_forward * (1.0 - SAIL_THRUST_VELOCITY_BLEND * misalign)
-		+ vel_dir * (SAIL_THRUST_VELOCITY_BLEND * misalign)
-	).normalized()
-
-
-static func sail_thrust_efficiency(board_forward: Vector3, tangent_vel: Vector3) -> float:
-	if tangent_vel.length_squared() < 1.0:
-		return 1.0
-	var alignment := clampf(tangent_vel.normalized().dot(board_forward), 0.0, 1.0)
-	return lerpf(SAIL_THRUST_MISALIGN_MIN, 1.0, alignment)
-
-
-static func compute_ground_force(ctx: Context, mass: float, _delta: float) -> Vector3:
-	var tangent_vel := ctx.velocity.slide(ctx.ground_normal)
-	var downhill := ctx.downhill
-	var climbing := ctx.climbing
-	var brake := ctx.brake_strength
-	var drive_scale := 1.0 - brake
-	var force := Vector3.ZERO
-	var speed := tangent_vel.length()
-	var thrust_fade := carry_thrust_fade(speed, ctx.boost_active)
-
-	if drive_scale > 0.0:
-		if ctx.forward_held or ctx.boost_active:
-			var accel := CRUISE_GROUND_ACCEL if not ctx.boost_active else ctx.thruster_accel
-			if not ctx.boost_active:
-				accel *= SAIL_GROUND_ACCEL_SCALE
-			accel *= thrust_fade
-			var thrust_dir := ctx.thrust_forward
-			var thrust_scale := 1.0
-			if (
-				not ctx.boost_active
-				and ctx.steering
-				and tangent_vel.length_squared() > 0.25
-			):
-				thrust_scale = sail_thrust_efficiency(ctx.thrust_forward, tangent_vel)
-				thrust_dir = sail_thrust_direction(ctx.thrust_forward, tangent_vel)
-			if downhill != Vector3.ZERO and ctx.slope_grade > SLOPE_DRIVE_MIN_GRADE and not climbing:
-				var drive_dir := (
-					thrust_dir * (1.0 - SLOPE_DRIVE_BLEND) + downhill * SLOPE_DRIVE_BLEND
-				).normalized()
-				force += drive_dir * accel * thrust_scale * SLOPE_ACCEL_SCALE * mass * drive_scale
-			elif climbing and ctx.forward_held and not ctx.boost_active and ctx.slope_grade > CLIMB_DRAG_MIN_GRADE:
-				var climb_accel_scale := (
-					CRUISE_STEEP_CLIMB_ACCEL_SCALE
-					if ctx.slope_grade >= STEEP_CLIMB_GRADE
-					else CRUISE_CLIMB_ACCEL_SCALE
-				)
-				force += (
-					thrust_dir
-					* CRUISE_GROUND_ACCEL
-					* SAIL_GROUND_ACCEL_SCALE
-					* climb_accel_scale
-					* thrust_fade
-					* thrust_scale
-					* mass
-					* drive_scale
-				)
-			else:
-				force += thrust_dir * accel * thrust_scale * mass * drive_scale
-		elif tangent_vel.length_squared() > 0.0001:
-			var friction := lerpf(COAST_FRICTION, COAST_FRICTION_COASTING, ctx.coast_blend) * ctx.ground_drag_scale
-			force -= tangent_vel.normalized() * tangent_vel.length() * friction * mass * drive_scale
-
-	if brake > 0.0:
-		if tangent_vel.length_squared() > 0.0001:
-			force -= tangent_vel.normalized() * tangent_vel.length() * BRAKE_GROUND_FRICTION * brake * mass
-		if tangent_vel.length() > 0.1:
-			force -= tangent_vel.normalized() * BRAKE_GROUND_DRAG * brake * mass
-
-	if speed > 0.01 and drive_scale > 0.0:
-		var drag_scale := 1.0
-		if ctx.forward_held or ctx.boost_active:
-			drag_scale *= 0.45 if ctx.boost_active else CRUISE_THRUST_DRAG_SCALE
-		elif ctx.coast_blend > 0.0:
-			drag_scale *= lerpf(1.0, COAST_DRAG_PROPULLED, ctx.coast_blend)
-		if climbing and ctx.forward_held and not ctx.boost_active and ctx.slope_grade > CLIMB_DRAG_MIN_GRADE:
-			var climb_drag_scale := (
-				CRUISE_STEEP_CLIMB_DRAG_SCALE
-				if ctx.slope_grade >= STEEP_CLIMB_GRADE
-				else CRUISE_CLIMB_DRAG_SCALE
-			)
-			drag_scale *= climb_drag_scale
-		var drive_cap := cruise_drive_cap(ctx.boost_active)
-		if speed > drive_cap and (ctx.forward_held or ctx.boost_active or ctx.coast_blend > 0.0):
-			var band := maxf(carry_speed_cap(ctx.boost_active) - drive_cap, 0.01)
-			var surplus_t := clampf((speed - drive_cap) / band, 0.0, 1.0)
-			drag_scale *= lerpf(1.0, CARRY_SURPLUS_DRAG_SCALE, surplus_t)
-		drag_scale *= ctx.ground_drag_scale
-		force -= tangent_vel.normalized() * speed * GROUND_ROLLING_DRAG * drag_scale * mass * drive_scale
-
-	if downhill != Vector3.ZERO and not ctx.hover_at_rest and drive_scale > 0.0:
-		force += slope_gravity_accel(
-			downhill, tangent_vel, climbing, ctx.slope_grade, ctx.forward_held, ctx.boost_active
-		) * mass * drive_scale
-
-	return force
 
 
 static func _hover_clearance_for_force(ctx: Context) -> float:
@@ -431,17 +369,15 @@ static func compute_contact_damage(approach: float) -> float:
 
 static func compute_ground_scrape_force(ctx: Context, mass: float) -> Vector3:
 	var clearance := _hover_clearance_for_force(ctx)
-	if clearance > HOVER_COMPRESS_START:
+	if clearance > TOUCH_CLEARANCE:
 		return Vector3.ZERO
 	var tangent := horizontal_velocity(ctx.velocity).slide(ctx.ground_normal)
 	if tangent.length_squared() < 0.01:
 		return Vector3.ZERO
-	var depth := clampf((HOVER_COMPRESS_START - clearance) / HOVER_COMPRESS_START, 0.0, 1.0)
-	# Digging into sand: cut scrape so floor correction doesn't crawl the board to a stop.
-	var dig := 1.0
-	if clearance < TOUCH_CLEARANCE:
-		dig = lerpf(CONTACT_SCRAPE_DIG_SCALE, 1.0, clampf(clearance / maxf(TOUCH_CLEARANCE, 0.001), 0.0, 1.0))
-	return -tangent.normalized() * tangent.length() * CONTACT_SCRAPE_DRAG * depth * dig * mass
+	var depth := clampf((TOUCH_CLEARANCE - clearance) / maxf(TOUCH_CLEARANCE, 0.001), 0.0, 1.0)
+	var dig := lerpf(CONTACT_SCRAPE_DIG_SCALE, 1.0, depth)
+	## Soft scrape only when truly digging — avoid killing XZ momentum near hover height.
+	return -tangent.normalized() * tangent.length() * CONTACT_SCRAPE_DRAG * 0.15 * dig * mass
 
 
 static func touchdown_normal(ground_normal: Vector3, slope_grade: float, horizontal_speed: float) -> Vector3:
@@ -591,52 +527,31 @@ static func compute_corner_hover_forces(
 
 
 static func air_gravity_force(ctx: Context, mass: float) -> Vector3:
-	var forward_speed := horizontal_velocity(ctx.velocity).length()
-	var gravity_scale := STALL_GRAVITY_SCALE if forward_speed < LIFT_STALL_SPEED else 1.0
-	gravity_scale *= clampf(ctx.air_gravity_scale, 0.0, 1.0)
+	var gravity_scale := clampf(ctx.air_gravity_scale, 0.0, 1.0)
 	return Vector3.DOWN * AIR_GRAVITY * gravity_scale * mass
 
 
 static func compute_air_force(ctx: Context, mass: float, _delta: float) -> Vector3:
-	var velocity := ctx.velocity
-	var horizontal := horizontal_velocity(velocity)
-	var forward_speed := horizontal.length()
-	var brake := ctx.brake_strength
+	## Mostly ballistic: gravity + light drag. Mild speed lift softens falls; XZ is not driven.
 	var force := air_gravity_force(ctx, mass)
-
+	var horizontal := horizontal_velocity(ctx.velocity)
+	var forward_speed := horizontal.length()
 	if forward_speed > 0.1:
-		var lift := air_speed_lift(forward_speed, ctx)
+		## Soft cushion only — not the old powered glide lift.
+		var lift := minf(forward_speed * 0.45, AIR_GRAVITY * 0.5)
 		force += Vector3.UP * lift * mass
 
-	var drag := PASSIVE_AIR_DRAG
-	if ctx.sail_deployed and not ctx.braking:
-		drag = SAIL_AIR_DRAG
-	if ctx.boost_active and not ctx.braking:
-		drag = GLIDE_POWERED_DRAG
-	if brake > 0.0:
-		drag *= lerpf(1.0, BRAKE_GLIDE_DRAG_SCALE, brake)
-	drag += INDUCED_DRAG_COEFF * forward_speed
-	if forward_speed > 0.1:
+		var drag := PASSIVE_AIR_DRAG * 0.12
+		var brake := clampf(ctx.brake_strength, 0.0, 1.0)
+		if brake > 0.0:
+			drag = PASSIVE_AIR_DRAG * lerpf(1.0, BRAKE_GLIDE_DRAG_SCALE, brake)
 		force -= horizontal.normalized() * forward_speed * drag * mass * ctx.glide_drag_scale
-
-	if ctx.boost_active and not ctx.braking and forward_speed > 0.1:
-		var forward_dir := horizontal.normalized()
-		force += forward_dir * ctx.air_thruster_accel * mass
-
 	return force
 
 
 static func air_speed_lift(forward_speed: float, ctx: Context) -> float:
-	if forward_speed < LIFT_STALL_SPEED * 0.5:
-		return 0.0
-	var lift_factor := smoothstep(LIFT_STALL_SPEED, LIFT_FULL_SPEED, forward_speed)
-	var lift := clampf(forward_speed * LIFT_COEFF * lift_factor, 0.0, MAX_LIFT)
-	if ctx.boost_active and not ctx.braking:
-		lift *= BOOST_LIFT_SCALE
-	elif ctx.sail_deployed and not ctx.braking:
-		lift *= SAIL_LIFT_SCALE
-	var max_ratio := BOOST_MAX_LIFT_RATIO if ctx.boost_active and not ctx.braking else PASSIVE_MAX_LIFT_RATIO
-	return minf(lift, AIR_GRAVITY * max_ratio)
+	## Kept for any callers; lift is no longer applied in compute_air_force.
+	return 0.0
 
 
 static func apply_velocity_constraints(ctx: Context, velocity: Vector3, mode: int, state: PhysicsDirectBodyState3D = null) -> Vector3:
@@ -689,21 +604,15 @@ static func apply_velocity_constraints(ctx: Context, velocity: Vector3, mode: in
 
 		var tangent_vel := clamp_tangent_speed(
 			v.slide(normal),
-			carry_speed_cap(ctx.boost_active)
+			hard_speed_cap()
 		)
 		v = tangent_vel + normal * v.dot(normal)
 
 	elif mode == MODE_GLIDING:
 		var horizontal := horizontal_velocity(v)
-		if ctx.boost_active and not ctx.braking and horizontal.length() > 0.1:
-			var speed := horizontal.length()
-			if speed < MIN_GLIDE_SPEED:
-				horizontal = horizontal.normalized() * MIN_GLIDE_SPEED
-				v = Vector3(horizontal.x, v.y, horizontal.z)
-		horizontal = horizontal_velocity(v)
 		horizontal = clamp_tangent_speed(
 			horizontal,
-			carry_speed_cap(ctx.boost_active)
+			hard_speed_cap()
 		)
 		v.x = horizontal.x
 		v.z = horizontal.z
