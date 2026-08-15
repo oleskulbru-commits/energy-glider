@@ -36,6 +36,7 @@ func _init() -> void:
 	_verify_chunk_seams(sampler)
 	_verify_chunk_builder(sampler)
 	_verify_level_progression(sampler)
+	_verify_tower_approach_no_shear(sampler)
 	_verify_start_peak(sampler)
 	_verify_crest_sharpness(sampler)
 	_verify_peak_height_variation(sampler)
@@ -143,6 +144,50 @@ func _verify_level_progression(sampler: RefCounted) -> void:
 		absf(float(after_tower.amplitude) - float(before_tower.amplitude)) < 2.5,
 		"Amplitude should not jump hard across a tower X"
 	)
+
+
+func _verify_tower_approach_no_shear(sampler: RefCounted) -> void:
+	var LevelRunScript = preload("res://scripts/game/level_run.gd")
+	var offsets: Array[float] = LevelRunScript.tower_x_offsets_from_origin()
+	_fail_unless(offsets.size() >= 7, "Need tower 7 for seam-shear regression")
+	var tower_x := offsets[6]
+	var approach_east := tower_x + LevelTerrainResolverScript.BLEND_WIDTH_M
+	var control_east := tower_x + 700.0
+	var control_west := tower_x + 400.0
+	var approach_p95 := _west_slope_percentile(sampler, approach_east, tower_x, 0.95)
+	var control_p95 := _west_slope_percentile(sampler, control_east, control_west, 0.95)
+	_fail_unless(
+		approach_p95 <= maxf(control_p95 * 1.85, 1.35),
+		"Tower 7 approach should not shear into canyons (approach |dH/dX| p95 %.2f vs control %.2f)" % [
+			approach_p95, control_p95
+		]
+	)
+	var mid_approach := tower_x + 80.0
+	var blend: Dictionary = LevelTerrainResolverScript.param_blend_at_world_x(mid_approach, 0.0)
+	if not LevelTerrainResolverScript.same_noise_domain(blend.a, blend.b):
+		return
+	var p0: Dictionary = LevelTerrainResolverScript.params_at_world_x(mid_approach, 0.0)
+	var p1: Dictionary = LevelTerrainResolverScript.params_at_world_x(mid_approach - 2.0, 0.0)
+	_fail_unless(
+		LevelTerrainResolverScript.same_noise_domain(p0, p1),
+		"Noise domain knobs must not change continuously along X"
+	)
+
+
+func _west_slope_percentile(sampler: RefCounted, east_x: float, west_x: float, percentile: float) -> float:
+	var slopes: Array[float] = []
+	var z_values: Array[float] = [-240.0, -80.0, 0.0, 80.0, 240.0]
+	var x := east_x
+	while x > west_x:
+		for z in z_values:
+			var h0: float = sampler.sample_height(x, z)
+			var h1: float = sampler.sample_height(x - 2.0, z)
+			slopes.append(absf(h1 - h0) / 2.0)
+		x -= 4.0
+	_fail_unless(not slopes.is_empty(), "Should sample west-slope magnitudes")
+	slopes.sort()
+	var idx := mini(int(float(slopes.size()) * percentile), slopes.size() - 1)
+	return slopes[idx]
 
 
 func _height_spread(sampler: RefCounted, center_x: float, radius: float) -> float:
