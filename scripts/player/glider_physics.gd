@@ -115,9 +115,9 @@ const JUMP_UP_BASE := 0.95
 const JUMP_UP_SPEED_SCALE := 0.12
 const JUMP_UP_MAX := 3.0
 
-# Landing — steep-fall horizontal tax only (gentle lands keep full speed).
-const LAND_FREE_APPROACH := 8.5
-const LAND_STEEP_APPROACH := 14.0
+# Landing — tax only when landing into rising terrain (uphill along travel).
+const LAND_UPHILL_FREE := 0.08
+const LAND_UPHILL_FULL := UPHILL_GRADE_REF
 const LAND_STEEP_KEEP := 0.6
 
 const MODE_GROUNDED := 0
@@ -324,11 +324,11 @@ static func hover_strength_scale(ctx: Context) -> float:
 	return hover_compression_scale(_hover_clearance_for_force(ctx))
 
 
-static func land_speed_keep(approach: float) -> float:
-	## No tax until LAND_FREE_APPROACH; then ease down to LAND_STEEP_KEEP.
-	if approach <= LAND_FREE_APPROACH:
+static func land_speed_keep_from_grade(signed_g: float) -> float:
+	## Flat / downhill / side-hill free; only into-the-hill (negative grade) taxes.
+	if signed_g >= -LAND_UPHILL_FREE:
 		return 1.0
-	var t := smoothstep(LAND_FREE_APPROACH, LAND_STEEP_APPROACH, approach)
+	var t := smoothstep(LAND_UPHILL_FREE, LAND_UPHILL_FULL, -signed_g)
 	return lerpf(1.0, LAND_STEEP_KEEP, t)
 
 
@@ -602,7 +602,7 @@ static func apply_velocity_constraints(ctx: Context, velocity: Vector3, mode: in
 
 
 static func apply_touchdown(ctx: Context, _braking: bool = false) -> Dictionary:
-	## Immediate handoff: kill inward normal, tax horizontal speed only on steep falls.
+	## Immediate handoff: kill inward normal; tax XZ only when landing into a rise.
 	var normal := ctx.ground_normal
 	if normal.length_squared() < 0.0001:
 		normal = Vector3.UP
@@ -612,7 +612,8 @@ static func apply_touchdown(ctx: Context, _braking: bool = false) -> Dictionary:
 	var horizontal := horizontal_velocity(ctx.velocity)
 	var horizontal_speed := horizontal.length()
 	var approach := maxf(0.0, -ctx.velocity.dot(normal))
-	var keep := land_speed_keep(approach)
+	var signed_g := signed_travel_grade(ctx)
+	var keep := land_speed_keep_from_grade(signed_g)
 	var speed_out := horizontal_speed * keep
 
 	var dir := horizontal
@@ -627,5 +628,6 @@ static func apply_touchdown(ctx: Context, _braking: bool = false) -> Dictionary:
 	return {
 		"velocity": velocity,
 		"approach": approach,
+		"signed_g": signed_g,
 		"keep": keep,
 	}

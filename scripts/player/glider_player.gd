@@ -995,16 +995,16 @@ func _land() -> void:
 	else:
 		_landing_feedback_timer = 0.0
 		_landing_feedback_label = ""
-	_play_touchdown_juice(result.approach)
+	_play_touchdown_juice(result.approach, keep)
 
 
-func _play_touchdown_juice(approach: float) -> void:
-	if approach < 3.0:
+func _play_touchdown_juice(approach: float, keep: float) -> void:
+	if approach < 3.0 and keep >= 0.995:
 		return
 	if _impact_dust != null:
 		_impact_dust.restart()
 		_impact_dust.emitting = true
-	if approach >= GliderPhysicsScript.LAND_FREE_APPROACH and _contact_sparks != null:
+	if keep < 0.995 and _contact_sparks != null:
 		_contact_sparks.restart()
 		_contact_sparks.emitting = true
 

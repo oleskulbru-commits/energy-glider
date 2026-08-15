@@ -123,7 +123,7 @@ func _run_tests() -> void:
 	await _verify_touchdown_soft()
 	_verify_land_speed_keep_kernel()
 	await _verify_soft_land_keeps_speed()
-	await _verify_steep_land_speed_tax()
+	await _verify_uphill_land_speed_tax()
 	await _verify_boost_no_clip_crest()
 	await _verify_boost_climb_no_clip()
 	await _verify_boost_steep_climb_no_clip()
@@ -898,52 +898,77 @@ func _verify_touchdown_soft() -> void:
 
 func _verify_land_speed_keep_kernel() -> void:
 	_fail_unless(
-		is_equal_approx(GliderPhysicsScript.land_speed_keep(0.0), 1.0),
-		"Zero approach should keep full speed"
+		is_equal_approx(GliderPhysicsScript.land_speed_keep_from_grade(0.0), 1.0),
+		"Flat grade should keep full speed"
+	)
+	_fail_unless(
+		is_equal_approx(GliderPhysicsScript.land_speed_keep_from_grade(0.2), 1.0),
+		"Downhill grade should keep full speed"
 	)
 	_fail_unless(
 		is_equal_approx(
-			GliderPhysicsScript.land_speed_keep(GliderPhysicsScript.LAND_FREE_APPROACH),
+			GliderPhysicsScript.land_speed_keep_from_grade(-GliderPhysicsScript.LAND_UPHILL_FREE),
 			1.0
 		),
-		"Free-band ceiling should keep full speed"
+		"Uphill free deadband should keep full speed"
 	)
 	_fail_unless(
-		GliderPhysicsScript.land_speed_keep(GliderPhysicsScript.LAND_STEEP_APPROACH)
+		GliderPhysicsScript.land_speed_keep_from_grade(-GliderPhysicsScript.LAND_UPHILL_FULL)
 		<= GliderPhysicsScript.LAND_STEEP_KEEP + 0.001,
-		"Steep approach should reach steep keep"
+		"Full uphill grade should reach steep keep"
 	)
-	var mid := lerpf(
-		GliderPhysicsScript.LAND_FREE_APPROACH,
-		GliderPhysicsScript.LAND_STEEP_APPROACH,
+	var mid_g := -lerpf(
+		GliderPhysicsScript.LAND_UPHILL_FREE,
+		GliderPhysicsScript.LAND_UPHILL_FULL,
 		0.5
 	)
-	var mid_keep := GliderPhysicsScript.land_speed_keep(mid)
+	var mid_keep := GliderPhysicsScript.land_speed_keep_from_grade(mid_g)
 	_fail_unless(
 		mid_keep < 1.0 and mid_keep > GliderPhysicsScript.LAND_STEEP_KEEP,
-		"Mid steep band should partially tax (got %.2f)" % mid_keep
+		"Mid uphill band should partially tax (got %.2f)" % mid_keep
 	)
 
-	var soft_ctx := GliderPhysicsScript.Context.new()
-	soft_ctx.ground_normal = Vector3.UP
-	soft_ctx.board_forward = Vector3(0.0, 0.0, 1.0)
-	soft_ctx.velocity = Vector3(0.0, -4.0, 20.0)
-	var soft := GliderPhysicsScript.apply_touchdown(soft_ctx)
+	## Flat + hard fall: no tax (airtime / approach alone does not punish).
+	var flat_ctx := GliderPhysicsScript.Context.new()
+	flat_ctx.ground_normal = Vector3.UP
+	flat_ctx.slope_grade = 0.0
+	flat_ctx.downhill = Vector3.ZERO
+	flat_ctx.board_forward = Vector3(0.0, 0.0, 1.0)
+	flat_ctx.velocity = Vector3(0.0, -16.0, 20.0)
+	var flat := GliderPhysicsScript.apply_touchdown(flat_ctx)
 	_fail_unless(
-		absf(Vector2(soft.velocity.x, soft.velocity.z).length() - 20.0) < 0.05,
-		"Soft touchdown should keep horizontal speed"
+		absf(Vector2(flat.velocity.x, flat.velocity.z).length() - 20.0) < 0.05,
+		"Flat hard fall should keep horizontal speed"
 	)
-	_fail_unless(absf(soft.velocity.y) < 0.01, "Touchdown should kill vertical")
+	_fail_unless(absf(flat.velocity.y) < 0.01, "Touchdown should kill vertical")
 
-	var steep_ctx := GliderPhysicsScript.Context.new()
-	steep_ctx.ground_normal = Vector3.UP
-	steep_ctx.board_forward = Vector3(0.0, 0.0, 1.0)
-	steep_ctx.velocity = Vector3(0.0, -14.0, 20.0)
-	var steep := GliderPhysicsScript.apply_touchdown(steep_ctx)
-	var steep_h := Vector2(steep.velocity.x, steep.velocity.z).length()
+	## Downhill face along travel: no tax.
+	var down_n := Vector3(0.0, 0.9, -0.435).normalized()
+	var down_ctx := GliderPhysicsScript.Context.new()
+	down_ctx.ground_normal = down_n
+	down_ctx.slope_grade = down_n.angle_to(Vector3.UP)
+	down_ctx.downhill = Vector3(0.0, 0.0, 1.0)
+	down_ctx.board_forward = Vector3(0.0, 0.0, 1.0)
+	down_ctx.velocity = Vector3(0.0, -8.0, 20.0)
+	var down := GliderPhysicsScript.apply_touchdown(down_ctx)
 	_fail_unless(
-		steep_h < 20.0 * 0.85,
-		"Steep touchdown should tax horizontal speed (got %.2f)" % steep_h
+		absf(Vector2(down.velocity.x, down.velocity.z).length() - 20.0) < 0.05,
+		"Downhill land should keep horizontal speed"
+	)
+
+	## Into rising terrain: tax.
+	var up_n := Vector3(0.0, 0.9, 0.435).normalized()
+	var up_ctx := GliderPhysicsScript.Context.new()
+	up_ctx.ground_normal = up_n
+	up_ctx.slope_grade = up_n.angle_to(Vector3.UP)
+	up_ctx.downhill = Vector3(0.0, 0.0, -1.0)
+	up_ctx.board_forward = Vector3(0.0, 0.0, 1.0)
+	up_ctx.velocity = Vector3(0.0, -8.0, 20.0)
+	var up := GliderPhysicsScript.apply_touchdown(up_ctx)
+	var up_h := Vector2(up.velocity.x, up.velocity.z).length()
+	_fail_unless(
+		up_h < 20.0 * 0.9,
+		"Uphill land should tax horizontal speed (got %.2f)" % up_h
 	)
 
 
@@ -972,7 +997,7 @@ func _verify_soft_land_keeps_speed() -> void:
 	_fail_unless(landed_speed >= 0.0, "Soft land should reach grounded")
 	_fail_unless(
 		landed_speed >= pre_speed - 1.0,
-		"Non-steep land should keep speed (%.2f -> %.2f)" % [pre_speed, landed_speed]
+		"Flat land should keep speed (%.2f -> %.2f)" % [pre_speed, landed_speed]
 	)
 	_fail_unless(
 		min_clearance >= -0.02,
@@ -982,8 +1007,9 @@ func _verify_soft_land_keeps_speed() -> void:
 	terrain.queue_free()
 
 
-func _verify_steep_land_speed_tax() -> void:
-	var terrain := _spawn_terrain("steep_land_tax")
+func _verify_uphill_land_speed_tax() -> void:
+	## Kernel-proven uphill tax; integration checks flat long-fall still free.
+	var terrain := _spawn_terrain("flat_long_fall")
 	await physics_frame
 
 	var glider := _spawn_glider(terrain)
@@ -1004,14 +1030,14 @@ func _verify_steep_land_speed_tax() -> void:
 			landed_speed = Vector2(glider.velocity.x, glider.velocity.z).length()
 			break
 
-	_fail_unless(landed_speed >= 0.0, "Steep land should reach grounded")
+	_fail_unless(landed_speed >= 0.0, "Long flat fall should reach grounded")
 	_fail_unless(
-		landed_speed < pre_speed * 0.9,
-		"Steep land should tax speed (%.2f -> %.2f)" % [pre_speed, landed_speed]
+		landed_speed >= pre_speed - 1.5,
+		"Long flat fall must not tax for airtime (%.2f -> %.2f)" % [pre_speed, landed_speed]
 	)
 	_fail_unless(
 		min_clearance >= -0.02,
-		"Steep land must not tunnel (min %.2f)" % min_clearance
+		"Long flat fall must not tunnel (min %.2f)" % min_clearance
 	)
 	glider.queue_free()
 	terrain.queue_free()
