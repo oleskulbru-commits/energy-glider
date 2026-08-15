@@ -111,6 +111,7 @@ func _run_tests() -> void:
 	await _verify_sail_recharge_in_air()
 	await _verify_glide_gravity()
 	await _verify_air_hold_w_keeps_horizontal_speed()
+	await _verify_air_boost_increases_horizontal_speed()
 	await _verify_brake_stop()
 	await _verify_no_false_launch_cruise()
 	await _verify_hover_no_clip_crest()
@@ -572,6 +573,38 @@ func _verify_air_hold_w_keeps_horizontal_speed() -> void:
 		"Air hold must respect hard_speed_cap"
 	)
 	_release_forward()
+	glider.queue_free()
+	terrain.queue_free()
+
+
+func _verify_air_boost_increases_horizontal_speed() -> void:
+	var terrain := _spawn_terrain("air_boost")
+	await physics_frame
+
+	var glider := _spawn_glider(terrain)
+	_get_input(glider)
+	var ground_y := terrain.sample_height(0.0, 0.0)
+	glider.global_position = Vector3(0.0, ground_y + 14.0, 0.0)
+	glider.velocity = Vector3(0.0, 0.0, 18.0)
+	glider.set("_state", GliderPlayerScript.State.GLIDING)
+	await physics_frame
+
+	_hold_boost()
+	await physics_frame
+	var start_speed := Vector2(glider.velocity.x, glider.velocity.z).length()
+	for i in 40:
+		await physics_frame
+		_fail_unless(glider.is_gliding(), "Air boost test should stay airborne")
+	var end_speed := Vector2(glider.velocity.x, glider.velocity.z).length()
+	_fail_unless(
+		end_speed > start_speed + 2.0,
+		"Air boost should increase horizontal speed (%.2f -> %.2f)" % [start_speed, end_speed]
+	)
+	_fail_unless(
+		end_speed <= GliderPhysicsScript.hard_speed_cap() + 0.05,
+		"Air boost must respect hard_speed_cap (got %.2f)" % end_speed
+	)
+	_release_boost()
 	glider.queue_free()
 	terrain.queue_free()
 

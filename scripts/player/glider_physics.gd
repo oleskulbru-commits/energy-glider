@@ -537,10 +537,24 @@ static func air_gravity_force(ctx: Context, mass: float) -> Vector3:
 
 
 static func compute_air_force(ctx: Context, mass: float, _delta: float) -> Vector3:
-	## Gravity + soft lift. Holding W (or boost) keeps XZ — no air drag while thrusting.
+	## Gravity + soft lift. W holds XZ (player preserve); boost accelerates toward boost max.
 	var force := air_gravity_force(ctx, mass)
 	var horizontal := horizontal_velocity(ctx.velocity)
 	var forward_speed := horizontal.length()
+
+	var thrust_dir := horizontal
+	if thrust_dir.length_squared() < 0.0001:
+		thrust_dir = MathUtil.horizontal(ctx.thrust_forward)
+	if thrust_dir.length_squared() < 0.0001:
+		thrust_dir = MathUtil.horizontal(ctx.board_forward)
+	if thrust_dir.length_squared() > 0.0001:
+		thrust_dir = thrust_dir.normalized()
+
+	if ctx.boost_active and thrust_dir.length_squared() > 0.0001:
+		var target := flat_max_speed(true)
+		if forward_speed < target - 0.05:
+			force += thrust_dir * BOOST_ACCEL * AIR_BOOST_EXTRA_SCALE * mass
+
 	if forward_speed <= 0.1:
 		return force
 

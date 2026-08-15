@@ -322,11 +322,16 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 
 
 func _preserve_air_horizontal_speed(state: PhysicsDirectBodyState3D, speed_before: float) -> void:
-	## Holding W/boost in air: lock XZ to the speed when hold started (capped). No ratchet.
+	## Holding W in air: lock XZ to the speed when hold started (capped). No ratchet.
+	## Boost accelerates via compute_air_force — do not freeze XZ while boosting.
 	if is_braking():
 		_air_hold_horizontal_speed = 0.0
 		return
-	if not _input.is_forward_held() and not _is_boost_active():
+	if _is_boost_active():
+		## Clear lock so releasing boost while W is held re-locks at the new speed.
+		_air_hold_horizontal_speed = 0.0
+		return
+	if not _input.is_forward_held():
 		_air_hold_horizontal_speed = 0.0
 		return
 	var cap := GliderPhysicsScript.hard_speed_cap()
