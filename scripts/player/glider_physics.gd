@@ -38,12 +38,13 @@ const CRUISE_SPEED_SCALE := 0.95
 const FLAT_MAX_SPEED := MAX_SURF_SPEED * CRUISE_SPEED_SCALE
 const CLIMB_MIN_SPEED := 4.0
 const FLAT_ACCEL := 14.0
-const BOOST_ACCEL := 22.0
+## Strong enough to reach boost max on any climb before charge runs out.
+const BOOST_ACCEL := 36.0
 const COAST_DECEL := 3.0
 const BRAKE_DECEL := 18.0
 ## Bleed from boost surplus down to cruise target (W still held, Shift released).
 const SURPLUS_DECEL := 5.5
-## Climb grade that fully drops max to CLIMB_MIN_SPEED; also scales downhill accel bonus.
+## Climb grade that fully drops cruise max to CLIMB_MIN_SPEED; also scales downhill accel bonus.
 const UPHILL_GRADE_REF := 0.35
 const DOWNHILL_ACCEL_BONUS := 0.85
 const CONTACT_SCRAPE_DIG_SCALE := 0.25
@@ -235,8 +236,8 @@ static func target_horizontal_speed(ctx: Context) -> float:
 
 	var max_speed := flat_max_speed(ctx.boost_active)
 	var signed_g := signed_travel_grade(ctx)
-	if signed_g < 0.0:
-		## Same m/s penalty for cruise and boost so Shift still has leftover cap.
+	## Boost ignores climb caps — escape card limited only by charge duration.
+	if signed_g < 0.0 and not ctx.boost_active:
 		var climb_t := clampf((-signed_g) / UPHILL_GRADE_REF, 0.0, 1.0)
 		max_speed = maxf(max_speed - FLAT_MAX_SPEED * climb_t, CLIMB_MIN_SPEED)
 
@@ -532,20 +533,28 @@ static func air_gravity_force(ctx: Context, mass: float) -> Vector3:
 
 
 static func compute_air_force(ctx: Context, mass: float, _delta: float) -> Vector3:
-	## Mostly ballistic: gravity + light drag. Mild speed lift softens falls; XZ is not driven.
+	## Gravity + soft lift. Holding W (or boost) keeps XZ — no air drag while thrusting.
 	var force := air_gravity_force(ctx, mass)
 	var horizontal := horizontal_velocity(ctx.velocity)
 	var forward_speed := horizontal.length()
-	if forward_speed > 0.1:
-		## Soft cushion only — not the old powered glide lift.
-		var lift := minf(forward_speed * 0.45, AIR_GRAVITY * 0.5)
-		force += Vector3.UP * lift * mass
+	if forward_speed <= 0.1:
+		return force
 
-		var drag := PASSIVE_AIR_DRAG * 0.12
-		var brake := clampf(ctx.brake_strength, 0.0, 1.0)
-		if brake > 0.0:
-			drag = PASSIVE_AIR_DRAG * lerpf(1.0, BRAKE_GLIDE_DRAG_SCALE, brake)
-		force -= horizontal.normalized() * forward_speed * drag * mass * ctx.glide_drag_scale
+	## Soft cushion only — not powered glide lift.
+	var lift := minf(forward_speed * 0.45, AIR_GRAVITY * 0.5)
+	force += Vector3.UP * lift * mass
+
+	var brake := clampf(ctx.brake_strength, 0.0, 1.0)
+	var holding_thrust := ctx.forward_held or ctx.boost_active
+	if holding_thrust and brake <= 0.05:
+		return force
+
+	var drag := PASSIVE_AIR_DRAG * 0.12
+	if brake > 0.0:
+		drag = PASSIVE_AIR_DRAG * lerpf(1.0, BRAKE_GLIDE_DRAG_SCALE, brake)
+	elif holding_thrust:
+		return force
+	force -= horizontal.normalized() * forward_speed * drag * mass * ctx.glide_drag_scale
 	return force
 
 

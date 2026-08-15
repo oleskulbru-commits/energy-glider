@@ -109,6 +109,7 @@ func _run_tests() -> void:
 	await _verify_climb_no_clip()
 	await _verify_sail_recharge_in_air()
 	await _verify_glide_gravity()
+	await _verify_air_hold_w_keeps_horizontal_speed()
 	await _verify_brake_stop()
 	await _verify_no_false_launch_cruise()
 	await _verify_hover_no_clip_crest()
@@ -144,9 +145,16 @@ func _verify_boost_climb_target_speed() -> void:
 	)
 	ctx.boost_active = true
 	var boosted := GliderPhysicsScript.target_horizontal_speed(ctx)
+	var boost_flat := GliderPhysicsScript.flat_max_speed(true)
 	_fail_unless(
-		boosted > cruise + 3.0,
-		"Boost on a steep climb should raise target above crawl (cruise %.2f boost %.2f)" % [cruise, boosted]
+		is_equal_approx(boosted, boost_flat),
+		"Boost on a steep climb should still target flat boost max (got %.2f, want %.2f)" % [
+			boosted, boost_flat
+		]
+	)
+	_fail_unless(
+		boosted > cruise + 10.0,
+		"Boost climb escape should far exceed crawl (cruise %.2f boost %.2f)" % [cruise, boosted]
 	)
 
 
@@ -466,6 +474,34 @@ func _verify_glide_gravity() -> void:
 	for i in 60:
 		await physics_frame
 	_fail_unless(glider.global_position.y < start_y - 0.2, "Passive glide should lose altitude")
+	glider.queue_free()
+	terrain.queue_free()
+
+
+func _verify_air_hold_w_keeps_horizontal_speed() -> void:
+	var terrain := _spawn_terrain("air_hold_w")
+	await physics_frame
+
+	var glider := _spawn_glider(terrain)
+	_get_input(glider)
+	var ground_y := terrain.sample_height(0.0, 0.0)
+	glider.global_position = Vector3(0.0, ground_y + 12.0, 0.0)
+	glider.velocity = Vector3(0.0, 0.0, 24.0)
+	glider.set("_state", GliderPlayerScript.State.GLIDING)
+	await physics_frame
+
+	_hold_forward()
+	await physics_frame
+	var start_speed := Vector2(glider.velocity.x, glider.velocity.z).length()
+	for i in 45:
+		await physics_frame
+		_fail_unless(glider.is_gliding(), "Air hold-W test should stay airborne")
+	var end_speed := Vector2(glider.velocity.x, glider.velocity.z).length()
+	_release_forward()
+	_fail_unless(
+		end_speed >= start_speed - 0.2,
+		"Holding W in air should keep horizontal speed (%.2f -> %.2f)" % [start_speed, end_speed]
+	)
 	glider.queue_free()
 	terrain.queue_free()
 

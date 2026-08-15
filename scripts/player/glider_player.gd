@@ -171,6 +171,7 @@ var _hull_integrity := 1.0
 var _grounded_lock_timer := 0.0
 var _airborne_time := 0.0
 var _jump_cooldown := 0.0
+var _air_hold_horizontal_speed := 0.0
 var _saved_collision_layer := 2
 var _physics_ctx: GliderPhysicsScript.Context = null
 var _last_physics_delta := 1.0 / 60.0
@@ -260,15 +261,23 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 
 	var ctx := _physics_ctx
 	ctx.velocity = state.linear_velocity
+	## Live input — ctx may be one physics frame stale vs IntegrateForces order.
+	ctx.forward_held = _input.is_forward_held()
+	ctx.boost_active = _is_boost_active()
+	ctx.braking = is_braking()
+	ctx.brake_strength = _brake_strength()
 	var delta := maxf(_last_physics_delta, 0.0001)
 	var mass := maxf(self.mass, 0.001)
 	var force := Vector3.ZERO
+	var air_hold_speed := MathUtil.horizontal_speed(state.linear_velocity)
 
 	if _state == State.GROUNDED:
+		_air_hold_horizontal_speed = 0.0
 		force += GliderPhysicsScript.compute_ground_force(ctx, mass, delta)
 		_apply_hover_forces(state, ctx, mass, delta)
 		force += GliderPhysicsScript.compute_ground_scrape_force(ctx, mass)
 	elif _state == State.LANDING:
+		_air_hold_horizontal_speed = 0.0
 		ctx.landing_blend = _landing_blend
 		var min_ramp := (
 			LANDING_MIN_HOVER_RAMP_HARD
@@ -303,9 +312,34 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 		constraint_mode,
 		state
 	)
+	if _state == State.GLIDING:
+		_preserve_air_horizontal_speed(state, air_hold_speed)
 	_enforce_floor_contact(state)
 	_apply_pending_knockback(state)
 	state.angular_velocity = Vector3(0.0, _yaw_velocity, 0.0)
+
+
+func _preserve_air_horizontal_speed(state: PhysicsDirectBodyState3D, speed_before: float) -> void:
+	## Holding W/boost in air: keep XZ speed (gravity still pulls). Brake cancels hold.
+	if is_braking():
+		_air_hold_horizontal_speed = 0.0
+		return
+	if not _input.is_forward_held() and not _is_boost_active():
+		_air_hold_horizontal_speed = 0.0
+		return
+	var keep := maxf(speed_before, _air_hold_horizontal_speed)
+	if keep < 0.1:
+		return
+	_air_hold_horizontal_speed = keep
+	var h := MathUtil.horizontal(state.linear_velocity)
+	var dir := h
+	if dir.length_squared() < 0.0001:
+		dir = MathUtil.horizontal(_board_forward_on_ground())
+	if dir.length_squared() < 0.0001:
+		return
+	dir = dir.normalized()
+	state.linear_velocity.x = dir.x * keep
+	state.linear_velocity.z = dir.z * keep
 
 
 func _corner_hover_samples() -> Array:
@@ -1628,6 +1662,7 @@ func reset_for_respawn() -> void:
 	_grounded_lock_timer = 0.0
 	_airborne_time = 0.0
 	_jump_cooldown = 0.0
+	_air_hold_horizontal_speed = 0.0
 	_hull_integrity = 1.0
 	_contact_damage_applied = false
 	_ground_contact_active = false
