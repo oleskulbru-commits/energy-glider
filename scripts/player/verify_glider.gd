@@ -7,6 +7,7 @@ const GliderInputScript = preload("res://scripts/input/glider_input.gd")
 const TerrainManagerScript = preload("res://scripts/terrain/terrain_manager.gd")
 const GliderScene = preload("res://scenes/player/glider.tscn")
 const GliderCameraScript = preload("res://scripts/player/glider_camera.gd")
+const DayNightCycleScript = preload("res://scripts/world/day_night_cycle.gd")
 const SandMaterial = preload("res://materials/sand.tres")
 
 const PHYSICS_DT := 1.0 / 60.0
@@ -109,7 +110,7 @@ func _run_tests() -> void:
 	await _verify_corner_hover_forces()
 	await _verify_ground_cruise()
 	await _verify_climb_no_clip()
-	await _verify_sail_recharge_in_air()
+	await _verify_solar_battery_charge()
 	await _verify_glide_gravity()
 	await _verify_air_hold_w_keeps_horizontal_speed()
 	await _verify_air_boost_increases_horizontal_speed()
@@ -503,38 +504,147 @@ func _verify_climb_no_clip() -> void:
 	terrain.queue_free()
 
 
-func _verify_sail_recharge_in_air() -> void:
-	var terrain := _spawn_terrain("air_recharge")
-	await physics_frame
+func _spawn_day_night(is_night: bool) -> DayNightCycle:
+	var cycle: DayNightCycle = DayNightCycleScript.new()
+	cycle.name = "VerifyDayNight"
+	root.add_child(cycle)
+	cycle.set_process(false)
+	cycle.time_normalized = 0.75 if is_night else 0.1
+	return cycle
 
+
+func _verify_solar_battery_charge() -> void:
+	_release_all_input()
+	await _verify_day_fills_boost_before_battery()
+	await _verify_night_does_not_solar_charge()
+	await _verify_day_fills_battery_when_boost_full()
+	await _verify_night_battery_trickles_into_boost()
+
+
+func _verify_day_fills_boost_before_battery() -> void:
+	var terrain := _spawn_terrain("day_boost_charge")
+	await physics_frame
+	var cycle := _spawn_day_night(false)
 	var glider := _spawn_glider(terrain)
-	var input := _get_input(glider)
-	var ground_y := terrain.sample_height(0.0, 0.0)
-	glider.global_position = Vector3(0.0, ground_y + 4.0, 0.0)
-	glider.velocity = Vector3(0.0, 0.0, 8.0)
-	glider.set("_state", GliderPlayerScript.State.GLIDING)
+	_get_input(glider)
 	glider.set("_charge", 0.3)
+	glider.set("_battery", 5.0)
 	await physics_frame
 
-	_fail_unless(glider.is_gliding(), "Air recharge test needs gliding state")
-	_fail_unless(
-		glider.get_clearance() > GliderPhysicsScript.HOVER_ZONE,
-		"Air recharge test needs clearance above hover zone"
-	)
-
-	_hold_forward()
 	var start_charge := glider.get_charge_ratio()
+	var start_battery := glider.get_battery_ratio()
 	for i in 90:
 		await physics_frame
 	var end_charge := glider.get_charge_ratio()
+	var end_battery := glider.get_battery_ratio()
 	_fail_unless(
 		end_charge > start_charge + 0.05,
-		"Sail should recharge in air (%.2f -> %.2f)" % [start_charge, end_charge]
+		"Day should recharge boost without sail (%.2f -> %.2f)" % [start_charge, end_charge]
+	)
+	_fail_unless(
+		is_equal_approx(end_battery, start_battery),
+		"Day must not charge battery until boost is full (%.2f -> %.2f)" % [start_battery, end_battery]
 	)
 
-	_release_forward()
 	glider.queue_free()
+	cycle.queue_free()
 	terrain.queue_free()
+	await physics_frame
+
+
+func _verify_night_does_not_solar_charge() -> void:
+	var terrain := _spawn_terrain("night_no_solar")
+	await physics_frame
+	var cycle := _spawn_day_night(true)
+	var glider := _spawn_glider(terrain)
+	_get_input(glider)
+	glider.set("_charge", 0.3)
+	glider.set("_battery", 0.0)
+	await physics_frame
+
+	var start_charge := glider.get_charge_ratio()
+	var start_battery := glider.get_battery_ratio()
+	for i in 90:
+		await physics_frame
+	_fail_unless(
+		is_equal_approx(glider.get_charge_ratio(), start_charge),
+		"Night must not solar-charge boost (%.2f -> %.2f)" % [start_charge, glider.get_charge_ratio()]
+	)
+	_fail_unless(
+		is_equal_approx(glider.get_battery_ratio(), start_battery),
+		"Night must not solar-charge battery (%.2f -> %.2f)" % [start_battery, glider.get_battery_ratio()]
+	)
+
+	glider.queue_free()
+	cycle.queue_free()
+	terrain.queue_free()
+	await physics_frame
+
+
+func _verify_day_fills_battery_when_boost_full() -> void:
+	var terrain := _spawn_terrain("day_battery_charge")
+	await physics_frame
+	var cycle := _spawn_day_night(false)
+	var glider := _spawn_glider(terrain)
+	_get_input(glider)
+	_fail_unless(
+		is_equal_approx(glider.get_battery_ratio(), 0.0),
+		"Battery should spawn empty (got %.3f)" % glider.get_battery_ratio()
+	)
+	_fail_unless(
+		is_equal_approx(glider.get_charge_ratio(), 1.0),
+		"Boost should spawn full so daytime surplus can fill the battery"
+	)
+	await physics_frame
+
+	var start_battery := glider.get_battery_ratio()
+	for i in 90:
+		await physics_frame
+	var end_battery := glider.get_battery_ratio()
+	_fail_unless(
+		is_equal_approx(glider.get_charge_ratio(), 1.0),
+		"Boost should stay full while battery solar-charges"
+	)
+	_fail_unless(
+		end_battery > start_battery + 0.004,
+		"Day should charge battery when boost is full (%.3f -> %.3f)" % [start_battery, end_battery]
+	)
+
+	glider.queue_free()
+	cycle.queue_free()
+	terrain.queue_free()
+	await physics_frame
+
+
+func _verify_night_battery_trickles_into_boost() -> void:
+	var terrain := _spawn_terrain("night_battery_trickle")
+	await physics_frame
+	var cycle := _spawn_day_night(true)
+	var glider := _spawn_glider(terrain)
+	_get_input(glider)
+	glider.set("_charge", 0.3)
+	glider.set("_battery", 5.0)
+	await physics_frame
+
+	var start_charge := glider.get_charge_ratio()
+	var start_battery := glider.get_battery_ratio()
+	for i in 90:
+		await physics_frame
+	var end_charge := glider.get_charge_ratio()
+	var end_battery := glider.get_battery_ratio()
+	_fail_unless(
+		end_charge > start_charge + 0.05,
+		"Night should trickle battery into boost (%.2f -> %.2f)" % [start_charge, end_charge]
+	)
+	_fail_unless(
+		end_battery < start_battery - 0.004,
+		"Night trickle should drain battery (%.3f -> %.3f)" % [start_battery, end_battery]
+	)
+
+	glider.queue_free()
+	cycle.queue_free()
+	terrain.queue_free()
+	await physics_frame
 
 
 func _verify_glide_gravity() -> void:
