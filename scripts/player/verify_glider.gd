@@ -121,9 +121,9 @@ func _run_tests() -> void:
 	await _verify_cruise_drift_align()
 	await _verify_touchdown_slope_momentum()
 	await _verify_touchdown_soft()
-	await _verify_hover_yield_kernel()
-	await _verify_hard_landing_contact()
-	await _verify_hard_landing_no_tunnel()
+	_verify_land_speed_keep_kernel()
+	await _verify_soft_land_keeps_speed()
+	await _verify_steep_land_speed_tax()
 	await _verify_boost_no_clip_crest()
 	await _verify_boost_climb_no_clip()
 	await _verify_boost_steep_climb_no_clip()
@@ -468,7 +468,7 @@ func _verify_climb_no_clip() -> void:
 		await physics_frame
 		if glider.is_gliding():
 			break
-		if glider.is_grounded() or glider.get("_state") == GliderPlayerScript.State.LANDING:
+		if glider.is_grounded():
 			min_clearance = minf(min_clearance, glider.get_raw_clearance())
 
 	_fail_unless(
@@ -896,111 +896,122 @@ func _verify_touchdown_soft() -> void:
 	terrain.queue_free()
 
 
-func _verify_hover_yield_kernel() -> void:
-	var cruise := _hover_ctx(GliderPhysicsScript.BASE_HEIGHT - 0.05)
-	var compressed := _hover_ctx(GliderPhysicsScript.HOVER_COMPRESS_START * 0.5)
-	compressed.landing_approach = 9.0
-	compressed.landing_impact = 1.0
-	compressed.ground_contact = true
-	compressed.contact_recover = 0.0
-
-	var cruise_force := GliderPhysicsScript.compute_hover_force(cruise, 90.0, PHYSICS_DT)
-	var compressed_force := GliderPhysicsScript.compute_hover_force(compressed, 90.0, PHYSICS_DT)
+func _verify_land_speed_keep_kernel() -> void:
 	_fail_unless(
-		compressed_force.y < cruise_force.y * 0.35,
-		"Hover should yield on hard ground contact (%.1f vs %.1f)" % [
-			compressed_force.y, cruise_force.y
-		]
+		is_equal_approx(GliderPhysicsScript.land_speed_keep(0.0), 1.0),
+		"Zero approach should keep full speed"
 	)
 	_fail_unless(
-		GliderPhysicsScript.compute_contact_damage(5.0) <= 0.0,
-		"Soft contact should not damage"
+		is_equal_approx(
+			GliderPhysicsScript.land_speed_keep(GliderPhysicsScript.LAND_FREE_APPROACH),
+			1.0
+		),
+		"Free-band ceiling should keep full speed"
 	)
 	_fail_unless(
-		GliderPhysicsScript.compute_contact_damage(10.0) > 0.0,
-		"Hard contact should damage"
+		GliderPhysicsScript.land_speed_keep(GliderPhysicsScript.LAND_STEEP_APPROACH)
+		<= GliderPhysicsScript.LAND_STEEP_KEEP + 0.001,
+		"Steep approach should reach steep keep"
+	)
+	var mid := lerpf(
+		GliderPhysicsScript.LAND_FREE_APPROACH,
+		GliderPhysicsScript.LAND_STEEP_APPROACH,
+		0.5
+	)
+	var mid_keep := GliderPhysicsScript.land_speed_keep(mid)
+	_fail_unless(
+		mid_keep < 1.0 and mid_keep > GliderPhysicsScript.LAND_STEEP_KEEP,
+		"Mid steep band should partially tax (got %.2f)" % mid_keep
+	)
+
+	var soft_ctx := GliderPhysicsScript.Context.new()
+	soft_ctx.ground_normal = Vector3.UP
+	soft_ctx.board_forward = Vector3(0.0, 0.0, 1.0)
+	soft_ctx.velocity = Vector3(0.0, -4.0, 20.0)
+	var soft := GliderPhysicsScript.apply_touchdown(soft_ctx)
+	_fail_unless(
+		absf(Vector2(soft.velocity.x, soft.velocity.z).length() - 20.0) < 0.05,
+		"Soft touchdown should keep horizontal speed"
+	)
+	_fail_unless(absf(soft.velocity.y) < 0.01, "Touchdown should kill vertical")
+
+	var steep_ctx := GliderPhysicsScript.Context.new()
+	steep_ctx.ground_normal = Vector3.UP
+	steep_ctx.board_forward = Vector3(0.0, 0.0, 1.0)
+	steep_ctx.velocity = Vector3(0.0, -14.0, 20.0)
+	var steep := GliderPhysicsScript.apply_touchdown(steep_ctx)
+	var steep_h := Vector2(steep.velocity.x, steep.velocity.z).length()
+	_fail_unless(
+		steep_h < 20.0 * 0.85,
+		"Steep touchdown should tax horizontal speed (got %.2f)" % steep_h
 	)
 
 
-func _verify_hard_landing_contact() -> void:
-	var terrain := _spawn_terrain("hard_land")
+func _verify_soft_land_keeps_speed() -> void:
+	var terrain := _spawn_terrain("soft_land_keep")
 	await physics_frame
 
 	var glider := _spawn_glider(terrain)
 	_get_input(glider)
 	var ground_y := terrain.sample_height(0.0, 0.0)
-	glider.global_position = Vector3(0.0, ground_y + 4.5, 0.0)
-	glider.velocity = Vector3(0.0, -11.0, 6.0)
+	glider.global_position = Vector3(0.0, ground_y + 2.2, 0.0)
+	glider.velocity = Vector3(0.0, -3.0, 18.0)
 	glider.set("_state", GliderPlayerScript.State.GLIDING)
 	await physics_frame
 
+	var pre_speed := 18.0
+	var landed_speed := -1.0
 	var min_clearance := INF
-	var touched_ground := false
-	var landed := false
 	for i in 240:
 		await physics_frame
-		var clearance := glider.get_raw_clearance()
-		min_clearance = minf(min_clearance, clearance)
-		if glider.is_ground_contact():
-			touched_ground = true
-		if glider.get("_state") == GliderPlayerScript.State.GROUNDED:
-			landed = true
+		min_clearance = minf(min_clearance, glider.get_raw_clearance())
+		if glider.is_grounded():
+			landed_speed = Vector2(glider.velocity.x, glider.velocity.z).length()
 			break
 
-	_fail_unless(landed, "Hard landing test should reach grounded state")
+	_fail_unless(landed_speed >= 0.0, "Soft land should reach grounded")
 	_fail_unless(
-		min_clearance < 0.25,
-		"Hard landing should compress below hover rest (min %.2f)" % min_clearance
+		landed_speed >= pre_speed - 1.0,
+		"Non-steep land should keep speed (%.2f -> %.2f)" % [pre_speed, landed_speed]
 	)
 	_fail_unless(
 		min_clearance >= -0.02,
-		"Hard landing must not tunnel underground (min %.2f)" % min_clearance
-	)
-	_fail_unless(touched_ground, "Hard landing should register ground contact")
-	if GliderPlayerScript.FALL_DAMAGE_ENABLED:
-		_fail_unless(
-			glider.get_hull_integrity() < 1.0,
-			"Hard landing should damage hull"
-		)
-
-	for i in HOVER_SETTLE_FRAMES:
-		await physics_frame
-	_fail_unless(
-		absf(glider.get_clearance() - GliderPhysicsScript.BASE_HEIGHT) < 0.2,
-		"After hard landing should recover to hover rest (clearance %.2f)" % glider.get_clearance()
+		"Soft land must not tunnel (min %.2f)" % min_clearance
 	)
 	glider.queue_free()
 	terrain.queue_free()
 
 
-func _verify_hard_landing_no_tunnel() -> void:
-	## Long jump / steep fall: hover is yielded during dig; floor must catch tunnels.
-	var terrain := _spawn_terrain("hard_tunnel")
+func _verify_steep_land_speed_tax() -> void:
+	var terrain := _spawn_terrain("steep_land_tax")
 	await physics_frame
 
 	var glider := _spawn_glider(terrain)
 	_get_input(glider)
 	var ground_y := terrain.sample_height(0.0, 0.0)
 	glider.global_position = Vector3(0.0, ground_y + 8.0, 0.0)
-	glider.velocity = Vector3(4.0, -16.0, 8.0)
+	glider.velocity = Vector3(0.0, -16.0, 20.0)
 	glider.set("_state", GliderPlayerScript.State.GLIDING)
 	await physics_frame
 
+	var pre_speed := 20.0
+	var landed_speed := -1.0
 	var min_clearance := INF
-	var landed := false
 	for i in 300:
 		await physics_frame
 		min_clearance = minf(min_clearance, glider.get_raw_clearance())
-		if glider.get("_state") == GliderPlayerScript.State.GROUNDED:
-			landed = true
-			## Keep watching through dig / recover for underground glitches.
-			if i > 60:
-				break
+		if glider.is_grounded():
+			landed_speed = Vector2(glider.velocity.x, glider.velocity.z).length()
+			break
 
-	_fail_unless(landed, "Steep hard landing should reach grounded")
+	_fail_unless(landed_speed >= 0.0, "Steep land should reach grounded")
+	_fail_unless(
+		landed_speed < pre_speed * 0.9,
+		"Steep land should tax speed (%.2f -> %.2f)" % [pre_speed, landed_speed]
+	)
 	_fail_unless(
 		min_clearance >= -0.02,
-		"Steep hard landing must not glitch below ground (min %.2f)" % min_clearance
+		"Steep land must not tunnel (min %.2f)" % min_clearance
 	)
 	glider.queue_free()
 	terrain.queue_free()
@@ -1052,7 +1063,7 @@ func _verify_boost_climb_no_clip() -> void:
 	var min_board := INF
 	for i in 240:
 		await physics_frame
-		if glider.is_grounded() or glider.get("_state") == GliderPlayerScript.State.LANDING:
+		if glider.is_grounded():
 			min_center = minf(min_center, glider.get_raw_clearance())
 			min_board = minf(min_board, _min_board_clearance(glider))
 
@@ -1091,7 +1102,7 @@ func _verify_boost_steep_climb_no_clip() -> void:
 	var min_board := INF
 	for i in 240:
 		await physics_frame
-		if glider.is_grounded() or glider.get("_state") == GliderPlayerScript.State.LANDING:
+		if glider.is_grounded():
 			min_center = minf(min_center, glider.get_raw_clearance())
 			min_board = minf(min_board, _min_board_clearance(glider))
 

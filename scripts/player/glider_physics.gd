@@ -115,19 +115,10 @@ const JUMP_UP_BASE := 0.95
 const JUMP_UP_SPEED_SCALE := 0.12
 const JUMP_UP_MAX := 3.0
 
-# Landing
-const HARD_LAND_SPEED := 8.5
-const LAND_DAMP_APPROACH := 2.8
-const LAND_NORMAL_ABSORB := 0.58
-const LAND_NORMAL_ABSORB_SOFT := 0.72
-const LAND_IMPACT_ABSORB := 0.78
-const LAND_TANGENT_KEEP := 0.94
-const LAND_TOUCHDOWN_FLATTEN_GRADE := 0.35
-const LAND_TOUCHDOWN_FLATTEN_SPEED := 18.0
-const LAND_HORIZONTAL_SPEED_CAP := 1.05
-const LAND_MAX_INWARD_NORMAL_SOFT := 0.08
-const LAND_MAX_INWARD_NORMAL_HARD := 0.35
-const LAND_IMPACT_REPULSION_CAP := 3400.0
+# Landing — steep-fall horizontal tax only (gentle lands keep full speed).
+const LAND_FREE_APPROACH := 8.5
+const LAND_STEEP_APPROACH := 14.0
+const LAND_STEEP_KEEP := 0.6
 
 const MODE_GROUNDED := 0
 const MODE_GLIDING := 1
@@ -168,12 +159,6 @@ class Context:
 	var coast_blend: float = 0.0
 	var hover_at_rest: bool = false
 	var steering: bool = false
-	var landing_impact: float = 0.0
-	var landing_blend: float = 0.0
-	var landing_approach: float = 0.0
-	var hover_yield: float = 1.0
-	var ground_contact: bool = false
-	var contact_recover: float = 1.0
 	var air_gravity_scale: float = 1.0
 	var ground_drag_scale: float = 1.0
 	var glide_drag_scale: float = 1.0
@@ -335,37 +320,16 @@ static func hover_compression_scale(clearance: float) -> float:
 	return smoothstep(HOVER_COMPRESS_START, BASE_HEIGHT, clearance)
 
 
-static func hover_impact_yield_scale(
-	approach: float,
-	landing_impact: float,
-	contact_recover: float
-) -> float:
-	var impact_yield := 1.0
-	if approach > HOVER_YIELD_SPEED:
-		impact_yield = 1.0 - smoothstep(HOVER_YIELD_SPEED, HOVER_BREAK_SPEED, approach)
-		if landing_impact > 0.0:
-			impact_yield = minf(impact_yield, 1.0 - landing_impact * 0.85)
-	return lerpf(impact_yield, 1.0, contact_recover)
-
-
 static func hover_strength_scale(ctx: Context) -> float:
-	var clearance := _hover_clearance_for_force(ctx)
-	var compress := hover_compression_scale(clearance)
-	var impact := hover_impact_yield_scale(
-		ctx.landing_approach,
-		ctx.landing_impact,
-		ctx.contact_recover
-	)
-	if ctx.ground_contact:
-		impact = minf(impact, 0.12 + ctx.contact_recover * 0.88)
-	return compress * impact * ctx.hover_yield
+	return hover_compression_scale(_hover_clearance_for_force(ctx))
 
 
-static func compute_contact_damage(approach: float) -> float:
-	if approach <= CONTACT_DAMAGE_SPEED_SOFT:
-		return 0.0
-	var excess := approach - CONTACT_DAMAGE_SPEED_SOFT
-	return clampf(excess * CONTACT_DAMAGE_PER_MPS, 0.0, CONTACT_MAX_DAMAGE)
+static func land_speed_keep(approach: float) -> float:
+	## No tax until LAND_FREE_APPROACH; then ease down to LAND_STEEP_KEEP.
+	if approach <= LAND_FREE_APPROACH:
+		return 1.0
+	var t := smoothstep(LAND_FREE_APPROACH, LAND_STEEP_APPROACH, approach)
+	return lerpf(1.0, LAND_STEEP_KEEP, t)
 
 
 static func compute_ground_scrape_force(ctx: Context, mass: float) -> Vector3:
@@ -379,12 +343,6 @@ static func compute_ground_scrape_force(ctx: Context, mass: float) -> Vector3:
 	var dig := lerpf(CONTACT_SCRAPE_DIG_SCALE, 1.0, depth)
 	## Soft scrape only when truly digging — avoid killing XZ momentum near hover height.
 	return -tangent.normalized() * tangent.length() * CONTACT_SCRAPE_DRAG * 0.15 * dig * mass
-
-
-static func touchdown_normal(ground_normal: Vector3, slope_grade: float, horizontal_speed: float) -> Vector3:
-	var flatten := clampf(slope_grade / LAND_TOUCHDOWN_FLATTEN_GRADE, 0.0, 0.65)
-	flatten += clampf(horizontal_speed / LAND_TOUCHDOWN_FLATTEN_SPEED, 0.0, 0.25) * 0.4
-	return ground_normal.lerp(Vector3.UP, flatten).normalized()
 
 
 static func compute_hover_force(ctx: Context, mass: float, _delta: float) -> Vector3:
@@ -428,9 +386,6 @@ static func compute_hover_force(ctx: Context, mass: float, _delta: float) -> Vec
 					HOVER_CLEARANCE_RATE_SOFTEN / ctx.clearance_change_rate
 				)
 				repulsion *= soften
-			if ctx.landing_impact > 0.0:
-				var cap := LAND_IMPACT_REPULSION_CAP * ctx.landing_impact
-				repulsion = minf(repulsion, cap)
 		force += ctx.ground_normal * (repulsion - damp * normal_vel) * mass * strength
 
 	return force
@@ -460,10 +415,6 @@ static func _hover_point_repulsion_scale(ctx: Context, penetration: float) -> fl
 			1.0,
 			HOVER_CLEARANCE_RATE_SOFTEN / ctx.clearance_change_rate
 		)
-	if ctx.landing_impact > 0.0:
-		var cap := LAND_IMPACT_REPULSION_CAP * ctx.landing_impact
-		var max_accel := cap / maxf(penetration, 0.001)
-		scale = minf(scale, max_accel / maxf(HOVER_POINT_SPRING_K, 0.001))
 	return scale
 
 
@@ -650,65 +601,31 @@ static func apply_velocity_constraints(ctx: Context, velocity: Vector3, mode: in
 	return v
 
 
-static func apply_touchdown(ctx: Context, braking: bool) -> Dictionary:
+static func apply_touchdown(ctx: Context, _braking: bool = false) -> Dictionary:
+	## Immediate handoff: kill inward normal, tax horizontal speed only on steep falls.
+	var normal := ctx.ground_normal
+	if normal.length_squared() < 0.0001:
+		normal = Vector3.UP
+	else:
+		normal = normal.normalized()
+
 	var horizontal := horizontal_velocity(ctx.velocity)
 	var horizontal_speed := horizontal.length()
-	var td_normal := touchdown_normal(ctx.ground_normal, ctx.slope_grade, horizontal_speed)
-	var pre_horizontal_dir := horizontal.normalized() if horizontal_speed > 0.5 else Vector3.ZERO
+	var approach := maxf(0.0, -ctx.velocity.dot(normal))
+	var keep := land_speed_keep(approach)
+	var speed_out := horizontal_speed * keep
 
-	var pre_tangent := ctx.velocity.slide(td_normal)
-	var pre_speed := pre_tangent.length()
-	var normal_vel := ctx.velocity.dot(td_normal)
-	var approach := absf(minf(normal_vel, 0.0))
-	var hard := approach >= HARD_LAND_SPEED and not braking
+	var dir := horizontal
+	if dir.length_squared() < 0.0001:
+		dir = MathUtil.horizontal(ctx.board_forward)
+	if dir.length_squared() < 0.0001:
+		dir = Vector3(0.0, 0.0, 1.0)
+	dir = dir.normalized()
 
-	var velocity := pre_tangent
-	var slide_dir := pre_horizontal_dir
-	if slide_dir.length_squared() < 0.0001:
-		slide_dir = pre_tangent.normalized() if pre_speed > 0.5 else ctx.board_forward.slide(td_normal).normalized()
-
-	if normal_vel < -0.1 and slide_dir.length_squared() > 0.0001:
-		var approach_blend := clampf(approach / HARD_LAND_SPEED, 0.0, 1.0)
-		var absorb := lerpf(LAND_NORMAL_ABSORB_SOFT, LAND_IMPACT_ABSORB, approach_blend)
-		if approach < HARD_LAND_SPEED * 0.5:
-			absorb = lerpf(absorb, LAND_NORMAL_ABSORB_SOFT, 1.0 - approach / (HARD_LAND_SPEED * 0.5))
-		else:
-			absorb = maxf(absorb, LAND_NORMAL_ABSORB)
-		if horizontal_speed > 4.0:
-			absorb *= clampf(4.0 / horizontal_speed, 0.35, 1.0)
-		velocity += slide_dir * absf(normal_vel) * absorb
-
-	if pre_speed > 0.5:
-		var out_speed := velocity.slide(td_normal).length()
-		if out_speed < pre_speed * LAND_TANGENT_KEEP:
-			velocity = (
-				slide_dir * pre_speed * LAND_TANGENT_KEEP
-				+ td_normal * maxf(velocity.dot(td_normal), 0.0)
-			)
-
-	if horizontal_speed > 0.5:
-		var out_horizontal := horizontal_velocity(velocity)
-		var max_horizontal := horizontal_speed * LAND_HORIZONTAL_SPEED_CAP
-		if out_horizontal.length() > max_horizontal:
-			out_horizontal = out_horizontal.normalized() * max_horizontal
-			velocity = out_horizontal + td_normal * velocity.dot(td_normal)
-
-	var tangent_vel := velocity.slide(td_normal)
-	var out_normal := velocity.dot(td_normal)
-	var allowed_inward := -lerpf(
-		LAND_MAX_INWARD_NORMAL_SOFT,
-		LAND_MAX_INWARD_NORMAL_HARD,
-		clampf(approach / HARD_LAND_SPEED, 0.0, 1.0)
-	)
-	velocity = tangent_vel + td_normal * maxf(out_normal, allowed_inward)
-
-	velocity = clamp_tangent_speed(velocity.slide(td_normal), carry_speed_cap(false))
-	if not hard:
-		var settled_normal := velocity.dot(td_normal)
-		if settled_normal > 0.0:
-			velocity -= td_normal * settled_normal
+	var velocity := dir * speed_out
+	velocity = clamp_tangent_speed(velocity, hard_speed_cap())
 	return {
 		"velocity": velocity,
-		"hard": hard,
 		"approach": approach,
+		"keep": keep,
 	}

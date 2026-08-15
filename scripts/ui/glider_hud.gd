@@ -618,7 +618,7 @@ func _update_landing_feedback() -> void:
 		_sail_chip.visible = false
 		return
 
-	# SailChip nodes host landing HARD/SKIM feedback in the current HUD scene.
+	# SailChip nodes host landing feedback (e.g. HEAVY on steep falls) in the HUD scene.
 	_sail_chip.visible = true
 	_sail_label.text = feedback.get("label", "")
 	_sail_label.remove_theme_color_override("font_color")
