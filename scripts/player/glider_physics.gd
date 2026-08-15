@@ -250,7 +250,7 @@ static func horizontal_speed_accel_rate(ctx: Context, speed: float, target: floa
 	return 0.0
 
 
-static func compute_ground_force(ctx: Context, mass: float, _delta: float) -> Vector3:
+static func compute_ground_force(ctx: Context, mass: float, delta: float) -> Vector3:
 	var h := horizontal_velocity(ctx.velocity)
 	var speed := h.length()
 	var target := target_horizontal_speed(ctx)
@@ -276,12 +276,15 @@ static func compute_ground_force(ctx: Context, mass: float, _delta: float) -> Ve
 
 	var desired_h := desired_dir * target
 	var delta_v := desired_h - h
-	if delta_v.length_squared() < 0.000001:
+	var err := delta_v.length()
+	if err < 0.000001:
 		return Vector3.ZERO
-	if delta_v.length() > rate:
-		delta_v = delta_v.normalized() * rate
 
-	var force := delta_v * mass
+	## rate is m/s²; clamp this frame's Δv so we don't overshoot the target.
+	var dt := maxf(delta, 0.0001)
+	var step := minf(err, rate * dt)
+	var accel := step / dt
+	var force := delta_v.normalized() * accel * mass
 	var tangent := force.slide(ctx.ground_normal)
 	if tangent.length_squared() > 0.0001:
 		return tangent

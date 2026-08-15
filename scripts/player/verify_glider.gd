@@ -100,6 +100,7 @@ func _yaw_travel_misalign_deg(glider: GliderPlayer) -> float:
 func _run_tests() -> void:
 	_verify_chase_camera_math()
 	_verify_boost_climb_target_speed()
+	_verify_ground_boost_accel_rate()
 	await _verify_hover_rest()
 	await _verify_hover_settle_from_high()
 	await _verify_terrain_probes_math()
@@ -158,6 +159,28 @@ func _verify_boost_climb_target_speed() -> void:
 	_fail_unless(
 		boosted > cruise + 10.0,
 		"Boost climb escape should far exceed crawl (cruise %.2f boost %.2f)" % [cruise, boosted]
+	)
+
+
+func _verify_ground_boost_accel_rate() -> void:
+	## Far from boost max, ground force must apply full BOOST_ACCEL (m/s²), not speed-error.
+	var ctx := GliderPhysicsScript.Context.new()
+	ctx.ground_normal = Vector3.UP
+	ctx.forward_held = true
+	ctx.boost_active = true
+	ctx.board_forward = Vector3(0.0, 0.0, 1.0)
+	ctx.thrust_forward = Vector3(0.0, 0.0, 1.0)
+	ctx.downhill = Vector3.ZERO
+	ctx.slope_grade = 0.0
+	var cruise := GliderPhysicsScript.flat_max_speed(false)
+	ctx.velocity = Vector3(0.0, 0.0, cruise)
+	var force := GliderPhysicsScript.compute_ground_force(ctx, 90.0, PHYSICS_DT)
+	var accel := force.length() / 90.0
+	_fail_unless(
+		absf(accel - GliderPhysicsScript.BOOST_ACCEL) < 0.05,
+		"Ground boost from cruise should apply BOOST_ACCEL (got %.2f, want %.2f)" % [
+			accel, GliderPhysicsScript.BOOST_ACCEL
+		]
 	)
 
 
