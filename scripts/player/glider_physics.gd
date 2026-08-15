@@ -395,7 +395,9 @@ static func compute_hover_force(ctx: Context, mass: float, _delta: float) -> Vec
 	var strength := hover_strength_scale(ctx)
 
 	if hover_clearance > BASE_HEIGHT + HOVER_SPRING_DEADBAND:
-		force -= ctx.ground_normal * HOVER_WEIGHT_GRAVITY * mass * strength
+		var excess: float = hover_clearance - BASE_HEIGHT
+		var pull: float = HOVER_WEIGHT_GRAVITY + HOVER_RECOVERY_K * excess
+		force -= ctx.ground_normal * pull * mass * strength
 		if absf(normal_vel) > 0.0001:
 			force -= ctx.ground_normal * HOVER_DAMPING * normal_vel * mass * strength
 		return force
@@ -505,7 +507,9 @@ static func compute_corner_hover_forces(
 		var accel := 0.0
 
 		if point.clearance > BASE_HEIGHT + HOVER_SPRING_DEADBAND:
-			accel -= HOVER_WEIGHT_GRAVITY / float(valid_count) * strength
+			var excess: float = point.clearance - BASE_HEIGHT
+			var pull: float = (HOVER_WEIGHT_GRAVITY + HOVER_RECOVERY_K * excess) / float(valid_count)
+			accel -= pull * strength
 			if absf(normal_vel) > 0.0001:
 				accel -= HOVER_POINT_DAMPING * idle_damp_scale * normal_vel * strength
 		elif penetration > 0.0 or absf(normal_vel) > 0.0001:

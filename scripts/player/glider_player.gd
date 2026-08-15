@@ -48,6 +48,8 @@ const AHEAD_RISE_NORMAL_MAX_STEP_DEG := 18.0
 const BOOST_CLIMB_CLIP_MAX := -0.02
 const FLOOR_CORRECT_MAX_STEP := 0.06
 const BOOST_CLIMB_FLOOR_CORRECT_MAX_STEP := 0.18
+## Hard-land dig kills hover; floor must catch high-speed tunnels in one step.
+const HARD_DIG_FLOOR_CORRECT_MAX_STEP := 0.45
 const VISUAL_ALIGN_MAX_STEP_DEG := 4.5
 const AHEAD_RISE_VISUAL_ALIGN_MAX_STEP_DEG := 7.0
 const BOARD_PITCH_RATE := 6.0
@@ -312,25 +314,27 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 		constraint_mode,
 		state
 	)
-	if _state == State.GLIDING:
-		_preserve_air_horizontal_speed(state, air_hold_speed)
 	_enforce_floor_contact(state)
 	_apply_pending_knockback(state)
+	if _state == State.GLIDING:
+		_preserve_air_horizontal_speed(state, air_hold_speed)
 	state.angular_velocity = Vector3(0.0, _yaw_velocity, 0.0)
 
 
 func _preserve_air_horizontal_speed(state: PhysicsDirectBodyState3D, speed_before: float) -> void:
-	## Holding W/boost in air: keep XZ speed (gravity still pulls). Brake cancels hold.
+	## Holding W/boost in air: lock XZ to the speed when hold started (capped). No ratchet.
 	if is_braking():
 		_air_hold_horizontal_speed = 0.0
 		return
 	if not _input.is_forward_held() and not _is_boost_active():
 		_air_hold_horizontal_speed = 0.0
 		return
-	var keep := maxf(speed_before, _air_hold_horizontal_speed)
-	if keep < 0.1:
+	var cap := GliderPhysicsScript.hard_speed_cap()
+	if _air_hold_horizontal_speed < 0.1:
+		_air_hold_horizontal_speed = minf(maxf(speed_before, 0.0), cap)
+	if _air_hold_horizontal_speed < 0.1:
 		return
-	_air_hold_horizontal_speed = keep
+	var keep := minf(_air_hold_horizontal_speed, cap)
 	var h := MathUtil.horizontal(state.linear_velocity)
 	var dir := h
 	if dir.length_squared() < 0.0001:
@@ -669,8 +673,12 @@ func _min_board_probe_clearance() -> float:
 	return TerrainProbesScript.min_tagged_clearance(_predictive_surface.samples, min_clearance)
 
 
-func _live_min_board_probe_clearance() -> float:
-	var min_clearance := _get_raw_clearance()
+func _live_min_board_probe_clearance_at(origin: Vector3) -> float:
+	## Live underside clearance at a physics-state origin (not stale probe cache).
+	var center_ground := _get_ground_y(origin.x, origin.z)
+	var min_clearance := origin.y - BOARD_BOTTOM_OFFSET - center_ground
+	if is_nan(center_ground):
+		return min_clearance
 	if _predictive_surface == null:
 		return min_clearance
 	var probe_bottom_y := _probe_bottom_y_offset()
@@ -681,15 +689,19 @@ func _live_min_board_probe_clearance() -> float:
 		Callable(TerrainProbesScript, "is_board_tag"),
 		func(sample) -> float:
 			var world_offset: Vector3 = yaw_basis * sample.local_offset
-			var probe_y := global_position.y + probe_bottom_y
+			var probe_y := origin.y + probe_bottom_y
 			var ground_y := _get_ground_y(
-				global_position.x + world_offset.x,
-				global_position.z + world_offset.z
+				origin.x + world_offset.x,
+				origin.z + world_offset.z
 			)
 			if is_nan(ground_y):
 				return min_clearance
 			return probe_y - ground_y
 	)
+
+
+func _live_min_board_probe_clearance() -> float:
+	return _live_min_board_probe_clearance_at(global_position)
 
 
 func _live_min_deck_probe_clearance() -> float:
@@ -716,6 +728,19 @@ func _deck_probe_clearance_at(local_offset: Vector3) -> float:
 	return world.y - ground_y
 
 
+func _is_hard_dig_window() -> bool:
+	## Hover is yielded/off here — floor must own anti-tunnel.
+	if _contact_recover_timer > 0.0:
+		return true
+	if _state == State.LANDING and (
+		_landing_was_hard or _landing_approach >= GliderPhysicsScript.HOVER_YIELD_SPEED
+	):
+		return true
+	if _ground_contact_active and _landing_was_hard:
+		return true
+	return false
+
+
 func _enforce_floor_contact(state: PhysicsDirectBodyState3D) -> void:
 	if _state != State.GROUNDED and _state != State.LANDING:
 		return
@@ -724,37 +749,30 @@ func _enforce_floor_contact(state: PhysicsDirectBodyState3D) -> void:
 		_state == State.GROUNDED
 		and _is_climbing(_downhill_dir(), _board_forward_on_ground())
 	)
-	var board_min := _min_board_probe_clearance()
-	# Sense underside digs for hover/alignment; kinematic floor is only a tiny safety net.
-	var upright_min := (
-		_live_min_board_probe_clearance()
-		if boost_climb or climbing
-		else board_min
-	)
-	var deck_min := (
-		_live_min_deck_probe_clearance()
-		if climbing
-		else upright_min
-	)
-	var live_min := minf(deck_min, upright_min) if climbing else upright_min
-	var min_clearance := live_min
-	if (
-		not climbing
-		and not _is_boost_active()
-		and _corner_clearance_spread() > CLEARANCE_PROBE_TRIGGER
-	):
-		min_clearance = _get_raw_clearance()
+	var hard_dig := _is_hard_dig_window()
+	## Always live-sample from the integrate-forces origin. Cached predictive
+	## clearances lag one frame and miss high-speed hard-land tunnels.
+	var origin := state.transform.origin
+	var min_clearance := _live_min_board_probe_clearance_at(origin)
+	if climbing:
+		min_clearance = minf(min_clearance, _live_min_deck_probe_clearance())
 	var clip_max := (
 		BOOST_CLIMB_CLIP_MAX
 		if boost_climb or climbing
 		else GliderPhysicsScript.GROUND_CLIP_MAX
 	)
+	## Hard dig zeros hover; do not allow a visible underground deadband.
+	if hard_dig:
+		clip_max = 0.0
 	var ny := maxf(_ground_normal.y, 0.2)
-	var max_step := (
-		BOOST_CLIMB_FLOOR_CORRECT_MAX_STEP if boost_climb else FLOOR_CORRECT_MAX_STEP
-	)
+	var max_step := FLOOR_CORRECT_MAX_STEP
+	if boost_climb:
+		max_step = BOOST_CLIMB_FLOOR_CORRECT_MAX_STEP
+	elif hard_dig:
+		max_step = HARD_DIG_FLOOR_CORRECT_MAX_STEP
 	if min_clearance < clip_max:
-		var correction := minf((clip_max - min_clearance) / ny, max_step)
+		var needed := (clip_max - min_clearance) / ny
+		var correction := minf(needed, max_step)
 		var xf := state.transform
 		xf.origin += _ground_normal * correction
 		state.transform = xf
@@ -775,6 +793,7 @@ func _enforce_floor_contact(state: PhysicsDirectBodyState3D) -> void:
 	xf.origin += _ground_normal * correction
 	state.transform = xf
 	# Soft settle: nudge origin only — killing normal speed here tugs crest momentum.
+
 
 func _allows_ground_contact() -> bool:
 	if _ground_contact_active:
@@ -1356,7 +1375,13 @@ func _build_physics_context() -> GliderPhysicsScript.Context:
 	ctx.ground_normal = _ground_normal
 	ctx.board_forward = _board_forward_on_ground()
 	ctx.clearance = _smoothed_clearance
-	ctx.hover_clearance = minf(_smoothed_clearance, raw_clearance)
+	## Trust raw when already above rest — lagged smoothed clearance invents
+	## phantom compression after crests (ground drops, smoothed still low) and
+	## pushes the board further up. Only blend smoothed in while compressed.
+	if raw_clearance >= GliderPhysicsScript.BASE_HEIGHT:
+		ctx.hover_clearance = raw_clearance
+	else:
+		ctx.hover_clearance = minf(_smoothed_clearance, raw_clearance)
 	if _state == State.GROUNDED or _state == State.LANDING:
 		var board_min := _min_board_probe_clearance()
 		var climbing := _is_climbing(_downhill_dir(), ctx.board_forward)
@@ -1617,7 +1642,8 @@ func is_run_ended() -> bool:
 	return _run_ended
 
 
-## Swarm / hazard shove. Applied after surf constraints so it isn't wiped the same tick.
+## Swarm / hazard shove. Applied after surf constraints so ground surf doesn't wipe it
+## the same tick. Air W/boost hold re-locks XZ afterward so knockback cannot ratchet air speed.
 func queue_knockback(velocity_delta: Vector3) -> void:
 	if _run_ended or not _piloted:
 		return
