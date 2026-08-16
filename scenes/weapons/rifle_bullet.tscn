@@ -1,0 +1,32 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/rifle_bullet.gd" id="1_bullet"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tracer"]
+shading_mode = 0
+albedo_color = Color(1, 0.86, 0.42, 1)
+emission_enabled = true
+emission = Color(1, 0.72, 0.22, 1)
+emission_energy_multiplier = 2.4
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_tracer"]
+radius = 0.055
+height = 0.42
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_hit"]
+radius = 0.32
+
+[node name="RifleBullet" type="Area3D"]
+collision_layer = 0
+collision_mask = 8
+monitorable = false
+script = ExtResource("1_bullet")
+
+[node name="Visual" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+mesh = SubResource("CapsuleMesh_tracer")
+surface_material_override/0 = SubResource("StandardMaterial3D_tracer")
+cast_shadow = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("SphereShape3D_hit")
