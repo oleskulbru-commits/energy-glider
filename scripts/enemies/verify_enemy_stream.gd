@@ -174,21 +174,37 @@ func _verify_rifle_targeting() -> void:
 	_fail_unless(is_equal_approx(AutoRifleScript.FIRE_INTERVAL_SEC, 3.0), "Rifle interval should be 3 s")
 
 	var origin := Vector3.ZERO
+	var facing := Vector3(-1.0, 0.0, 0.0)
 	var near_a := _marker_at(Vector3(-40.0, 0.0, 0.0))
 	var near_b := _marker_at(Vector3(0.0, 0.0, 50.0))
+	var behind := _marker_at(Vector3(40.0, 0.0, 0.0))
 	var far := _marker_at(Vector3(-120.0, 0.0, 0.0))
-	var pills := [near_a, near_b, far]
-	var candidates := AutoRifleScript.collect_candidates(pills, origin, AutoRifleScript.RANGE_M)
-	_fail_unless(candidates.size() == 2, "Only in-range pills should be candidates (got %d)" % candidates.size())
+	var pills := [near_a, near_b, behind, far]
+	var candidates := AutoRifleScript.collect_candidates(
+		pills, origin, facing, AutoRifleScript.RANGE_M
+	)
+	_fail_unless(candidates.size() == 2, "Only in-range frontal pills should be candidates (got %d)" % candidates.size())
 	_fail_unless(not candidates.has(far), "Pills beyond 100 m must not be targeted")
+	_fail_unless(not candidates.has(behind), "Pills behind the player must not be targeted")
+	_fail_unless(
+		AutoRifleScript.is_in_front(origin, facing, near_a.global_position),
+		"Westbound facing should treat −X as in front"
+	)
+	_fail_unless(
+		not AutoRifleScript.is_in_front(origin, facing, behind.global_position),
+		"Westbound facing should treat +X as behind"
+	)
 
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
 	var saw_a := false
 	var saw_b := false
 	for _i in 40:
-		var picked := AutoRifleScript.pick_target(pills, origin, AutoRifleScript.RANGE_M, rng)
+		var picked := AutoRifleScript.pick_target(
+			pills, origin, facing, AutoRifleScript.RANGE_M, rng
+		)
 		_fail_unless(picked != far, "Random pick must never choose out-of-range pill")
+		_fail_unless(picked != behind, "Random pick must never choose a pill behind the player")
 		if picked == near_a:
 			saw_a = true
 		elif picked == near_b:
@@ -197,6 +213,7 @@ func _verify_rifle_targeting() -> void:
 
 	near_a.free()
 	near_b.free()
+	behind.free()
 	far.free()
 
 

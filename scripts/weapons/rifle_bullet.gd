@@ -3,8 +3,10 @@ extends Area3D
 
 ## Visible tracer; no gun mesh. Homes lightly on the locked pill.
 
-const SPEED_MPS := 120.0
-const LIFETIME_SEC := 1.2
+const KillSparksScript := preload("res://scripts/weapons/kill_sparks.gd")
+
+const SPEED_MPS := 60.0
+const LIFETIME_SEC := 2.4
 const HOMING := 0.35
 const DAMAGE := 10
 
@@ -66,5 +68,7 @@ func _on_body_entered(body: Node) -> void:
 	if pill == null:
 		return
 	_spent = true
-	pill.take_damage(DAMAGE, global_position)
+	var killed := pill.take_damage(DAMAGE, global_position)
+	if killed:
+		KillSparksScript.spawn(get_tree(), pill.global_position)
 	queue_free()
