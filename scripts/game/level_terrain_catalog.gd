@@ -245,8 +245,8 @@ static func _register_hybrid_profiles() -> void:
 	_hybrid(
 		"crest_school",
 		"Crest School",
-		"Friendly airtime practice on knife edges",
-		["knife_crests", "glide_garden", "occasional_shelves"]
+		"Friendly airtime practice on readable crests",
+		["soft_shoulders", "glide_garden", "occasional_shelves"]
 	)
 	_hybrid(
 		"bowl_runner",

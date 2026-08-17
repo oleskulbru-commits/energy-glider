@@ -100,6 +100,12 @@ track_node_path = NodePath("../PlayerRig/Glider")
 script = ExtResource("8_outpost_spawner")
 terrain_manager_path = NodePath("../TerrainManager")
 
+[node name="EnemyStreamSpawner" type="Node3D" parent="."]
+script = ExtResource("18_stream")
+player_rig_path = NodePath("../PlayerRig")
+terrain_manager_path = NodePath("../TerrainManager")
+eon_director_path = NodePath("../EonDirector")
+
 [node name="PlayerRig" parent="." instance=ExtResource("3_player_rig")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 20, 0)
 terrain_manager_path = NodePath("../TerrainManager")

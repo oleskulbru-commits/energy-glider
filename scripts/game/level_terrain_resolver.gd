@@ -19,6 +19,14 @@ static var _cache_seed: int = -999
 
 
 static func params_at_world_x(world_x: float, origin_x: float = 0.0) -> Dictionary:
+	var blend := param_blend_at_world_x(world_x, origin_x)
+	if float(blend.t) <= 0.0001:
+		return blend.a
+	return _lerp_params(blend.a, blend.b, float(blend.t))
+
+
+## Adjacent slab param sets and the blend factor in [0, 1).
+static func param_blend_at_world_x(world_x: float, origin_x: float = 0.0) -> Dictionary:
 	_ensure_cache_valid()
 	var west_m := maxf(origin_x - world_x, 0.0)
 	var slab_f := west_m / SLAB_M
@@ -26,9 +34,17 @@ static func params_at_world_x(world_x: float, origin_x: float = 0.0) -> Dictiona
 	var frac := slab_f - float(slab0)
 	var a := _params_for_slab(slab0, origin_x)
 	if frac <= 0.0001:
-		return a
+		return {"a": a, "b": a, "t": 0.0}
 	var b := _params_for_slab(slab0 + 1, origin_x)
-	return _lerp_params(a, b, frac)
+	return {"a": a, "b": b, "t": frac}
+
+
+static func same_noise_domain(a: Dictionary, b: Dictionary) -> bool:
+	return (
+		is_equal_approx(float(a.frequency_scale), float(b.frequency_scale))
+		and is_equal_approx(float(a.z_scale), float(b.z_scale))
+		and is_equal_approx(float(a.warp_strength), float(b.warp_strength))
+	)
 
 
 static func journey_length_m() -> float:
@@ -171,9 +187,9 @@ static func _atomic_mods(atomic_id: String) -> Dictionary:
 		"tight_chop": {"frequency_scale": 1.18, "amplitude_scale": 0.95},
 		"mega_rollers": {"frequency_scale": 0.55, "amplitude_scale": 1.1, "z_scale": 0.65},
 		"soft_shoulders": {"crest_sharpness_scale": 0.85, "ridge_power_add": -0.12},
-		"knife_crests": {"crest_sharpness_scale": 1.12, "ridge_power_add": 0.14},
-		"razor_spine": {"crest_sharpness_scale": 1.15, "ridge_power_add": 0.18, "z_scale": 0.9},
-		"broken_teeth": {"crest_sharpness_scale": 1.1, "frequency_scale": 1.08, "z_scale": 1.08},
+		"knife_crests": {"crest_sharpness_scale": 1.06, "ridge_power_add": 0.08},
+		"razor_spine": {"crest_sharpness_scale": 1.1, "ridge_power_add": 0.12, "z_scale": 0.88},
+		"broken_teeth": {"crest_sharpness_scale": 1.06, "frequency_scale": 1.05, "z_scale": 1.05},
 		"soft_bowls": {"amplitude_scale": 0.95, "flat_bias_add": 0.04, "z_scale": 1.05},
 		"deep_basins": {"amplitude_scale": 1.12, "flat_bias_add": -0.02, "z_scale": 1.08},
 		"escape_gulches": {"z_scale": 1.08, "frequency_scale": 1.05},
@@ -184,11 +200,11 @@ static func _atomic_mods(atomic_id: String) -> Dictionary:
 		"punish_climbs": {"amplitude_scale": 1.12, "flat_bias_add": -0.05},
 		"corridor_west": {"z_scale": 0.55},
 		"mild_weave": {"z_scale": 1.05},
-		"slalom_spines": {"z_scale": 1.1, "frequency_scale": 1.05},
-		"maze_basins": {"z_scale": 1.1, "warp_scale": 1.08},
+		"slalom_spines": {"z_scale": 1.05, "frequency_scale": 1.02},
+		"maze_basins": {"z_scale": 1.06, "warp_scale": 1.05},
 		"honest_terrain": {"warp_scale": 0.55},
 		"soft_warp": {"warp_scale": 0.85},
-		"twisted_warp": {"warp_scale": 1.12},
+		"twisted_warp": {"warp_scale": 1.06},
 		"frequent_flats": {"flat_bias_add": 0.14},
 		"occasional_shelves": {"flat_bias_add": 0.05},
 		"scarce_flats": {"flat_bias_add": -0.1},
@@ -219,18 +235,20 @@ static func _apply_modifiers(base: Dictionary, mods: Dictionary) -> Dictionary:
 		"frequency_scale": clampf(base.frequency_scale * mods.frequency_scale, 0.5, 1.12),
 		"z_scale": clampf(base.z_scale * mods.z_scale, 0.55, 1.12),
 		"flat_bias": clampf(base.flat_bias + mods.flat_bias_add, -0.25, 0.25),
-		"crest_sharpness": clampf(base.crest_sharpness * mods.crest_sharpness_scale, 0.75, 1.3),
+		"crest_sharpness": clampf(base.crest_sharpness * mods.crest_sharpness_scale, 0.75, 1.18),
 	}
 
 
 static func _lerp_params(a: Dictionary, b: Dictionary, t: float) -> Dictionary:
 	t = clampf(t, 0.0, 1.0)
+	# Appearance can blend. Domain knobs must stay on `a` — lerping frequency/z/warp
+	# shears noise UVs along X into Z-long canyon walls at every tower seam.
 	return {
 		"amplitude": lerpf(a.amplitude, b.amplitude, t),
-		"warp_strength": lerpf(a.warp_strength, b.warp_strength, t),
+		"warp_strength": a.warp_strength,
 		"ridge_power": lerpf(a.ridge_power, b.ridge_power, t),
-		"frequency_scale": lerpf(a.frequency_scale, b.frequency_scale, t),
-		"z_scale": lerpf(a.z_scale, b.z_scale, t),
+		"frequency_scale": a.frequency_scale,
+		"z_scale": a.z_scale,
 		"flat_bias": lerpf(a.flat_bias, b.flat_bias, t),
 		"crest_sharpness": lerpf(a.crest_sharpness, b.crest_sharpness, t),
 	}

@@ -71,3 +71,6 @@ initial_velocity_max = 5.5
 scale_amount_min = 0.1
 scale_amount_max = 0.22
 color = Color(0.82, 0.66, 0.42, 0.75)
+
+[node name="PlayerHealthBar" parent="." instance=ExtResource("13_hp_bar")]
+player_health_path = NodePath("../../PlayerHealth")

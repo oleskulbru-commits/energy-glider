@@ -6,7 +6,7 @@ const GliderPhysicsScript = preload("res://scripts/player/glider_physics.gd")
 const GliderInputScript = preload("res://scripts/input/glider_input.gd")
 const TerrainProbesScript = preload("res://scripts/player/terrain_probes.gd")
 
-enum State { GROUNDED, GLIDING, LANDING }
+enum State { GROUNDED, GLIDING }
 
 # Steering — boost stays responsive; sail carries momentum through turns.
 const SAIL_TURN_RATE := 1.25
@@ -73,17 +73,8 @@ const CREST_LIP_AHEAD_DROP := 0.48
 const CREST_LIP_NOSE_DROP := 0.32
 const CREST_LIP_MIN_SPEED := 3.5
 const LANDING_STABILIZE_DURATION := 0.3
-const LANDING_IMPACT_WINDOW := 0.1
-## Temporary: keep contact-damage math, but do not apply hull loss / death.
-const FALL_DAMAGE_ENABLED := false
-const LANDING_BLEND_DURATION := 0.22
-const LANDING_VELOCITY_BLEND_RATE := 9.0
-const LANDING_MIN_HOVER_RAMP_SOFT := 0.45
-const LANDING_MIN_HOVER_RAMP_HARD := 0.0
-const LANDING_HARD_VELOCITY_BLEND_SCALE := 0.3
+const LANDING_FEEDBACK_DURATION := 0.6
 const GROUNDED_LOCK_DURATION := 0.4
-const GROUND_CONTACT_THRESHOLD := 0.10
-const CONTACT_RECOVER_DURATION := GliderPhysicsScript.CONTACT_RECOVER_DURATION
 const LANDING_YAW_MAX_MISALIGN_DEG := 50.0
 
 # Hover clearance smoothing — physics reads eased clearance, state machine stays raw.
@@ -108,7 +99,8 @@ const GROUND_RAY_DOWN := 24.0
 const CHARGE_MAX := 1.0
 const CHARGE_MIN_BOOST := 0.05
 const CHARGE_BOOST_DRAIN := 0.2
-const CHARGE_SAIL_RECHARGE := 0.04
+const CHARGE_SOLAR_RECHARGE := 0.04
+const BATTERY_MAX := CHARGE_MAX * 10.0
 const THRUSTER_OVERHEAT_DURATION := 4.0
 const BOOST_MULTIPLIER := GliderPhysicsScript.BOOST_MULTIPLIER
 const BRAKE_RAMP_SEC := 0.55
@@ -148,28 +140,24 @@ var _board_pitch := 0.0
 var _board_roll := 0.0
 
 var _charge := CHARGE_MAX
+var _battery := 0.0
 var _boost_unlocked := true
 var _overheat_timer := 0.0
+var _day_night: DayNightCycle
 var _run_ended := false
 var _end_reason := ""
 var _piloted := true
+var _pending_knockback := Vector3.ZERO
 var _coast_timer := 0.0
 var _brake_hold_time := 0.0
 var _landing_feedback_timer := 0.0
 var _landing_feedback_label := ""
 var _landing_stabilize_timer := 0.0
-var _landing_impact_timer := 0.0
-var _landing_blend := 0.0
-var _touchdown_velocity := Vector3.ZERO
-var _landing_approach := 0.0
-var _landing_was_hard := false
-var _ground_contact_active := false
-var _contact_recover_timer := 0.0
-var _contact_damage_applied := false
 var _hull_integrity := 1.0
 var _grounded_lock_timer := 0.0
 var _airborne_time := 0.0
 var _jump_cooldown := 0.0
+var _air_hold_horizontal_speed := 0.0
 var _saved_collision_layer := 2
 var _physics_ctx: GliderPhysicsScript.Context = null
 var _last_physics_delta := 1.0 / 60.0
@@ -210,6 +198,7 @@ func _ready() -> void:
 
 	if _input != null:
 		_input.set_boost_input_enabled(_boost_unlocked)
+	_day_night = get_tree().get_first_node_in_group("day_night_cycle") as DayNightCycle
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -261,41 +250,29 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 
 	var ctx := _physics_ctx
 	ctx.velocity = state.linear_velocity
+	## Live input — ctx may be one physics frame stale vs IntegrateForces order.
+	ctx.forward_held = _input.is_forward_held()
+	ctx.boost_active = _is_boost_active()
+	ctx.braking = is_braking()
+	ctx.brake_strength = _brake_strength()
 	var delta := maxf(_last_physics_delta, 0.0001)
 	var mass := maxf(self.mass, 0.001)
 	var force := Vector3.ZERO
+	var air_hold_speed := MathUtil.horizontal_speed(state.linear_velocity)
 
 	if _state == State.GROUNDED:
+		_air_hold_horizontal_speed = 0.0
 		force += GliderPhysicsScript.compute_ground_force(ctx, mass, delta)
 		_apply_hover_forces(state, ctx, mass, delta)
-		force += GliderPhysicsScript.compute_ground_scrape_force(ctx, mass)
-	elif _state == State.LANDING:
-		ctx.landing_blend = _landing_blend
-		var min_ramp := (
-			LANDING_MIN_HOVER_RAMP_HARD
-			if _landing_was_hard
-			else LANDING_MIN_HOVER_RAMP_SOFT
-		)
-		var hover_ramp := maxf(_landing_blend * _landing_blend, min_ramp)
-		hover_ramp *= GliderPhysicsScript.hover_impact_yield_scale(
-			_landing_approach,
-			ctx.landing_impact,
-			_contact_recover_blend()
-		)
-		var air_force := GliderPhysicsScript.compute_air_force(ctx, mass, delta)
-		var gravity_force := GliderPhysicsScript.air_gravity_force(ctx, mass)
-		var air_net := air_force - gravity_force * hover_ramp
-		var ground_force := GliderPhysicsScript.compute_ground_force(ctx, mass, delta)
-		force += air_net * (1.0 - _landing_blend)
-		force += ground_force * _landing_blend
-		_apply_hover_forces(state, ctx, mass, delta, hover_ramp)
 		force += GliderPhysicsScript.compute_ground_scrape_force(ctx, mass)
 	else:
 		force += GliderPhysicsScript.compute_air_force(ctx, mass, delta)
 
-	var constraint_mode := GliderPhysicsScript.MODE_GLIDING
-	if _state == State.GROUNDED or _state == State.LANDING:
-		constraint_mode = GliderPhysicsScript.MODE_GROUNDED
+	var constraint_mode := (
+		GliderPhysicsScript.MODE_GROUNDED
+		if _state == State.GROUNDED
+		else GliderPhysicsScript.MODE_GLIDING
+	)
 
 	state.apply_central_force(force)
 	GliderPhysicsScript.apply_velocity_constraints(
@@ -305,7 +282,40 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 		state
 	)
 	_enforce_floor_contact(state)
+	_apply_pending_knockback(state)
+	if _state == State.GLIDING:
+		_preserve_air_horizontal_speed(state, air_hold_speed)
 	state.angular_velocity = Vector3(0.0, _yaw_velocity, 0.0)
+
+
+func _preserve_air_horizontal_speed(state: PhysicsDirectBodyState3D, speed_before: float) -> void:
+	## Holding W in air: lock XZ to the speed when hold started (capped). No ratchet.
+	## Boost accelerates via compute_air_force — do not freeze XZ while boosting.
+	if is_braking():
+		_air_hold_horizontal_speed = 0.0
+		return
+	if _is_boost_active():
+		## Clear lock so releasing boost while W is held re-locks at the new speed.
+		_air_hold_horizontal_speed = 0.0
+		return
+	if not _input.is_forward_held():
+		_air_hold_horizontal_speed = 0.0
+		return
+	var cap := GliderPhysicsScript.hard_speed_cap()
+	if _air_hold_horizontal_speed < 0.1:
+		_air_hold_horizontal_speed = minf(maxf(speed_before, 0.0), cap)
+	if _air_hold_horizontal_speed < 0.1:
+		return
+	var keep := minf(_air_hold_horizontal_speed, cap)
+	var h := MathUtil.horizontal(state.linear_velocity)
+	var dir := h
+	if dir.length_squared() < 0.0001:
+		dir = MathUtil.horizontal(_board_forward_on_ground())
+	if dir.length_squared() < 0.0001:
+		return
+	dir = dir.normalized()
+	state.linear_velocity.x = dir.x * keep
+	state.linear_velocity.z = dir.z * keep
 
 
 func _corner_hover_samples() -> Array:
@@ -348,7 +358,7 @@ func _apply_hover_forces(
 	delta: float,
 	strength_scale: float = 1.0
 ) -> void:
-	if (_state == State.LANDING and not _landing_was_hard) or (
+	if (
 		not ctx.climbing
 		and not ctx.boost_active
 		and _corner_clearance_spread() > CLEARANCE_PROBE_TRIGGER
@@ -398,8 +408,6 @@ func _sample_terrain(delta: float) -> void:
 	var align_rate := TERRAIN_ALIGN_RATE
 	if _state == State.GLIDING:
 		align_rate = lerpf(TERRAIN_ALIGN_RATE * 0.5, AIR_TERRAIN_ALIGN_RATE, _smoothed_predict_blend)
-	elif _state == State.LANDING:
-		align_rate = lerpf(TERRAIN_ALIGN_RATE, AIR_TERRAIN_ALIGN_RATE, 1.0 - _landing_blend)
 
 	var align_step := clampf(align_rate * delta, 0.0, 1.0)
 	var normal_turn := _ground_normal.angle_to(target_normal)
@@ -451,10 +459,7 @@ func _update_predictive_probes() -> void:
 	)
 
 	var clamp_cb := Callable()
-	if (
-		(_state == State.GROUNDED or _state == State.LANDING)
-		and not _is_boost_climb_active()
-	):
+	if _state == State.GROUNDED and not _is_boost_climb_active():
 		clamp_cb = Callable(self, "_clamp_contact_height")
 
 	_predictive_surface = TerrainProbesScript.build_surface(
@@ -493,7 +498,7 @@ func _ahead_rise_amount() -> float:
 		return 0.0
 
 	var board_rise := 0.0
-	if _state == State.GROUNDED or _state == State.LANDING:
+	if _state == State.GROUNDED:
 		var deck_center := _deck_probe_clearance_at(Vector3.ZERO)
 		var deck_nose := INF
 		for sample in _predictive_surface.samples:
@@ -635,8 +640,12 @@ func _min_board_probe_clearance() -> float:
 	return TerrainProbesScript.min_tagged_clearance(_predictive_surface.samples, min_clearance)
 
 
-func _live_min_board_probe_clearance() -> float:
-	var min_clearance := _get_raw_clearance()
+func _live_min_board_probe_clearance_at(origin: Vector3) -> float:
+	## Live underside clearance at a physics-state origin (not stale probe cache).
+	var center_ground := _get_ground_y(origin.x, origin.z)
+	var min_clearance := origin.y - BOARD_BOTTOM_OFFSET - center_ground
+	if is_nan(center_ground):
+		return min_clearance
 	if _predictive_surface == null:
 		return min_clearance
 	var probe_bottom_y := _probe_bottom_y_offset()
@@ -647,15 +656,19 @@ func _live_min_board_probe_clearance() -> float:
 		Callable(TerrainProbesScript, "is_board_tag"),
 		func(sample) -> float:
 			var world_offset: Vector3 = yaw_basis * sample.local_offset
-			var probe_y := global_position.y + probe_bottom_y
+			var probe_y := origin.y + probe_bottom_y
 			var ground_y := _get_ground_y(
-				global_position.x + world_offset.x,
-				global_position.z + world_offset.z
+				origin.x + world_offset.x,
+				origin.z + world_offset.z
 			)
 			if is_nan(ground_y):
 				return min_clearance
 			return probe_y - ground_y
 	)
+
+
+func _live_min_board_probe_clearance() -> float:
+	return _live_min_board_probe_clearance_at(global_position)
 
 
 func _live_min_deck_probe_clearance() -> float:
@@ -683,33 +696,15 @@ func _deck_probe_clearance_at(local_offset: Vector3) -> float:
 
 
 func _enforce_floor_contact(state: PhysicsDirectBodyState3D) -> void:
-	if _state != State.GROUNDED and _state != State.LANDING:
+	if _state != State.GROUNDED:
 		return
 	var boost_climb := _is_boost_climb_active()
-	var climbing := (
-		_state == State.GROUNDED
-		and _is_climbing(_downhill_dir(), _board_forward_on_ground())
-	)
-	var board_min := _min_board_probe_clearance()
-	# Sense underside digs for hover/alignment; kinematic floor is only a tiny safety net.
-	var upright_min := (
-		_live_min_board_probe_clearance()
-		if boost_climb or climbing
-		else board_min
-	)
-	var deck_min := (
-		_live_min_deck_probe_clearance()
-		if climbing
-		else upright_min
-	)
-	var live_min := minf(deck_min, upright_min) if climbing else upright_min
-	var min_clearance := live_min
-	if (
-		not climbing
-		and not _is_boost_active()
-		and _corner_clearance_spread() > CLEARANCE_PROBE_TRIGGER
-	):
-		min_clearance = _get_raw_clearance()
+	var climbing := _is_climbing(_downhill_dir(), _board_forward_on_ground())
+	## Live-sample from the integrate-forces origin — cached probes lag one frame.
+	var origin := state.transform.origin
+	var min_clearance := _live_min_board_probe_clearance_at(origin)
+	if climbing:
+		min_clearance = minf(min_clearance, _live_min_deck_probe_clearance())
 	var clip_max := (
 		BOOST_CLIMB_CLIP_MAX
 		if boost_climb or climbing
@@ -720,7 +715,8 @@ func _enforce_floor_contact(state: PhysicsDirectBodyState3D) -> void:
 		BOOST_CLIMB_FLOOR_CORRECT_MAX_STEP if boost_climb else FLOOR_CORRECT_MAX_STEP
 	)
 	if min_clearance < clip_max:
-		var correction := minf((clip_max - min_clearance) / ny, max_step)
+		var needed := (clip_max - min_clearance) / ny
+		var correction := minf(needed, max_step)
 		var xf := state.transform
 		xf.origin += _ground_normal * correction
 		state.transform = xf
@@ -731,8 +727,6 @@ func _enforce_floor_contact(state: PhysicsDirectBodyState3D) -> void:
 			if inward < 0.0:
 				state.linear_velocity = vel - _ground_normal * inward
 		return
-	if _allows_ground_contact():
-		return
 	var min_allowed := GliderPhysicsScript.TOUCH_CLEARANCE
 	if min_clearance >= min_allowed:
 		return
@@ -741,23 +735,6 @@ func _enforce_floor_contact(state: PhysicsDirectBodyState3D) -> void:
 	xf.origin += _ground_normal * correction
 	state.transform = xf
 	# Soft settle: nudge origin only — killing normal speed here tugs crest momentum.
-
-func _allows_ground_contact() -> bool:
-	if _ground_contact_active:
-		return true
-	if _contact_recover_timer > 0.0:
-		return true
-	if _state == State.LANDING and (
-		_landing_was_hard or _landing_approach >= GliderPhysicsScript.HOVER_YIELD_SPEED
-	):
-		return true
-	return false
-
-
-func _contact_recover_blend() -> float:
-	if _contact_recover_timer <= 0.0:
-		return 1.0
-	return 1.0 - clampf(_contact_recover_timer / CONTACT_RECOVER_DURATION, 0.0, 1.0)
 
 
 func _setup_contact_sparks() -> void:
@@ -788,9 +765,6 @@ func _has_predictive_surface() -> bool:
 func _predictive_align_blend() -> float:
 	if _state == State.GROUNDED:
 		return 1.0 if _has_predictive_surface() else 0.0
-	if _state == State.LANDING:
-		var grounded_blend := 1.0 if _has_predictive_surface() else 0.0
-		return lerpf(_smoothed_predict_blend, grounded_blend, _landing_blend)
 
 	var forward_speed := _horizontal_velocity().length()
 	var descent_speed := maxf(0.0, -velocity.dot(_ground_normal))
@@ -869,7 +843,7 @@ func _get_raw_clearance() -> float:
 
 func _sample_hover_clearance_target() -> float:
 	var center := _get_raw_clearance()
-	if _state != State.GROUNDED and _state != State.LANDING or _predictive_surface == null:
+	if _state != State.GROUNDED or _predictive_surface == null:
 		return center
 
 	var min_clearance := _predictive_surface.min_clearance
@@ -916,36 +890,7 @@ func _get_clearance() -> float:
 func _update_state(delta: float) -> void:
 	var clearance := _get_clearance()
 
-	if _state == State.LANDING:
-		_landing_blend = minf(_landing_blend + delta / LANDING_BLEND_DURATION, 1.0)
-		var vel_rate := LANDING_VELOCITY_BLEND_RATE
-		if _landing_was_hard:
-			vel_rate *= LANDING_HARD_VELOCITY_BLEND_SCALE
-		var vel_step := clampf(vel_rate * delta, 0.0, 1.0)
-		if _landing_was_hard:
-			var horizontal := Vector2(velocity.x, velocity.z).lerp(
-				Vector2(_touchdown_velocity.x, _touchdown_velocity.z),
-				vel_step
-			)
-			velocity.x = horizontal.x
-			velocity.z = horizontal.y
-		else:
-			var target := _touchdown_velocity
-			if target.y > velocity.y:
-				target.y = velocity.y
-			var blended := velocity.lerp(target, vel_step)
-			if blended.y > velocity.y:
-				blended.y = velocity.y
-			velocity = blended
-		_update_ground_contact()
-		if _landing_blend >= 1.0:
-			_state = State.GROUNDED
-			if not _landing_was_hard:
-				velocity = _touchdown_velocity
-		return
-
 	if _state == State.GROUNDED:
-		_update_ground_contact()
 		if _forward_support_lost():
 			_detach_from_crest_lip()
 			return
@@ -1042,64 +987,32 @@ func _detach_from_crest_lip() -> void:
 func _land() -> void:
 	var ctx := _build_touchdown_context()
 	var result := GliderPhysicsScript.apply_touchdown(ctx, is_braking())
-	_touchdown_velocity = result.velocity
-	if not result.hard and _touchdown_velocity.y > 0.0:
-		_touchdown_velocity.y = 0.0
-	_landing_approach = result.approach
-	_landing_was_hard = result.hard
-	_landing_blend = 0.0
-	_state = State.LANDING
-	_ground_contact_active = false
-	_contact_damage_applied = false
-	_contact_recover_timer = CONTACT_RECOVER_DURATION if result.hard else 0.0
+	velocity = result.velocity
+	_state = State.GROUNDED
 	var raw := _get_raw_clearance()
-	if result.hard:
-		_smoothed_clearance = raw
-	else:
-		_smoothed_clearance = maxf(_smoothed_clearance, maxf(raw, GliderPhysicsScript.BASE_HEIGHT * 0.85))
+	_smoothed_clearance = raw
 	_prev_raw_clearance = raw
 	_landing_stabilize_timer = LANDING_STABILIZE_DURATION
-	_landing_impact_timer = LANDING_IMPACT_WINDOW
 	_grounded_lock_timer = GROUNDED_LOCK_DURATION
-	_landing_feedback_timer = 0.6
-	_landing_feedback_label = "HARD" if result.hard else "SKIM"
+	var keep: float = result.get("keep", 1.0)
+	if keep < 0.995:
+		_landing_feedback_timer = LANDING_FEEDBACK_DURATION
+		_landing_feedback_label = "HEAVY"
+	else:
+		_landing_feedback_timer = 0.0
+		_landing_feedback_label = ""
+	_play_touchdown_juice(result.approach, keep)
 
 
-func _update_ground_contact() -> void:
-	var min_clearance := _min_board_probe_clearance()
-	var can_contact := (
-		_landing_was_hard
-		or _landing_approach >= GliderPhysicsScript.HOVER_YIELD_SPEED
-	)
-	if can_contact and min_clearance <= GROUND_CONTACT_THRESHOLD:
-		if not _ground_contact_active:
-			_on_ground_contact()
-		_ground_contact_active = true
-	elif (
-		_ground_contact_active
-		and min_clearance > GliderPhysicsScript.HOVER_COMPRESS_START
-		and _contact_recover_timer <= 0.0
-	):
-		_ground_contact_active = false
-
-
-func _on_ground_contact() -> void:
+func _play_touchdown_juice(approach: float, keep: float) -> void:
+	if approach < 3.0 and keep >= 0.995:
+		return
 	if _impact_dust != null:
 		_impact_dust.restart()
 		_impact_dust.emitting = true
-	if _contact_sparks != null:
+	if keep < 0.995 and _contact_sparks != null:
 		_contact_sparks.restart()
 		_contact_sparks.emitting = true
-	if not _contact_damage_applied:
-		_contact_damage_applied = true
-		var damage := GliderPhysicsScript.compute_contact_damage(_landing_approach)
-		if damage > 0.0 and FALL_DAMAGE_ENABLED:
-			_hull_integrity = maxf(_hull_integrity - damage, 0.0)
-			_landing_feedback_label = "HARD"
-			if _hull_integrity <= 0.0:
-				end_run("death")
-		elif damage > 0.0:
-			_landing_feedback_label = "HARD"
 
 
 func _apply_steering(delta: float) -> void:
@@ -1234,8 +1147,6 @@ func _deck_world_up() -> Vector3:
 				_deck_plane_blend()
 			)
 		return _ground_normal
-	if _state == State.LANDING:
-		return _slerp_normal(_align_air_attitude(), _ground_normal, _landing_blend)
 	return _slerp_normal(_align_air_attitude(), _ground_normal, _smoothed_predict_blend)
 
 
@@ -1275,7 +1186,7 @@ func _update_visual_tilt(delta: float) -> void:
 		return
 
 	var bank := clampf(-_yaw_velocity / MAX_YAW_VELOCITY, -1.0, 1.0) * deg_to_rad(BANK_ANGLE)
-	if (_state == State.GROUNDED or _state == State.LANDING) and (_input == null or not _input.is_steering()):
+	if _state == State.GROUNDED and (_input == null or not _input.is_steering()):
 		var travel := _travel_direction()
 		var travel_flat := Vector3(travel.x, 0.0, travel.z)
 		var forward_flat := Vector3(_flat_yaw_forward().x, 0.0, _flat_yaw_forward().z)
@@ -1322,8 +1233,14 @@ func _build_physics_context() -> GliderPhysicsScript.Context:
 	ctx.ground_normal = _ground_normal
 	ctx.board_forward = _board_forward_on_ground()
 	ctx.clearance = _smoothed_clearance
-	ctx.hover_clearance = minf(_smoothed_clearance, raw_clearance)
-	if _state == State.GROUNDED or _state == State.LANDING:
+	## Trust raw when already above rest — lagged smoothed clearance invents
+	## phantom compression after crests (ground drops, smoothed still low) and
+	## pushes the board further up. Only blend smoothed in while compressed.
+	if raw_clearance >= GliderPhysicsScript.BASE_HEIGHT:
+		ctx.hover_clearance = raw_clearance
+	else:
+		ctx.hover_clearance = minf(_smoothed_clearance, raw_clearance)
+	if _state == State.GROUNDED:
 		var board_min := _min_board_probe_clearance()
 		var climbing := _is_climbing(_downhill_dir(), ctx.board_forward)
 		if climbing:
@@ -1352,27 +1269,6 @@ func _build_physics_context() -> GliderPhysicsScript.Context:
 	ctx.coast_blend = _coast_blend()
 	ctx.hover_at_rest = _is_hover_at_rest()
 	ctx.steering = _input != null and _input.is_steering()
-	if _landing_impact_timer > 0.0:
-		ctx.landing_impact = clampf(
-			_landing_impact_timer / LANDING_IMPACT_WINDOW,
-			0.0,
-			1.0
-		)
-	ctx.landing_approach = _landing_approach
-	ctx.ground_contact = _ground_contact_active
-	ctx.contact_recover = _contact_recover_blend()
-	if _landing_was_hard:
-		ctx.hover_yield = GliderPhysicsScript.hover_impact_yield_scale(
-			_landing_approach,
-			ctx.landing_impact,
-			_contact_recover_blend()
-		)
-		if _ground_contact_active:
-			ctx.hover_yield = 0.0
-	else:
-		ctx.hover_yield = 1.0
-	if _state == State.LANDING:
-		ctx.landing_blend = _landing_blend
 	if _state == State.GLIDING:
 		ctx.air_gravity_scale = smoothstep(
 			0.0,
@@ -1449,8 +1345,19 @@ func _update_charge(delta: float) -> void:
 		_charge = maxf(_charge - CHARGE_BOOST_DRAIN * delta, 0.0)
 		if _charge <= 0.0:
 			_overheat_timer = THRUSTER_OVERHEAT_DURATION
-	elif is_sail_deployed() and _can_sail_recharge():
-		_charge = minf(_charge + CHARGE_SAIL_RECHARGE * delta, CHARGE_MAX)
+		return
+	var solar := CHARGE_SOLAR_RECHARGE * delta
+	if _is_daytime():
+		if _charge < CHARGE_MAX:
+			_charge = minf(_charge + solar, CHARGE_MAX)
+		else:
+			_battery = minf(_battery + solar, BATTERY_MAX)
+		return
+	if _battery > 0.0 and _charge < CHARGE_MAX:
+		var transfer := minf(solar, _battery)
+		transfer = minf(transfer, CHARGE_MAX - _charge)
+		_battery -= transfer
+		_charge += transfer
 
 
 func _update_overheat(delta: float) -> void:
@@ -1477,10 +1384,6 @@ func _update_landing_feedback(delta: float) -> void:
 		_landing_feedback_timer = maxf(_landing_feedback_timer - delta, 0.0)
 	if _landing_stabilize_timer > 0.0:
 		_landing_stabilize_timer = maxf(_landing_stabilize_timer - delta, 0.0)
-	if _landing_impact_timer > 0.0:
-		_landing_impact_timer = maxf(_landing_impact_timer - delta, 0.0)
-	if _contact_recover_timer > 0.0:
-		_contact_recover_timer = maxf(_contact_recover_timer - delta, 0.0)
 	if _grounded_lock_timer > 0.0:
 		_grounded_lock_timer = maxf(_grounded_lock_timer - delta, 0.0)
 
@@ -1490,15 +1393,8 @@ func _update_contact_dust() -> void:
 		return
 	var speed := Vector2(velocity.x, velocity.z).length()
 	var min_clearance := _min_board_probe_clearance()
-	var scraping := (
-		_ground_contact_active
-		or min_clearance <= GliderPhysicsScript.HOVER_COMPRESS_START
-	)
-	_contact_dust.emitting = (
-		(_state == State.GROUNDED or _state == State.LANDING)
-		and speed > 1.5
-		and scraping
-	)
+	var scraping := min_clearance <= GliderPhysicsScript.HOVER_COMPRESS_START
+	_contact_dust.emitting = _state == State.GROUNDED and speed > 1.5 and scraping
 
 
 func _update_camera(delta: float) -> void:
@@ -1571,7 +1467,7 @@ func _uses_external_camera() -> bool:
 # --- Public API ---
 
 func is_grounded() -> bool:
-	return _state == State.GROUNDED or _state == State.LANDING
+	return _state == State.GROUNDED
 
 
 func is_gliding() -> bool:
@@ -1611,6 +1507,21 @@ func is_run_ended() -> bool:
 	return _run_ended
 
 
+## Swarm / hazard shove. Applied after surf constraints so ground surf doesn't wipe it
+## the same tick. Air W/boost hold re-locks XZ afterward so knockback cannot ratchet air speed.
+func queue_knockback(velocity_delta: Vector3) -> void:
+	if _run_ended or not _piloted:
+		return
+	_pending_knockback += velocity_delta
+
+
+func _apply_pending_knockback(state: PhysicsDirectBodyState3D) -> void:
+	if _pending_knockback.length_squared() < 0.0001:
+		return
+	state.linear_velocity += _pending_knockback
+	_pending_knockback = Vector3.ZERO
+
+
 func end_run(reason: String = "") -> void:
 	if _run_ended:
 		return
@@ -1628,23 +1539,21 @@ func reset_for_respawn() -> void:
 	_end_reason = ""
 	_state = State.GROUNDED
 	velocity = Vector3.ZERO
+	_pending_knockback = Vector3.ZERO
 	_yaw_velocity = 0.0
 	_turn_rate = 0.0
 	_charge = CHARGE_MAX
+	_battery = 0.0
 	_overheat_timer = 0.0
 	_coast_timer = 0.0
 	_brake_hold_time = 0.0
 	_landing_feedback_timer = 0.0
 	_landing_stabilize_timer = 0.0
-	_landing_impact_timer = 0.0
-	_contact_recover_timer = 0.0
 	_grounded_lock_timer = 0.0
 	_airborne_time = 0.0
 	_jump_cooldown = 0.0
+	_air_hold_horizontal_speed = 0.0
 	_hull_integrity = 1.0
-	_contact_damage_applied = false
-	_ground_contact_active = false
-	_landing_blend = 0.0
 	_landing_feedback_label = ""
 	if _terrain_manager != null:
 		var spawn_x := global_position.x
@@ -1759,12 +1668,18 @@ func get_charge_ratio() -> float:
 	return _charge / CHARGE_MAX
 
 
+func get_battery_ratio() -> float:
+	return _battery / BATTERY_MAX
+
+
 func get_power_ratio() -> float:
 	return get_charge_ratio()
 
 
 func is_solar_charging() -> bool:
-	return is_sail_deployed()
+	if _run_ended or _is_boost_active() or not _is_daytime():
+		return false
+	return _charge < CHARGE_MAX or _battery < BATTERY_MAX
 
 
 func is_sail_deployed() -> bool:
@@ -1803,24 +1718,16 @@ func is_braking() -> bool:
 	return _input != null and _input.is_brake_held()
 
 
-func _can_sail_recharge() -> bool:
-	return not _run_ended
+func _is_daytime() -> bool:
+	if _day_night == null:
+		_day_night = get_tree().get_first_node_in_group("day_night_cycle") as DayNightCycle
+	if _day_night == null:
+		return true
+	return not _day_night.is_night()
 
 
 func get_landing_feedback() -> Dictionary:
 	return {"timer": _landing_feedback_timer, "label": _landing_feedback_label}
-
-
-func get_landing_kind() -> int:
-	if _ground_contact_active:
-		return 2
-	if _landing_was_hard:
-		return 1
-	return 0
-
-
-func is_ground_contact() -> bool:
-	return _ground_contact_active
 
 
 func get_hull_integrity() -> float:

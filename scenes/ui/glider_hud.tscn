@@ -92,7 +92,7 @@ text = "Kill button - press k"
 anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
-offset_top = -88.0
+offset_top = -124.0
 offset_right = 280.0
 grow_vertical = 0
 theme_override_constants/margin_left = 24
@@ -137,6 +137,18 @@ custom_minimum_size = Vector2(196, 7)
 max_value = 100.0
 show_percentage = false
 value = 100.0
+
+[node name="BatteryLabel" type="Label" parent="BottomLeft/PowerPanel/VBox"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "Battery"
+
+[node name="BatteryBar" type="ProgressBar" parent="BottomLeft/PowerPanel/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(196, 7)
+max_value = 100.0
+show_percentage = false
+value = 0.0
 
 [node name="FailFade" type="ColorRect" parent="."]
 unique_name_in_owner = true
