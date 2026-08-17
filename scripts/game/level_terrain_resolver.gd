@@ -19,6 +19,14 @@ static var _cache_seed: int = -999
 
 
 static func params_at_world_x(world_x: float, origin_x: float = 0.0) -> Dictionary:
+	var blend := param_blend_at_world_x(world_x, origin_x)
+	if float(blend.t) <= 0.0001:
+		return blend.a
+	return _lerp_params(blend.a, blend.b, float(blend.t))
+
+
+## Adjacent slab param sets and the blend factor in [0, 1).
+static func param_blend_at_world_x(world_x: float, origin_x: float = 0.0) -> Dictionary:
 	_ensure_cache_valid()
 	var west_m := maxf(origin_x - world_x, 0.0)
 	var slab_f := west_m / SLAB_M
@@ -26,9 +34,17 @@ static func params_at_world_x(world_x: float, origin_x: float = 0.0) -> Dictiona
 	var frac := slab_f - float(slab0)
 	var a := _params_for_slab(slab0, origin_x)
 	if frac <= 0.0001:
-		return a
+		return {"a": a, "b": a, "t": 0.0}
 	var b := _params_for_slab(slab0 + 1, origin_x)
-	return _lerp_params(a, b, frac)
+	return {"a": a, "b": b, "t": frac}
+
+
+static func same_noise_domain(a: Dictionary, b: Dictionary) -> bool:
+	return (
+		is_equal_approx(float(a.frequency_scale), float(b.frequency_scale))
+		and is_equal_approx(float(a.z_scale), float(b.z_scale))
+		and is_equal_approx(float(a.warp_strength), float(b.warp_strength))
+	)
 
 
 static func journey_length_m() -> float:
@@ -225,12 +241,14 @@ static func _apply_modifiers(base: Dictionary, mods: Dictionary) -> Dictionary:
 
 static func _lerp_params(a: Dictionary, b: Dictionary, t: float) -> Dictionary:
 	t = clampf(t, 0.0, 1.0)
+	# Appearance can blend. Domain knobs must stay on `a` — lerping frequency/z/warp
+	# shears noise UVs along X into Z-long canyon walls at every tower seam.
 	return {
 		"amplitude": lerpf(a.amplitude, b.amplitude, t),
-		"warp_strength": lerpf(a.warp_strength, b.warp_strength, t),
+		"warp_strength": a.warp_strength,
 		"ridge_power": lerpf(a.ridge_power, b.ridge_power, t),
-		"frequency_scale": lerpf(a.frequency_scale, b.frequency_scale, t),
-		"z_scale": lerpf(a.z_scale, b.z_scale, t),
+		"frequency_scale": a.frequency_scale,
+		"z_scale": a.z_scale,
 		"flat_bias": lerpf(a.flat_bias, b.flat_bias, t),
 		"crest_sharpness": lerpf(a.crest_sharpness, b.crest_sharpness, t),
 	}

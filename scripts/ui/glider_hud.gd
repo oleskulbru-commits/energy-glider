@@ -7,6 +7,9 @@ const POWER_COLOR_LOW := Color(0.98, 0.78, 0.18)
 const POWER_COLOR_EMPTY := Color(0.85, 0.28, 0.22)
 const POWER_COLOR_SOLAR := Color(0.98, 0.82, 0.28)
 const POWER_COLOR_OVERHEAT := Color(0.98, 0.45, 0.18)
+const BATTERY_COLOR_NORMAL := Color(0.95, 0.72, 0.28)
+const BATTERY_COLOR_LOW := Color(0.98, 0.78, 0.18)
+const BATTERY_COLOR_EMPTY := Color(0.85, 0.28, 0.22)
 const PULSE_COLOR := Color(1.0, 0.82, 0.28, 1.0)
 
 const GliderInputScript = preload("res://scripts/input/glider_input.gd")
@@ -16,6 +19,8 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _power_percent_label: Label = %PowerPercent
 @onready var _solar_chip: PanelContainer = %SolarChip
 @onready var _power_bar: ProgressBar = %PowerBar
+@onready var _battery_label: Label = %BatteryLabel
+@onready var _battery_bar: ProgressBar = %BatteryBar
 @onready var _stopped_overlay: PanelContainer = %StoppedOverlay
 @onready var _fail_fade: ColorRect = %FailFade
 @onready var _stopped_title: Label = %StoppedTitle
@@ -66,6 +71,7 @@ var _director: EonDirectorScript
 var _night_survival: NightSurvival
 var _day_night: DayNightCycle
 var _power_fill: StyleBoxFlat
+var _battery_fill: StyleBoxFlat
 var _solar_pulse_time := 0.0
 var _interact_tap_down := false
 var _pulse_scan_timer := 0.0
@@ -141,6 +147,11 @@ func _ready() -> void:
 	_fail_overlay_style = StyleBoxEmpty.new()
 	_power_fill = _power_bar.get_theme_stylebox("fill").duplicate() as StyleBoxFlat
 	_power_bar.add_theme_stylebox_override("fill", _power_fill)
+	if _battery_bar != null:
+		_battery_fill = _battery_bar.get_theme_stylebox("fill").duplicate() as StyleBoxFlat
+		_battery_bar.add_theme_stylebox_override("fill", _battery_fill)
+		if _battery_fill != null:
+			_battery_fill.bg_color = BATTERY_COLOR_EMPTY
 	_interact_chip.gui_input.connect(_on_interact_chip_gui_input)
 	_stop_chip.gui_input.connect(_on_stop_chip_gui_input)
 	if _sail_chip != null:
@@ -359,6 +370,7 @@ func _update_power_meter(delta: float) -> void:
 
 	var solar_active := _player.is_solar_charging()
 	_solar_chip.visible = solar_active
+	_update_battery_meter()
 
 	if _power_fill == null:
 		return
@@ -375,6 +387,23 @@ func _update_power_meter(delta: float) -> void:
 		_power_fill.bg_color = POWER_COLOR_LOW
 	else:
 		_power_fill.bg_color = POWER_COLOR_NORMAL
+
+
+func _update_battery_meter() -> void:
+	if _battery_bar == null:
+		return
+	var battery_ratio := _player.get_battery_ratio()
+	_battery_bar.value = battery_ratio * 100.0
+	if _battery_label != null:
+		_battery_label.text = "Battery"
+	if _battery_fill == null:
+		return
+	if _player.is_run_ended() or battery_ratio <= 0.0:
+		_battery_fill.bg_color = BATTERY_COLOR_EMPTY
+	elif battery_ratio < POWER_LOW_THRESHOLD:
+		_battery_fill.bg_color = BATTERY_COLOR_LOW
+	else:
+		_battery_fill.bg_color = BATTERY_COLOR_NORMAL
 
 
 func _on_day_started(day: int) -> void:

@@ -99,7 +99,8 @@ const GROUND_RAY_DOWN := 24.0
 const CHARGE_MAX := 1.0
 const CHARGE_MIN_BOOST := 0.05
 const CHARGE_BOOST_DRAIN := 0.2
-const CHARGE_SAIL_RECHARGE := 0.04
+const CHARGE_SOLAR_RECHARGE := 0.04
+const BATTERY_MAX := CHARGE_MAX * 10.0
 const THRUSTER_OVERHEAT_DURATION := 4.0
 const BOOST_MULTIPLIER := GliderPhysicsScript.BOOST_MULTIPLIER
 const BRAKE_RAMP_SEC := 0.55
@@ -139,8 +140,10 @@ var _board_pitch := 0.0
 var _board_roll := 0.0
 
 var _charge := CHARGE_MAX
+var _battery := 0.0
 var _boost_unlocked := true
 var _overheat_timer := 0.0
+var _day_night: DayNightCycle
 var _run_ended := false
 var _end_reason := ""
 var _piloted := true
@@ -193,6 +196,7 @@ func _ready() -> void:
 
 	if _input != null:
 		_input.set_boost_input_enabled(_boost_unlocked)
+	_day_night = get_tree().get_first_node_in_group("day_night_cycle") as DayNightCycle
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -1339,8 +1343,19 @@ func _update_charge(delta: float) -> void:
 		_charge = maxf(_charge - CHARGE_BOOST_DRAIN * delta, 0.0)
 		if _charge <= 0.0:
 			_overheat_timer = THRUSTER_OVERHEAT_DURATION
-	elif is_sail_deployed() and _can_sail_recharge():
-		_charge = minf(_charge + CHARGE_SAIL_RECHARGE * delta, CHARGE_MAX)
+		return
+	var solar := CHARGE_SOLAR_RECHARGE * delta
+	if _is_daytime():
+		if _charge < CHARGE_MAX:
+			_charge = minf(_charge + solar, CHARGE_MAX)
+		else:
+			_battery = minf(_battery + solar, BATTERY_MAX)
+		return
+	if _battery > 0.0 and _charge < CHARGE_MAX:
+		var transfer := minf(solar, _battery)
+		transfer = minf(transfer, CHARGE_MAX - _charge)
+		_battery -= transfer
+		_charge += transfer
 
 
 func _update_overheat(delta: float) -> void:
@@ -1497,6 +1512,7 @@ func reset_for_respawn() -> void:
 	_yaw_velocity = 0.0
 	_turn_rate = 0.0
 	_charge = CHARGE_MAX
+	_battery = 0.0
 	_overheat_timer = 0.0
 	_coast_timer = 0.0
 	_brake_hold_time = 0.0
@@ -1621,12 +1637,18 @@ func get_charge_ratio() -> float:
 	return _charge / CHARGE_MAX
 
 
+func get_battery_ratio() -> float:
+	return _battery / BATTERY_MAX
+
+
 func get_power_ratio() -> float:
 	return get_charge_ratio()
 
 
 func is_solar_charging() -> bool:
-	return is_sail_deployed()
+	if _run_ended or _is_boost_active() or not _is_daytime():
+		return false
+	return _charge < CHARGE_MAX or _battery < BATTERY_MAX
 
 
 func is_sail_deployed() -> bool:
@@ -1665,8 +1687,12 @@ func is_braking() -> bool:
 	return _input != null and _input.is_brake_held()
 
 
-func _can_sail_recharge() -> bool:
-	return not _run_ended
+func _is_daytime() -> bool:
+	if _day_night == null:
+		_day_night = get_tree().get_first_node_in_group("day_night_cycle") as DayNightCycle
+	if _day_night == null:
+		return true
+	return not _day_night.is_night()
 
 
 func get_landing_feedback() -> Dictionary:

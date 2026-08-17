@@ -87,12 +87,26 @@ func set_run_origin(origin: Vector2) -> void:
 	run_origin = origin
 
 
-func _params_for_position(world_x: float, _world_z: float) -> Dictionary:
-	return LevelTerrainResolverScript.params_at_world_x(world_x, run_origin.x)
-
-
 func sample_height(world_x: float, world_z: float) -> float:
-	var params := _params_for_position(world_x, world_z)
+	var blend: Dictionary = LevelTerrainResolverScript.param_blend_at_world_x(world_x, run_origin.x)
+	var a: Dictionary = blend.a
+	var b: Dictionary = blend.b
+	var t := float(blend.t)
+	var dune := 0.0
+	if t <= 0.0001:
+		dune = _sample_dune(world_x, world_z, a)
+	elif LevelTerrainResolverScript.same_noise_domain(a, b):
+		dune = _sample_dune(world_x, world_z, LevelTerrainResolverScript.params_at_world_x(world_x, run_origin.x))
+	else:
+		dune = lerpf(
+			_sample_dune(world_x, world_z, a),
+			_sample_dune(world_x, world_z, b),
+			t
+		)
+	return dune + _start_peak_rise(world_x, world_z)
+
+
+func _sample_dune(world_x: float, world_z: float, params: Dictionary) -> float:
 	var amplitude: float = params.amplitude
 	var warp_strength: float = params.warp_strength
 	var ridge_power: float = params.ridge_power
@@ -134,8 +148,7 @@ func sample_height(world_x: float, world_z: float) -> float:
 	var detail := _detail_noise.get_noise_2d(sample_x, sample_z) * DETAIL_AMPLITUDE
 	detail *= lerpf(1.0, FLAT_DETAIL_SUPPRESS, flat_mask)
 
-	var base := ridge * amplitude * macro_amplitude * envelope_scale * peak_scale + detail
-	return base + _start_peak_rise(world_x, world_z)
+	return ridge * amplitude * macro_amplitude * envelope_scale * peak_scale + detail
 
 
 func _start_peak_rise(world_x: float, world_z: float) -> float:
