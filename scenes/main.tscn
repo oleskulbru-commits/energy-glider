@@ -9,6 +9,7 @@ shader = ExtResource("3_present_shader")
 shader_parameter/present_dither_strength = 0.12
 
 [node name="Main" type="SubViewportContainer" unique_id=436419643]
+process_mode = 3
 material = SubResource("ShaderMaterial_present")
 anchors_preset = 15
 anchor_right = 1.0
@@ -20,10 +21,13 @@ script = ExtResource("1_pixel_viewport")
 pixel_scale = 2
 
 [node name="SubViewport" type="SubViewport" parent="." unique_id=167199366]
+process_mode = 3
 handle_input_locally = false
+gui_disable_input = false
 size = Vector2i(1920, 1080)
 render_target_update_mode = 4
 
 [node name="GameWorld" parent="SubViewport" unique_id=1548790125 instance=ExtResource("2_game_world")]
+process_mode = 1
 
 [editable path="SubViewport/GameWorld"]

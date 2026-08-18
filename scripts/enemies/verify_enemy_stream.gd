@@ -19,6 +19,7 @@ func _run() -> void:
 	_verify_pill_health()
 	_verify_hit_knockback()
 	_verify_rifle_targeting()
+	_verify_rifle_burst()
 	print("Enemy stream verification passed.")
 	quit(0)
 
@@ -215,6 +216,27 @@ func _verify_rifle_targeting() -> void:
 	near_b.free()
 	behind.free()
 	far.free()
+
+
+func _verify_rifle_burst() -> void:
+	_fail_unless(AutoRifleScript.projectile_count_for(0) == 1, "Base rifle should fire 1 shot")
+	_fail_unless(AutoRifleScript.projectile_count_for(1) == 2, "+1 projectile should fire 2 shots")
+	_fail_unless(AutoRifleScript.projectile_count_for(3) == 4, "Stacks should keep adding shots")
+	var times := AutoRifleScript.burst_fire_times(2)
+	_fail_unless(times.size() == 2, "Two-shot burst should have two fire times")
+	_fail_unless(is_equal_approx(times[0], 0.0), "First burst shot should fire immediately")
+	_fail_unless(
+		is_equal_approx(times[1], AutoRifleScript.BURST_GAP_SEC),
+		"Second burst shot should wait the burst gap"
+	)
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.burst_cooldown_start_sec(2), AutoRifleScript.BURST_GAP_SEC),
+		"Cooldown should start after the last burst shot"
+	)
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.burst_cooldown_start_sec(1), 0.0),
+		"Single shot cooldown should start immediately"
+	)
 
 
 func _marker_at(pos: Vector3) -> Node3D:

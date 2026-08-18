@@ -100,6 +100,8 @@ func _can_rest() -> bool:
 		return false
 	if _glider != null and _glider.is_run_ended():
 		return false
+	if _tower.is_upgrade_stop():
+		return false
 	return true
 
 

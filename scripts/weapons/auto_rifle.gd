@@ -8,10 +8,13 @@ const RifleBulletScene := preload("res://scenes/weapons/rifle_bullet.tscn")
 const DAMAGE := 10
 const RANGE_M := 100.0
 const FIRE_INTERVAL_SEC := 3.0
+const BURST_GAP_SEC := 0.12
 const MUZZLE_UP_M := 0.85
 
 var _rig: PlayerRig
 var _cooldown := 0.0
+var _burst_remaining := 0
+var _burst_gap := 0.0
 var _rng := RandomNumberGenerator.new()
 
 
@@ -22,10 +25,55 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	_cooldown = maxf(_cooldown - delta, 0.0)
+	_burst_gap = maxf(_burst_gap - delta, 0.0)
+	if not _can_fire():
+		_burst_remaining = 0
+		_burst_gap = 0.0
+		return
+	if _burst_remaining > 0:
+		_tick_burst()
+		return
 	if _cooldown > 0.0:
 		return
-	if not _can_fire():
+	if not _try_start_burst():
 		return
+
+
+func get_projectile_count() -> int:
+	return projectile_count_for(_extra_projectiles())
+
+
+func _extra_projectiles() -> int:
+	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
+	if state == null:
+		return 0
+	return state.extra_projectiles
+
+
+func _try_start_burst() -> bool:
+	if not _fire_at_current_target():
+		return false
+	var remaining := get_projectile_count() - 1
+	if remaining > 0:
+		_burst_remaining = remaining
+		_burst_gap = BURST_GAP_SEC
+	else:
+		_cooldown = FIRE_INTERVAL_SEC
+	return true
+
+
+func _tick_burst() -> void:
+	if _burst_gap > 0.0:
+		return
+	_fire_at_current_target()
+	_burst_remaining -= 1
+	if _burst_remaining > 0:
+		_burst_gap = BURST_GAP_SEC
+	else:
+		_cooldown = FIRE_INTERVAL_SEC
+
+
+func _fire_at_current_target() -> bool:
 	var origin := _muzzle_origin()
 	var facing := _facing_xz()
 	var target := pick_target(
@@ -36,9 +84,9 @@ func _physics_process(delta: float) -> void:
 		_rng
 	)
 	if target == null:
-		return
+		return false
 	_fire(origin, target)
-	_cooldown = FIRE_INTERVAL_SEC
+	return true
 
 
 func _can_fire() -> bool:
@@ -117,3 +165,19 @@ static func pick_target(
 	if candidates.is_empty():
 		return null
 	return candidates[rng.randi_range(0, candidates.size() - 1)]
+
+
+static func projectile_count_for(extra_projectiles: int) -> int:
+	return 1 + maxi(extra_projectiles, 0)
+
+
+static func burst_fire_times(projectile_count: int) -> PackedFloat32Array:
+	var times := PackedFloat32Array()
+	var count := maxi(projectile_count, 1)
+	for i in count:
+		times.append(float(i) * BURST_GAP_SEC)
+	return times
+
+
+static func burst_cooldown_start_sec(projectile_count: int) -> float:
+	return float(maxi(projectile_count, 1) - 1) * BURST_GAP_SEC

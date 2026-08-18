@@ -4,11 +4,17 @@ extends Node3D
 const GROUND_OFFSET := 0.05
 
 @export var terrain_manager_path: NodePath
+@export var tower_index := 0
+@export var is_home := false
 
 
 func _ready() -> void:
 	add_to_group("upgrade_tower")
 	call_deferred("snap_to_terrain")
+
+
+func is_upgrade_stop() -> bool:
+	return not is_home and tower_index >= 1
 
 
 func snap_to_terrain() -> void:

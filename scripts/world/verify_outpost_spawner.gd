@@ -96,6 +96,21 @@ func _run() -> void:
 	_fail_unless(spawned == 41, "Expected home+40 west towers, got %d spawned" % spawned)
 	_fail_unless(west_ok == 40, "Expected 40 west towers on planned X, got %d" % west_ok)
 
+	var seen_indexes: Dictionary = {}
+	for node in get_nodes_in_group("upgrade_tower"):
+		var west := node as UpgradeTower
+		if west == null or west == tower:
+			continue
+		if west.is_home:
+			_fail_unless(west.tower_index == 0, "Home tower index should be 0")
+			_fail_unless(not west.is_upgrade_stop(), "Home should not be an upgrade stop")
+			continue
+		_fail_unless(west.is_upgrade_stop(), "West tower %d should be an upgrade stop" % west.tower_index)
+		_fail_unless(west.tower_index >= 1 and west.tower_index <= 40, "West tower index out of range: %d" % west.tower_index)
+		_fail_unless(not seen_indexes.has(west.tower_index), "Duplicate west tower index %d" % west.tower_index)
+		seen_indexes[west.tower_index] = true
+	_fail_unless(seen_indexes.size() == 40, "Expected 40 unique west tower indexes")
+
 	# Planned westbound line (Z=0) must still be inside hub for deposit / night safety.
 	for offset_x in expected_offsets:
 		var line_pos := Vector3(terrain.run_origin.x + offset_x, 0.0, terrain.run_origin.y)
