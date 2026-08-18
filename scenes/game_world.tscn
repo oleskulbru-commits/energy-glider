@@ -14,6 +14,7 @@
 [ext_resource type="Script" uid="uid://cx4g652ulhs8w" path="res://scripts/game/eon_director.gd" id="15_eon"]
 [ext_resource type="Script" uid="uid://bdtr5aefc5k10" path="res://scripts/world/night_survival.gd" id="16_night"]
 [ext_resource type="Script" uid="uid://d304h7bfwf23y" path="res://scripts/game/level_progress.gd" id="17_level"]
+[ext_resource type="Script" uid="uid://cmltivlks2lph" path="res://scripts/enemies/enemy_stream_spawner.gd" id="18_stream"]
 
 [sub_resource type="Sky" id="Sky_main"]
 sky_material = ExtResource("4_sky")

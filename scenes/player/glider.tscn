@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://ddl0fwofkchgi" path="res://scripts/player/ground_shadow.gd" id="7_shadow"]
 [ext_resource type="Script" uid="uid://ri1o7e2s8hwd" path="res://scripts/player/hover_dust.gd" id="9_hover_dust"]
 [ext_resource type="PackedScene" uid="uid://cc4m2a3lbllwj" path="res://scenes/player/the_glider_skin.tscn" id="13_skin"]
+[ext_resource type="PackedScene" uid="uid://cplayer_hp_bar" path="res://scenes/player/player_health_bar.tscn" id="13_hp_bar"]
 [ext_resource type="Script" uid="uid://dcybugjnwyvfp" path="res://scripts/player/glider_camera.gd" id="14_camera"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_glider"]

@@ -1475,7 +1475,7 @@ func is_gliding() -> bool:
 
 
 func is_landing() -> bool:
-	return _state == State.LANDING
+	return _landing_stabilize_timer > 0.0
 
 
 func is_boost_active() -> bool:
