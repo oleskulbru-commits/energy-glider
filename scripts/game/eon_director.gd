@@ -7,6 +7,7 @@ signal integrity_changed(integrity: int)
 signal run_started
 signal player_died(position: Vector3)
 signal objective_changed(text: String)
+signal attempt_started
 
 enum Phase { AWAITING_EON, RUNNING }
 
@@ -276,6 +277,7 @@ func _soft_retry() -> void:
 		_day_night.skip_to_dawn()
 	phase = Phase.AWAITING_EON
 	objective_changed.emit(get_objective_text())
+	attempt_started.emit()
 
 
 func _spawn_eon_near_start() -> void:

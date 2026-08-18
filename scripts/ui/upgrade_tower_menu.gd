@@ -138,6 +138,7 @@ func _wait_until_dawn() -> void:
 			day_night.skip_to_dawn()
 	if _rig != null and _tower != null:
 		_rig.teleport_in_front_of(_tower.global_position)
+	_clear_enemies_until_dawn_grace()
 
 
 func _close() -> void:
@@ -148,3 +149,9 @@ func _close() -> void:
 		_rig.capture_look_mouse()
 	_tower = null
 	closed.emit()
+
+
+func _clear_enemies_until_dawn_grace() -> void:
+	var spawner := get_tree().get_first_node_in_group("enemy_stream_spawner") as EnemyStreamSpawner
+	if spawner != null:
+		spawner.reset_after_dawn()

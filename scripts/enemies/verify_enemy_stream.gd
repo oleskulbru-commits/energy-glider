@@ -20,6 +20,7 @@ func _run() -> void:
 	_verify_hit_knockback()
 	_verify_rifle_targeting()
 	_verify_rifle_burst()
+	_verify_spawn_after_try_again()
 	print("Enemy stream verification passed.")
 	quit(0)
 
@@ -74,6 +75,10 @@ func _verify_spawn_grace() -> void:
 	_fail_unless(
 		is_equal_approx(EnemyStreamSpawnerScript.SPAWN_GRACE_SEC, 3.0),
 		"Spawn grace should be 3 seconds after E.O.N. pickup"
+	)
+	_fail_unless(
+		is_equal_approx(EnemyStreamSpawnerScript.DAWN_SPAWN_GRACE_SEC, 2.0),
+		"Wait until dawn should suppress spawns for 2 seconds"
 	)
 	_fail_unless(
 		SwarmPillScript.CONTACT_DAMAGE == 5,
@@ -236,6 +241,25 @@ func _verify_rifle_burst() -> void:
 	_fail_unless(
 		is_equal_approx(AutoRifleScript.burst_cooldown_start_sec(1), 0.0),
 		"Single shot cooldown should start immediately"
+	)
+
+
+func _verify_spawn_after_try_again() -> void:
+	_fail_unless(
+		not EnemyStreamSpawnerScript.should_spawn_stream(false, false, false),
+		"New game should not spawn enemies before the first E.O.N. pickup"
+	)
+	_fail_unless(
+		EnemyStreamSpawnerScript.should_spawn_stream(true, true, false),
+		"Enemies should spawn while carrying the E.O.N."
+	)
+	_fail_unless(
+		not EnemyStreamSpawnerScript.should_spawn_stream(false, true, true),
+		"Enemies should stop while the death screen is up"
+	)
+	_fail_unless(
+		EnemyStreamSpawnerScript.should_spawn_stream(false, true, false),
+		"Try Again should spawn enemies even before picking up the E.O.N. again"
 	)
 
 
