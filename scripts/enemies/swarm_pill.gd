@@ -13,6 +13,9 @@ const CONTACT_RADIUS_M := 1.35
 ## Ignore hits when the player is clearly jumping/flying over the pill.
 const CONTACT_MAX_ABOVE_M := 1.2
 const DEFAULT_SPEED := 3.5
+const MAX_HEALTH := 20
+const HIT_KNOCKBACK_SPEED := 12.0
+const HIT_KNOCKBACK_DECAY_SEC := 0.3
 
 var move_speed := DEFAULT_SPEED
 var contact_damage := CONTACT_DAMAGE
@@ -26,11 +29,14 @@ var _damage_timer := 0.0
 var _last_seek_dir := Vector3.ZERO
 ## Subclasses (charger) multiply base move_speed while aggro'd.
 var chase_speed_mult := 1.0
+var _hp := MAX_HEALTH
+var _hit_velocity := Vector3.ZERO
 
 
 func _ready() -> void:
 	add_to_group("swarm_pill")
 	motion_mode = MOTION_MODE_FLOATING
+	_hp = get_max_health()
 
 
 func configure(terrain: TerrainManager, target: Node3D, speed: float = DEFAULT_SPEED) -> void:
@@ -46,6 +52,30 @@ func set_target(target: Node3D) -> void:
 
 func set_move_speed(speed: float) -> void:
 	move_speed = speed
+
+
+func get_health() -> int:
+	return _hp
+
+
+func get_max_health() -> int:
+	return MAX_HEALTH
+
+
+func is_alive() -> bool:
+	return _hp > 0
+
+
+## Returns true if the pill died from this hit. Lethal hits skip knockback.
+func take_damage(amount: int, from_pos: Vector3 = Vector3.ZERO) -> bool:
+	if amount <= 0 or _hp <= 0:
+		return false
+	_hp = maxi(_hp - amount, 0)
+	if _hp <= 0:
+		queue_free()
+		return true
+	_hit_velocity = hit_knockback_velocity_for(from_pos, global_position)
+	return false
 
 
 func _physics_process(delta: float) -> void:
@@ -71,6 +101,11 @@ func _physics_process(delta: float) -> void:
 		velocity = _last_seek_dir * _get_move_speed()
 	else:
 		velocity = Vector3.ZERO
+	velocity += _hit_velocity
+	_hit_velocity = _hit_velocity.move_toward(
+		Vector3.ZERO,
+		HIT_KNOCKBACK_SPEED / maxf(HIT_KNOCKBACK_DECAY_SEC, 0.001) * delta
+	)
 
 	move_and_slide()
 	_snap_to_terrain()
@@ -170,6 +205,21 @@ static func knockback_velocity_for(
 	else:
 		away = away.normalized()
 	return Vector3(away.x * speed, up, away.z * speed)
+
+
+## Horizontal shove away from the shot origin. Lethal hits should not call this.
+static func hit_knockback_velocity_for(
+	from_pos: Vector3,
+	pill_pos: Vector3,
+	speed: float = HIT_KNOCKBACK_SPEED
+) -> Vector3:
+	var away := pill_pos - from_pos
+	away.y = 0.0
+	if away.length_squared() < 0.0001:
+		away = Vector3(1.0, 0.0, 0.0)
+	else:
+		away = away.normalized()
+	return Vector3(away.x * speed, 0.0, away.z * speed)
 
 
 ## Legacy impulse helper (mass-scaled); prefer knockback_velocity_for + queue_knockback.
