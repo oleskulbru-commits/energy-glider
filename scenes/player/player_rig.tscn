@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/glider_hud.tscn" id="7_hud"]
 [ext_resource type="Script" path="res://scripts/player/player_health.gd" id="10_health"]
 [ext_resource type="Script" path="res://scripts/player/hub_health_recharge.gd" id="11_hub_heal"]
+[ext_resource type="Script" path="res://scripts/weapons/auto_rifle.gd" id="12_rifle"]
 
 [node name="PlayerRig" type="Node3D" unique_id=1639311098]
 script = ExtResource("3_rig")
@@ -25,3 +26,6 @@ player_rig_path = NodePath("..")
 player_health_path = NodePath("../PlayerHealth")
 
 [node name="GliderHUD" parent="." unique_id=828124853 instance=ExtResource("7_hud")]
+
+[node name="AutoRifle" type="Node" parent="."]
+script = ExtResource("12_rifle")

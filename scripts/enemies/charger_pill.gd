@@ -5,6 +5,7 @@ extends SwarmPill
 
 const CHARGER_CONTACT_DAMAGE := 12
 const CHARGER_CONTACT_RADIUS_M := 1.6
+const CHARGER_MAX_HEALTH := 25
 const AGGRO_RANGE_M := 15.0
 const AGGRO_SPEED_MULT := 2.0
 const AGGRO_RAMP_SEC := 0.45
@@ -21,6 +22,7 @@ func _ready() -> void:
 	add_to_group("charger_pill")
 	contact_damage = CHARGER_CONTACT_DAMAGE
 	contact_radius_m = CHARGER_CONTACT_RADIUS_M
+	_hp = get_max_health()
 
 
 func _update_chase(delta: float) -> void:
@@ -47,6 +49,10 @@ func _update_chase(delta: float) -> void:
 
 func _get_move_speed() -> float:
 	return move_speed * chase_speed_mult
+
+
+func get_max_health() -> int:
+	return CHARGER_MAX_HEALTH
 
 
 ## Ramp speed multiplier toward 2x when aggro, else back to 1x.
