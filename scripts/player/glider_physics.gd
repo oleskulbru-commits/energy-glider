@@ -164,6 +164,7 @@ class Context:
 	var glide_drag_scale: float = 1.0
 	var thruster_accel: float = 0.0
 	var air_thruster_accel: float = 0.0
+	var speed_bonus: float = 0.0
 
 
 static func horizontal_velocity(velocity: Vector3) -> Vector3:
@@ -177,24 +178,28 @@ static func clamp_tangent_speed(tangent_vel: Vector3, max_speed: float) -> Vecto
 	return tangent_vel * (max_speed / speed)
 
 
-static func flat_max_speed(boost_active: bool) -> float:
-	var max_speed := FLAT_MAX_SPEED
+static func cruise_speed_for(bonus: float = 0.0) -> float:
+	return minf(FLAT_MAX_SPEED * (1.0 + maxf(bonus, 0.0)), CRUISE_ABSOLUTE_MAX)
+
+
+static func flat_max_speed(boost_active: bool, bonus: float = 0.0) -> float:
+	var cruise := cruise_speed_for(bonus)
 	if boost_active:
-		max_speed *= BOOST_SPEED_FACTOR
-	return minf(max_speed, BOOST_ABSOLUTE_MAX)
+		return minf(cruise * BOOST_SPEED_FACTOR, BOOST_ABSOLUTE_MAX)
+	return cruise
 
 
-static func cruise_drive_cap(boost_active: bool) -> float:
-	return flat_max_speed(boost_active)
+static func cruise_drive_cap(boost_active: bool, bonus: float = 0.0) -> float:
+	return flat_max_speed(boost_active, bonus)
 
 
-static func carry_speed_cap(boost_active: bool) -> float:
-	return flat_max_speed(boost_active)
+static func carry_speed_cap(boost_active: bool, bonus: float = 0.0) -> float:
+	return flat_max_speed(boost_active, bonus)
 
 
 ## Hard velocity ceiling (boost max). Soft cruise/boost targets ease via forces — never snap here.
-static func hard_speed_cap() -> float:
-	return flat_max_speed(true)
+static func hard_speed_cap(bonus: float = 0.0) -> float:
+	return flat_max_speed(true, bonus)
 
 
 ## Positive = traveling downhill, negative = uphill, ~0 = flat or side-hill.
@@ -219,12 +224,12 @@ static func target_horizontal_speed(ctx: Context) -> float:
 		# Coast / brake toward a stop (brake handled via higher decel rate).
 		return 0.0
 
-	var max_speed := flat_max_speed(ctx.boost_active)
+	var max_speed := flat_max_speed(ctx.boost_active, ctx.speed_bonus)
 	var signed_g := signed_travel_grade(ctx)
 	## Boost ignores climb caps — escape card limited only by charge duration.
 	if signed_g < 0.0 and not ctx.boost_active:
 		var climb_t := clampf((-signed_g) / UPHILL_GRADE_REF, 0.0, 1.0)
-		max_speed = maxf(max_speed - FLAT_MAX_SPEED * climb_t, CLIMB_MIN_SPEED)
+		max_speed = maxf(max_speed - cruise_speed_for(ctx.speed_bonus) * climb_t, CLIMB_MIN_SPEED)
 
 	if brake > 0.0:
 		max_speed *= 1.0 - brake
@@ -505,7 +510,7 @@ static func compute_air_force(ctx: Context, mass: float, _delta: float) -> Vecto
 		thrust_dir = thrust_dir.normalized()
 
 	if ctx.boost_active and thrust_dir.length_squared() > 0.0001:
-		var target := flat_max_speed(true)
+		var target := flat_max_speed(true, ctx.speed_bonus)
 		if forward_speed < target - 0.05:
 			force += thrust_dir * BOOST_ACCEL * AIR_BOOST_EXTRA_SCALE * mass
 
@@ -585,7 +590,7 @@ static func apply_velocity_constraints(ctx: Context, velocity: Vector3, mode: in
 
 		var tangent_vel := clamp_tangent_speed(
 			v.slide(normal),
-			hard_speed_cap()
+			hard_speed_cap(ctx.speed_bonus)
 		)
 		v = tangent_vel + normal * v.dot(normal)
 
@@ -593,7 +598,7 @@ static func apply_velocity_constraints(ctx: Context, velocity: Vector3, mode: in
 		var horizontal := horizontal_velocity(v)
 		horizontal = clamp_tangent_speed(
 			horizontal,
-			hard_speed_cap()
+			hard_speed_cap(ctx.speed_bonus)
 		)
 		v.x = horizontal.x
 		v.z = horizontal.z
@@ -627,7 +632,7 @@ static func apply_touchdown(ctx: Context, _braking: bool = false) -> Dictionary:
 	dir = dir.normalized()
 
 	var velocity := dir * speed_out
-	velocity = clamp_tangent_speed(velocity, hard_speed_cap())
+	velocity = clamp_tangent_speed(velocity, hard_speed_cap(ctx.speed_bonus))
 	return {
 		"velocity": velocity,
 		"approach": approach,

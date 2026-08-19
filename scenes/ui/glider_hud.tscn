@@ -357,7 +357,7 @@ anchor_right = 1.0
 offset_left = -220.0
 offset_top = 24.0
 offset_right = -24.0
-offset_bottom = 146.0
+offset_bottom = 174.0
 grow_horizontal = 0
 mouse_filter = 2
 theme_type_variation = &"HudPanel"
@@ -387,6 +387,12 @@ horizontal_alignment = 2
 unique_name_in_owner = true
 theme_type_variation = &"HudLabel"
 text = "Projectile Speed 0%"
+horizontal_alignment = 2
+
+[node name="GliderSpeedLabel" type="Label" parent="RifleDebugPanel/RifleDebugVBox"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "Glider Speed 0%"
 horizontal_alignment = 2
 
 [node name="InteractChip" type="PanelContainer" parent="."]

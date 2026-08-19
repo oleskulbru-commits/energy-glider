@@ -299,7 +299,7 @@ func _preserve_air_horizontal_speed(state: PhysicsDirectBodyState3D, speed_befor
 	if not _input.is_forward_held():
 		_air_hold_horizontal_speed = 0.0
 		return
-	var cap := GliderPhysicsScript.hard_speed_cap()
+	var cap := GliderPhysicsScript.hard_speed_cap(_glider_speed_bonus())
 	if _air_hold_horizontal_speed < 0.1:
 		_air_hold_horizontal_speed = minf(maxf(speed_before, 0.0), cap)
 	if _air_hold_horizontal_speed < 0.1:
@@ -1277,7 +1277,15 @@ func _build_physics_context() -> GliderPhysicsScript.Context:
 		ctx.air_gravity_scale = 1.0
 	ctx.thruster_accel = _thruster_accel(ctx.forward_held)
 	ctx.air_thruster_accel = ctx.thruster_accel * GliderPhysicsScript.AIR_BOOST_EXTRA_SCALE
+	ctx.speed_bonus = _glider_speed_bonus()
 	return ctx
+
+
+func _glider_speed_bonus() -> float:
+	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
+	if state == null:
+		return 0.0
+	return state.glider_speed_bonus
 
 
 func _build_touchdown_context() -> GliderPhysicsScript.Context:

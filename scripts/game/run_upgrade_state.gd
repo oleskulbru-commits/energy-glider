@@ -9,6 +9,7 @@ var extra_projectiles := 0
 var attack_speed_reduction := 0.0
 var damage_bonus := 0.0
 var projectile_speed_bonus := 0.0
+var glider_speed_bonus := 0.0
 var _offers: Dictionary = {}
 var _visited_this_life: Dictionary = {}
 
@@ -41,6 +42,7 @@ func reset_run() -> void:
 	attack_speed_reduction = 0.0
 	damage_bonus = 0.0
 	projectile_speed_bonus = 0.0
+	glider_speed_bonus = 0.0
 	_offers.clear()
 	clear_visited_this_life()
 	extra_projectiles_changed.emit(extra_projectiles)
@@ -92,6 +94,8 @@ func _apply_upgrade(id: StringName) -> void:
 		projectile_speed_bonus += UpgradeCatalog.projectile_speed_percent(
 			UpgradeCatalog.rarity_of(id)
 		)
+	elif family == UpgradeCatalog.FAMILY_GLIDER_SPEED:
+		glider_speed_bonus += UpgradeCatalog.glider_speed_percent(UpgradeCatalog.rarity_of(id))
 
 
 func add_extra_projectile(amount: int = 1) -> void:

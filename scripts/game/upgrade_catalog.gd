@@ -8,6 +8,7 @@ const FAMILY_PROJECTILE := &"projectile"
 const FAMILY_ATTACK_SPEED := &"attack_speed"
 const FAMILY_DAMAGE := &"damage"
 const FAMILY_PROJECTILE_SPEED := &"projectile_speed"
+const FAMILY_GLIDER_SPEED := &"glider_speed"
 const RARITY_COMMON := &"common"
 const RARITY_RARE := &"rare"
 const RARITY_EPIC := &"epic"
@@ -49,6 +50,11 @@ const PROJECTILE_SPEED_RARE := 0.08
 const PROJECTILE_SPEED_EPIC := 0.11
 const PROJECTILE_SPEED_LEGENDARY := 0.15
 
+const GLIDER_SPEED_COMMON := 0.08
+const GLIDER_SPEED_RARE := 0.12
+const GLIDER_SPEED_EPIC := 0.16
+const GLIDER_SPEED_LEGENDARY := 0.22
+
 const SHOP_SEED_WORLD := 1009
 const SHOP_SEED_TOWER := 9176
 
@@ -65,6 +71,8 @@ static func family_of(id: StringName) -> StringName:
 		return FAMILY_DAMAGE
 	if text.begins_with("projectile_speed_"):
 		return FAMILY_PROJECTILE_SPEED
+	if text.begins_with("glider_speed_"):
+		return FAMILY_GLIDER_SPEED
 	if text.begins_with("projectile_"):
 		return FAMILY_PROJECTILE
 	if id == &"extra_projectile":
@@ -131,6 +139,18 @@ static func projectile_speed_percent(rarity: StringName) -> float:
 			return PROJECTILE_SPEED_COMMON
 
 
+static func glider_speed_percent(rarity: StringName) -> float:
+	match rarity:
+		RARITY_RARE:
+			return GLIDER_SPEED_RARE
+		RARITY_EPIC:
+			return GLIDER_SPEED_EPIC
+		RARITY_LEGENDARY:
+			return GLIDER_SPEED_LEGENDARY
+		_:
+			return GLIDER_SPEED_COMMON
+
+
 static func display_name(id: StringName) -> String:
 	var family := family_of(id)
 	if family == FAMILY_PROJECTILE:
@@ -147,6 +167,9 @@ static func display_name(id: StringName) -> String:
 	if family == FAMILY_PROJECTILE_SPEED:
 		var pct := int(round(projectile_speed_percent(rarity_of(id)) * 100.0))
 		return "Projectile Speed +%d%%" % pct
+	if family == FAMILY_GLIDER_SPEED:
+		var pct := int(round(glider_speed_percent(rarity_of(id)) * 100.0))
+		return "Glider Speed +%d%%" % pct
 	return String(id)
 
 
@@ -217,12 +240,14 @@ static func _roll_rarity(rng: RandomNumberGenerator) -> StringName:
 
 
 static func _roll_family(rng: RandomNumberGenerator) -> StringName:
-	match rng.randi_range(0, 3):
+	match rng.randi_range(0, 4):
 		0:
 			return FAMILY_PROJECTILE
 		1:
 			return FAMILY_ATTACK_SPEED
 		2:
 			return FAMILY_DAMAGE
-		_:
+		3:
 			return FAMILY_PROJECTILE_SPEED
+		_:
+			return FAMILY_GLIDER_SPEED

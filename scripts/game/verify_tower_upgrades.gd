@@ -6,6 +6,7 @@ const TowerVisitControllerScript = preload("res://scripts/game/tower_visit_contr
 const PlayerRigScript = preload("res://scripts/player/player_rig.gd")
 const UpgradeTowerScript = preload("res://scripts/world/upgrade_tower.gd")
 const AutoRifleScript = preload("res://scripts/weapons/auto_rifle.gd")
+const GliderPhysicsScript = preload("res://scripts/player/glider_physics.gd")
 
 
 func _init() -> void:
@@ -20,6 +21,7 @@ func _run() -> void:
 	_verify_attack_speed_stacking()
 	_verify_damage_stacking()
 	_verify_projectile_speed_stacking()
+	_verify_glider_speed_stacking()
 	_verify_dawn_pose()
 	await _verify_visit_radius()
 	print("Tower upgrade verification passed.")
@@ -58,6 +60,13 @@ func _verify_catalog() -> void:
 		and is_equal_approx(UpgradeCatalogScript.PROJECTILE_SPEED_EPIC, 0.11)
 		and is_equal_approx(UpgradeCatalogScript.PROJECTILE_SPEED_LEGENDARY, 0.15),
 		"Projectile Speed percents should be 5 / 8 / 11 / 15"
+	)
+	_fail_unless(
+		is_equal_approx(UpgradeCatalogScript.GLIDER_SPEED_COMMON, 0.08)
+		and is_equal_approx(UpgradeCatalogScript.GLIDER_SPEED_RARE, 0.12)
+		and is_equal_approx(UpgradeCatalogScript.GLIDER_SPEED_EPIC, 0.16)
+		and is_equal_approx(UpgradeCatalogScript.GLIDER_SPEED_LEGENDARY, 0.22),
+		"Glider Speed percents should be 8 / 12 / 16 / 22"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.PROJECTILE_COMMON == 1
@@ -123,6 +132,48 @@ func _verify_catalog() -> void:
 	_fail_unless(
 		UpgradeCatalogScript.family_of(rare_ps) == UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED,
 		"projectile_speed_rare should parse as projectile_speed, not projectile"
+	)
+	var rare_gs := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_GLIDER_SPEED,
+		UpgradeCatalogScript.RARITY_RARE
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(rare_gs) == "Glider Speed +12%",
+		"Glider Speed rare should show +12%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.family_of(rare_gs) == UpgradeCatalogScript.FAMILY_GLIDER_SPEED,
+		"glider_speed_rare should parse as the glider_speed family"
+	)
+	var common_gs := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_GLIDER_SPEED,
+		UpgradeCatalogScript.RARITY_COMMON
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(common_gs) != null,
+		"Common Glider Speed should use glider_speed_common.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(rare_gs) != null,
+		"Rare Glider Speed should use glider_speed_rare.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_GLIDER_SPEED,
+				UpgradeCatalogScript.RARITY_EPIC
+			)
+		) != null,
+		"Epic Glider Speed should use glider_speed_epic.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_GLIDER_SPEED,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) != null,
+		"Legendary Glider Speed should use glider_speed_legendary.jpg"
 	)
 	var common_ps := UpgradeCatalogScript.make_id(
 		UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED,
@@ -331,6 +382,10 @@ func _verify_offers_and_visit_lock() -> void:
 		is_equal_approx(state.projectile_speed_bonus, 0.0),
 		"Try Again should clear Projectile Speed"
 	)
+	_fail_unless(
+		is_equal_approx(state.glider_speed_bonus, 0.0),
+		"Try Again should clear Glider Speed"
+	)
 	_fail_unless(state.remaining_count(1) == 5, "Try Again should restore a full shop")
 	state.free()
 
@@ -524,6 +579,97 @@ func _verify_projectile_speed_stacking() -> void:
 	_fail_unless(
 		is_equal_approx(state.projectile_speed_bonus, 0.0),
 		"Try Again should clear Projectile Speed"
+	)
+	state.free()
+
+
+func _verify_glider_speed_stacking() -> void:
+	var state: RunUpgradeState = RunUpgradeStateScript.new()
+	root.add_child(state)
+	var common_gs := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_GLIDER_SPEED,
+			UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	var rare_gs := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_GLIDER_SPEED,
+			UpgradeCatalogScript.RARITY_RARE
+		)
+	)
+	var legendary_gs := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_GLIDER_SPEED,
+			UpgradeCatalogScript.RARITY_LEGENDARY
+		)
+	)
+	var leftover := String(UpgradeCatalogScript.ID_EXTRA_PROJECTILE)
+	_seed_offers(
+		state,
+		10,
+		PackedStringArray([common_gs, rare_gs, leftover, leftover, leftover])
+	)
+	state.pick_offer(10, 0)
+	state.pick_offer(10, 0)
+	_fail_unless(
+		is_equal_approx(state.glider_speed_bonus, 0.20),
+		"Common + rare Glider Speed should sum to 20%"
+	)
+	_fail_unless(
+		is_equal_approx(
+			GliderPhysicsScript.cruise_speed_for(state.glider_speed_bonus),
+			GliderPhysicsScript.FLAT_MAX_SPEED * 1.20
+		),
+		"Additive cruise should be 26.6 × 1.20"
+	)
+	_fail_unless(
+		is_equal_approx(
+			GliderPhysicsScript.flat_max_speed(true, state.glider_speed_bonus),
+			GliderPhysicsScript.FLAT_MAX_SPEED * 1.20 * GliderPhysicsScript.BOOST_SPEED_FACTOR
+		),
+		"Boost should stay cruise × 1.3"
+	)
+	_fail_unless(state.remaining_count(10) == 3, "Leftover cards should stay in the shop")
+	_fail_unless(state.extra_projectiles == 0, "Glider Speed picks should not add projectiles")
+
+	_seed_offers(
+		state,
+		11,
+		PackedStringArray([legendary_gs, legendary_gs, legendary_gs, legendary_gs, legendary_gs])
+	)
+	for _i in 5:
+		state.pick_offer(11, 0)
+	_seed_offers(
+		state,
+		12,
+		PackedStringArray([legendary_gs, legendary_gs, legendary_gs, legendary_gs, legendary_gs])
+	)
+	for _i in 5:
+		state.pick_offer(12, 0)
+	_fail_unless(
+		is_equal_approx(state.glider_speed_bonus, 0.20 + 2.20),
+		"Picks past the cruise cap should still add their percent"
+	)
+	_fail_unless(
+		is_equal_approx(
+			GliderPhysicsScript.cruise_speed_for(state.glider_speed_bonus),
+			GliderPhysicsScript.CRUISE_ABSOLUTE_MAX
+		),
+		"Cruise should cap at CRUISE_ABSOLUTE_MAX"
+	)
+	_fail_unless(
+		is_equal_approx(
+			GliderPhysicsScript.flat_max_speed(true, state.glider_speed_bonus),
+			GliderPhysicsScript.BOOST_ABSOLUTE_MAX
+		),
+		"Boost should cap at 100 m/s"
+	)
+	_fail_unless(state.remaining_count(12) == 0, "Over-cap pick should still remove the card")
+	state.reset_run()
+	_fail_unless(
+		is_equal_approx(state.glider_speed_bonus, 0.0),
+		"Try Again should clear Glider Speed"
 	)
 	state.free()
 

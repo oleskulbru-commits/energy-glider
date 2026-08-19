@@ -102,6 +102,7 @@ func _run_tests() -> void:
 	_verify_chase_camera_math()
 	_verify_boost_climb_target_speed()
 	_verify_ground_boost_accel_rate()
+	_verify_glider_speed_caps()
 	await _verify_hover_rest()
 	await _verify_hover_settle_from_high()
 	await _verify_terrain_probes_math()
@@ -182,6 +183,52 @@ func _verify_ground_boost_accel_rate() -> void:
 		"Ground boost from cruise should apply BOOST_ACCEL (got %.2f, want %.2f)" % [
 			accel, GliderPhysicsScript.BOOST_ACCEL
 		]
+	)
+
+
+func _verify_glider_speed_caps() -> void:
+	_fail_unless(
+		is_equal_approx(GliderPhysicsScript.flat_max_speed(false), GliderPhysicsScript.FLAT_MAX_SPEED),
+		"Base cruise should stay ~26.6 m/s"
+	)
+	_fail_unless(
+		is_equal_approx(
+			GliderPhysicsScript.flat_max_speed(true),
+			GliderPhysicsScript.FLAT_MAX_SPEED * GliderPhysicsScript.BOOST_SPEED_FACTOR
+		),
+		"Base boost should stay cruise × 1.3"
+	)
+	_fail_unless(
+		is_equal_approx(GliderPhysicsScript.cruise_speed_for(0.20), GliderPhysicsScript.FLAT_MAX_SPEED * 1.20),
+		"8% + 12% should raise cruise to 26.6 × 1.20"
+	)
+	_fail_unless(
+		is_equal_approx(
+			GliderPhysicsScript.flat_max_speed(true, 0.20),
+			GliderPhysicsScript.FLAT_MAX_SPEED * 1.20 * GliderPhysicsScript.BOOST_SPEED_FACTOR
+		),
+		"8% + 12% boost should be cruise × 1.3"
+	)
+	_fail_unless(
+		is_equal_approx(GliderPhysicsScript.cruise_speed_for(3.0), GliderPhysicsScript.CRUISE_ABSOLUTE_MAX),
+		"Huge Glider Speed bonus should cap cruise at ~76.9 m/s"
+	)
+	_fail_unless(
+		is_equal_approx(GliderPhysicsScript.flat_max_speed(true, 3.0), GliderPhysicsScript.BOOST_ABSOLUTE_MAX),
+		"Huge Glider Speed bonus should cap boost at 100 m/s"
+	)
+	var ctx := GliderPhysicsScript.Context.new()
+	ctx.forward_held = true
+	ctx.boost_active = false
+	ctx.speed_bonus = 0.20
+	ctx.velocity = Vector3(0.0, 0.0, 2.0)
+	ctx.board_forward = Vector3(0.0, 0.0, 1.0)
+	ctx.downhill = Vector3(0.0, 0.0, -1.0)
+	ctx.slope_grade = GliderPhysicsScript.UPHILL_GRADE_REF
+	var climb := GliderPhysicsScript.target_horizontal_speed(ctx)
+	_fail_unless(
+		is_equal_approx(climb, GliderPhysicsScript.CLIMB_MIN_SPEED),
+		"Upgraded cruise should still floor a full climb at climb min (got %.2f)" % climb
 	)
 
 
