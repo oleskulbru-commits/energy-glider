@@ -78,7 +78,7 @@ func _on_body_entered(body: Node) -> void:
 	if pill == null:
 		return
 	_spent = true
-	var killed := pill.take_damage(_damage, global_position)
+	var killed := pill.take_damage(_damage, _dir)
 	if killed:
 		KillSparksScript.spawn(get_tree(), pill.global_position)
 	queue_free()
