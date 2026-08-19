@@ -14,6 +14,8 @@ var _target: Node3D
 var _dir := Vector3.FORWARD
 var _life := LIFETIME_SEC
 var _spent := false
+var _damage := DAMAGE
+var _speed := SPEED_MPS
 
 
 func _ready() -> void:
@@ -22,9 +24,17 @@ func _ready() -> void:
 	body_entered.connect(_on_body_entered)
 
 
-func launch(origin: Vector3, target: Node3D, initial_dir: Vector3) -> void:
+func launch(
+	origin: Vector3,
+	target: Node3D,
+	initial_dir: Vector3,
+	amount: int = DAMAGE,
+	speed_mps: float = SPEED_MPS
+) -> void:
 	global_position = origin
 	_target = target
+	_damage = maxi(amount, 1)
+	_speed = maxf(speed_mps, 0.01)
 	if initial_dir.length_squared() > 0.0001:
 		_dir = initial_dir.normalized()
 	elif _aim_vector().length_squared() > 0.0001:
@@ -38,7 +48,7 @@ func _physics_process(delta: float) -> void:
 	var aim := _aim_vector()
 	if aim.length_squared() > 0.0001:
 		_dir = _dir.lerp(aim.normalized(), HOMING).normalized()
-	global_position += _dir * SPEED_MPS * delta
+	global_position += _dir * _speed * delta
 	_orient()
 	_life -= delta
 	if _life <= 0.0:
@@ -68,7 +78,7 @@ func _on_body_entered(body: Node) -> void:
 	if pill == null:
 		return
 	_spent = true
-	var killed := pill.take_damage(DAMAGE, global_position)
+	var killed := pill.take_damage(_damage, global_position)
 	if killed:
 		KillSparksScript.spawn(get_tree(), pill.global_position)
 	queue_free()

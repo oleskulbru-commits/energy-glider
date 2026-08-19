@@ -18,6 +18,8 @@ func _run() -> void:
 	_verify_offers_and_visit_lock()
 	_verify_empty_tower_confirm()
 	_verify_attack_speed_stacking()
+	_verify_damage_stacking()
+	_verify_projectile_speed_stacking()
 	_verify_dawn_pose()
 	await _verify_visit_radius()
 	print("Tower upgrade verification passed.")
@@ -42,6 +44,20 @@ func _verify_catalog() -> void:
 		and is_equal_approx(UpgradeCatalogScript.ATTACK_SPEED_EPIC, 0.11)
 		and is_equal_approx(UpgradeCatalogScript.ATTACK_SPEED_LEGENDARY, 0.15),
 		"Attack Speed percents should be 5 / 8 / 11 / 15"
+	)
+	_fail_unless(
+		is_equal_approx(UpgradeCatalogScript.DAMAGE_COMMON, 0.05)
+		and is_equal_approx(UpgradeCatalogScript.DAMAGE_RARE, 0.08)
+		and is_equal_approx(UpgradeCatalogScript.DAMAGE_EPIC, 0.11)
+		and is_equal_approx(UpgradeCatalogScript.DAMAGE_LEGENDARY, 0.15),
+		"Damage percents should be 5 / 8 / 11 / 15"
+	)
+	_fail_unless(
+		is_equal_approx(UpgradeCatalogScript.PROJECTILE_SPEED_COMMON, 0.05)
+		and is_equal_approx(UpgradeCatalogScript.PROJECTILE_SPEED_RARE, 0.08)
+		and is_equal_approx(UpgradeCatalogScript.PROJECTILE_SPEED_EPIC, 0.11)
+		and is_equal_approx(UpgradeCatalogScript.PROJECTILE_SPEED_LEGENDARY, 0.15),
+		"Projectile Speed percents should be 5 / 8 / 11 / 15"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.PROJECTILE_COMMON == 1
@@ -88,9 +104,125 @@ func _verify_catalog() -> void:
 		UpgradeCatalogScript.display_name(rare_as) == "Attack Speed −8%",
 		"Attack Speed rare should show −8%"
 	)
+	var rare_dmg := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_DAMAGE,
+		UpgradeCatalogScript.RARITY_RARE
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(rare_dmg) == "Damage +8%",
+		"Damage rare should show +8%"
+	)
+	var rare_ps := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED,
+		UpgradeCatalogScript.RARITY_RARE
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(rare_ps) == "Projectile Speed +8%",
+		"Projectile Speed rare should show +8%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.family_of(rare_ps) == UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED,
+		"projectile_speed_rare should parse as projectile_speed, not projectile"
+	)
+	var common_ps := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED,
+		UpgradeCatalogScript.RARITY_COMMON
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(common_ps) != null,
+		"Common Projectile Speed should use projectile_speed_common.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(rare_ps) != null,
+		"Rare Projectile Speed should use projectile_speed_rare.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED,
+				UpgradeCatalogScript.RARITY_EPIC
+			)
+		) != null,
+		"Epic Projectile Speed should use projectile_speed_epic.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) != null,
+		"Legendary Projectile Speed should use projectile_speed_legendary.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.family_of(rare_dmg) == UpgradeCatalogScript.FAMILY_DAMAGE,
+		"damage_rare should parse as the damage family"
+	)
+	var common_dmg := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_DAMAGE,
+		UpgradeCatalogScript.RARITY_COMMON
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(common_dmg) != null,
+		"Common Damage should use damage_common.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(rare_dmg) != null,
+		"Rare Damage should use damage_rare.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_DAMAGE,
+				UpgradeCatalogScript.RARITY_EPIC
+			)
+		) != null,
+		"Epic Damage should use damage_epic.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_DAMAGE,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) != null,
+		"Legendary Damage should use damage_legendary.jpg"
+	)
 	_fail_unless(
 		UpgradeCatalogScript.icon_for(rare_as) != null,
 		"Attack Speed cards should have an icon"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(rare_as) != UpgradeCatalogScript.ICON_ATTACK_SPEED,
+		"Rare Attack Speed should use attack_speed_rare.jpg, not the family fallback"
+	)
+	var common_as := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_ATTACK_SPEED,
+		UpgradeCatalogScript.RARITY_COMMON
+	)
+	var common_as_icon := UpgradeCatalogScript.icon_for(common_as)
+	_fail_unless(common_as_icon != null, "Common Attack Speed should have an icon")
+	_fail_unless(
+		common_as_icon != UpgradeCatalogScript.ICON_ATTACK_SPEED,
+		"Common Attack Speed should use attack_speed_common.jpg, not the family fallback"
+	)
+	var epic_as := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_ATTACK_SPEED,
+		UpgradeCatalogScript.RARITY_EPIC
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(epic_as) != UpgradeCatalogScript.ICON_ATTACK_SPEED,
+		"Epic Attack Speed should use attack_speed_epic.jpg, not the family fallback"
+	)
+	var legendary_as_id := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_ATTACK_SPEED,
+		UpgradeCatalogScript.RARITY_LEGENDARY
+	)
+	var legendary_as_tex := UpgradeCatalogScript.icon_for(legendary_as_id)
+	_fail_unless(legendary_as_tex != null, "Legendary Attack Speed should have an icon")
+	_fail_unless(
+		legendary_as_tex != UpgradeCatalogScript.ICON_ATTACK_SPEED,
+		"Legendary Attack Speed should use attack_speed_legendary.jpg, not the family fallback"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.rarity_display_name(UpgradeCatalogScript.ID_EXTRA_PROJECTILE) == "COMMON",
@@ -148,9 +280,11 @@ func _verify_catalog() -> void:
 		UpgradeCatalogScript.FAMILY_PROJECTILE,
 		UpgradeCatalogScript.RARITY_LEGENDARY
 	)
+	var legendary_icon := UpgradeCatalogScript.icon_for(legendary_proj)
+	_fail_unless(legendary_icon != null, "Legendary projectile should have an icon")
 	_fail_unless(
-		UpgradeCatalogScript.icon_for(legendary_proj) == UpgradeCatalogScript.ICON_EXTRA_PROJECTILE,
-		"Legendary projectile should fall back to the generic projectile icon"
+		legendary_icon != UpgradeCatalogScript.ICON_EXTRA_PROJECTILE,
+		"Legendary projectile should use projectile_legendary.jpg, not the family fallback"
 	)
 
 
@@ -188,7 +322,16 @@ func _verify_offers_and_visit_lock() -> void:
 	state.clear_visited_this_life()
 	_fail_unless(not state.has_visited_this_life(1), "Death should clear visit locks")
 	_fail_unless(state.remaining_count(1) == 4, "Death should not refill offers")
-	_fail_unless(state.extra_projectiles == 1, "Death should keep projectile stacks")
+	_fail_unless(state.extra_projectiles == 1, "Death should keep projectile stacks until Try Again")
+	state.reset_run()
+	_fail_unless(state.extra_projectiles == 0, "Try Again should clear projectile stacks")
+	_fail_unless(is_equal_approx(state.attack_speed_reduction, 0.0), "Try Again should clear Attack Speed")
+	_fail_unless(is_equal_approx(state.damage_bonus, 0.0), "Try Again should clear Damage")
+	_fail_unless(
+		is_equal_approx(state.projectile_speed_bonus, 0.0),
+		"Try Again should clear Projectile Speed"
+	)
+	_fail_unless(state.remaining_count(1) == 5, "Try Again should restore a full shop")
 	state.free()
 
 
@@ -268,6 +411,120 @@ func _verify_attack_speed_stacking() -> void:
 		"Rifle wait should cap at 0.60 s"
 	)
 	_fail_unless(state.remaining_count(5) == 0, "Over-cap pick should still remove the card")
+	state.free()
+
+
+func _verify_damage_stacking() -> void:
+	var state: RunUpgradeState = RunUpgradeStateScript.new()
+	root.add_child(state)
+	var common_dmg := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_DAMAGE,
+			UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	var rare_dmg := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_DAMAGE,
+			UpgradeCatalogScript.RARITY_RARE
+		)
+	)
+	var legendary_dmg := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_DAMAGE,
+			UpgradeCatalogScript.RARITY_LEGENDARY
+		)
+	)
+	_seed_offers(
+		state,
+		7,
+		PackedStringArray([common_dmg, rare_dmg, legendary_dmg, legendary_dmg, legendary_dmg])
+	)
+	state.pick_offer(7, 0)
+	state.pick_offer(7, 0)
+	_fail_unless(
+		is_equal_approx(state.damage_bonus, 0.13),
+		"Common + rare Damage should sum to 13%"
+	)
+	_fail_unless(
+		AutoRifleScript.damage_for(state.damage_bonus) == AutoRifleScript.damage_for(0.13),
+		"Rifle should use the stacked damage bonus"
+	)
+	state.pick_offer(7, 0)
+	state.pick_offer(7, 0)
+	_fail_unless(
+		is_equal_approx(state.damage_bonus, 0.43),
+		"Damage bonus should keep stacking with no cap"
+	)
+	_fail_unless(state.extra_projectiles == 0, "Damage picks should not add projectiles")
+	_fail_unless(
+		is_equal_approx(state.attack_speed_reduction, 0.0),
+		"Damage picks should not add Attack Speed"
+	)
+	state.free()
+
+
+func _verify_projectile_speed_stacking() -> void:
+	var state: RunUpgradeState = RunUpgradeStateScript.new()
+	root.add_child(state)
+	var common_ps := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED,
+			UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	var rare_ps := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED,
+			UpgradeCatalogScript.RARITY_RARE
+		)
+	)
+	var legendary_ps := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED,
+			UpgradeCatalogScript.RARITY_LEGENDARY
+		)
+	)
+	var leftover := String(UpgradeCatalogScript.ID_EXTRA_PROJECTILE)
+	_seed_offers(
+		state,
+		8,
+		PackedStringArray([common_ps, rare_ps, leftover, leftover, leftover])
+	)
+	state.pick_offer(8, 0)
+	state.pick_offer(8, 0)
+	_fail_unless(
+		is_equal_approx(state.projectile_speed_bonus, 0.13),
+		"Common + rare Projectile Speed should sum to 13%"
+	)
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.speed_for(state.projectile_speed_bonus), 60.0 * 1.13),
+		"Additive projectile speed should be 60 × 1.13"
+	)
+	_fail_unless(state.remaining_count(8) == 3, "Leftover cards should stay in the shop")
+	_fail_unless(state.extra_projectiles == 0, "Projectile Speed picks should not add projectiles")
+
+	_seed_offers(
+		state,
+		9,
+		PackedStringArray([legendary_ps, legendary_ps, legendary_ps, legendary_ps, legendary_ps])
+	)
+	for _i in 5:
+		state.pick_offer(9, 0)
+	_fail_unless(
+		is_equal_approx(state.projectile_speed_bonus, 0.13 + 0.75),
+		"Picks past the rifle cap should still add their percent"
+	)
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.speed_for(state.projectile_speed_bonus), 108.0),
+		"Rifle bullet speed should cap at 108 m/s"
+	)
+	_fail_unless(state.remaining_count(9) == 0, "Over-cap pick should still remove the card")
+	state.reset_run()
+	_fail_unless(
+		is_equal_approx(state.projectile_speed_bonus, 0.0),
+		"Try Again should clear Projectile Speed"
+	)
 	state.free()
 
 

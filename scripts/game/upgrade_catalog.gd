@@ -6,6 +6,8 @@ extends RefCounted
 const SLOTS_PER_TOWER := 5
 const FAMILY_PROJECTILE := &"projectile"
 const FAMILY_ATTACK_SPEED := &"attack_speed"
+const FAMILY_DAMAGE := &"damage"
+const FAMILY_PROJECTILE_SPEED := &"projectile_speed"
 const RARITY_COMMON := &"common"
 const RARITY_RARE := &"rare"
 const RARITY_EPIC := &"epic"
@@ -37,6 +39,16 @@ const PROJECTILE_RARE := 2
 const PROJECTILE_EPIC := 3
 const PROJECTILE_LEGENDARY := 4
 
+const DAMAGE_COMMON := 0.05
+const DAMAGE_RARE := 0.08
+const DAMAGE_EPIC := 0.11
+const DAMAGE_LEGENDARY := 0.15
+
+const PROJECTILE_SPEED_COMMON := 0.05
+const PROJECTILE_SPEED_RARE := 0.08
+const PROJECTILE_SPEED_EPIC := 0.11
+const PROJECTILE_SPEED_LEGENDARY := 0.15
+
 const SHOP_SEED_WORLD := 1009
 const SHOP_SEED_TOWER := 9176
 
@@ -49,6 +61,10 @@ static func family_of(id: StringName) -> StringName:
 	var text := String(id)
 	if text.begins_with("attack_speed_"):
 		return FAMILY_ATTACK_SPEED
+	if text.begins_with("damage_"):
+		return FAMILY_DAMAGE
+	if text.begins_with("projectile_speed_"):
+		return FAMILY_PROJECTILE_SPEED
 	if text.begins_with("projectile_"):
 		return FAMILY_PROJECTILE
 	if id == &"extra_projectile":
@@ -91,6 +107,30 @@ static func attack_speed_percent(rarity: StringName) -> float:
 			return ATTACK_SPEED_COMMON
 
 
+static func damage_percent(rarity: StringName) -> float:
+	match rarity:
+		RARITY_RARE:
+			return DAMAGE_RARE
+		RARITY_EPIC:
+			return DAMAGE_EPIC
+		RARITY_LEGENDARY:
+			return DAMAGE_LEGENDARY
+		_:
+			return DAMAGE_COMMON
+
+
+static func projectile_speed_percent(rarity: StringName) -> float:
+	match rarity:
+		RARITY_RARE:
+			return PROJECTILE_SPEED_RARE
+		RARITY_EPIC:
+			return PROJECTILE_SPEED_EPIC
+		RARITY_LEGENDARY:
+			return PROJECTILE_SPEED_LEGENDARY
+		_:
+			return PROJECTILE_SPEED_COMMON
+
+
 static func display_name(id: StringName) -> String:
 	var family := family_of(id)
 	if family == FAMILY_PROJECTILE:
@@ -101,6 +141,12 @@ static func display_name(id: StringName) -> String:
 	if family == FAMILY_ATTACK_SPEED:
 		var pct := int(round(attack_speed_percent(rarity_of(id)) * 100.0))
 		return "Attack Speed −%d%%" % pct
+	if family == FAMILY_DAMAGE:
+		var pct := int(round(damage_percent(rarity_of(id)) * 100.0))
+		return "Damage +%d%%" % pct
+	if family == FAMILY_PROJECTILE_SPEED:
+		var pct := int(round(projectile_speed_percent(rarity_of(id)) * 100.0))
+		return "Projectile Speed +%d%%" % pct
 	return String(id)
 
 
@@ -171,6 +217,12 @@ static func _roll_rarity(rng: RandomNumberGenerator) -> StringName:
 
 
 static func _roll_family(rng: RandomNumberGenerator) -> StringName:
-	if rng.randi_range(0, 1) == 0:
-		return FAMILY_PROJECTILE
-	return FAMILY_ATTACK_SPEED
+	match rng.randi_range(0, 3):
+		0:
+			return FAMILY_PROJECTILE
+		1:
+			return FAMILY_ATTACK_SPEED
+		2:
+			return FAMILY_DAMAGE
+		_:
+			return FAMILY_PROJECTILE_SPEED

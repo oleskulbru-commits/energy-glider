@@ -127,6 +127,11 @@ func _verify_pill_health() -> void:
 	_fail_unless(SwarmPillScript.MAX_HEALTH == 20, "Red pill HP should be 20")
 	_fail_unless(ChargerPillScript.CHARGER_MAX_HEALTH == 25, "Green pill HP should be 25")
 	_fail_unless(AutoRifleScript.DAMAGE == 10, "Rifle damage should be 10")
+	_fail_unless(AutoRifleScript.damage_for(0.0) == 10, "Base rifle damage should stay 10")
+	_fail_unless(AutoRifleScript.damage_for(0.05) == 11, "5% more damage should round 10.5 up to 11")
+	_fail_unless(AutoRifleScript.damage_for(0.13) == 11, "5% + 8% should deal 11")
+	_fail_unless(AutoRifleScript.damage_for(0.15) == 12, "15% more damage should deal 12")
+	_fail_unless(AutoRifleScript.damage_for(0.75) == 18, "Damage bonus should have no cap")
 
 	var red: SwarmPill = SwarmPillScript.new()
 	root.add_child(red)
@@ -179,6 +184,7 @@ func _verify_rifle_targeting() -> void:
 	_fail_unless(is_equal_approx(AutoRifleScript.RANGE_M, 100.0), "Rifle range should be 100 m")
 	_fail_unless(is_equal_approx(AutoRifleScript.FIRE_INTERVAL_SEC, 3.0), "Rifle interval should be 3 s")
 	_fail_unless(is_equal_approx(AutoRifleScript.CDR_CAP, 0.80), "Attack Speed should cap at 80% CDR")
+	_fail_unless(is_equal_approx(AutoRifleScript.SPEED_CAP, 0.80), "Projectile Speed should cap at 80%")
 	_fail_unless(
 		is_equal_approx(AutoRifleScript.fire_interval_for(0.0), 3.0),
 		"Base volley wait should stay 3 s"
@@ -194,6 +200,22 @@ func _verify_rifle_targeting() -> void:
 	_fail_unless(
 		is_equal_approx(AutoRifleScript.fire_interval_for(0.95), 0.60),
 		"Over-cap CDR should still wait 0.60 s"
+	)
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.speed_for(0.0), 60.0),
+		"Base bullet speed should stay 60 m/s"
+	)
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.speed_for(0.13), 60.0 * 1.13),
+		"5% + 8% Projectile Speed should be 60 × 1.13"
+	)
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.speed_for(0.80), 108.0),
+		"80% Projectile Speed should be 108 m/s"
+	)
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.speed_for(0.95), 108.0),
+		"Over-cap Projectile Speed should still be 108 m/s"
 	)
 	_fail_unless(is_equal_approx(AutoRifleScript.BURST_GAP_SEC, 0.12), "Burst gap should stay 0.12 s")
 

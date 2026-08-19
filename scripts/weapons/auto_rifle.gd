@@ -9,6 +9,7 @@ const DAMAGE := 10
 const RANGE_M := 100.0
 const FIRE_INTERVAL_SEC := 3.0
 const CDR_CAP := 0.80
+const SPEED_CAP := 0.80
 const BURST_GAP_SEC := 0.12
 const MUZZLE_UP_M := 0.85
 
@@ -56,6 +57,20 @@ func _attack_speed_reduction() -> float:
 	if state == null:
 		return 0.0
 	return state.attack_speed_reduction
+
+
+func _damage_bonus() -> float:
+	var state := _upgrade_state()
+	if state == null:
+		return 0.0
+	return state.damage_bonus
+
+
+func _projectile_speed_bonus() -> float:
+	var state := _upgrade_state()
+	if state == null:
+		return 0.0
+	return state.projectile_speed_bonus
 
 
 func _upgrade_state() -> RunUpgradeState:
@@ -129,7 +144,13 @@ func _fire(origin: Vector3, target: Node3D) -> void:
 		parent = _rig
 	parent.add_child(bullet)
 	var aim := target.global_position + Vector3(0.0, 0.7, 0.0) - origin
-	bullet.launch(origin, target, aim)
+	bullet.launch(
+		origin,
+		target,
+		aim,
+		damage_for(_damage_bonus()),
+		speed_for(_projectile_speed_bonus())
+	)
 
 
 static func xz_distance(a: Vector3, b: Vector3) -> float:
@@ -181,6 +202,14 @@ static func pick_target(
 
 static func fire_interval_for(reduction: float) -> float:
 	return FIRE_INTERVAL_SEC * (1.0 - minf(reduction, CDR_CAP))
+
+
+static func damage_for(bonus: float) -> int:
+	return maxi(1, int(round(float(DAMAGE) * (1.0 + maxf(bonus, 0.0)))))
+
+
+static func speed_for(bonus: float) -> float:
+	return RifleBullet.SPEED_MPS * (1.0 + minf(maxf(bonus, 0.0), SPEED_CAP))
 
 
 static func projectile_count_for(extra_projectiles: int) -> int:

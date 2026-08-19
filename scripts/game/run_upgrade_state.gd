@@ -1,12 +1,14 @@
 class_name RunUpgradeState
 extends Node
 
-## Per-run tower offers and rifle stacks. Survives Try Again; scene reload clears it.
+## Per-life tower offers and rifle stacks. Try Again wipes them; New game reloads the scene.
 
 signal extra_projectiles_changed(count: int)
 
 var extra_projectiles := 0
 var attack_speed_reduction := 0.0
+var damage_bonus := 0.0
+var projectile_speed_bonus := 0.0
 var _offers: Dictionary = {}
 var _visited_this_life: Dictionary = {}
 
@@ -22,10 +24,26 @@ func _connect_director() -> void:
 		return
 	if not director.player_died.is_connected(_on_player_died):
 		director.player_died.connect(_on_player_died)
+	if director.has_signal("attempt_started") and not director.attempt_started.is_connected(_on_attempt_started):
+		director.attempt_started.connect(_on_attempt_started)
 
 
 func _on_player_died(_position: Vector3) -> void:
 	clear_visited_this_life()
+
+
+func _on_attempt_started() -> void:
+	reset_run()
+
+
+func reset_run() -> void:
+	extra_projectiles = 0
+	attack_speed_reduction = 0.0
+	damage_bonus = 0.0
+	projectile_speed_bonus = 0.0
+	_offers.clear()
+	clear_visited_this_life()
+	extra_projectiles_changed.emit(extra_projectiles)
 
 
 func ensure_tower(tower_index: int) -> void:
@@ -66,6 +84,12 @@ func _apply_upgrade(id: StringName) -> void:
 		add_extra_projectile(UpgradeCatalog.projectile_bonus(UpgradeCatalog.rarity_of(id)))
 	elif family == UpgradeCatalog.FAMILY_ATTACK_SPEED:
 		attack_speed_reduction += UpgradeCatalog.attack_speed_percent(
+			UpgradeCatalog.rarity_of(id)
+		)
+	elif family == UpgradeCatalog.FAMILY_DAMAGE:
+		damage_bonus += UpgradeCatalog.damage_percent(UpgradeCatalog.rarity_of(id))
+	elif family == UpgradeCatalog.FAMILY_PROJECTILE_SPEED:
+		projectile_speed_bonus += UpgradeCatalog.projectile_speed_percent(
 			UpgradeCatalog.rarity_of(id)
 		)
 

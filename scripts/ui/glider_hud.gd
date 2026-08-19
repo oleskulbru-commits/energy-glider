@@ -59,6 +59,8 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _outpost_board_label: Label = %OutpostBoardLabel
 @onready var _rifle_cooldown_label: Label = %RifleCooldownLabel
 @onready var _rifle_projectiles_label: Label = %RifleProjectilesLabel
+@onready var _rifle_damage_label: Label = %RifleDamageLabel
+@onready var _rifle_projectile_speed_label: Label = %RifleProjectileSpeedLabel
 @onready var _speed_label: Label = %SpeedLabel
 
 var _rig: PlayerRig
@@ -704,12 +706,20 @@ func _update_rifle_debug() -> void:
 		return
 	var extras := 0
 	var reduction := 0.0
+	var bonus := 0.0
+	var speed_bonus := 0.0
 	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
 	if state != null:
 		extras = state.extra_projectiles
 		reduction = state.attack_speed_reduction
+		bonus = state.damage_bonus
+		speed_bonus = state.projectile_speed_bonus
 	_rifle_cooldown_label.text = "Attack Speed %d%%" % int(roundf(reduction * 100.0))
 	_rifle_projectiles_label.text = "Projectiles %d" % AutoRifle.projectile_count_for(extras)
+	if _rifle_damage_label != null:
+		_rifle_damage_label.text = "Damage %d%%" % int(roundf(bonus * 100.0))
+	if _rifle_projectile_speed_label != null:
+		_rifle_projectile_speed_label.text = "Projectile Speed %d%%" % int(roundf(speed_bonus * 100.0))
 
 
 func _on_pulse_fired(_target_ripple: int) -> void:
