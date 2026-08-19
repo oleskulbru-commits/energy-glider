@@ -1,7 +1,7 @@
 class_name RunUpgradeState
 extends Node
 
-## Per-life tower offers and rifle stacks. Try Again wipes them; New game reloads the scene.
+## Rifle stacks reset on Try Again; taken shop cards stay empty until New game.
 
 signal extra_projectiles_changed(count: int)
 
@@ -43,7 +43,6 @@ func reset_run() -> void:
 	damage_bonus = 0.0
 	projectile_speed_bonus = 0.0
 	glider_speed_bonus = 0.0
-	_offers.clear()
 	clear_visited_this_life()
 	extra_projectiles_changed.emit(extra_projectiles)
 
@@ -66,7 +65,11 @@ func get_offers(tower_index: int) -> PackedStringArray:
 
 
 func remaining_count(tower_index: int) -> int:
-	return get_offers(tower_index).size()
+	var n := 0
+	for id in get_offers(tower_index):
+		if not UpgradeCatalog.is_empty_offer(StringName(id)):
+			n += 1
+	return n
 
 
 func pick_offer(tower_index: int, slot: int) -> StringName:
@@ -74,7 +77,9 @@ func pick_offer(tower_index: int, slot: int) -> StringName:
 	if slot < 0 or slot >= offers.size():
 		return &""
 	var id := StringName(offers[slot])
-	offers.remove_at(slot)
+	if UpgradeCatalog.is_empty_offer(id):
+		return &""
+	offers[slot] = String(UpgradeCatalog.EMPTY_OFFER)
 	_offers[tower_index] = offers
 	_apply_upgrade(id)
 	return id

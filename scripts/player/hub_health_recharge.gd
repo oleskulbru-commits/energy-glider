@@ -34,11 +34,11 @@ func _resolve_director() -> void:
 func _physics_process(_delta: float) -> void:
 	if _health == null or _rig == null:
 		return
-	if _director != null and not _director.is_run_active():
-		_inside_hub = false
-		return
 	var glider := _rig.get_glider()
-	if glider != null and glider.is_run_ended():
+	var run_ended := glider != null and glider.is_run_ended()
+	var run_active := _director != null and _director.is_run_active()
+	var bootstrapped := _director != null and _director.has_collected_eon()
+	if not PlayerHealthScript.should_process_hub_heal(run_active, bootstrapped, run_ended):
 		_inside_hub = false
 		return
 

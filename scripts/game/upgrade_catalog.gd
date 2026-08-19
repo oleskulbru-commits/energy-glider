@@ -15,6 +15,7 @@ const RARITY_EPIC := &"epic"
 const RARITY_LEGENDARY := &"legendary"
 
 const ID_EXTRA_PROJECTILE := &"projectile_common"
+const EMPTY_OFFER := &""
 
 const ICON_DIR := "res://assets/ui/upgrades/"
 const ICON_EXTRA_PROJECTILE := preload("res://assets/ui/upgrades/plus_one_projectile.jpg")
@@ -151,7 +152,13 @@ static func glider_speed_percent(rarity: StringName) -> float:
 			return GLIDER_SPEED_COMMON
 
 
+static func is_empty_offer(id: StringName) -> bool:
+	return String(id).is_empty()
+
+
 static func display_name(id: StringName) -> String:
+	if is_empty_offer(id):
+		return "Empty"
 	var family := family_of(id)
 	if family == FAMILY_PROJECTILE:
 		var bonus := projectile_bonus(rarity_of(id))
@@ -174,6 +181,8 @@ static func display_name(id: StringName) -> String:
 
 
 static func rarity_display_name(id: StringName) -> String:
+	if is_empty_offer(id):
+		return ""
 	return String(rarity_of(id)).to_upper()
 
 
@@ -194,6 +203,8 @@ static func icon_path_for(id: StringName) -> String:
 
 
 static func icon_for(id: StringName) -> Texture2D:
+	if is_empty_offer(id):
+		return null
 	var path := icon_path_for(id)
 	if ResourceLoader.exists(path):
 		var loaded := load(path)

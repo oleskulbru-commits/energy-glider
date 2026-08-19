@@ -5,6 +5,7 @@ signal closed
 
 const SELECTED_MODULATE := Color(1.0, 0.95, 0.75, 1.0)
 const IDLE_MODULATE := Color(0.92, 0.88, 0.8, 1.0)
+const EMPTY_MODULATE := Color(0.55, 0.52, 0.48, 1.0)
 
 @onready var _root: Control = %Root
 @onready var _title: Label = %TitleLabel
@@ -77,16 +78,19 @@ func _refresh_cards() -> void:
 		var wrapper := button.get_parent()
 		if wrapper == _cards:
 			wrapper = button
-		if i >= offers.size():
-			button.visible = false
-			button.disabled = true
-			wrapper.visible = false
-			continue
-		var id := StringName(offers[i])
 		wrapper.visible = true
 		button.visible = true
+		if i >= offers.size():
+			_apply_empty_card(button, wrapper)
+			continue
+		var id := StringName(offers[i])
+		var empty := UpgradeCatalog.is_empty_offer(id)
+		if empty:
+			_apply_empty_card(button, wrapper)
+			continue
 		button.disabled = false
 		button.icon = UpgradeCatalog.icon_for(id)
+		button.text = ""
 		button.tooltip_text = UpgradeCatalog.display_name(id)
 		button.modulate = SELECTED_MODULATE if i == _selected_slot else IDLE_MODULATE
 		var rarity_label := wrapper.get_node_or_null("RarityLabel") as Label
@@ -96,7 +100,9 @@ func _refresh_cards() -> void:
 		var label := wrapper.get_node_or_null("NameLabel") as Label
 		if label != null:
 			label.text = UpgradeCatalog.display_name(id)
-	var remaining := offers.size()
+	var remaining := 0
+	if _state != null and _tower != null:
+		remaining = _state.remaining_count(_tower.tower_index)
 	var can_confirm := remaining == 0 or _selected_slot >= 0
 	_wait_button.disabled = not can_confirm
 	_keep_button.disabled = not can_confirm
@@ -104,11 +110,27 @@ func _refresh_cards() -> void:
 		_title.text = "TOWER %d" % _tower.tower_index
 
 
+func _apply_empty_card(button: Button, wrapper: Node) -> void:
+	button.disabled = true
+	button.icon = null
+	button.text = "Empty"
+	button.tooltip_text = "Empty"
+	button.modulate = EMPTY_MODULATE
+	var rarity_label := wrapper.get_node_or_null("RarityLabel") as Label
+	if rarity_label != null:
+		rarity_label.text = ""
+	var label := wrapper.get_node_or_null("NameLabel") as Label
+	if label != null:
+		label.text = ""
+
+
 func _on_card_pressed(slot: int) -> void:
-	var remaining := 0
+	var offers := PackedStringArray()
 	if _state != null and _tower != null:
-		remaining = _state.remaining_count(_tower.tower_index)
-	if slot < 0 or slot >= remaining:
+		offers = _state.get_offers(_tower.tower_index)
+	if slot < 0 or slot >= offers.size():
+		return
+	if UpgradeCatalog.is_empty_offer(StringName(offers[slot])):
 		return
 	_selected_slot = slot
 	_refresh_cards()

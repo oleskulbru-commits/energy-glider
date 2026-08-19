@@ -94,3 +94,11 @@ static func apply_heal(current_hp: int, amount: int, max_hp: int = MAX_HEALTH) -
 
 static func should_heal_on_hub_edge(was_inside: bool, is_inside: bool) -> bool:
 	return is_inside and not was_inside
+
+
+## Same window as enemy spawning: first E.O.N. starts the run; Try Again can
+## fight (and reach towers) before picking the E.O.N. up again.
+static func should_process_hub_heal(run_active: bool, run_bootstrapped: bool, run_ended: bool) -> bool:
+	if run_ended:
+		return false
+	return run_active or run_bootstrapped

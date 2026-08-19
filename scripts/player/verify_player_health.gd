@@ -60,6 +60,22 @@ func _verify_hub_edge() -> void:
 		PlayerHealthScript.should_heal_on_hub_edge(false, true),
 		"Re-entering after leave should heal again"
 	)
+	_fail_unless(
+		not PlayerHealthScript.should_process_hub_heal(false, false, false),
+		"First wait for the E.O.N. should not heal at home"
+	)
+	_fail_unless(
+		PlayerHealthScript.should_process_hub_heal(true, true, false),
+		"Active run should heal at towers"
+	)
+	_fail_unless(
+		PlayerHealthScript.should_process_hub_heal(false, true, false),
+		"Try Again should still heal at towers before picking up the E.O.N. again"
+	)
+	_fail_unless(
+		not PlayerHealthScript.should_process_hub_heal(false, true, true),
+		"Death screen should not heal"
+	)
 
 
 func _verify_knockback_strength() -> void:

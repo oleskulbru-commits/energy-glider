@@ -4,6 +4,7 @@ const SwarmPillScript = preload("res://scripts/enemies/swarm_pill.gd")
 const ChargerPillScript = preload("res://scripts/enemies/charger_pill.gd")
 const EnemyStreamSpawnerScript = preload("res://scripts/enemies/enemy_stream_spawner.gd")
 const AutoRifleScript = preload("res://scripts/weapons/auto_rifle.gd")
+const DamageFloatScript = preload("res://scripts/ui/damage_float.gd")
 
 
 func _init() -> void:
@@ -17,6 +18,7 @@ func _run() -> void:
 	_verify_spawn_grace()
 	_verify_charger()
 	_verify_pill_health()
+	_verify_damage_floats()
 	_verify_hit_knockback()
 	_verify_rifle_targeting()
 	_verify_rifle_burst()
@@ -153,17 +155,74 @@ func _verify_pill_health() -> void:
 	green.free()
 
 
-func _verify_hit_knockback() -> void:
-	var shove: Vector3 = SwarmPillScript.hit_knockback_velocity_for(
-		Vector3(-2.0, 1.0, 0.0),
-		Vector3(0.0, 1.0, 0.0)
+func _verify_damage_floats() -> void:
+	_fail_unless(
+		DamageFloatScript.text_for(10) == "-10",
+		"Enemy hits should use the same -N text as the player"
 	)
-	_fail_unless(shove.x > 0.0, "Hit knockback should push pill away from the shot")
-	_fail_unless(is_equal_approx(shove.y, 0.0), "Hit knockback should stay horizontal")
+	_fail_unless(
+		is_equal_approx(DamageFloatScript.DURATION_SEC, 0.75),
+		"Enemy damage floats should last as long as the player numbers"
+	)
+	_clear_damage_floats()
+	var red: SwarmPill = SwarmPillScript.new()
+	root.add_child(red)
+	red.take_damage(10, Vector3(-2.0, 0.0, 0.0))
+	var labels := _damage_float_labels()
+	_fail_unless(labels.size() == 1, "A hit should spawn one damage float")
+	_fail_unless(labels[0].text == "-10", "Rifle hit should show -10")
+	_fail_unless(labels[0].get_parent() != red, "Float should not die with the pill")
+	red.take_damage(10, Vector3(-2.0, 0.0, 0.0))
+	labels = _damage_float_labels()
+	_fail_unless(labels.size() == 2, "Killing blow should still spawn a damage float")
+	_fail_unless(red.is_queued_for_deletion(), "Second 10 dmg should kill red")
+	var saw_kill_text := false
+	for label in labels:
+		if label.text == "-10":
+			saw_kill_text = true
+	_fail_unless(saw_kill_text, "Killing blow should show the HP actually lost")
+	red.free()
+	_clear_damage_floats()
+
+	var green: ChargerPill = ChargerPillScript.new()
+	root.add_child(green)
+	green.take_damage(10)
+	green.take_damage(10)
+	green.take_damage(10)
+	labels = _damage_float_labels()
+	_fail_unless(labels.size() == 3, "Each charger hit should spawn a float")
+	var texts: Array[String] = []
+	for label in labels:
+		texts.append(label.text)
+	_fail_unless(texts.has("-10"), "First charger shots should show -10")
+	_fail_unless(texts.has("-5"), "Overkill on remaining HP should show -5")
+	green.free()
+	_clear_damage_floats()
+
+
+func _verify_hit_knockback() -> void:
+	var west: Vector3 = SwarmPillScript.hit_knockback_velocity_for(Vector3(-1.0, 0.2, 0.0))
+	_fail_unless(west.x < 0.0, "Westbound bullet should shove the pill west")
+	_fail_unless(is_equal_approx(west.y, 0.0), "Hit knockback should stay horizontal")
+	_fail_unless(is_equal_approx(west.z, 0.0), "A straight west shot should not shove sideways")
+
+	var glancing: Vector3 = SwarmPillScript.hit_knockback_velocity_for(Vector3(-0.8, 0.1, 0.6))
+	_fail_unless(glancing.x < 0.0, "Glancing bullet should keep its forward push")
+	_fail_unless(glancing.z > 0.0, "Glancing bullet should shove along its travel, not the hit face")
+
+	var impact_on_west_face := Vector3(-0.4, 1.0, 0.0)
+	var pill_origin := Vector3.ZERO
+	var away_from_impact: Vector3 = pill_origin - impact_on_west_face
+	_fail_unless(away_from_impact.x > 0.0, "Sanity: west-face impact points back toward the player")
+	var along_bullet: Vector3 = SwarmPillScript.hit_knockback_velocity_for(Vector3(-1.0, 0.0, 0.0))
+	_fail_unless(
+		along_bullet.x < 0.0,
+		"Knockback must follow the bullet, not the capsule contact normal"
+	)
 
 	var red: SwarmPill = SwarmPillScript.new()
 	root.add_child(red)
-	var died := red.take_damage(20, Vector3(-2.0, 0.0, 0.0))
+	var died := red.take_damage(20, Vector3(-1.0, 0.0, 0.0))
 	_fail_unless(died, "20 damage should kill a full red pill")
 	var leftover: Vector3 = red.get("_hit_velocity")
 	_fail_unless(
@@ -174,9 +233,10 @@ func _verify_hit_knockback() -> void:
 
 	var wounded: SwarmPill = SwarmPillScript.new()
 	root.add_child(wounded)
-	wounded.take_damage(10, Vector3(-2.0, 0.0, 0.0))
+	wounded.take_damage(10, Vector3(-1.0, 0.0, 0.4))
 	var hit_vel: Vector3 = wounded.get("_hit_velocity")
-	_fail_unless(hit_vel.x > 0.0, "Non-lethal hit should apply knockback")
+	_fail_unless(hit_vel.x < 0.0, "Non-lethal hit should shove along the bullet")
+	_fail_unless(hit_vel.z > 0.0, "Non-lethal hit should keep the bullet's sideways component")
 	wounded.free()
 
 
@@ -302,6 +362,24 @@ func _verify_spawn_after_try_again() -> void:
 		EnemyStreamSpawnerScript.should_spawn_stream(false, true, false),
 		"Try Again should spawn enemies even before picking up the E.O.N. again"
 	)
+
+
+func _damage_float_labels() -> Array[Label3D]:
+	var labels: Array[Label3D] = []
+	for node in root.get_tree().get_nodes_in_group(DamageFloatScript.GROUP):
+		var label := node as Label3D
+		if label != null:
+			labels.append(label)
+	return labels
+
+
+func _clear_damage_floats() -> void:
+	for label in _damage_float_labels():
+		var parent := label.get_parent()
+		if parent != null and parent != root and String(parent.name).begins_with("DamageFloat"):
+			parent.free()
+		else:
+			label.free()
 
 
 func _marker_at(pos: Vector3) -> Node3D:

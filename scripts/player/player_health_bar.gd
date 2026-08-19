@@ -9,12 +9,6 @@ const BAR_WIDTH := 1.4
 const BAR_HEIGHT := 0.14
 const OFFSET_Y := 1.8
 
-const FLOAT_DURATION_SEC := 0.75
-const FLOAT_FALL_M := 0.85
-const FLOAT_SPREAD_X := 0.55
-const FLOAT_FONT_SIZE := 48
-const FLOAT_PIXEL_SIZE := 0.012
-
 @export var player_health_path: NodePath
 
 var _health: PlayerHealthScript
@@ -61,32 +55,7 @@ func _on_damaged(amount: int) -> void:
 
 
 func _spawn_damage_float(amount: int) -> void:
-	var label := Label3D.new()
-	label.text = "-%d" % amount
-	label.modulate = Color(1.0, 0.18, 0.16, 1.0)
-	label.outline_modulate = Color(0.15, 0.02, 0.02, 0.9)
-	label.font_size = FLOAT_FONT_SIZE
-	label.pixel_size = FLOAT_PIXEL_SIZE
-	label.outline_size = 8
-	label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-	label.no_depth_test = true
-	label.render_priority = 10
-	label.position = Vector3(
-		_rng.randf_range(-FLOAT_SPREAD_X * 0.35, FLOAT_SPREAD_X * 0.35),
-		0.12,
-		0.02
-	)
-	_float_root.add_child(label)
-
-	var end_x := label.position.x + _rng.randf_range(-FLOAT_SPREAD_X, FLOAT_SPREAD_X)
-	var end_y := label.position.y - FLOAT_FALL_M
-	var tween := create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(label, "position:x", end_x, FLOAT_DURATION_SEC).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tween.tween_property(label, "position:y", end_y, FLOAT_DURATION_SEC).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-	tween.tween_property(label, "modulate:a", 0.0, FLOAT_DURATION_SEC).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	tween.tween_property(label, "outline_modulate:a", 0.0, FLOAT_DURATION_SEC).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	tween.chain().tween_callback(label.queue_free)
+	DamageFloat.spawn(_float_root, amount, _rng)
 
 
 func _on_health_changed(current: int, max_health: int) -> void:

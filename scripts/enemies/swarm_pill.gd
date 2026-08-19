@@ -16,6 +16,7 @@ const DEFAULT_SPEED := 3.5
 const MAX_HEALTH := 20
 const HIT_KNOCKBACK_SPEED := 12.0
 const HIT_KNOCKBACK_DECAY_SEC := 0.3
+const DAMAGE_FLOAT_HEIGHT_M := 1.55
 
 var move_speed := DEFAULT_SPEED
 var contact_damage := CONTACT_DAMAGE
@@ -31,12 +32,14 @@ var _last_seek_dir := Vector3.ZERO
 var chase_speed_mult := 1.0
 var _hp := MAX_HEALTH
 var _hit_velocity := Vector3.ZERO
+var _rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
 	add_to_group("swarm_pill")
 	motion_mode = MOTION_MODE_FLOATING
 	_hp = get_max_health()
+	_rng.randomize()
 
 
 func configure(terrain: TerrainManager, target: Node3D, speed: float = DEFAULT_SPEED) -> void:
@@ -67,15 +70,21 @@ func is_alive() -> bool:
 
 
 ## Returns true if the pill died from this hit. Lethal hits skip knockback.
-func take_damage(amount: int, from_pos: Vector3 = Vector3.ZERO) -> bool:
+func take_damage(amount: int, hit_dir: Vector3 = Vector3.ZERO) -> bool:
 	if amount <= 0 or _hp <= 0:
 		return false
+	var dealt := mini(amount, _hp)
 	_hp = maxi(_hp - amount, 0)
+	_spawn_damage_float(dealt)
 	if _hp <= 0:
 		queue_free()
 		return true
-	_hit_velocity = hit_knockback_velocity_for(from_pos, global_position)
+	_hit_velocity = hit_knockback_velocity_for(hit_dir)
 	return false
+
+
+func _spawn_damage_float(amount: int) -> void:
+	DamageFloat.spawn_world(self, amount, _rng, DAMAGE_FLOAT_HEIGHT_M)
 
 
 func _physics_process(delta: float) -> void:
@@ -207,19 +216,17 @@ static func knockback_velocity_for(
 	return Vector3(away.x * speed, up, away.z * speed)
 
 
-## Horizontal shove away from the shot origin. Lethal hits should not call this.
+## Horizontal shove along the bullet's travel direction. Lethal hits should not call this.
 static func hit_knockback_velocity_for(
-	from_pos: Vector3,
-	pill_pos: Vector3,
+	hit_dir: Vector3,
 	speed: float = HIT_KNOCKBACK_SPEED
 ) -> Vector3:
-	var away := pill_pos - from_pos
-	away.y = 0.0
-	if away.length_squared() < 0.0001:
-		away = Vector3(1.0, 0.0, 0.0)
+	var along := Vector3(hit_dir.x, 0.0, hit_dir.z)
+	if along.length_squared() < 0.0001:
+		along = Vector3(-1.0, 0.0, 0.0)
 	else:
-		away = away.normalized()
-	return Vector3(away.x * speed, 0.0, away.z * speed)
+		along = along.normalized()
+	return Vector3(along.x * speed, 0.0, along.z * speed)
 
 
 ## Legacy impulse helper (mass-scaled); prefer knockback_velocity_for + queue_knockback.

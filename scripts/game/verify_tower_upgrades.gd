@@ -76,6 +76,18 @@ func _verify_catalog() -> void:
 		"Projectile bonuses should be +1 / +2 / +3 / +4"
 	)
 	_fail_unless(
+		UpgradeCatalogScript.is_empty_offer(UpgradeCatalogScript.EMPTY_OFFER),
+		"Empty shop slots should count as empty offers"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(UpgradeCatalogScript.EMPTY_OFFER) == "Empty",
+		"Empty shop slots should be labeled Empty"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.rarity_display_name(UpgradeCatalogScript.EMPTY_OFFER) == "",
+		"Empty shop slots should hide rarity"
+	)
+	_fail_unless(
 		UpgradeCatalogScript.display_name(UpgradeCatalogScript.ID_EXTRA_PROJECTILE) == "+1 projectile",
 		"Extra projectile should be labeled +1 projectile"
 	)
@@ -364,6 +376,17 @@ func _verify_offers_and_visit_lock() -> void:
 	var picked := state.pick_offer(1, 0)
 	_fail_unless(picked == UpgradeCatalogScript.ID_EXTRA_PROJECTILE, "Picking should grant extra projectile")
 	_fail_unless(state.remaining_count(1) == 4, "Picked card should leave 4 offers")
+	var after_pick := state.get_offers(1)
+	_fail_unless(after_pick.size() == 5, "Picked card should leave an empty slot, not shrink the shop")
+	_fail_unless(
+		UpgradeCatalogScript.is_empty_offer(StringName(after_pick[0])),
+		"Taken slot should become Empty"
+	)
+	_fail_unless(
+		StringName(after_pick[1]) == UpgradeCatalogScript.ID_EXTRA_PROJECTILE,
+		"Untaken slots should stay filled"
+	)
+	_fail_unless(state.pick_offer(1, 0) == &"", "Empty slots should not be pickable")
 	_fail_unless(state.extra_projectiles == 1, "Pick should stack extra_projectiles")
 	_fail_unless(state.remaining_count(2) == 5, "Other towers should keep a full pool")
 
@@ -386,7 +409,11 @@ func _verify_offers_and_visit_lock() -> void:
 		is_equal_approx(state.glider_speed_bonus, 0.0),
 		"Try Again should clear Glider Speed"
 	)
-	_fail_unless(state.remaining_count(1) == 5, "Try Again should restore a full shop")
+	_fail_unless(state.remaining_count(1) == 4, "Try Again should not restore taken cards")
+	_fail_unless(
+		state.get_offers(1).size() == 5,
+		"Try Again should keep the empty slot in the shop"
+	)
 	state.free()
 
 
@@ -394,9 +421,9 @@ func _verify_empty_tower_confirm() -> void:
 	var state: RunUpgradeState = RunUpgradeStateScript.new()
 	root.add_child(state)
 	_seed_offers(state, 3, _five_projectiles())
-	for _i in 5:
-		state.pick_offer(3, 0)
+	_pick_all_slots(state, 3)
 	_fail_unless(state.remaining_count(3) == 0, "Taking all 5 should empty the tower")
+	_fail_unless(state.get_offers(3).size() == 5, "Empty tower should still show 5 Empty slots")
 	_fail_unless(state.extra_projectiles == 5, "Five projectile picks should stack five extra shots")
 	var rare_id := String(
 		UpgradeCatalogScript.make_id(
@@ -438,7 +465,7 @@ func _verify_attack_speed_stacking() -> void:
 		PackedStringArray([common_as, rare_as, leftover, leftover, leftover])
 	)
 	state.pick_offer(4, 0)
-	state.pick_offer(4, 0)
+	state.pick_offer(4, 1)
 	_fail_unless(
 		is_equal_approx(state.attack_speed_reduction, 0.13),
 		"Common + rare Attack Speed should sum to 13%"
@@ -455,8 +482,7 @@ func _verify_attack_speed_stacking() -> void:
 		5,
 		PackedStringArray([legendary_as, legendary_as, legendary_as, legendary_as, legendary_as])
 	)
-	for _i in 5:
-		state.pick_offer(5, 0)
+	_pick_all_slots(state, 5)
 	_fail_unless(
 		is_equal_approx(state.attack_speed_reduction, 0.13 + 0.75),
 		"Picks past the rifle cap should still add their percent"
@@ -496,7 +522,7 @@ func _verify_damage_stacking() -> void:
 		PackedStringArray([common_dmg, rare_dmg, legendary_dmg, legendary_dmg, legendary_dmg])
 	)
 	state.pick_offer(7, 0)
-	state.pick_offer(7, 0)
+	state.pick_offer(7, 1)
 	_fail_unless(
 		is_equal_approx(state.damage_bonus, 0.13),
 		"Common + rare Damage should sum to 13%"
@@ -505,8 +531,8 @@ func _verify_damage_stacking() -> void:
 		AutoRifleScript.damage_for(state.damage_bonus) == AutoRifleScript.damage_for(0.13),
 		"Rifle should use the stacked damage bonus"
 	)
-	state.pick_offer(7, 0)
-	state.pick_offer(7, 0)
+	state.pick_offer(7, 2)
+	state.pick_offer(7, 3)
 	_fail_unless(
 		is_equal_approx(state.damage_bonus, 0.43),
 		"Damage bonus should keep stacking with no cap"
@@ -547,7 +573,7 @@ func _verify_projectile_speed_stacking() -> void:
 		PackedStringArray([common_ps, rare_ps, leftover, leftover, leftover])
 	)
 	state.pick_offer(8, 0)
-	state.pick_offer(8, 0)
+	state.pick_offer(8, 1)
 	_fail_unless(
 		is_equal_approx(state.projectile_speed_bonus, 0.13),
 		"Common + rare Projectile Speed should sum to 13%"
@@ -564,8 +590,7 @@ func _verify_projectile_speed_stacking() -> void:
 		9,
 		PackedStringArray([legendary_ps, legendary_ps, legendary_ps, legendary_ps, legendary_ps])
 	)
-	for _i in 5:
-		state.pick_offer(9, 0)
+	_pick_all_slots(state, 9)
 	_fail_unless(
 		is_equal_approx(state.projectile_speed_bonus, 0.13 + 0.75),
 		"Picks past the rifle cap should still add their percent"
@@ -611,7 +636,7 @@ func _verify_glider_speed_stacking() -> void:
 		PackedStringArray([common_gs, rare_gs, leftover, leftover, leftover])
 	)
 	state.pick_offer(10, 0)
-	state.pick_offer(10, 0)
+	state.pick_offer(10, 1)
 	_fail_unless(
 		is_equal_approx(state.glider_speed_bonus, 0.20),
 		"Common + rare Glider Speed should sum to 20%"
@@ -638,15 +663,13 @@ func _verify_glider_speed_stacking() -> void:
 		11,
 		PackedStringArray([legendary_gs, legendary_gs, legendary_gs, legendary_gs, legendary_gs])
 	)
-	for _i in 5:
-		state.pick_offer(11, 0)
+	_pick_all_slots(state, 11)
 	_seed_offers(
 		state,
 		12,
 		PackedStringArray([legendary_gs, legendary_gs, legendary_gs, legendary_gs, legendary_gs])
 	)
-	for _i in 5:
-		state.pick_offer(12, 0)
+	_pick_all_slots(state, 12)
 	_fail_unless(
 		is_equal_approx(state.glider_speed_bonus, 0.20 + 2.20),
 		"Picks past the cruise cap should still add their percent"
@@ -710,6 +733,11 @@ func _verify_visit_radius() -> void:
 	_fail_unless(at_home == null, "Home tower should not open the upgrade menu")
 	tower.free()
 	home.free()
+
+
+func _pick_all_slots(state: RunUpgradeState, tower_index: int) -> void:
+	for slot in UpgradeCatalogScript.SLOTS_PER_TOWER:
+		state.pick_offer(tower_index, slot)
 
 
 func _seed_offers(state: RunUpgradeState, tower_index: int, ids: PackedStringArray) -> void:
