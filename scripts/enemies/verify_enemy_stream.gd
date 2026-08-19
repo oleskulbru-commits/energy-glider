@@ -178,6 +178,24 @@ func _verify_hit_knockback() -> void:
 func _verify_rifle_targeting() -> void:
 	_fail_unless(is_equal_approx(AutoRifleScript.RANGE_M, 100.0), "Rifle range should be 100 m")
 	_fail_unless(is_equal_approx(AutoRifleScript.FIRE_INTERVAL_SEC, 3.0), "Rifle interval should be 3 s")
+	_fail_unless(is_equal_approx(AutoRifleScript.CDR_CAP, 0.80), "Attack Speed should cap at 80% CDR")
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.fire_interval_for(0.0), 3.0),
+		"Base volley wait should stay 3 s"
+	)
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.fire_interval_for(0.13), 3.0 * 0.87),
+		"5% + 8% Attack Speed should wait 3.0 × 0.87"
+	)
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.fire_interval_for(0.80), 0.60),
+		"80% CDR should wait 0.60 s"
+	)
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.fire_interval_for(0.95), 0.60),
+		"Over-cap CDR should still wait 0.60 s"
+	)
+	_fail_unless(is_equal_approx(AutoRifleScript.BURST_GAP_SEC, 0.12), "Burst gap should stay 0.12 s")
 
 	var origin := Vector3.ZERO
 	var facing := Vector3(-1.0, 0.0, 0.0)
@@ -226,7 +244,8 @@ func _verify_rifle_targeting() -> void:
 func _verify_rifle_burst() -> void:
 	_fail_unless(AutoRifleScript.projectile_count_for(0) == 1, "Base rifle should fire 1 shot")
 	_fail_unless(AutoRifleScript.projectile_count_for(1) == 2, "+1 projectile should fire 2 shots")
-	_fail_unless(AutoRifleScript.projectile_count_for(3) == 4, "Stacks should keep adding shots")
+	_fail_unless(AutoRifleScript.projectile_count_for(2) == 3, "Rare +2 extras should fire 3 shots")
+	_fail_unless(AutoRifleScript.projectile_count_for(4) == 5, "Legendary +4 extras should fire 5 shots")
 	var times := AutoRifleScript.burst_fire_times(2)
 	_fail_unless(times.size() == 2, "Two-shot burst should have two fire times")
 	_fail_unless(is_equal_approx(times[0], 0.0), "First burst shot should fire immediately")

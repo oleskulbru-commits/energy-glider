@@ -8,6 +8,7 @@ const RifleBulletScene := preload("res://scenes/weapons/rifle_bullet.tscn")
 const DAMAGE := 10
 const RANGE_M := 100.0
 const FIRE_INTERVAL_SEC := 3.0
+const CDR_CAP := 0.80
 const BURST_GAP_SEC := 0.12
 const MUZZLE_UP_M := 0.85
 
@@ -44,10 +45,21 @@ func get_projectile_count() -> int:
 
 
 func _extra_projectiles() -> int:
-	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
+	var state := _upgrade_state()
 	if state == null:
 		return 0
 	return state.extra_projectiles
+
+
+func _attack_speed_reduction() -> float:
+	var state := _upgrade_state()
+	if state == null:
+		return 0.0
+	return state.attack_speed_reduction
+
+
+func _upgrade_state() -> RunUpgradeState:
+	return get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
 
 
 func _try_start_burst() -> bool:
@@ -58,7 +70,7 @@ func _try_start_burst() -> bool:
 		_burst_remaining = remaining
 		_burst_gap = BURST_GAP_SEC
 	else:
-		_cooldown = FIRE_INTERVAL_SEC
+		_cooldown = fire_interval_for(_attack_speed_reduction())
 	return true
 
 
@@ -70,7 +82,7 @@ func _tick_burst() -> void:
 	if _burst_remaining > 0:
 		_burst_gap = BURST_GAP_SEC
 	else:
-		_cooldown = FIRE_INTERVAL_SEC
+		_cooldown = fire_interval_for(_attack_speed_reduction())
 
 
 func _fire_at_current_target() -> bool:
@@ -165,6 +177,10 @@ static func pick_target(
 	if candidates.is_empty():
 		return null
 	return candidates[rng.randi_range(0, candidates.size() - 1)]
+
+
+static func fire_interval_for(reduction: float) -> float:
+	return FIRE_INTERVAL_SEC * (1.0 - minf(reduction, CDR_CAP))
 
 
 static func projectile_count_for(extra_projectiles: int) -> int:

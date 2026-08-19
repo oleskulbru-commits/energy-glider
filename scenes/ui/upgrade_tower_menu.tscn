@@ -40,7 +40,7 @@ grow_vertical = 2
 mouse_filter = 0
 
 [node name="Panel" type="PanelContainer" parent="Root/Center"]
-custom_minimum_size = Vector2(860, 420)
+custom_minimum_size = Vector2(860, 460)
 layout_mode = 2
 theme_type_variation = &"HudOverlay"
 
@@ -71,6 +71,13 @@ alignment = 1
 layout_mode = 2
 theme_override_constants/separation = 6
 
+[node name="RarityLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card0"]
+layout_mode = 2
+theme_type_variation = &"HudStoppedTitle"
+theme_override_font_sizes/font_size = 20
+text = "COMMON"
+horizontal_alignment = 1
+
 [node name="Button" type="Button" parent="Root/Center/Panel/VBox/Cards/Card0"]
 custom_minimum_size = Vector2(140, 140)
 layout_mode = 2
@@ -86,6 +93,13 @@ horizontal_alignment = 1
 [node name="Card1" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards"]
 layout_mode = 2
 theme_override_constants/separation = 6
+
+[node name="RarityLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card1"]
+layout_mode = 2
+theme_type_variation = &"HudStoppedTitle"
+theme_override_font_sizes/font_size = 20
+text = "COMMON"
+horizontal_alignment = 1
 
 [node name="Button" type="Button" parent="Root/Center/Panel/VBox/Cards/Card1"]
 custom_minimum_size = Vector2(140, 140)
@@ -103,6 +117,13 @@ horizontal_alignment = 1
 layout_mode = 2
 theme_override_constants/separation = 6
 
+[node name="RarityLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card2"]
+layout_mode = 2
+theme_type_variation = &"HudStoppedTitle"
+theme_override_font_sizes/font_size = 20
+text = "COMMON"
+horizontal_alignment = 1
+
 [node name="Button" type="Button" parent="Root/Center/Panel/VBox/Cards/Card2"]
 custom_minimum_size = Vector2(140, 140)
 layout_mode = 2
@@ -119,6 +140,13 @@ horizontal_alignment = 1
 layout_mode = 2
 theme_override_constants/separation = 6
 
+[node name="RarityLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card3"]
+layout_mode = 2
+theme_type_variation = &"HudStoppedTitle"
+theme_override_font_sizes/font_size = 20
+text = "COMMON"
+horizontal_alignment = 1
+
 [node name="Button" type="Button" parent="Root/Center/Panel/VBox/Cards/Card3"]
 custom_minimum_size = Vector2(140, 140)
 layout_mode = 2
@@ -134,6 +162,13 @@ horizontal_alignment = 1
 [node name="Card4" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards"]
 layout_mode = 2
 theme_override_constants/separation = 6
+
+[node name="RarityLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card4"]
+layout_mode = 2
+theme_type_variation = &"HudStoppedTitle"
+theme_override_font_sizes/font_size = 20
+text = "COMMON"
+horizontal_alignment = 1
 
 [node name="Button" type="Button" parent="Root/Center/Panel/VBox/Cards/Card4"]
 custom_minimum_size = Vector2(140, 140)

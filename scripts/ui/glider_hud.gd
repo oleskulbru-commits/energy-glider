@@ -57,6 +57,8 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _safe_label: Label = %SafeLabel
 @onready var _outpost_board: PanelContainer = %OutpostBoard
 @onready var _outpost_board_label: Label = %OutpostBoardLabel
+@onready var _rifle_cooldown_label: Label = %RifleCooldownLabel
+@onready var _rifle_projectiles_label: Label = %RifleProjectilesLabel
 @onready var _speed_label: Label = %SpeedLabel
 
 var _rig: PlayerRig
@@ -203,6 +205,7 @@ func _process(delta: float) -> void:
 	_update_integrity_bar()
 	_update_eon_tracker()
 	_update_speedometer()
+	_update_rifle_debug()
 
 	var show_death_overlay := _is_death_overlay_active()
 	if show_death_overlay:
@@ -694,6 +697,19 @@ func _update_speedometer() -> void:
 		return
 	var speed := MathUtil.horizontal_speed(_player.velocity)
 	_speed_label.text = "%d m/s" % int(roundf(speed))
+
+
+func _update_rifle_debug() -> void:
+	if _rifle_cooldown_label == null or _rifle_projectiles_label == null:
+		return
+	var extras := 0
+	var reduction := 0.0
+	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
+	if state != null:
+		extras = state.extra_projectiles
+		reduction = state.attack_speed_reduction
+	_rifle_cooldown_label.text = "Attack Speed %d%%" % int(roundf(reduction * 100.0))
+	_rifle_projectiles_label.text = "Projectiles %d" % AutoRifle.projectile_count_for(extras)
 
 
 func _on_pulse_fired(_target_ripple: int) -> void:

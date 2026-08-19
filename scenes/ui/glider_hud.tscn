@@ -349,6 +349,34 @@ text = "OUTPOSTS"
 horizontal_alignment = 0
 autowrap_mode = 2
 
+[node name="RifleDebugPanel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -220.0
+offset_top = 24.0
+offset_right = -24.0
+offset_bottom = 96.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_type_variation = &"HudPanel"
+
+[node name="RifleDebugVBox" type="VBoxContainer" parent="RifleDebugPanel"]
+theme_override_constants/separation = 4
+
+[node name="RifleCooldownLabel" type="Label" parent="RifleDebugPanel/RifleDebugVBox"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "Attack Speed 0%"
+horizontal_alignment = 2
+
+[node name="RifleProjectilesLabel" type="Label" parent="RifleDebugPanel/RifleDebugVBox"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "Projectiles 1"
+horizontal_alignment = 2
+
 [node name="InteractChip" type="PanelContainer" parent="."]
 unique_name_in_owner = true
 visible = false

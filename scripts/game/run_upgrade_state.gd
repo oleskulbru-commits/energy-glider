@@ -6,6 +6,7 @@ extends Node
 signal extra_projectiles_changed(count: int)
 
 var extra_projectiles := 0
+var attack_speed_reduction := 0.0
 var _offers: Dictionary = {}
 var _visited_this_life: Dictionary = {}
 
@@ -32,7 +33,10 @@ func ensure_tower(tower_index: int) -> void:
 		return
 	if _offers.has(tower_index):
 		return
-	_offers[tower_index] = UpgradeCatalog.default_offers()
+	var seed := LevelRun.world_seed()
+	if seed < 0:
+		seed = 42
+	_offers[tower_index] = UpgradeCatalog.roll_shop(seed, tower_index)
 
 
 func get_offers(tower_index: int) -> PackedStringArray:
@@ -57,12 +61,17 @@ func pick_offer(tower_index: int, slot: int) -> StringName:
 
 
 func _apply_upgrade(id: StringName) -> void:
-	if id == UpgradeCatalog.ID_EXTRA_PROJECTILE:
-		add_extra_projectile()
+	var family := UpgradeCatalog.family_of(id)
+	if family == UpgradeCatalog.FAMILY_PROJECTILE:
+		add_extra_projectile(UpgradeCatalog.projectile_bonus(UpgradeCatalog.rarity_of(id)))
+	elif family == UpgradeCatalog.FAMILY_ATTACK_SPEED:
+		attack_speed_reduction += UpgradeCatalog.attack_speed_percent(
+			UpgradeCatalog.rarity_of(id)
+		)
 
 
-func add_extra_projectile() -> void:
-	extra_projectiles += 1
+func add_extra_projectile(amount: int = 1) -> void:
+	extra_projectiles += maxi(amount, 0)
 	extra_projectiles_changed.emit(extra_projectiles)
 
 

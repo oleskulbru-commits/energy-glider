@@ -89,6 +89,10 @@ func _refresh_cards() -> void:
 		button.icon = UpgradeCatalog.icon_for(id)
 		button.tooltip_text = UpgradeCatalog.display_name(id)
 		button.modulate = SELECTED_MODULATE if i == _selected_slot else IDLE_MODULATE
+		var rarity_label := wrapper.get_node_or_null("RarityLabel") as Label
+		if rarity_label != null:
+			rarity_label.text = UpgradeCatalog.rarity_display_name(id)
+			rarity_label.add_theme_color_override("font_color", UpgradeCatalog.rarity_color(id))
 		var label := wrapper.get_node_or_null("NameLabel") as Label
 		if label != null:
 			label.text = UpgradeCatalog.display_name(id)
