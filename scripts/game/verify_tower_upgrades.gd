@@ -23,6 +23,8 @@ func _run() -> void:
 	_verify_projectile_speed_stacking()
 	_verify_glider_speed_stacking()
 	_verify_hp_regen_stacking()
+	_verify_luck_stacking()
+	_verify_luck_weights()
 	_verify_dawn_pose()
 	await _verify_visit_radius()
 	print("Tower upgrade verification passed.")
@@ -81,6 +83,14 @@ func _verify_catalog() -> void:
 		and UpgradeCatalogScript.HP_REGEN_EPIC == 4
 		and UpgradeCatalogScript.HP_REGEN_LEGENDARY == 5,
 		"HP Regen rates should be 1 / 2 / 3 / 4 / 5 hp/s"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.LUCK_COMMON == 1
+		and UpgradeCatalogScript.LUCK_UNCOMMON == 2
+		and UpgradeCatalogScript.LUCK_RARE == 3
+		and UpgradeCatalogScript.LUCK_EPIC == 4
+		and UpgradeCatalogScript.LUCK_LEGENDARY == 5,
+		"Luck points should be 1 / 2 / 3 / 4 / 5"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.PROJECTILE_COMMON == 1
@@ -217,6 +227,80 @@ func _verify_catalog() -> void:
 			)
 		) == "HP Regen +5/s",
 		"HP Regen legendary should show +5/s"
+	)
+	var rare_luck := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_LUCK,
+		UpgradeCatalogScript.RARITY_RARE
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(rare_luck) == "Luck +3",
+		"Luck rare should show +3"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.family_of(rare_luck) == UpgradeCatalogScript.FAMILY_LUCK,
+		"luck_rare should parse as the luck family"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_LUCK,
+				UpgradeCatalogScript.RARITY_COMMON
+			)
+		) == "Luck +1",
+		"Luck common should show +1"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_LUCK,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) == "Luck +5",
+		"Luck legendary should show +5"
+	)
+	var common_luck := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_LUCK,
+		UpgradeCatalogScript.RARITY_COMMON
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(common_luck) != null,
+		"Common Luck should use luck_common.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_LUCK,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) != null,
+		"Uncommon Luck should use luck_uncommon.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_LUCK,
+				UpgradeCatalogScript.RARITY_RARE
+			)
+		) != null,
+		"Rare Luck should use luck_rare.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_LUCK,
+				UpgradeCatalogScript.RARITY_EPIC
+			)
+		) != null,
+		"Epic Luck should use luck_epic.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_LUCK,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) != null,
+		"Legendary Luck should use luck_legendary.jpg"
 	)
 	var common_regen := UpgradeCatalogScript.make_id(
 		UpgradeCatalogScript.FAMILY_HP_REGEN,
@@ -503,6 +587,16 @@ func _verify_roll_shop() -> void:
 			not _has_duplicate(shop),
 			"Shop %d should not repeat a card" % tower_index
 		)
+	var lucky := UpgradeCatalogScript.roll_shop(7, 3, 8)
+	var lucky_again := UpgradeCatalogScript.roll_shop(7, 3, 8)
+	_fail_unless(lucky == lucky_again, "Same seed, tower, and luck should roll the same shop")
+	_fail_unless(lucky.size() == 5, "Lucky shops should still fill 5 slots")
+	for tower_index in range(1, 81):
+		var shop := UpgradeCatalogScript.roll_shop(1, tower_index, 20)
+		_fail_unless(
+			not _has_duplicate(shop),
+			"Lucky shop %d should not repeat a card" % tower_index
+		)
 
 
 func _verify_offers_and_visit_lock() -> void:
@@ -551,6 +645,7 @@ func _verify_offers_and_visit_lock() -> void:
 		is_equal_approx(state.health_regen_per_sec, 0.0),
 		"Try Again should clear HP Regen"
 	)
+	_fail_unless(state.luck_bonus == 0, "Try Again should clear Luck")
 	_fail_unless(state.remaining_count(1) == 4, "Try Again should not restore taken cards")
 	_fail_unless(
 		state.get_offers(1).size() == 5,
@@ -874,6 +969,106 @@ func _verify_hp_regen_stacking() -> void:
 		"Try Again should clear HP Regen"
 	)
 	state.free()
+
+
+func _verify_luck_stacking() -> void:
+	var state: RunUpgradeState = RunUpgradeStateScript.new()
+	root.add_child(state)
+	var common_luck := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_LUCK,
+			UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	var rare_luck := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_LUCK,
+			UpgradeCatalogScript.RARITY_RARE
+		)
+	)
+	var leftover := String(UpgradeCatalogScript.ID_EXTRA_PROJECTILE)
+	_seed_offers(
+		state,
+		14,
+		PackedStringArray([common_luck, rare_luck, leftover, leftover, leftover])
+	)
+	state.pick_offer(14, 0)
+	state.pick_offer(14, 1)
+	_fail_unless(state.luck_bonus == 4, "Common + rare Luck should sum to 4")
+	_fail_unless(state.remaining_count(14) == 3, "Leftover cards should stay in the shop")
+	_fail_unless(state.extra_projectiles == 0, "Luck picks should not add projectiles")
+	state.reset_run()
+	_fail_unless(state.luck_bonus == 0, "Try Again should clear Luck")
+	state.free()
+
+
+func _verify_luck_weights() -> void:
+	var base := UpgradeCatalogScript.rarity_weights_for_luck(0)
+	_fail_unless(
+		base.size() == 5
+		and int(base[0]) == 50
+		and int(base[1]) == 20
+		and int(base[2]) == 15
+		and int(base[3]) == 10
+		and int(base[4]) == 5,
+		"Luck 0 should keep base rarity weights"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.rarity_luck_for(UpgradeCatalogScript.FAMILY_LUCK, 20) == 0,
+		"Luck cards should ignore luck_bonus when rolling rarity"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.rarity_luck_for(UpgradeCatalogScript.FAMILY_DAMAGE, 20) == 20,
+		"Non-luck families should use luck_bonus when rolling rarity"
+	)
+	var at_zero_common := UpgradeCatalogScript.rarity_weights_for_luck(13)
+	_fail_unless(int(at_zero_common[0]) == 0, "Luck 13 should drive Common to 0%")
+	_fail_unless(
+		_weights_valid(at_zero_common),
+		"Luck 13 weights should stay non-negative and sum to 100"
+	)
+	var after_common := UpgradeCatalogScript.rarity_weights_for_luck(14)
+	_fail_unless(int(after_common[0]) == 0, "Further luck should keep Common at 0%")
+	_fail_unless(
+		int(after_common[1]) == int(at_zero_common[1]) - 1,
+		"After Common is gone, next luck should take 1 from Uncommon"
+	)
+	_fail_unless(
+		int(after_common[2]) == int(at_zero_common[2]) + 1,
+		"After Common is gone, next luck should add 1 to Rare"
+	)
+	_fail_unless(
+		int(after_common[3]) == int(at_zero_common[3])
+		and int(after_common[4]) == int(at_zero_common[4]),
+		"After Common is gone, leftover chips should not dump into Epic/Legendary"
+	)
+	_fail_unless(
+		_weights_valid(after_common),
+		"Luck 14 weights should stay non-negative and sum to 100"
+	)
+	var reached_legendary := false
+	for luck in range(0, 400):
+		var weights := UpgradeCatalogScript.rarity_weights_for_luck(luck)
+		_fail_unless(
+			_weights_valid(weights),
+			"Luck %d weights should stay non-negative and sum to 100" % luck
+		)
+		if int(weights[4]) == 100:
+			reached_legendary = true
+			_fail_unless(luck > 80, "All-legendary should take a large luck stack")
+			break
+	_fail_unless(reached_legendary, "Enough luck should make Legendary 100%")
+
+
+func _weights_valid(weights: PackedInt32Array) -> bool:
+	if weights.size() != 5:
+		return false
+	var total := 0
+	for weight in weights:
+		if int(weight) < 0:
+			return false
+		total += int(weight)
+	return total == 100
 
 
 func _verify_dawn_pose() -> void:

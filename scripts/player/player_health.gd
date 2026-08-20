@@ -6,7 +6,6 @@ signal damaged(amount: int)
 
 const MAX_HEALTH := 100
 const CONTACT_DAMAGE := 2
-const TOWER_HEAL := 50
 const REGEN_LOCKOUT_SEC := 1.0
 
 @export var glider_path: NodePath
@@ -122,18 +121,6 @@ static func apply_damage(current_hp: int, amount: int, max_hp: int = MAX_HEALTH)
 
 static func apply_heal(current_hp: int, amount: int, max_hp: int = MAX_HEALTH) -> int:
 	return clampi(current_hp + maxi(amount, 0), 0, max_hp)
-
-
-static func should_heal_on_hub_edge(was_inside: bool, is_inside: bool) -> bool:
-	return is_inside and not was_inside
-
-
-## Same window as enemy spawning: first E.O.N. starts the run; Try Again can
-## fight (and reach towers) before picking the E.O.N. up again.
-static func should_process_hub_heal(run_active: bool, run_bootstrapped: bool, run_ended: bool) -> bool:
-	if run_ended:
-		return false
-	return run_active or run_bootstrapped
 
 
 static func lockout_on_hit(_current_lockout: float = 0.0, delay: float = REGEN_LOCKOUT_SEC) -> float:

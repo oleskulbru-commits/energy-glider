@@ -10,6 +10,7 @@ const FAMILY_DAMAGE := &"damage"
 const FAMILY_PROJECTILE_SPEED := &"projectile_speed"
 const FAMILY_GLIDER_SPEED := &"glider_speed"
 const FAMILY_HP_REGEN := &"hp_regen"
+const FAMILY_LUCK := &"luck"
 const RARITY_COMMON := &"common"
 const RARITY_UNCOMMON := &"uncommon"
 const RARITY_RARE := &"rare"
@@ -71,6 +72,12 @@ const HP_REGEN_RARE := 3
 const HP_REGEN_EPIC := 4
 const HP_REGEN_LEGENDARY := 5
 
+const LUCK_COMMON := 1
+const LUCK_UNCOMMON := 2
+const LUCK_RARE := 3
+const LUCK_EPIC := 4
+const LUCK_LEGENDARY := 5
+
 const SHOP_SEED_WORLD := 1009
 const SHOP_SEED_TOWER := 9176
 
@@ -91,6 +98,8 @@ static func family_of(id: StringName) -> StringName:
 		return FAMILY_GLIDER_SPEED
 	if text.begins_with("hp_regen_"):
 		return FAMILY_HP_REGEN
+	if text.begins_with("luck_"):
+		return FAMILY_LUCK
 	if text.begins_with("projectile_"):
 		return FAMILY_PROJECTILE
 	if id == &"extra_projectile":
@@ -193,6 +202,41 @@ static func hp_regen_per_sec(rarity: StringName) -> float:
 			return float(HP_REGEN_COMMON)
 
 
+static func luck_points(rarity: StringName) -> int:
+	match rarity:
+		RARITY_UNCOMMON:
+			return LUCK_UNCOMMON
+		RARITY_RARE:
+			return LUCK_RARE
+		RARITY_EPIC:
+			return LUCK_EPIC
+		RARITY_LEGENDARY:
+			return LUCK_LEGENDARY
+		_:
+			return LUCK_COMMON
+
+
+## Luck cards always use the base rarity table.
+static func rarity_luck_for(family: StringName, luck: int) -> int:
+	if family == FAMILY_LUCK:
+		return 0
+	return maxi(luck, 0)
+
+
+## Common / Uncommon / Rare / Epic / Legendary weights after `luck` points.
+static func rarity_weights_for_luck(luck: int) -> PackedInt32Array:
+	var weights := PackedInt32Array([
+		RARITY_WEIGHT_COMMON,
+		RARITY_WEIGHT_UNCOMMON,
+		RARITY_WEIGHT_RARE,
+		RARITY_WEIGHT_EPIC,
+		RARITY_WEIGHT_LEGENDARY
+	])
+	for _i in maxi(luck, 0):
+		weights = _apply_luck_point(weights)
+	return weights
+
+
 static func is_empty_offer(id: StringName) -> bool:
 	return String(id).is_empty()
 
@@ -220,6 +264,8 @@ static func display_name(id: StringName) -> String:
 		return "Glider Speed +%d%%" % pct
 	if family == FAMILY_HP_REGEN:
 		return "HP Regen +%d/s" % int(round(hp_regen_per_sec(rarity_of(id))))
+	if family == FAMILY_LUCK:
+		return "Luck +%d" % luck_points(rarity_of(id))
 	return String(id)
 
 
@@ -273,21 +319,24 @@ static func default_offers() -> PackedStringArray:
 	return slots
 
 
-static func roll_shop(world_seed: int, tower_index: int) -> PackedStringArray:
+static func roll_shop(world_seed: int, tower_index: int, luck: int = 0) -> PackedStringArray:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = world_seed * SHOP_SEED_WORLD + tower_index * SHOP_SEED_TOWER
 	var slots := PackedStringArray()
 	var used: Dictionary = {}
 	for _i in SLOTS_PER_TOWER:
-		var id := _roll_unique_id(rng, used)
+		var id := _roll_unique_id(rng, used, luck)
 		used[id] = true
 		slots.append(id)
 	return slots
 
 
-static func _roll_unique_id(rng: RandomNumberGenerator, used: Dictionary) -> String:
+static func _roll_unique_id(
+	rng: RandomNumberGenerator, used: Dictionary, luck: int = 0
+) -> String:
 	for _try in 80:
-		var id := String(make_id(_roll_family(rng), _roll_rarity(rng)))
+		var family := _roll_family(rng)
+		var id := String(make_id(family, _roll_rarity(rng, rarity_luck_for(family, luck))))
 		if not used.has(id):
 			return id
 	for family in [
@@ -296,7 +345,8 @@ static func _roll_unique_id(rng: RandomNumberGenerator, used: Dictionary) -> Str
 		FAMILY_DAMAGE,
 		FAMILY_PROJECTILE_SPEED,
 		FAMILY_GLIDER_SPEED,
-		FAMILY_HP_REGEN
+		FAMILY_HP_REGEN,
+		FAMILY_LUCK
 	]:
 		for rarity in [
 			RARITY_COMMON,
@@ -311,24 +361,50 @@ static func _roll_unique_id(rng: RandomNumberGenerator, used: Dictionary) -> Str
 	return String(ID_EXTRA_PROJECTILE)
 
 
-static func _roll_rarity(rng: RandomNumberGenerator) -> StringName:
-	var roll := rng.randi_range(1, 100)
-	var uncommon_cap := RARITY_WEIGHT_COMMON + RARITY_WEIGHT_UNCOMMON
-	var rare_cap := uncommon_cap + RARITY_WEIGHT_RARE
-	var epic_cap := rare_cap + RARITY_WEIGHT_EPIC
-	if roll <= RARITY_WEIGHT_COMMON:
-		return RARITY_COMMON
-	if roll <= uncommon_cap:
-		return RARITY_UNCOMMON
-	if roll <= rare_cap:
-		return RARITY_RARE
-	if roll <= epic_cap:
-		return RARITY_EPIC
+static func _roll_rarity(rng: RandomNumberGenerator, luck: int = 0) -> StringName:
+	var weights := rarity_weights_for_luck(luck)
+	var total := 0
+	for weight in weights:
+		total += int(weight)
+	if total <= 0:
+		return RARITY_LEGENDARY
+	var roll := rng.randi_range(1, total)
+	var rarities: Array[StringName] = [
+		RARITY_COMMON,
+		RARITY_UNCOMMON,
+		RARITY_RARE,
+		RARITY_EPIC,
+		RARITY_LEGENDARY
+	]
+	var cap := 0
+	for i in rarities.size():
+		cap += int(weights[i])
+		if roll <= cap:
+			return rarities[i]
 	return RARITY_LEGENDARY
 
 
+static func _apply_luck_point(weights: PackedInt32Array) -> PackedInt32Array:
+	var dests := PackedInt32Array([1, 2, 3, 4])
+	var leftover := dests.size()
+	for dest in dests:
+		if weights[0] <= 0:
+			break
+		weights[0] -= 1
+		weights[dest] += 1
+		leftover -= 1
+	if leftover <= 0:
+		return weights
+	for src in range(1, 4):
+		if weights[src] > 0:
+			weights[src] -= 1
+			weights[src + 1] += 1
+			break
+	return weights
+
+
 static func _roll_family(rng: RandomNumberGenerator) -> StringName:
-	match rng.randi_range(0, 5):
+	match rng.randi_range(0, 6):
 		0:
 			return FAMILY_PROJECTILE
 		1:
@@ -339,5 +415,7 @@ static func _roll_family(rng: RandomNumberGenerator) -> StringName:
 			return FAMILY_PROJECTILE_SPEED
 		4:
 			return FAMILY_GLIDER_SPEED
-		_:
+		5:
 			return FAMILY_HP_REGEN
+		_:
+			return FAMILY_LUCK

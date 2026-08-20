@@ -10,7 +10,6 @@ func _init() -> void:
 
 func _run() -> void:
 	_verify_damage_heal_clamp()
-	_verify_hub_edge()
 	_verify_knockback_strength()
 	_verify_hp_regen()
 	print("Player health verification passed.")
@@ -24,7 +23,7 @@ func _verify_damage_heal_clamp() -> void:
 	)
 	_fail_unless(
 		PlayerHealthScript.apply_heal(40, 50) == 90,
-		"Tower heal 50 from 40 should yield 90"
+		"Heal 50 from 40 should yield 90"
 	)
 	_fail_unless(
 		PlayerHealthScript.apply_heal(80, 50) == 100,
@@ -42,41 +41,6 @@ func _verify_damage_heal_clamp() -> void:
 	_fail_unless(dealt["n"] == 2, "damaged signal should emit dealt amount")
 	_fail_unless(health.get_current() == 98, "Health should be 98 after take_damage(2)")
 	health.free()
-
-
-func _verify_hub_edge() -> void:
-	_fail_unless(
-		PlayerHealthScript.should_heal_on_hub_edge(false, true),
-		"Entering hub should heal"
-	)
-	_fail_unless(
-		not PlayerHealthScript.should_heal_on_hub_edge(true, true),
-		"Staying inside hub should not re-heal"
-	)
-	_fail_unless(
-		not PlayerHealthScript.should_heal_on_hub_edge(true, false),
-		"Leaving hub should not heal"
-	)
-	_fail_unless(
-		PlayerHealthScript.should_heal_on_hub_edge(false, true),
-		"Re-entering after leave should heal again"
-	)
-	_fail_unless(
-		not PlayerHealthScript.should_process_hub_heal(false, false, false),
-		"First wait for the E.O.N. should not heal at home"
-	)
-	_fail_unless(
-		PlayerHealthScript.should_process_hub_heal(true, true, false),
-		"Active run should heal at towers"
-	)
-	_fail_unless(
-		PlayerHealthScript.should_process_hub_heal(false, true, false),
-		"Try Again should still heal at towers before picking up the E.O.N. again"
-	)
-	_fail_unless(
-		not PlayerHealthScript.should_process_hub_heal(false, true, true),
-		"Death screen should not heal"
-	)
 
 
 func _verify_knockback_strength() -> void:
