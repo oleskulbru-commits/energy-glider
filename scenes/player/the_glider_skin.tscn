@@ -2,22 +2,55 @@
 
 [ext_resource type="PackedScene" uid="uid://btugy7urkguc1" path="res://assets/3dmodels/player_models/Glider/The_Glider_Animated_Skin.glb" id="1_kvey2"]
 [ext_resource type="Script" uid="uid://dkdrw05t4sw8n" path="res://scripts/player/glider_anim_controller.gd" id="2_anim"]
-[ext_resource type="AnimationNodeStateMachine" uid="uid://dceujl7sa71gh" path="res://resources/anims/glider_anim_state_machine.tres" id="3_state_machine"]
+[ext_resource type="AnimationNodeStateMachine" uid="uid://gog4ac243q4k" path="res://resources/anims/glider_anim_state_machine.tres" id="3_state_machine"]
 
 [node name="GliderSkin" type="Node3D" unique_id=1976380139]
 
 [node name="Model" parent="." unique_id=678267291 instance=ExtResource("1_kvey2")]
 
-[node name="GliderBoard" parent="Model/GliderRoot" parent_id_path=PackedInt32Array(678267291, 509211911) index="0" unique_id=242455391]
-transform = Transform3D(1.2185017, 0, 0, 0, 1.2185022, 0, 0, 0, 1.2185022, 0.009377981, 0.2850539, -0.4332435)
+[node name="GliderBoard" parent="Model/GliderRoot" parent_id_path=PackedInt32Array(678267291, 55215511) index="0" unique_id=152953766]
+transform = Transform3D(1.2185017, 0, 0, 0, 1.2185022, 0, 0, 0, 1.2185022, 0, 0, 0)
 
-[node name="RemoteTransform3D" type="RemoteTransform3D" parent="Model/GliderRoot/GliderBoard/MastSocket" parent_id_path=PackedInt32Array(678267291, 1812481564) index="0" unique_id=516736628]
+[node name="RemoteTransform3D" type="RemoteTransform3D" parent="Model/GliderRoot/GliderBoard/MastSocket" parent_id_path=PackedInt32Array(678267291, 1773692845) index="0" unique_id=516736628]
 remote_path = NodePath("../../../SailPivot")
 update_rotation = false
 update_scale = false
 
-[node name="SailPivot" parent="Model/GliderRoot" parent_id_path=PackedInt32Array(678267291, 509211911) index="2" unique_id=1074195257]
-transform = Transform3D(1, 0, 0, 0, 0.9999998, 0, 0, 0, 1, 0.011622356, 0.38094047, 0.28694618)
+[node name="SailPivot" parent="Model/GliderRoot" parent_id_path=PackedInt32Array(678267291, 55215511) index="2" unique_id=1579703713]
+transform = Transform3D(1, 0, 0, 0, 0.99999964, 0, 0, 0, 0.9999997, 0.0066010416, 0.08307131, 0.7217533)
+
+[node name="BattensBottom" parent="Model/GliderRoot/SailPivot/MastBase" parent_id_path=PackedInt32Array(678267291, 203832052) index="0" unique_id=1764886843]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.13578466, 0.4300244, 0.0010060817)
+
+[node name="BattensBottom2" parent="Model/GliderRoot/SailPivot/MastBase" parent_id_path=PackedInt32Array(678267291, 203832052) index="1" unique_id=235768434]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.1357833, 0.8004947, 0.00077404827)
+
+[node name="MastBaseHammer" parent="Model/GliderRoot/SailPivot/MastBase" parent_id_path=PackedInt32Array(678267291, 203832052) index="2" unique_id=1344935232]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+
+[node name="MastBaseRod" parent="Model/GliderRoot/SailPivot/MastBase" parent_id_path=PackedInt32Array(678267291, 203832052) index="3" unique_id=169587647]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.16020362, 1.1072328, 0)
+
+[node name="MastJoint1" parent="Model/GliderRoot/SailPivot/MastBase" parent_id_path=PackedInt32Array(678267291, 203832052) index="4" unique_id=1535225337]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+
+[node name="Batten1" parent="Model/GliderRoot/SailPivot/MastBase/MastJoint1" index="0" unique_id=1922582046]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.13211831, 0.38821805, 0.0036402075)
+
+[node name="MastJoint2" parent="Model/GliderRoot/SailPivot/MastBase/MastJoint1" index="1" unique_id=1036544629]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+
+[node name="Batten2" parent="Model/GliderRoot/SailPivot/MastBase/MastJoint1/MastJoint2" index="0" unique_id=20636366]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.12890641, 0.32250577, 0.0022483873)
+
+[node name="MastJoint3" parent="Model/GliderRoot/SailPivot/MastBase/MastJoint1/MastJoint2" index="1" unique_id=2043299167]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+
+[node name="Batten3" parent="Model/GliderRoot/SailPivot/MastBase/MastJoint1/MastJoint2/MastJoint3" index="0" unique_id=1185064242]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.12184007, 0.32458776, 0.0027836899)
+
+[node name="MastJoint4" parent="Model/GliderRoot/SailPivot/MastBase/MastJoint1/MastJoint2/MastJoint3" index="1" unique_id=1478058602]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 
 [node name="AnimationTree" type="AnimationTree" parent="." unique_id=769731501]
 root_node = NodePath("../Model")

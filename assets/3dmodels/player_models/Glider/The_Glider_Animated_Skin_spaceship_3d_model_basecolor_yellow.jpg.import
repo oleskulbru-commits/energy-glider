@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bquktd1v1aw5p"
-path.s3tc="res://.godot/imported/The_Glider_v001_recurve_bow_3d_model_basecolor.jpg-a7ecd8fcfcfeb47e0f776d4d06cf7dea.s3tc.ctex"
+uid="uid://ogei420g3smn"
+path.s3tc="res://.godot/imported/The_Glider_Animated_Skin_spaceship_3d_model_basecolor_yellow.jpg-ea8d50f577a7f8e64149f267642fcaeb.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "742048f855eb549d054117d780719f75"
+"md5": "2b46db43528b4c76ab844feed5c6cc4c"
 }
 
 [deps]
 
-source_file="res://assets/3dmodels/player_models/Glider/The_Glider_v001_recurve_bow_3d_model_basecolor.jpg"
-dest_files=["res://.godot/imported/The_Glider_v001_recurve_bow_3d_model_basecolor.jpg-a7ecd8fcfcfeb47e0f776d4d06cf7dea.s3tc.ctex"]
+source_file="res://assets/3dmodels/player_models/Glider/The_Glider_Animated_Skin_spaceship_3d_model_basecolor_yellow.jpg"
+dest_files=["res://.godot/imported/The_Glider_Animated_Skin_spaceship_3d_model_basecolor_yellow.jpg-ea8d50f577a7f8e64149f267642fcaeb.s3tc.ctex"]
 
 [params]
 
