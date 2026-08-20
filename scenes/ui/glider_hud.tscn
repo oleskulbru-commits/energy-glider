@@ -399,7 +399,7 @@ horizontal_alignment = 2
 [node name="HpRegenLabel" type="Label" parent="RifleDebugPanel/RifleDebugVBox"]
 unique_name_in_owner = true
 theme_type_variation = &"HudLabel"
-text = "HP Regen 0/s"
+text = "HP Regen 0/3s"
 horizontal_alignment = 2
 
 [node name="LuckLabel" type="Label" parent="RifleDebugPanel/RifleDebugVBox"]

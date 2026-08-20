@@ -65,28 +65,28 @@ func _verify_knockback_strength() -> void:
 
 func _verify_hp_regen() -> void:
 	_fail_unless(
-		is_equal_approx(PlayerHealthScript.REGEN_LOCKOUT_SEC, 1.0),
-		"Regen lockout should be 1 second"
+		is_equal_approx(PlayerHealthScript.REGEN_LOCKOUT_SEC, 4.0),
+		"Regen lockout should be 4 seconds"
 	)
 	_fail_unless(
-		is_equal_approx(PlayerHealthScript.lockout_on_hit(0.0), 1.0),
-		"A hit should start a 1s regen pause"
+		is_equal_approx(PlayerHealthScript.lockout_on_hit(0.0), 4.0),
+		"A hit should start a 4s regen pause"
 	)
 	_fail_unless(
-		is_equal_approx(PlayerHealthScript.lockout_on_hit(0.4), 1.0),
-		"Another hit should reset the pause to 1s, not add"
+		is_equal_approx(PlayerHealthScript.lockout_on_hit(0.4), 4.0),
+		"Another hit should reset the pause to 4s, not add"
 	)
 	_fail_unless(
-		is_equal_approx(PlayerHealthScript.lockout_on_hit(1.0), 1.0),
-		"Regen pause should never exceed 1s"
+		is_equal_approx(PlayerHealthScript.lockout_on_hit(4.0), 4.0),
+		"Regen pause should never exceed 4s"
 	)
 	var idle: Dictionary = PlayerHealthScript.tick_regen(0.0, 1.0, 0.0, 0.0)
 	_fail_unless(int(idle["heal"]) == 0, "0 hp/s should never heal")
-	var blocked: Dictionary = PlayerHealthScript.tick_regen(7.0, 1.0, 0.0, 1.0)
+	var blocked: Dictionary = PlayerHealthScript.tick_regen(7.0, 4.0, 0.0, 4.0)
 	_fail_unless(int(blocked["heal"]) == 0, "Lockout should disable regen")
 	_fail_unless(
 		is_equal_approx(float(blocked["lockout"]), 0.0),
-		"A 1s pause should expire after 1s"
+		"A 4s pause should expire after 4s"
 	)
 	var resumed: Dictionary = PlayerHealthScript.tick_regen(1.0, 1.0, 0.0, 0.0)
 	_fail_unless(int(resumed["heal"]) == 1, "1 hp/s should heal 1 after 1s")
@@ -96,7 +96,7 @@ func _verify_hp_regen() -> void:
 	var still_paused: Dictionary = PlayerHealthScript.tick_regen(7.0, 0.7, 0.0, mid_pause)
 	_fail_unless(int(still_paused["heal"]) == 0, "Reset pause should still block regen")
 	_fail_unless(
-		float(still_paused["lockout"]) > 0.2,
+		float(still_paused["lockout"]) > 3.0,
 		"Reset pause should leave more than the leftover 0.4s"
 	)
 	_fail_unless(
@@ -106,8 +106,8 @@ func _verify_hp_regen() -> void:
 	var health := PlayerHealthScript.new()
 	health.take_damage(2)
 	_fail_unless(
-		is_equal_approx(float(health.get("_regen_lockout")), 1.0),
-		"take_damage should reset regen lockout to 1s"
+		is_equal_approx(float(health.get("_regen_lockout")), 4.0),
+		"take_damage should reset regen lockout to 4s"
 	)
 	health.free()
 

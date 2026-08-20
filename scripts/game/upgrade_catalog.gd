@@ -68,11 +68,12 @@ const GLIDER_SPEED_RARE := 0.12
 const GLIDER_SPEED_EPIC := 0.16
 const GLIDER_SPEED_LEGENDARY := 0.22
 
-const HP_REGEN_COMMON := 1
-const HP_REGEN_UNCOMMON := 2
-const HP_REGEN_RARE := 3
-const HP_REGEN_EPIC := 4
-const HP_REGEN_LEGENDARY := 5
+const HP_REGEN_PERIOD_SEC := 3.0
+const HP_REGEN_COMMON := 0.5
+const HP_REGEN_UNCOMMON := 1.0
+const HP_REGEN_RARE := 1.5
+const HP_REGEN_EPIC := 2.0
+const HP_REGEN_LEGENDARY := 3.0
 
 const LUCK_COMMON := 1
 const LUCK_UNCOMMON := 2
@@ -208,18 +209,30 @@ static func glider_speed_percent(rarity: StringName) -> float:
 			return GLIDER_SPEED_COMMON
 
 
-static func hp_regen_per_sec(rarity: StringName) -> float:
+static func hp_regen_per_period(rarity: StringName) -> float:
 	match rarity:
 		RARITY_UNCOMMON:
-			return float(HP_REGEN_UNCOMMON)
+			return HP_REGEN_UNCOMMON
 		RARITY_RARE:
-			return float(HP_REGEN_RARE)
+			return HP_REGEN_RARE
 		RARITY_EPIC:
-			return float(HP_REGEN_EPIC)
+			return HP_REGEN_EPIC
 		RARITY_LEGENDARY:
-			return float(HP_REGEN_LEGENDARY)
+			return HP_REGEN_LEGENDARY
 		_:
-			return float(HP_REGEN_COMMON)
+			return HP_REGEN_COMMON
+
+
+static func hp_regen_per_sec(rarity: StringName) -> float:
+	return hp_regen_per_period(rarity) / HP_REGEN_PERIOD_SEC
+
+
+static func hp_regen_period_text(amount_per_period: float) -> String:
+	var amount := snappedf(amount_per_period, 0.1)
+	var period := int(round(HP_REGEN_PERIOD_SEC))
+	if is_equal_approx(amount, roundf(amount)):
+		return "%d/%ds" % [int(roundf(amount)), period]
+	return "%.1f/%ds" % [amount, period]
 
 
 static func luck_points(rarity: StringName) -> int:
@@ -311,7 +324,7 @@ static func display_name(id: StringName) -> String:
 		var pct := int(round(glider_speed_percent(rarity_of(id)) * 100.0))
 		return "Glider Speed +%d%%" % pct
 	if family == FAMILY_HP_REGEN:
-		return "HP Regen +%d/s" % int(round(hp_regen_per_sec(rarity_of(id))))
+		return "HP Regen +%s" % hp_regen_period_text(hp_regen_per_period(rarity_of(id)))
 	if family == FAMILY_LUCK:
 		return "Luck +%d" % luck_points(rarity_of(id))
 	if family == FAMILY_MOMENTUM_RETENTION:

@@ -758,7 +758,9 @@ func _update_rifle_debug() -> void:
 	) or any
 	any = _show_upgrade_line(
 		_hp_regen_label,
-		"HP Regen %d/s" % int(roundf(regen)),
+		"HP Regen %s" % UpgradeCatalog.hp_regen_period_text(
+			regen * UpgradeCatalog.HP_REGEN_PERIOD_SEC
+		),
 		regen > 0.0
 	) or any
 	any = _show_upgrade_line(_luck_label, "Luck +%d" % luck, luck > 0) or any

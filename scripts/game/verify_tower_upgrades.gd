@@ -79,12 +79,13 @@ func _verify_catalog() -> void:
 		"Glider Speed percents should be 8 / 10 / 12 / 16 / 22"
 	)
 	_fail_unless(
-		UpgradeCatalogScript.HP_REGEN_COMMON == 1
-		and UpgradeCatalogScript.HP_REGEN_UNCOMMON == 2
-		and UpgradeCatalogScript.HP_REGEN_RARE == 3
-		and UpgradeCatalogScript.HP_REGEN_EPIC == 4
-		and UpgradeCatalogScript.HP_REGEN_LEGENDARY == 5,
-		"HP Regen rates should be 1 / 2 / 3 / 4 / 5 hp/s"
+		is_equal_approx(UpgradeCatalogScript.HP_REGEN_PERIOD_SEC, 3.0)
+		and is_equal_approx(UpgradeCatalogScript.HP_REGEN_COMMON, 0.5)
+		and is_equal_approx(UpgradeCatalogScript.HP_REGEN_UNCOMMON, 1.0)
+		and is_equal_approx(UpgradeCatalogScript.HP_REGEN_RARE, 1.5)
+		and is_equal_approx(UpgradeCatalogScript.HP_REGEN_EPIC, 2.0)
+		and is_equal_approx(UpgradeCatalogScript.HP_REGEN_LEGENDARY, 3.0),
+		"HP Regen should be 0.5 / 1 / 1.5 / 2 / 3 hp per 3s"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.LUCK_COMMON == 1
@@ -223,8 +224,8 @@ func _verify_catalog() -> void:
 		UpgradeCatalogScript.RARITY_RARE
 	)
 	_fail_unless(
-		UpgradeCatalogScript.display_name(rare_regen) == "HP Regen +3/s",
-		"HP Regen rare should show +3/s"
+		UpgradeCatalogScript.display_name(rare_regen) == "HP Regen +1.5/3s",
+		"HP Regen rare should show +1.5/3s"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.family_of(rare_regen) == UpgradeCatalogScript.FAMILY_HP_REGEN,
@@ -236,8 +237,17 @@ func _verify_catalog() -> void:
 				UpgradeCatalogScript.FAMILY_HP_REGEN,
 				UpgradeCatalogScript.RARITY_COMMON
 			)
-		) == "HP Regen +1/s",
-		"HP Regen common should show +1/s"
+		) == "HP Regen +0.5/3s",
+		"HP Regen common should show +0.5/3s"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_HP_REGEN,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) == "HP Regen +1/3s",
+		"HP Regen uncommon should show +1/3s"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.display_name(
@@ -245,8 +255,8 @@ func _verify_catalog() -> void:
 				UpgradeCatalogScript.FAMILY_HP_REGEN,
 				UpgradeCatalogScript.RARITY_LEGENDARY
 			)
-		) == "HP Regen +5/s",
-		"HP Regen legendary should show +5/s"
+		) == "HP Regen +3/3s",
+		"HP Regen legendary should show +3/3s"
 	)
 	var rare_luck := UpgradeCatalogScript.make_id(
 		UpgradeCatalogScript.FAMILY_LUCK,
@@ -1176,8 +1186,8 @@ func _verify_hp_regen_stacking() -> void:
 	state.pick_offer(13, 0)
 	state.pick_offer(13, 1)
 	_fail_unless(
-		is_equal_approx(state.health_regen_per_sec, 4.0),
-		"Common + rare HP Regen should sum to 4 hp/s"
+		is_equal_approx(state.health_regen_per_sec, 2.0 / 3.0),
+		"Common + rare HP Regen should sum to 2 hp/3s"
 	)
 	_fail_unless(state.remaining_count(13) == 3, "Leftover cards should stay in the shop")
 	_fail_unless(state.extra_projectiles == 0, "HP Regen picks should not add projectiles")

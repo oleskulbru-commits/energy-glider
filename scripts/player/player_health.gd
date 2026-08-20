@@ -6,7 +6,7 @@ signal damaged(amount: int)
 
 const MAX_HEALTH := 100
 const CONTACT_DAMAGE := 2
-const REGEN_LOCKOUT_SEC := 1.0
+const REGEN_LOCKOUT_SEC := 4.0
 
 @export var glider_path: NodePath
 
