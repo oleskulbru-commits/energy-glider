@@ -11,6 +11,7 @@ const FAMILY_PROJECTILE_SPEED := &"projectile_speed"
 const FAMILY_GLIDER_SPEED := &"glider_speed"
 const FAMILY_HP_REGEN := &"hp_regen"
 const FAMILY_LUCK := &"luck"
+const FAMILY_MOMENTUM_RETENTION := &"momentum_retention"
 const RARITY_COMMON := &"common"
 const RARITY_UNCOMMON := &"uncommon"
 const RARITY_RARE := &"rare"
@@ -78,6 +79,13 @@ const LUCK_RARE := 3
 const LUCK_EPIC := 4
 const LUCK_LEGENDARY := 5
 
+const MOMENTUM_RETENTION_COMMON := 0.08
+const MOMENTUM_RETENTION_UNCOMMON := 0.11
+const MOMENTUM_RETENTION_RARE := 0.15
+const MOMENTUM_RETENTION_EPIC := 0.20
+const MOMENTUM_RETENTION_LEGENDARY := 0.25
+const MOMENTUM_RETENTION_CAP := 1.0
+
 const SHOP_SEED_WORLD := 1009
 const SHOP_SEED_TOWER := 9176
 
@@ -96,6 +104,8 @@ static func family_of(id: StringName) -> StringName:
 		return FAMILY_PROJECTILE_SPEED
 	if text.begins_with("glider_speed_"):
 		return FAMILY_GLIDER_SPEED
+	if text.begins_with("momentum_retention_"):
+		return FAMILY_MOMENTUM_RETENTION
 	if text.begins_with("hp_regen_"):
 		return FAMILY_HP_REGEN
 	if text.begins_with("luck_"):
@@ -216,6 +226,20 @@ static func luck_points(rarity: StringName) -> int:
 			return LUCK_COMMON
 
 
+static func momentum_retention_percent(rarity: StringName) -> float:
+	match rarity:
+		RARITY_UNCOMMON:
+			return MOMENTUM_RETENTION_UNCOMMON
+		RARITY_RARE:
+			return MOMENTUM_RETENTION_RARE
+		RARITY_EPIC:
+			return MOMENTUM_RETENTION_EPIC
+		RARITY_LEGENDARY:
+			return MOMENTUM_RETENTION_LEGENDARY
+		_:
+			return MOMENTUM_RETENTION_COMMON
+
+
 ## Luck cards always use the base rarity table.
 static func rarity_luck_for(family: StringName, luck: int) -> int:
 	if family == FAMILY_LUCK:
@@ -266,6 +290,9 @@ static func display_name(id: StringName) -> String:
 		return "HP Regen +%d/s" % int(round(hp_regen_per_sec(rarity_of(id))))
 	if family == FAMILY_LUCK:
 		return "Luck +%d" % luck_points(rarity_of(id))
+	if family == FAMILY_MOMENTUM_RETENTION:
+		var pct := int(round(momentum_retention_percent(rarity_of(id)) * 100.0))
+		return "Momentum Retention +%d%%" % pct
 	return String(id)
 
 
@@ -346,7 +373,8 @@ static func _roll_unique_id(
 		FAMILY_PROJECTILE_SPEED,
 		FAMILY_GLIDER_SPEED,
 		FAMILY_HP_REGEN,
-		FAMILY_LUCK
+		FAMILY_LUCK,
+		FAMILY_MOMENTUM_RETENTION
 	]:
 		for rarity in [
 			RARITY_COMMON,
@@ -404,7 +432,7 @@ static func _apply_luck_point(weights: PackedInt32Array) -> PackedInt32Array:
 
 
 static func _roll_family(rng: RandomNumberGenerator) -> StringName:
-	match rng.randi_range(0, 6):
+	match rng.randi_range(0, 7):
 		0:
 			return FAMILY_PROJECTILE
 		1:
@@ -417,5 +445,7 @@ static func _roll_family(rng: RandomNumberGenerator) -> StringName:
 			return FAMILY_GLIDER_SPEED
 		5:
 			return FAMILY_HP_REGEN
-		_:
+		6:
 			return FAMILY_LUCK
+		_:
+			return FAMILY_MOMENTUM_RETENTION

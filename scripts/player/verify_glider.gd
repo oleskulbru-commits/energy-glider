@@ -103,6 +103,7 @@ func _run_tests() -> void:
 	_verify_boost_climb_target_speed()
 	_verify_ground_boost_accel_rate()
 	_verify_glider_speed_caps()
+	_verify_momentum_retention()
 	await _verify_hover_rest()
 	await _verify_hover_settle_from_high()
 	await _verify_terrain_probes_math()
@@ -229,6 +230,56 @@ func _verify_glider_speed_caps() -> void:
 	_fail_unless(
 		is_equal_approx(climb, GliderPhysicsScript.CLIMB_MIN_SPEED),
 		"Upgraded cruise should still floor a full climb at climb min (got %.2f)" % climb
+	)
+
+
+func _verify_momentum_retention() -> void:
+	var ctx := GliderPhysicsScript.Context.new()
+	ctx.forward_held = true
+	ctx.boost_active = false
+	ctx.velocity = Vector3(0.0, 0.0, 2.0)
+	ctx.board_forward = Vector3(0.0, 0.0, 1.0)
+	ctx.downhill = Vector3(0.0, 0.0, -1.0)
+	ctx.slope_grade = GliderPhysicsScript.UPHILL_GRADE_REF
+	ctx.momentum_retention = 0.25
+	var kept := GliderPhysicsScript.target_horizontal_speed(ctx)
+	var want_kept := maxf(
+		GliderPhysicsScript.FLAT_MAX_SPEED * 0.25,
+		GliderPhysicsScript.CLIMB_MIN_SPEED
+	)
+	_fail_unless(
+		is_equal_approx(kept, want_kept),
+		"Legendary Momentum Retention should keep 25%% of cruise on a full climb (got %.2f, want %.2f)" % [
+			kept, want_kept
+		]
+	)
+	ctx.momentum_retention = 1.0
+	var full := GliderPhysicsScript.target_horizontal_speed(ctx)
+	_fail_unless(
+		is_equal_approx(full, GliderPhysicsScript.FLAT_MAX_SPEED),
+		"100%% Momentum Retention should keep full cruise uphill (got %.2f)" % full
+	)
+	ctx.speed_bonus = 0.20
+	var upgraded := GliderPhysicsScript.target_horizontal_speed(ctx)
+	_fail_unless(
+		is_equal_approx(upgraded, GliderPhysicsScript.cruise_speed_for(0.20)),
+		"100%% retention should keep upgraded cruise uphill (got %.2f)" % upgraded
+	)
+	ctx.boost_active = true
+	var boosted := GliderPhysicsScript.target_horizontal_speed(ctx)
+	_fail_unless(
+		is_equal_approx(boosted, GliderPhysicsScript.flat_max_speed(true, 0.20)),
+		"Boost on a climb should still target flat boost max (got %.2f)" % boosted
+	)
+	ctx.boost_active = false
+	ctx.speed_bonus = 0.0
+	ctx.momentum_retention = 0.0
+	ctx.slope_grade = 0.0
+	ctx.downhill = Vector3.ZERO
+	var flat := GliderPhysicsScript.target_horizontal_speed(ctx)
+	_fail_unless(
+		is_equal_approx(flat, GliderPhysicsScript.FLAT_MAX_SPEED),
+		"Momentum Retention should not change flat cruise"
 	)
 
 

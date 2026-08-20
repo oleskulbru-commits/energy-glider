@@ -64,6 +64,7 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _glider_speed_label: Label = %GliderSpeedLabel
 @onready var _hp_regen_label: Label = %HpRegenLabel
 @onready var _luck_label: Label = %LuckLabel
+@onready var _momentum_retention_label: Label = %MomentumRetentionLabel
 @onready var _speed_label: Label = %SpeedLabel
 
 var _rig: PlayerRig
@@ -714,6 +715,7 @@ func _update_rifle_debug() -> void:
 	var glider_bonus := 0.0
 	var regen := 0.0
 	var luck := 0
+	var retention := 0.0
 	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
 	if state != null:
 		extras = state.extra_projectiles
@@ -723,6 +725,7 @@ func _update_rifle_debug() -> void:
 		glider_bonus = state.glider_speed_bonus
 		regen = state.health_regen_per_sec
 		luck = state.luck_bonus
+		retention = clampf(state.momentum_retention, 0.0, UpgradeCatalog.MOMENTUM_RETENTION_CAP)
 	_rifle_cooldown_label.text = "Attack Speed %d%%" % int(roundf(reduction * 100.0))
 	_rifle_projectiles_label.text = "Projectiles %d" % AutoRifle.projectile_count_for(extras)
 	if _rifle_damage_label != null:
@@ -735,6 +738,8 @@ func _update_rifle_debug() -> void:
 		_hp_regen_label.text = "HP Regen %d/s" % int(roundf(regen))
 	if _luck_label != null:
 		_luck_label.text = "Luck +%d" % luck
+	if _momentum_retention_label != null:
+		_momentum_retention_label.text = "Momentum Retention %d%%" % int(roundf(retention * 100.0))
 
 
 func _on_pulse_fired(_target_ripple: int) -> void:

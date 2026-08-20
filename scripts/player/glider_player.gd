@@ -1278,6 +1278,7 @@ func _build_physics_context() -> GliderPhysicsScript.Context:
 	ctx.thruster_accel = _thruster_accel(ctx.forward_held)
 	ctx.air_thruster_accel = ctx.thruster_accel * GliderPhysicsScript.AIR_BOOST_EXTRA_SCALE
 	ctx.speed_bonus = _glider_speed_bonus()
+	ctx.momentum_retention = _momentum_retention()
 	return ctx
 
 
@@ -1286,6 +1287,13 @@ func _glider_speed_bonus() -> float:
 	if state == null:
 		return 0.0
 	return state.glider_speed_bonus
+
+
+func _momentum_retention() -> float:
+	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
+	if state == null:
+		return 0.0
+	return clampf(state.momentum_retention, 0.0, UpgradeCatalog.MOMENTUM_RETENTION_CAP)
 
 
 func _build_touchdown_context() -> GliderPhysicsScript.Context:

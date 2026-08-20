@@ -165,6 +165,7 @@ class Context:
 	var thruster_accel: float = 0.0
 	var air_thruster_accel: float = 0.0
 	var speed_bonus: float = 0.0
+	var momentum_retention: float = 0.0
 
 
 static func horizontal_velocity(velocity: Vector3) -> Vector3:
@@ -229,7 +230,11 @@ static func target_horizontal_speed(ctx: Context) -> float:
 	## Boost ignores climb caps — escape card limited only by charge duration.
 	if signed_g < 0.0 and not ctx.boost_active:
 		var climb_t := clampf((-signed_g) / UPHILL_GRADE_REF, 0.0, 1.0)
-		max_speed = maxf(max_speed - cruise_speed_for(ctx.speed_bonus) * climb_t, CLIMB_MIN_SPEED)
+		var keep := 1.0 - clampf(ctx.momentum_retention, 0.0, 1.0)
+		max_speed = maxf(
+			max_speed - cruise_speed_for(ctx.speed_bonus) * climb_t * keep,
+			CLIMB_MIN_SPEED
+		)
 
 	if brake > 0.0:
 		max_speed *= 1.0 - brake

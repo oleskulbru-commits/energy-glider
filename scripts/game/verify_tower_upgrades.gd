@@ -25,6 +25,7 @@ func _run() -> void:
 	_verify_hp_regen_stacking()
 	_verify_luck_stacking()
 	_verify_luck_weights()
+	_verify_momentum_retention_stacking()
 	_verify_dawn_pose()
 	await _verify_visit_radius()
 	print("Tower upgrade verification passed.")
@@ -91,6 +92,15 @@ func _verify_catalog() -> void:
 		and UpgradeCatalogScript.LUCK_EPIC == 4
 		and UpgradeCatalogScript.LUCK_LEGENDARY == 5,
 		"Luck points should be 1 / 2 / 3 / 4 / 5"
+	)
+	_fail_unless(
+		is_equal_approx(UpgradeCatalogScript.MOMENTUM_RETENTION_COMMON, 0.08)
+		and is_equal_approx(UpgradeCatalogScript.MOMENTUM_RETENTION_UNCOMMON, 0.11)
+		and is_equal_approx(UpgradeCatalogScript.MOMENTUM_RETENTION_RARE, 0.15)
+		and is_equal_approx(UpgradeCatalogScript.MOMENTUM_RETENTION_EPIC, 0.20)
+		and is_equal_approx(UpgradeCatalogScript.MOMENTUM_RETENTION_LEGENDARY, 0.25)
+		and is_equal_approx(UpgradeCatalogScript.MOMENTUM_RETENTION_CAP, 1.0),
+		"Momentum Retention percents should be 8 / 11 / 15 / 20 / 25 with a 100% cap"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.PROJECTILE_COMMON == 1
@@ -257,6 +267,90 @@ func _verify_catalog() -> void:
 			)
 		) == "Luck +5",
 		"Luck legendary should show +5"
+	)
+	var rare_mr := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_MOMENTUM_RETENTION,
+		UpgradeCatalogScript.RARITY_RARE
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(rare_mr) == "Momentum Retention +15%",
+		"Momentum Retention rare should show +15%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.family_of(rare_mr) == UpgradeCatalogScript.FAMILY_MOMENTUM_RETENTION,
+		"momentum_retention_rare should parse as the momentum_retention family"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_MOMENTUM_RETENTION,
+				UpgradeCatalogScript.RARITY_COMMON
+			)
+		) == "Momentum Retention +8%",
+		"Momentum Retention common should show +8%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_MOMENTUM_RETENTION,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) == "Momentum Retention +11%",
+		"Momentum Retention uncommon should show +11%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_MOMENTUM_RETENTION,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) == "Momentum Retention +25%",
+		"Momentum Retention legendary should show +25%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_MOMENTUM_RETENTION,
+				UpgradeCatalogScript.RARITY_COMMON
+			)
+		) != null,
+		"Common Momentum Retention should use momentum_retention_common.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_MOMENTUM_RETENTION,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) != null,
+		"Uncommon Momentum Retention should use momentum_retention_uncommon.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_MOMENTUM_RETENTION,
+				UpgradeCatalogScript.RARITY_RARE
+			)
+		) != null,
+		"Rare Momentum Retention should use momentum_retention_rare.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_MOMENTUM_RETENTION,
+				UpgradeCatalogScript.RARITY_EPIC
+			)
+		) != null,
+		"Epic Momentum Retention should use momentum_retention_epic.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_MOMENTUM_RETENTION,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) != null,
+		"Legendary Momentum Retention should use momentum_retention_legendary.jpg"
 	)
 	var common_luck := UpgradeCatalogScript.make_id(
 		UpgradeCatalogScript.FAMILY_LUCK,
@@ -646,6 +740,10 @@ func _verify_offers_and_visit_lock() -> void:
 		"Try Again should clear HP Regen"
 	)
 	_fail_unless(state.luck_bonus == 0, "Try Again should clear Luck")
+	_fail_unless(
+		is_equal_approx(state.momentum_retention, 0.0),
+		"Try Again should clear Momentum Retention"
+	)
 	_fail_unless(state.remaining_count(1) == 4, "Try Again should not restore taken cards")
 	_fail_unless(
 		state.get_offers(1).size() == 5,
@@ -1069,6 +1167,46 @@ func _weights_valid(weights: PackedInt32Array) -> bool:
 			return false
 		total += int(weight)
 	return total == 100
+
+
+func _verify_momentum_retention_stacking() -> void:
+	var state: RunUpgradeState = RunUpgradeStateScript.new()
+	root.add_child(state)
+	var common_mr := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_MOMENTUM_RETENTION,
+			UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	var rare_mr := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_MOMENTUM_RETENTION,
+			UpgradeCatalogScript.RARITY_RARE
+		)
+	)
+	var leftover := String(UpgradeCatalogScript.ID_EXTRA_PROJECTILE)
+	_seed_offers(
+		state,
+		15,
+		PackedStringArray([common_mr, rare_mr, leftover, leftover, leftover])
+	)
+	state.pick_offer(15, 0)
+	state.pick_offer(15, 1)
+	_fail_unless(
+		is_equal_approx(state.momentum_retention, 0.23),
+		"Common + rare Momentum Retention should sum to 23%"
+	)
+	_fail_unless(state.remaining_count(15) == 3, "Leftover cards should stay in the shop")
+	_fail_unless(
+		state.extra_projectiles == 0,
+		"Momentum Retention picks should not add projectiles"
+	)
+	state.reset_run()
+	_fail_unless(
+		is_equal_approx(state.momentum_retention, 0.0),
+		"Try Again should clear Momentum Retention"
+	)
+	state.free()
 
 
 func _verify_dawn_pose() -> void:
