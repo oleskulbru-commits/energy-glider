@@ -36,52 +36,59 @@ func _verify_catalog() -> void:
 	)
 	_fail_unless(
 		UpgradeCatalogScript.RARITY_WEIGHT_COMMON == 50
-		and UpgradeCatalogScript.RARITY_WEIGHT_RARE == 25
-		and UpgradeCatalogScript.RARITY_WEIGHT_EPIC == 15
-		and UpgradeCatalogScript.RARITY_WEIGHT_LEGENDARY == 10,
-		"Rarity weights should be 50 / 25 / 15 / 10"
+		and UpgradeCatalogScript.RARITY_WEIGHT_UNCOMMON == 20
+		and UpgradeCatalogScript.RARITY_WEIGHT_RARE == 15
+		and UpgradeCatalogScript.RARITY_WEIGHT_EPIC == 10
+		and UpgradeCatalogScript.RARITY_WEIGHT_LEGENDARY == 5,
+		"Rarity weights should be 50 / 20 / 15 / 10 / 5"
 	)
 	_fail_unless(
-		is_equal_approx(UpgradeCatalogScript.ATTACK_SPEED_COMMON, 0.05)
-		and is_equal_approx(UpgradeCatalogScript.ATTACK_SPEED_RARE, 0.08)
-		and is_equal_approx(UpgradeCatalogScript.ATTACK_SPEED_EPIC, 0.11)
+		is_equal_approx(UpgradeCatalogScript.ATTACK_SPEED_COMMON, 0.04)
+		and is_equal_approx(UpgradeCatalogScript.ATTACK_SPEED_UNCOMMON, 0.06)
+		and is_equal_approx(UpgradeCatalogScript.ATTACK_SPEED_RARE, 0.09)
+		and is_equal_approx(UpgradeCatalogScript.ATTACK_SPEED_EPIC, 0.12)
 		and is_equal_approx(UpgradeCatalogScript.ATTACK_SPEED_LEGENDARY, 0.15),
-		"Attack Speed percents should be 5 / 8 / 11 / 15"
+		"Attack Speed percents should be 4 / 6 / 9 / 12 / 15"
 	)
 	_fail_unless(
-		is_equal_approx(UpgradeCatalogScript.DAMAGE_COMMON, 0.05)
-		and is_equal_approx(UpgradeCatalogScript.DAMAGE_RARE, 0.08)
-		and is_equal_approx(UpgradeCatalogScript.DAMAGE_EPIC, 0.11)
+		is_equal_approx(UpgradeCatalogScript.DAMAGE_COMMON, 0.04)
+		and is_equal_approx(UpgradeCatalogScript.DAMAGE_UNCOMMON, 0.06)
+		and is_equal_approx(UpgradeCatalogScript.DAMAGE_RARE, 0.09)
+		and is_equal_approx(UpgradeCatalogScript.DAMAGE_EPIC, 0.12)
 		and is_equal_approx(UpgradeCatalogScript.DAMAGE_LEGENDARY, 0.15),
-		"Damage percents should be 5 / 8 / 11 / 15"
+		"Damage percents should be 4 / 6 / 9 / 12 / 15"
 	)
 	_fail_unless(
-		is_equal_approx(UpgradeCatalogScript.PROJECTILE_SPEED_COMMON, 0.05)
-		and is_equal_approx(UpgradeCatalogScript.PROJECTILE_SPEED_RARE, 0.08)
-		and is_equal_approx(UpgradeCatalogScript.PROJECTILE_SPEED_EPIC, 0.11)
+		is_equal_approx(UpgradeCatalogScript.PROJECTILE_SPEED_COMMON, 0.04)
+		and is_equal_approx(UpgradeCatalogScript.PROJECTILE_SPEED_UNCOMMON, 0.06)
+		and is_equal_approx(UpgradeCatalogScript.PROJECTILE_SPEED_RARE, 0.09)
+		and is_equal_approx(UpgradeCatalogScript.PROJECTILE_SPEED_EPIC, 0.12)
 		and is_equal_approx(UpgradeCatalogScript.PROJECTILE_SPEED_LEGENDARY, 0.15),
-		"Projectile Speed percents should be 5 / 8 / 11 / 15"
+		"Projectile Speed percents should be 4 / 6 / 9 / 12 / 15"
 	)
 	_fail_unless(
 		is_equal_approx(UpgradeCatalogScript.GLIDER_SPEED_COMMON, 0.08)
+		and is_equal_approx(UpgradeCatalogScript.GLIDER_SPEED_UNCOMMON, 0.10)
 		and is_equal_approx(UpgradeCatalogScript.GLIDER_SPEED_RARE, 0.12)
 		and is_equal_approx(UpgradeCatalogScript.GLIDER_SPEED_EPIC, 0.16)
 		and is_equal_approx(UpgradeCatalogScript.GLIDER_SPEED_LEGENDARY, 0.22),
-		"Glider Speed percents should be 8 / 12 / 16 / 22"
+		"Glider Speed percents should be 8 / 10 / 12 / 16 / 22"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.HP_REGEN_COMMON == 1
-		and UpgradeCatalogScript.HP_REGEN_RARE == 2
-		and UpgradeCatalogScript.HP_REGEN_EPIC == 3
-		and UpgradeCatalogScript.HP_REGEN_LEGENDARY == 4,
-		"HP Regen rates should be 1 / 2 / 3 / 4 hp/s"
+		and UpgradeCatalogScript.HP_REGEN_UNCOMMON == 2
+		and UpgradeCatalogScript.HP_REGEN_RARE == 3
+		and UpgradeCatalogScript.HP_REGEN_EPIC == 4
+		and UpgradeCatalogScript.HP_REGEN_LEGENDARY == 5,
+		"HP Regen rates should be 1 / 2 / 3 / 4 / 5 hp/s"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.PROJECTILE_COMMON == 1
-		and UpgradeCatalogScript.PROJECTILE_RARE == 2
-		and UpgradeCatalogScript.PROJECTILE_EPIC == 3
-		and UpgradeCatalogScript.PROJECTILE_LEGENDARY == 4,
-		"Projectile bonuses should be +1 / +2 / +3 / +4"
+		and UpgradeCatalogScript.PROJECTILE_UNCOMMON == 2
+		and UpgradeCatalogScript.PROJECTILE_RARE == 3
+		and UpgradeCatalogScript.PROJECTILE_EPIC == 4
+		and UpgradeCatalogScript.PROJECTILE_LEGENDARY == 5,
+		"Projectile bonuses should be +1 / +2 / +3 / +4 / +5"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.is_empty_offer(UpgradeCatalogScript.EMPTY_OFFER),
@@ -104,8 +111,8 @@ func _verify_catalog() -> void:
 		UpgradeCatalogScript.RARITY_RARE
 	)
 	_fail_unless(
-		UpgradeCatalogScript.display_name(rare_proj) == "+2 projectiles",
-		"Rare projectile should be labeled +2 projectiles"
+		UpgradeCatalogScript.display_name(rare_proj) == "+3 projectiles",
+		"Rare projectile should be labeled +3 projectiles"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.display_name(
@@ -113,8 +120,8 @@ func _verify_catalog() -> void:
 				UpgradeCatalogScript.FAMILY_PROJECTILE,
 				UpgradeCatalogScript.RARITY_EPIC
 			)
-		) == "+3 projectiles",
-		"Epic projectile should be labeled +3 projectiles"
+		) == "+4 projectiles",
+		"Epic projectile should be labeled +4 projectiles"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.display_name(
@@ -122,32 +129,48 @@ func _verify_catalog() -> void:
 				UpgradeCatalogScript.FAMILY_PROJECTILE,
 				UpgradeCatalogScript.RARITY_LEGENDARY
 			)
-		) == "+4 projectiles",
-		"Legendary projectile should be labeled +4 projectiles"
+		) == "+5 projectiles",
+		"Legendary projectile should be labeled +5 projectiles"
 	)
 	var rare_as := UpgradeCatalogScript.make_id(
 		UpgradeCatalogScript.FAMILY_ATTACK_SPEED,
 		UpgradeCatalogScript.RARITY_RARE
 	)
 	_fail_unless(
-		UpgradeCatalogScript.display_name(rare_as) == "Attack Speed −8%",
-		"Attack Speed rare should show −8%"
+		UpgradeCatalogScript.display_name(rare_as) == "Attack Speed −9%",
+		"Attack Speed rare should show −9%"
+	)
+	var uncommon_as := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_ATTACK_SPEED,
+		UpgradeCatalogScript.RARITY_UNCOMMON
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(uncommon_as) == "Attack Speed −6%",
+		"Attack Speed uncommon should show −6%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.rarity_display_name(uncommon_as) == "UNCOMMON",
+		"Uncommon cards should read UNCOMMON"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.rarity_color(uncommon_as) == UpgradeCatalogScript.COLOR_RARITY_UNCOMMON,
+		"Uncommon should use the green rarity color"
 	)
 	var rare_dmg := UpgradeCatalogScript.make_id(
 		UpgradeCatalogScript.FAMILY_DAMAGE,
 		UpgradeCatalogScript.RARITY_RARE
 	)
 	_fail_unless(
-		UpgradeCatalogScript.display_name(rare_dmg) == "Damage +8%",
-		"Damage rare should show +8%"
+		UpgradeCatalogScript.display_name(rare_dmg) == "Damage +9%",
+		"Damage rare should show +9%"
 	)
 	var rare_ps := UpgradeCatalogScript.make_id(
 		UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED,
 		UpgradeCatalogScript.RARITY_RARE
 	)
 	_fail_unless(
-		UpgradeCatalogScript.display_name(rare_ps) == "Projectile Speed +8%",
-		"Projectile Speed rare should show +8%"
+		UpgradeCatalogScript.display_name(rare_ps) == "Projectile Speed +9%",
+		"Projectile Speed rare should show +9%"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.family_of(rare_ps) == UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED,
@@ -170,8 +193,8 @@ func _verify_catalog() -> void:
 		UpgradeCatalogScript.RARITY_RARE
 	)
 	_fail_unless(
-		UpgradeCatalogScript.display_name(rare_regen) == "HP Regen +2/s",
-		"HP Regen rare should show +2/s"
+		UpgradeCatalogScript.display_name(rare_regen) == "HP Regen +3/s",
+		"HP Regen rare should show +3/s"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.family_of(rare_regen) == UpgradeCatalogScript.FAMILY_HP_REGEN,
@@ -192,8 +215,8 @@ func _verify_catalog() -> void:
 				UpgradeCatalogScript.FAMILY_HP_REGEN,
 				UpgradeCatalogScript.RARITY_LEGENDARY
 			)
-		) == "HP Regen +4/s",
-		"HP Regen legendary should show +4/s"
+		) == "HP Regen +5/s",
+		"HP Regen legendary should show +5/s"
 	)
 	var common_regen := UpgradeCatalogScript.make_id(
 		UpgradeCatalogScript.FAMILY_HP_REGEN,
@@ -234,6 +257,15 @@ func _verify_catalog() -> void:
 		"Common Glider Speed should use glider_speed_common.jpg"
 	)
 	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_GLIDER_SPEED,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) != null,
+		"Uncommon Glider Speed should use glider_speed_uncommon.jpg"
+	)
+	_fail_unless(
 		UpgradeCatalogScript.icon_for(rare_gs) != null,
 		"Rare Glider Speed should use glider_speed_rare.jpg"
 	)
@@ -262,6 +294,15 @@ func _verify_catalog() -> void:
 	_fail_unless(
 		UpgradeCatalogScript.icon_for(common_ps) != null,
 		"Common Projectile Speed should use projectile_speed_common.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) != null,
+		"Uncommon Projectile Speed should use projectile_speed_uncommon.jpg"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.icon_for(rare_ps) != null,
@@ -296,6 +337,15 @@ func _verify_catalog() -> void:
 	_fail_unless(
 		UpgradeCatalogScript.icon_for(common_dmg) != null,
 		"Common Damage should use damage_common.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_DAMAGE,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) != null,
+		"Uncommon Damage should use damage_uncommon.jpg"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.icon_for(rare_dmg) != null,
@@ -336,6 +386,17 @@ func _verify_catalog() -> void:
 	_fail_unless(
 		common_as_icon != UpgradeCatalogScript.ICON_ATTACK_SPEED,
 		"Common Attack Speed should use attack_speed_common.jpg, not the family fallback"
+	)
+	var uncommon_as_icon := UpgradeCatalogScript.icon_for(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_ATTACK_SPEED,
+			UpgradeCatalogScript.RARITY_UNCOMMON
+		)
+	)
+	_fail_unless(uncommon_as_icon != null, "Uncommon Attack Speed should have an icon")
+	_fail_unless(
+		uncommon_as_icon != UpgradeCatalogScript.ICON_ATTACK_SPEED,
+		"Uncommon Attack Speed should use attack_speed_uncommon.jpg, not the family fallback"
 	)
 	var epic_as := UpgradeCatalogScript.make_id(
 		UpgradeCatalogScript.FAMILY_ATTACK_SPEED,
@@ -386,6 +447,16 @@ func _verify_catalog() -> void:
 	_fail_unless(
 		common_icon != UpgradeCatalogScript.ICON_EXTRA_PROJECTILE,
 		"Common projectile should use projectile_common.jpg, not the family fallback"
+	)
+	var uncommon_proj := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_PROJECTILE,
+		UpgradeCatalogScript.RARITY_UNCOMMON
+	)
+	var uncommon_proj_icon := UpgradeCatalogScript.icon_for(uncommon_proj)
+	_fail_unless(uncommon_proj_icon != null, "Uncommon projectile should have an icon")
+	_fail_unless(
+		uncommon_proj_icon != UpgradeCatalogScript.ICON_EXTRA_PROJECTILE,
+		"Uncommon projectile should use projectile_uncommon.jpg, not the family fallback"
 	)
 	var rare_proj_icon := UpgradeCatalogScript.make_id(
 		UpgradeCatalogScript.FAMILY_PROJECTILE,
@@ -504,7 +575,7 @@ func _verify_empty_tower_confirm() -> void:
 	)
 	_seed_offers(state, 6, PackedStringArray([rare_id, rare_id, rare_id, rare_id, rare_id]))
 	state.pick_offer(6, 0)
-	_fail_unless(state.extra_projectiles == 7, "Rare projectile should add +2 extra shots")
+	_fail_unless(state.extra_projectiles == 8, "Rare projectile should add +3 extra shots")
 	state.free()
 
 
@@ -792,8 +863,8 @@ func _verify_hp_regen_stacking() -> void:
 	state.pick_offer(13, 0)
 	state.pick_offer(13, 1)
 	_fail_unless(
-		is_equal_approx(state.health_regen_per_sec, 3.0),
-		"Common + rare HP Regen should sum to 3 hp/s"
+		is_equal_approx(state.health_regen_per_sec, 4.0),
+		"Common + rare HP Regen should sum to 4 hp/s"
 	)
 	_fail_unless(state.remaining_count(13) == 3, "Leftover cards should stay in the shop")
 	_fail_unless(state.extra_projectiles == 0, "HP Regen picks should not add projectiles")

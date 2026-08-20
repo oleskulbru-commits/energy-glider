@@ -130,8 +130,8 @@ func _verify_pill_health() -> void:
 	_fail_unless(ChargerPillScript.CHARGER_MAX_HEALTH == 25, "Green pill HP should be 25")
 	_fail_unless(AutoRifleScript.DAMAGE == 10, "Rifle damage should be 10")
 	_fail_unless(AutoRifleScript.damage_for(0.0) == 10, "Base rifle damage should stay 10")
-	_fail_unless(AutoRifleScript.damage_for(0.05) == 11, "5% more damage should round 10.5 up to 11")
-	_fail_unless(AutoRifleScript.damage_for(0.13) == 11, "5% + 8% should deal 11")
+	_fail_unless(AutoRifleScript.damage_for(0.04) == 10, "4% more damage should round 10.4 down to 10")
+	_fail_unless(AutoRifleScript.damage_for(0.13) == 11, "4% + 9% should deal 11")
 	_fail_unless(AutoRifleScript.damage_for(0.15) == 12, "15% more damage should deal 12")
 	_fail_unless(AutoRifleScript.damage_for(0.75) == 18, "Damage bonus should have no cap")
 
@@ -251,7 +251,7 @@ func _verify_rifle_targeting() -> void:
 	)
 	_fail_unless(
 		is_equal_approx(AutoRifleScript.fire_interval_for(0.13), 3.0 * 0.87),
-		"5% + 8% Attack Speed should wait 3.0 × 0.87"
+		"4% + 9% Attack Speed should wait 3.0 × 0.87"
 	)
 	_fail_unless(
 		is_equal_approx(AutoRifleScript.fire_interval_for(0.80), 0.60),
@@ -267,7 +267,7 @@ func _verify_rifle_targeting() -> void:
 	)
 	_fail_unless(
 		is_equal_approx(AutoRifleScript.speed_for(0.13), 60.0 * 1.13),
-		"5% + 8% Projectile Speed should be 60 × 1.13"
+		"4% + 9% Projectile Speed should be 60 × 1.13"
 	)
 	_fail_unless(
 		is_equal_approx(AutoRifleScript.speed_for(0.80), 108.0),
@@ -326,8 +326,8 @@ func _verify_rifle_targeting() -> void:
 func _verify_rifle_burst() -> void:
 	_fail_unless(AutoRifleScript.projectile_count_for(0) == 1, "Base rifle should fire 1 shot")
 	_fail_unless(AutoRifleScript.projectile_count_for(1) == 2, "+1 projectile should fire 2 shots")
-	_fail_unless(AutoRifleScript.projectile_count_for(2) == 3, "Rare +2 extras should fire 3 shots")
-	_fail_unless(AutoRifleScript.projectile_count_for(4) == 5, "Legendary +4 extras should fire 5 shots")
+	_fail_unless(AutoRifleScript.projectile_count_for(2) == 3, "+2 extras should fire 3 shots")
+	_fail_unless(AutoRifleScript.projectile_count_for(5) == 6, "Legendary +5 extras should fire 6 shots")
 	var times := AutoRifleScript.burst_fire_times(2)
 	_fail_unless(times.size() == 2, "Two-shot burst should have two fire times")
 	_fail_unless(is_equal_approx(times[0], 0.0), "First burst shot should fire immediately")

@@ -11,6 +11,7 @@ const FAMILY_PROJECTILE_SPEED := &"projectile_speed"
 const FAMILY_GLIDER_SPEED := &"glider_speed"
 const FAMILY_HP_REGEN := &"hp_regen"
 const RARITY_COMMON := &"common"
+const RARITY_UNCOMMON := &"uncommon"
 const RARITY_RARE := &"rare"
 const RARITY_EPIC := &"epic"
 const RARITY_LEGENDARY := &"legendary"
@@ -23,44 +24,52 @@ const ICON_EXTRA_PROJECTILE := preload("res://assets/ui/upgrades/plus_one_projec
 const ICON_ATTACK_SPEED := preload("res://assets/ui/upgrades/attack_speed.jpg")
 
 const COLOR_RARITY_COMMON := Color(0.78, 0.78, 0.80, 1.0)
+const COLOR_RARITY_UNCOMMON := Color(0.32, 0.78, 0.42, 1.0)
 const COLOR_RARITY_RARE := Color(0.38, 0.62, 0.98, 1.0)
 const COLOR_RARITY_EPIC := Color(0.72, 0.42, 0.95, 1.0)
 const COLOR_RARITY_LEGENDARY := Color(0.98, 0.78, 0.28, 1.0)
 
 const RARITY_WEIGHT_COMMON := 50
-const RARITY_WEIGHT_RARE := 25
-const RARITY_WEIGHT_EPIC := 15
-const RARITY_WEIGHT_LEGENDARY := 10
+const RARITY_WEIGHT_UNCOMMON := 20
+const RARITY_WEIGHT_RARE := 15
+const RARITY_WEIGHT_EPIC := 10
+const RARITY_WEIGHT_LEGENDARY := 5
 
-const ATTACK_SPEED_COMMON := 0.05
-const ATTACK_SPEED_RARE := 0.08
-const ATTACK_SPEED_EPIC := 0.11
+const ATTACK_SPEED_COMMON := 0.04
+const ATTACK_SPEED_UNCOMMON := 0.06
+const ATTACK_SPEED_RARE := 0.09
+const ATTACK_SPEED_EPIC := 0.12
 const ATTACK_SPEED_LEGENDARY := 0.15
 
 const PROJECTILE_COMMON := 1
-const PROJECTILE_RARE := 2
-const PROJECTILE_EPIC := 3
-const PROJECTILE_LEGENDARY := 4
+const PROJECTILE_UNCOMMON := 2
+const PROJECTILE_RARE := 3
+const PROJECTILE_EPIC := 4
+const PROJECTILE_LEGENDARY := 5
 
-const DAMAGE_COMMON := 0.05
-const DAMAGE_RARE := 0.08
-const DAMAGE_EPIC := 0.11
+const DAMAGE_COMMON := 0.04
+const DAMAGE_UNCOMMON := 0.06
+const DAMAGE_RARE := 0.09
+const DAMAGE_EPIC := 0.12
 const DAMAGE_LEGENDARY := 0.15
 
-const PROJECTILE_SPEED_COMMON := 0.05
-const PROJECTILE_SPEED_RARE := 0.08
-const PROJECTILE_SPEED_EPIC := 0.11
+const PROJECTILE_SPEED_COMMON := 0.04
+const PROJECTILE_SPEED_UNCOMMON := 0.06
+const PROJECTILE_SPEED_RARE := 0.09
+const PROJECTILE_SPEED_EPIC := 0.12
 const PROJECTILE_SPEED_LEGENDARY := 0.15
 
 const GLIDER_SPEED_COMMON := 0.08
+const GLIDER_SPEED_UNCOMMON := 0.10
 const GLIDER_SPEED_RARE := 0.12
 const GLIDER_SPEED_EPIC := 0.16
 const GLIDER_SPEED_LEGENDARY := 0.22
 
 const HP_REGEN_COMMON := 1
-const HP_REGEN_RARE := 2
-const HP_REGEN_EPIC := 3
-const HP_REGEN_LEGENDARY := 4
+const HP_REGEN_UNCOMMON := 2
+const HP_REGEN_RARE := 3
+const HP_REGEN_EPIC := 4
+const HP_REGEN_LEGENDARY := 5
 
 const SHOP_SEED_WORLD := 1009
 const SHOP_SEED_TOWER := 9176
@@ -102,6 +111,8 @@ static func rarity_of(id: StringName) -> StringName:
 
 static func projectile_bonus(rarity: StringName) -> int:
 	match rarity:
+		RARITY_UNCOMMON:
+			return PROJECTILE_UNCOMMON
 		RARITY_RARE:
 			return PROJECTILE_RARE
 		RARITY_EPIC:
@@ -114,6 +125,8 @@ static func projectile_bonus(rarity: StringName) -> int:
 
 static func attack_speed_percent(rarity: StringName) -> float:
 	match rarity:
+		RARITY_UNCOMMON:
+			return ATTACK_SPEED_UNCOMMON
 		RARITY_RARE:
 			return ATTACK_SPEED_RARE
 		RARITY_EPIC:
@@ -126,6 +139,8 @@ static func attack_speed_percent(rarity: StringName) -> float:
 
 static func damage_percent(rarity: StringName) -> float:
 	match rarity:
+		RARITY_UNCOMMON:
+			return DAMAGE_UNCOMMON
 		RARITY_RARE:
 			return DAMAGE_RARE
 		RARITY_EPIC:
@@ -138,6 +153,8 @@ static func damage_percent(rarity: StringName) -> float:
 
 static func projectile_speed_percent(rarity: StringName) -> float:
 	match rarity:
+		RARITY_UNCOMMON:
+			return PROJECTILE_SPEED_UNCOMMON
 		RARITY_RARE:
 			return PROJECTILE_SPEED_RARE
 		RARITY_EPIC:
@@ -150,6 +167,8 @@ static func projectile_speed_percent(rarity: StringName) -> float:
 
 static func glider_speed_percent(rarity: StringName) -> float:
 	match rarity:
+		RARITY_UNCOMMON:
+			return GLIDER_SPEED_UNCOMMON
 		RARITY_RARE:
 			return GLIDER_SPEED_RARE
 		RARITY_EPIC:
@@ -162,6 +181,8 @@ static func glider_speed_percent(rarity: StringName) -> float:
 
 static func hp_regen_per_sec(rarity: StringName) -> float:
 	match rarity:
+		RARITY_UNCOMMON:
+			return float(HP_REGEN_UNCOMMON)
 		RARITY_RARE:
 			return float(HP_REGEN_RARE)
 		RARITY_EPIC:
@@ -210,6 +231,8 @@ static func rarity_display_name(id: StringName) -> String:
 
 static func rarity_color(id: StringName) -> Color:
 	match rarity_of(id):
+		RARITY_UNCOMMON:
+			return COLOR_RARITY_UNCOMMON
 		RARITY_RARE:
 			return COLOR_RARITY_RARE
 		RARITY_EPIC:
@@ -275,7 +298,13 @@ static func _roll_unique_id(rng: RandomNumberGenerator, used: Dictionary) -> Str
 		FAMILY_GLIDER_SPEED,
 		FAMILY_HP_REGEN
 	]:
-		for rarity in [RARITY_COMMON, RARITY_RARE, RARITY_EPIC, RARITY_LEGENDARY]:
+		for rarity in [
+			RARITY_COMMON,
+			RARITY_UNCOMMON,
+			RARITY_RARE,
+			RARITY_EPIC,
+			RARITY_LEGENDARY
+		]:
 			var id := String(make_id(family, rarity))
 			if not used.has(id):
 				return id
@@ -284,11 +313,16 @@ static func _roll_unique_id(rng: RandomNumberGenerator, used: Dictionary) -> Str
 
 static func _roll_rarity(rng: RandomNumberGenerator) -> StringName:
 	var roll := rng.randi_range(1, 100)
+	var uncommon_cap := RARITY_WEIGHT_COMMON + RARITY_WEIGHT_UNCOMMON
+	var rare_cap := uncommon_cap + RARITY_WEIGHT_RARE
+	var epic_cap := rare_cap + RARITY_WEIGHT_EPIC
 	if roll <= RARITY_WEIGHT_COMMON:
 		return RARITY_COMMON
-	if roll <= RARITY_WEIGHT_COMMON + RARITY_WEIGHT_RARE:
+	if roll <= uncommon_cap:
+		return RARITY_UNCOMMON
+	if roll <= rare_cap:
 		return RARITY_RARE
-	if roll <= RARITY_WEIGHT_COMMON + RARITY_WEIGHT_RARE + RARITY_WEIGHT_EPIC:
+	if roll <= epic_cap:
 		return RARITY_EPIC
 	return RARITY_LEGENDARY
 
