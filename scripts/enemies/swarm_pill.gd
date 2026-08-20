@@ -70,12 +70,12 @@ func is_alive() -> bool:
 
 
 ## Returns true if the pill died from this hit. Lethal hits skip knockback.
-func take_damage(amount: int, hit_dir: Vector3 = Vector3.ZERO) -> bool:
+func take_damage(amount: int, hit_dir: Vector3 = Vector3.ZERO, is_crit: bool = false) -> bool:
 	if amount <= 0 or _hp <= 0:
 		return false
 	var dealt := mini(amount, _hp)
 	_hp = maxi(_hp - amount, 0)
-	_spawn_damage_float(dealt)
+	_spawn_damage_float(dealt, is_crit)
 	if _hp <= 0:
 		queue_free()
 		return true
@@ -83,8 +83,8 @@ func take_damage(amount: int, hit_dir: Vector3 = Vector3.ZERO) -> bool:
 	return false
 
 
-func _spawn_damage_float(amount: int) -> void:
-	DamageFloat.spawn_world(self, amount, _rng, DAMAGE_FLOAT_HEIGHT_M)
+func _spawn_damage_float(amount: int, is_crit: bool = false) -> void:
+	DamageFloat.spawn_world(self, amount, _rng, DAMAGE_FLOAT_HEIGHT_M, is_crit)
 
 
 func _physics_process(delta: float) -> void:

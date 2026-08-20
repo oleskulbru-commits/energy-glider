@@ -57,6 +57,7 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _safe_label: Label = %SafeLabel
 @onready var _outpost_board: PanelContainer = %OutpostBoard
 @onready var _outpost_board_label: Label = %OutpostBoardLabel
+@onready var _rifle_debug_panel: PanelContainer = %RifleDebugPanel
 @onready var _rifle_cooldown_label: Label = %RifleCooldownLabel
 @onready var _rifle_projectiles_label: Label = %RifleProjectilesLabel
 @onready var _rifle_damage_label: Label = %RifleDamageLabel
@@ -65,6 +66,7 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _hp_regen_label: Label = %HpRegenLabel
 @onready var _luck_label: Label = %LuckLabel
 @onready var _momentum_retention_label: Label = %MomentumRetentionLabel
+@onready var _crit_label: Label = %CritLabel
 @onready var _speed_label: Label = %SpeedLabel
 
 var _rig: PlayerRig
@@ -706,7 +708,7 @@ func _update_speedometer() -> void:
 
 
 func _update_rifle_debug() -> void:
-	if _rifle_cooldown_label == null or _rifle_projectiles_label == null:
+	if _rifle_debug_panel == null:
 		return
 	var extras := 0
 	var reduction := 0.0
@@ -716,6 +718,7 @@ func _update_rifle_debug() -> void:
 	var regen := 0.0
 	var luck := 0
 	var retention := 0.0
+	var crit := 0.0
 	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
 	if state != null:
 		extras = state.extra_projectiles
@@ -726,20 +729,61 @@ func _update_rifle_debug() -> void:
 		regen = state.health_regen_per_sec
 		luck = state.luck_bonus
 		retention = clampf(state.momentum_retention, 0.0, UpgradeCatalog.MOMENTUM_RETENTION_CAP)
-	_rifle_cooldown_label.text = "Attack Speed %d%%" % int(roundf(reduction * 100.0))
-	_rifle_projectiles_label.text = "Projectiles %d" % AutoRifle.projectile_count_for(extras)
-	if _rifle_damage_label != null:
-		_rifle_damage_label.text = "Damage %d%%" % int(roundf(bonus * 100.0))
-	if _rifle_projectile_speed_label != null:
-		_rifle_projectile_speed_label.text = "Projectile Speed %d%%" % int(roundf(speed_bonus * 100.0))
-	if _glider_speed_label != null:
-		_glider_speed_label.text = "Glider Speed %d%%" % int(roundf(glider_bonus * 100.0))
-	if _hp_regen_label != null:
-		_hp_regen_label.text = "HP Regen %d/s" % int(roundf(regen))
-	if _luck_label != null:
-		_luck_label.text = "Luck +%d" % luck
-	if _momentum_retention_label != null:
-		_momentum_retention_label.text = "Momentum Retention %d%%" % int(roundf(retention * 100.0))
+		crit = clampf(state.crit_chance, 0.0, UpgradeCatalog.CRIT_CAP)
+	var any := false
+	any = _show_upgrade_line(
+		_rifle_cooldown_label,
+		"Attack Speed %d%%" % int(roundf(reduction * 100.0)),
+		reduction > 0.0
+	) or any
+	any = _show_upgrade_line(
+		_rifle_projectiles_label,
+		"Projectiles %d" % AutoRifle.projectile_count_for(extras),
+		extras > 0
+	) or any
+	any = _show_upgrade_line(
+		_rifle_damage_label,
+		"Damage %d%%" % int(roundf(bonus * 100.0)),
+		bonus > 0.0
+	) or any
+	any = _show_upgrade_line(
+		_rifle_projectile_speed_label,
+		"Projectile Speed %d%%" % int(roundf(speed_bonus * 100.0)),
+		speed_bonus > 0.0
+	) or any
+	any = _show_upgrade_line(
+		_glider_speed_label,
+		"Glider Speed %d%%" % int(roundf(glider_bonus * 100.0)),
+		glider_bonus > 0.0
+	) or any
+	any = _show_upgrade_line(
+		_hp_regen_label,
+		"HP Regen %d/s" % int(roundf(regen)),
+		regen > 0.0
+	) or any
+	any = _show_upgrade_line(_luck_label, "Luck +%d" % luck, luck > 0) or any
+	any = _show_upgrade_line(
+		_momentum_retention_label,
+		"Momentum Retention %d%%" % int(roundf(retention * 100.0)),
+		retention > 0.0
+	) or any
+	any = _show_upgrade_line(
+		_crit_label,
+		"Crit %d%%" % int(roundf(crit * 100.0)),
+		crit > 0.0
+	) or any
+	_rifle_debug_panel.visible = any
+	if any:
+		_rifle_debug_panel.reset_size()
+
+
+func _show_upgrade_line(label: Label, text: String, active: bool) -> bool:
+	if label == null:
+		return false
+	label.visible = active
+	if active:
+		label.text = text
+	return active
 
 
 func _on_pulse_fired(_target_ripple: int) -> void:

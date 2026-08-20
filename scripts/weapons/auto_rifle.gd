@@ -66,6 +66,13 @@ func _damage_bonus() -> float:
 	return state.damage_bonus
 
 
+func _crit_chance() -> float:
+	var state := _upgrade_state()
+	if state == null:
+		return 0.0
+	return clampf(state.crit_chance, 0.0, UpgradeCatalog.CRIT_CAP)
+
+
 func _projectile_speed_bonus() -> float:
 	var state := _upgrade_state()
 	if state == null:
@@ -144,12 +151,14 @@ func _fire(origin: Vector3, target: Node3D) -> void:
 		parent = _rig
 	parent.add_child(bullet)
 	var aim := target.global_position + Vector3(0.0, 0.7, 0.0) - origin
+	var is_crit := roll_crit(_crit_chance(), _rng)
 	bullet.launch(
 		origin,
 		target,
 		aim,
-		damage_for(_damage_bonus()),
-		speed_for(_projectile_speed_bonus())
+		crit_damage_for(damage_for(_damage_bonus()), is_crit),
+		speed_for(_projectile_speed_bonus()),
+		is_crit
 	)
 
 
@@ -206,6 +215,19 @@ static func fire_interval_for(reduction: float) -> float:
 
 static func damage_for(bonus: float) -> int:
 	return maxi(1, int(round(float(DAMAGE) * (1.0 + maxf(bonus, 0.0)))))
+
+
+static func roll_crit(chance: float, rng: RandomNumberGenerator) -> bool:
+	if rng == null:
+		return false
+	return rng.randf() < clampf(chance, 0.0, UpgradeCatalog.CRIT_CAP)
+
+
+static func crit_damage_for(base: int, is_crit: bool) -> int:
+	var amount := maxi(base, 1)
+	if is_crit:
+		return amount * 2
+	return amount
 
 
 static func speed_for(bonus: float) -> float:

@@ -26,6 +26,7 @@ func _run() -> void:
 	_verify_luck_stacking()
 	_verify_luck_weights()
 	_verify_momentum_retention_stacking()
+	_verify_crit_stacking()
 	_verify_dawn_pose()
 	await _verify_visit_radius()
 	print("Tower upgrade verification passed.")
@@ -101,6 +102,15 @@ func _verify_catalog() -> void:
 		and is_equal_approx(UpgradeCatalogScript.MOMENTUM_RETENTION_LEGENDARY, 0.25)
 		and is_equal_approx(UpgradeCatalogScript.MOMENTUM_RETENTION_CAP, 1.0),
 		"Momentum Retention percents should be 8 / 11 / 15 / 20 / 25 with a 100% cap"
+	)
+	_fail_unless(
+		is_equal_approx(UpgradeCatalogScript.CRIT_COMMON, 0.04)
+		and is_equal_approx(UpgradeCatalogScript.CRIT_UNCOMMON, 0.06)
+		and is_equal_approx(UpgradeCatalogScript.CRIT_RARE, 0.10)
+		and is_equal_approx(UpgradeCatalogScript.CRIT_EPIC, 0.13)
+		and is_equal_approx(UpgradeCatalogScript.CRIT_LEGENDARY, 0.17)
+		and is_equal_approx(UpgradeCatalogScript.CRIT_CAP, 1.0),
+		"Crit chances should be 4 / 6 / 10 / 13 / 17 with a 100% cap"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.PROJECTILE_COMMON == 1
@@ -307,6 +317,103 @@ func _verify_catalog() -> void:
 		) == "Momentum Retention +25%",
 		"Momentum Retention legendary should show +25%"
 	)
+	var rare_crit := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_CRIT,
+		UpgradeCatalogScript.RARITY_RARE
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(rare_crit) == "Crit +10%",
+		"Crit rare should show +10%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.family_of(rare_crit) == UpgradeCatalogScript.FAMILY_CRIT,
+		"crit_rare should parse as the crit family"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.family_of(&"crit_common") == UpgradeCatalogScript.FAMILY_CRIT,
+		"crit_ should not parse as the damage family"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_CRIT,
+				UpgradeCatalogScript.RARITY_COMMON
+			)
+		) == "Crit +4%",
+		"Crit common should show +4%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_CRIT,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) == "Crit +6%",
+		"Crit uncommon should show +6%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_CRIT,
+				UpgradeCatalogScript.RARITY_EPIC
+			)
+		) == "Crit +13%",
+		"Crit epic should show +13%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_CRIT,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) == "Crit +17%",
+		"Crit legendary should show +17%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_CRIT,
+				UpgradeCatalogScript.RARITY_COMMON
+			)
+		) != null,
+		"Common Crit should use crit_common.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_CRIT,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) != null,
+		"Uncommon Crit should use crit_uncommon.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_CRIT,
+				UpgradeCatalogScript.RARITY_RARE
+			)
+		) != null,
+		"Rare Crit should use crit_rare.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_CRIT,
+				UpgradeCatalogScript.RARITY_EPIC
+			)
+		) != null,
+		"Epic Crit should use crit_epic.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_CRIT,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) != null,
+		"Legendary Crit should use crit_legendary.jpg"
+	)
 	_fail_unless(
 		UpgradeCatalogScript.icon_for(
 			UpgradeCatalogScript.make_id(
@@ -403,6 +510,15 @@ func _verify_catalog() -> void:
 	_fail_unless(
 		UpgradeCatalogScript.icon_for(common_regen) != null,
 		"Common HP Regen should use hp_regen_common.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_HP_REGEN,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) != null,
+		"Uncommon HP Regen should use hp_regen_uncommon.jpg"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.icon_for(rare_regen) != null,
@@ -743,6 +859,10 @@ func _verify_offers_and_visit_lock() -> void:
 	_fail_unless(
 		is_equal_approx(state.momentum_retention, 0.0),
 		"Try Again should clear Momentum Retention"
+	)
+	_fail_unless(
+		is_equal_approx(state.crit_chance, 0.0),
+		"Try Again should clear Crit"
 	)
 	_fail_unless(state.remaining_count(1) == 4, "Try Again should not restore taken cards")
 	_fail_unless(
@@ -1205,6 +1325,63 @@ func _verify_momentum_retention_stacking() -> void:
 	_fail_unless(
 		is_equal_approx(state.momentum_retention, 0.0),
 		"Try Again should clear Momentum Retention"
+	)
+	state.free()
+
+
+func _verify_crit_stacking() -> void:
+	var state: RunUpgradeState = RunUpgradeStateScript.new()
+	root.add_child(state)
+	var common_crit := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_CRIT,
+			UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	var rare_crit := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_CRIT,
+			UpgradeCatalogScript.RARITY_RARE
+		)
+	)
+	var leftover := String(UpgradeCatalogScript.ID_EXTRA_PROJECTILE)
+	_seed_offers(
+		state,
+		16,
+		PackedStringArray([common_crit, rare_crit, leftover, leftover, leftover])
+	)
+	state.pick_offer(16, 0)
+	state.pick_offer(16, 1)
+	_fail_unless(
+		is_equal_approx(state.crit_chance, 0.14),
+		"Common + rare Crit should sum to 14%"
+	)
+	_fail_unless(state.remaining_count(16) == 3, "Leftover cards should stay in the shop")
+	_fail_unless(state.extra_projectiles == 0, "Crit picks should not add projectiles")
+	_fail_unless(
+		is_equal_approx(state.damage_bonus, 0.0),
+		"Crit picks should not add Damage"
+	)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1
+	_fail_unless(not AutoRifleScript.roll_crit(0.0, rng), "0% crit chance should never crit")
+	_fail_unless(AutoRifleScript.roll_crit(1.0, rng), "100% crit chance should always crit")
+	_fail_unless(
+		AutoRifleScript.crit_damage_for(10, true) == 20,
+		"A crit should double base 10 damage to 20"
+	)
+	_fail_unless(
+		AutoRifleScript.crit_damage_for(10, false) == 10,
+		"A non-crit should keep base damage"
+	)
+	_fail_unless(
+		AutoRifleScript.crit_damage_for(AutoRifleScript.damage_for(0.13), true) == 22,
+		"Crit should double after Damage rounding (11 -> 22)"
+	)
+	state.reset_run()
+	_fail_unless(
+		is_equal_approx(state.crit_chance, 0.0),
+		"Try Again should clear Crit"
 	)
 	state.free()
 

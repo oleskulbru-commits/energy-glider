@@ -11,13 +11,21 @@ const FONT_SIZE := 48
 const PIXEL_SIZE := 0.012
 const COLOR := Color(1.0, 0.18, 0.16, 1.0)
 const OUTLINE_COLOR := Color(0.15, 0.02, 0.02, 0.9)
+const CRIT_COLOR := Color(1.0, 0.84, 0.22, 1.0)
+const CRIT_OUTLINE_COLOR := Color(0.28, 0.14, 0.02, 0.9)
 
 
 static func text_for(amount: int) -> String:
 	return "-%d" % amount
 
 
-static func spawn(parent: Node, amount: int, rng: RandomNumberGenerator, free_parent := false) -> Label3D:
+static func spawn(
+	parent: Node,
+	amount: int,
+	rng: RandomNumberGenerator,
+	free_parent := false,
+	is_crit := false
+) -> Label3D:
 	if parent == null or amount <= 0:
 		return null
 	if rng == null:
@@ -25,8 +33,8 @@ static func spawn(parent: Node, amount: int, rng: RandomNumberGenerator, free_pa
 		rng.randomize()
 	var label := Label3D.new()
 	label.text = text_for(amount)
-	label.modulate = COLOR
-	label.outline_modulate = OUTLINE_COLOR
+	label.modulate = CRIT_COLOR if is_crit else COLOR
+	label.outline_modulate = CRIT_OUTLINE_COLOR if is_crit else OUTLINE_COLOR
 	label.font_size = FONT_SIZE
 	label.pixel_size = PIXEL_SIZE
 	label.outline_size = 8
@@ -56,7 +64,13 @@ static func spawn(parent: Node, amount: int, rng: RandomNumberGenerator, free_pa
 	return label
 
 
-static func spawn_world(anchor: Node3D, amount: int, rng: RandomNumberGenerator, height_m: float) -> Label3D:
+static func spawn_world(
+	anchor: Node3D,
+	amount: int,
+	rng: RandomNumberGenerator,
+	height_m: float,
+	is_crit := false
+) -> Label3D:
 	if anchor == null or not anchor.is_inside_tree() or amount <= 0:
 		return null
 	var tree := anchor.get_tree()
@@ -71,4 +85,4 @@ static func spawn_world(anchor: Node3D, amount: int, rng: RandomNumberGenerator,
 	host.name = "DamageFloatHost"
 	parent.add_child(host)
 	host.global_position = anchor.global_position + Vector3(0.0, height_m, 0.0)
-	return spawn(host, amount, rng, true)
+	return spawn(host, amount, rng, true, is_crit)

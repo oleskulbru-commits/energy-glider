@@ -13,6 +13,7 @@ var glider_speed_bonus := 0.0
 var health_regen_per_sec := 0.0
 var luck_bonus := 0
 var momentum_retention := 0.0
+var crit_chance := 0.0
 var _offers: Dictionary = {}
 var _visited_this_life: Dictionary = {}
 
@@ -49,6 +50,7 @@ func reset_run() -> void:
 	health_regen_per_sec = 0.0
 	luck_bonus = 0
 	momentum_retention = 0.0
+	crit_chance = 0.0
 	clear_visited_this_life()
 	extra_projectiles_changed.emit(extra_projectiles)
 
@@ -115,6 +117,8 @@ func _apply_upgrade(id: StringName) -> void:
 		momentum_retention += UpgradeCatalog.momentum_retention_percent(
 			UpgradeCatalog.rarity_of(id)
 		)
+	elif family == UpgradeCatalog.FAMILY_CRIT:
+		crit_chance += UpgradeCatalog.crit_chance(UpgradeCatalog.rarity_of(id))
 
 
 func add_extra_projectile(amount: int = 1) -> void:
