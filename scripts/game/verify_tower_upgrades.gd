@@ -22,6 +22,7 @@ func _run() -> void:
 	_verify_damage_stacking()
 	_verify_projectile_speed_stacking()
 	_verify_glider_speed_stacking()
+	_verify_hp_regen_stacking()
 	_verify_dawn_pose()
 	await _verify_visit_radius()
 	print("Tower upgrade verification passed.")
@@ -67,6 +68,13 @@ func _verify_catalog() -> void:
 		and is_equal_approx(UpgradeCatalogScript.GLIDER_SPEED_EPIC, 0.16)
 		and is_equal_approx(UpgradeCatalogScript.GLIDER_SPEED_LEGENDARY, 0.22),
 		"Glider Speed percents should be 8 / 12 / 16 / 22"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.HP_REGEN_COMMON == 1
+		and UpgradeCatalogScript.HP_REGEN_RARE == 2
+		and UpgradeCatalogScript.HP_REGEN_EPIC == 3
+		and UpgradeCatalogScript.HP_REGEN_LEGENDARY == 4,
+		"HP Regen rates should be 1 / 2 / 3 / 4 hp/s"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.PROJECTILE_COMMON == 1
@@ -156,6 +164,66 @@ func _verify_catalog() -> void:
 	_fail_unless(
 		UpgradeCatalogScript.family_of(rare_gs) == UpgradeCatalogScript.FAMILY_GLIDER_SPEED,
 		"glider_speed_rare should parse as the glider_speed family"
+	)
+	var rare_regen := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_HP_REGEN,
+		UpgradeCatalogScript.RARITY_RARE
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(rare_regen) == "HP Regen +2/s",
+		"HP Regen rare should show +2/s"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.family_of(rare_regen) == UpgradeCatalogScript.FAMILY_HP_REGEN,
+		"hp_regen_rare should parse as the hp_regen family"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_HP_REGEN,
+				UpgradeCatalogScript.RARITY_COMMON
+			)
+		) == "HP Regen +1/s",
+		"HP Regen common should show +1/s"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_HP_REGEN,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) == "HP Regen +4/s",
+		"HP Regen legendary should show +4/s"
+	)
+	var common_regen := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_HP_REGEN,
+		UpgradeCatalogScript.RARITY_COMMON
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(common_regen) != null,
+		"Common HP Regen should use hp_regen_common.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(rare_regen) != null,
+		"Rare HP Regen should use hp_regen_rare.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_HP_REGEN,
+				UpgradeCatalogScript.RARITY_EPIC
+			)
+		) != null,
+		"Epic HP Regen should use hp_regen_epic.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_HP_REGEN,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) != null,
+		"Legendary HP Regen should use hp_regen_legendary.jpg"
 	)
 	var common_gs := UpgradeCatalogScript.make_id(
 		UpgradeCatalogScript.FAMILY_GLIDER_SPEED,
@@ -358,13 +426,12 @@ func _verify_roll_shop() -> void:
 	_fail_unless(first == again, "Same seed and tower should roll the same shop")
 	var other_tower := UpgradeCatalogScript.roll_shop(7, 4)
 	_fail_unless(other_tower.size() == 5, "Other towers should also roll 5 cards")
-	var saw_duplicate := false
 	for tower_index in range(1, 81):
 		var shop := UpgradeCatalogScript.roll_shop(1, tower_index)
-		if _has_duplicate(shop):
-			saw_duplicate = true
-			break
-	_fail_unless(saw_duplicate, "Shop rolls should allow duplicate cards")
+		_fail_unless(
+			not _has_duplicate(shop),
+			"Shop %d should not repeat a card" % tower_index
+		)
 
 
 func _verify_offers_and_visit_lock() -> void:
@@ -408,6 +475,10 @@ func _verify_offers_and_visit_lock() -> void:
 	_fail_unless(
 		is_equal_approx(state.glider_speed_bonus, 0.0),
 		"Try Again should clear Glider Speed"
+	)
+	_fail_unless(
+		is_equal_approx(state.health_regen_per_sec, 0.0),
+		"Try Again should clear HP Regen"
 	)
 	_fail_unless(state.remaining_count(1) == 4, "Try Again should not restore taken cards")
 	_fail_unless(
@@ -693,6 +764,43 @@ func _verify_glider_speed_stacking() -> void:
 	_fail_unless(
 		is_equal_approx(state.glider_speed_bonus, 0.0),
 		"Try Again should clear Glider Speed"
+	)
+	state.free()
+
+
+func _verify_hp_regen_stacking() -> void:
+	var state: RunUpgradeState = RunUpgradeStateScript.new()
+	root.add_child(state)
+	var common_regen := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_HP_REGEN,
+			UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	var rare_regen := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_HP_REGEN,
+			UpgradeCatalogScript.RARITY_RARE
+		)
+	)
+	var leftover := String(UpgradeCatalogScript.ID_EXTRA_PROJECTILE)
+	_seed_offers(
+		state,
+		13,
+		PackedStringArray([common_regen, rare_regen, leftover, leftover, leftover])
+	)
+	state.pick_offer(13, 0)
+	state.pick_offer(13, 1)
+	_fail_unless(
+		is_equal_approx(state.health_regen_per_sec, 3.0),
+		"Common + rare HP Regen should sum to 3 hp/s"
+	)
+	_fail_unless(state.remaining_count(13) == 3, "Leftover cards should stay in the shop")
+	_fail_unless(state.extra_projectiles == 0, "HP Regen picks should not add projectiles")
+	state.reset_run()
+	_fail_unless(
+		is_equal_approx(state.health_regen_per_sec, 0.0),
+		"Try Again should clear HP Regen"
 	)
 	state.free()
 

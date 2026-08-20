@@ -62,6 +62,7 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _rifle_damage_label: Label = %RifleDamageLabel
 @onready var _rifle_projectile_speed_label: Label = %RifleProjectileSpeedLabel
 @onready var _glider_speed_label: Label = %GliderSpeedLabel
+@onready var _hp_regen_label: Label = %HpRegenLabel
 @onready var _speed_label: Label = %SpeedLabel
 
 var _rig: PlayerRig
@@ -710,6 +711,7 @@ func _update_rifle_debug() -> void:
 	var bonus := 0.0
 	var speed_bonus := 0.0
 	var glider_bonus := 0.0
+	var regen := 0.0
 	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
 	if state != null:
 		extras = state.extra_projectiles
@@ -717,6 +719,7 @@ func _update_rifle_debug() -> void:
 		bonus = state.damage_bonus
 		speed_bonus = state.projectile_speed_bonus
 		glider_bonus = state.glider_speed_bonus
+		regen = state.health_regen_per_sec
 	_rifle_cooldown_label.text = "Attack Speed %d%%" % int(roundf(reduction * 100.0))
 	_rifle_projectiles_label.text = "Projectiles %d" % AutoRifle.projectile_count_for(extras)
 	if _rifle_damage_label != null:
@@ -725,6 +728,8 @@ func _update_rifle_debug() -> void:
 		_rifle_projectile_speed_label.text = "Projectile Speed %d%%" % int(roundf(speed_bonus * 100.0))
 	if _glider_speed_label != null:
 		_glider_speed_label.text = "Glider Speed %d%%" % int(roundf(glider_bonus * 100.0))
+	if _hp_regen_label != null:
+		_hp_regen_label.text = "HP Regen %d/s" % int(roundf(regen))
 
 
 func _on_pulse_fired(_target_ripple: int) -> void:

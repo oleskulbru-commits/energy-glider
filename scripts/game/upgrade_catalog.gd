@@ -9,6 +9,7 @@ const FAMILY_ATTACK_SPEED := &"attack_speed"
 const FAMILY_DAMAGE := &"damage"
 const FAMILY_PROJECTILE_SPEED := &"projectile_speed"
 const FAMILY_GLIDER_SPEED := &"glider_speed"
+const FAMILY_HP_REGEN := &"hp_regen"
 const RARITY_COMMON := &"common"
 const RARITY_RARE := &"rare"
 const RARITY_EPIC := &"epic"
@@ -56,6 +57,11 @@ const GLIDER_SPEED_RARE := 0.12
 const GLIDER_SPEED_EPIC := 0.16
 const GLIDER_SPEED_LEGENDARY := 0.22
 
+const HP_REGEN_COMMON := 1
+const HP_REGEN_RARE := 2
+const HP_REGEN_EPIC := 3
+const HP_REGEN_LEGENDARY := 4
+
 const SHOP_SEED_WORLD := 1009
 const SHOP_SEED_TOWER := 9176
 
@@ -74,6 +80,8 @@ static func family_of(id: StringName) -> StringName:
 		return FAMILY_PROJECTILE_SPEED
 	if text.begins_with("glider_speed_"):
 		return FAMILY_GLIDER_SPEED
+	if text.begins_with("hp_regen_"):
+		return FAMILY_HP_REGEN
 	if text.begins_with("projectile_"):
 		return FAMILY_PROJECTILE
 	if id == &"extra_projectile":
@@ -152,6 +160,18 @@ static func glider_speed_percent(rarity: StringName) -> float:
 			return GLIDER_SPEED_COMMON
 
 
+static func hp_regen_per_sec(rarity: StringName) -> float:
+	match rarity:
+		RARITY_RARE:
+			return float(HP_REGEN_RARE)
+		RARITY_EPIC:
+			return float(HP_REGEN_EPIC)
+		RARITY_LEGENDARY:
+			return float(HP_REGEN_LEGENDARY)
+		_:
+			return float(HP_REGEN_COMMON)
+
+
 static func is_empty_offer(id: StringName) -> bool:
 	return String(id).is_empty()
 
@@ -177,6 +197,8 @@ static func display_name(id: StringName) -> String:
 	if family == FAMILY_GLIDER_SPEED:
 		var pct := int(round(glider_speed_percent(rarity_of(id)) * 100.0))
 		return "Glider Speed +%d%%" % pct
+	if family == FAMILY_HP_REGEN:
+		return "HP Regen +%d/s" % int(round(hp_regen_per_sec(rarity_of(id))))
 	return String(id)
 
 
@@ -232,11 +254,32 @@ static func roll_shop(world_seed: int, tower_index: int) -> PackedStringArray:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = world_seed * SHOP_SEED_WORLD + tower_index * SHOP_SEED_TOWER
 	var slots := PackedStringArray()
+	var used: Dictionary = {}
 	for _i in SLOTS_PER_TOWER:
-		var rarity := _roll_rarity(rng)
-		var family := _roll_family(rng)
-		slots.append(String(make_id(family, rarity)))
+		var id := _roll_unique_id(rng, used)
+		used[id] = true
+		slots.append(id)
 	return slots
+
+
+static func _roll_unique_id(rng: RandomNumberGenerator, used: Dictionary) -> String:
+	for _try in 80:
+		var id := String(make_id(_roll_family(rng), _roll_rarity(rng)))
+		if not used.has(id):
+			return id
+	for family in [
+		FAMILY_PROJECTILE,
+		FAMILY_ATTACK_SPEED,
+		FAMILY_DAMAGE,
+		FAMILY_PROJECTILE_SPEED,
+		FAMILY_GLIDER_SPEED,
+		FAMILY_HP_REGEN
+	]:
+		for rarity in [RARITY_COMMON, RARITY_RARE, RARITY_EPIC, RARITY_LEGENDARY]:
+			var id := String(make_id(family, rarity))
+			if not used.has(id):
+				return id
+	return String(ID_EXTRA_PROJECTILE)
 
 
 static func _roll_rarity(rng: RandomNumberGenerator) -> StringName:
@@ -251,7 +294,7 @@ static func _roll_rarity(rng: RandomNumberGenerator) -> StringName:
 
 
 static func _roll_family(rng: RandomNumberGenerator) -> StringName:
-	match rng.randi_range(0, 4):
+	match rng.randi_range(0, 5):
 		0:
 			return FAMILY_PROJECTILE
 		1:
@@ -260,5 +303,7 @@ static func _roll_family(rng: RandomNumberGenerator) -> StringName:
 			return FAMILY_DAMAGE
 		3:
 			return FAMILY_PROJECTILE_SPEED
-		_:
+		4:
 			return FAMILY_GLIDER_SPEED
+		_:
+			return FAMILY_HP_REGEN

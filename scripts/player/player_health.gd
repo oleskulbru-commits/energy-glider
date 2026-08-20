@@ -7,6 +7,7 @@ signal damaged(amount: int)
 const MAX_HEALTH := 100
 const CONTACT_DAMAGE := 2
 const TOWER_HEAL := 50
+const REGEN_LOCKOUT_SEC := 1.0
 
 @export var glider_path: NodePath
 
@@ -14,6 +15,8 @@ var current: int = MAX_HEALTH
 
 var _glider: Node
 var _death_triggered := false
+var _regen_lockout := 0.0
+var _regen_accum := 0.0
 
 
 func _ready() -> void:
@@ -42,20 +45,35 @@ func get_ratio() -> float:
 
 func reset_full() -> void:
 	_death_triggered = false
+	_regen_lockout = 0.0
+	_regen_accum = 0.0
 	current = MAX_HEALTH
 	health_changed.emit(current, MAX_HEALTH)
+
+
+func _process(delta: float) -> void:
+	if _is_run_ended():
+		return
+	var rate := 0.0 if current >= MAX_HEALTH else _regen_rate()
+	var stepped := tick_regen(rate, delta, _regen_accum, _regen_lockout)
+	_regen_lockout = float(stepped["lockout"])
+	_regen_accum = float(stepped["accum"])
+	var healed := int(stepped["heal"])
+	if healed > 0:
+		heal(healed)
 
 
 func take_damage(amount: int) -> void:
 	if amount <= 0:
 		return
-	if _glider != null and _glider.has_method("is_run_ended") and _glider.is_run_ended():
+	if _is_run_ended():
 		return
 	var next := maxi(current - amount, 0)
 	var dealt := current - next
 	if dealt <= 0:
 		return
 	current = next
+	_regen_lockout = lockout_on_hit(_regen_lockout)
 	damaged.emit(dealt)
 	health_changed.emit(current, MAX_HEALTH)
 	if current <= 0:
@@ -65,13 +83,27 @@ func take_damage(amount: int) -> void:
 func heal(amount: int) -> void:
 	if amount <= 0:
 		return
-	if _glider != null and _glider.has_method("is_run_ended") and _glider.is_run_ended():
+	if _is_run_ended():
 		return
 	var next := mini(current + amount, MAX_HEALTH)
 	if next == current:
 		return
 	current = next
 	health_changed.emit(current, MAX_HEALTH)
+
+
+func _is_run_ended() -> bool:
+	return _glider != null and _glider.has_method("is_run_ended") and _glider.is_run_ended()
+
+
+func _regen_rate() -> float:
+	var tree := get_tree()
+	if tree == null:
+		return 0.0
+	var state := tree.get_first_node_in_group("run_upgrade_state") as RunUpgradeState
+	if state == null:
+		return 0.0
+	return state.health_regen_per_sec
 
 
 func _trigger_death() -> void:
@@ -102,3 +134,21 @@ static func should_process_hub_heal(run_active: bool, run_bootstrapped: bool, ru
 	if run_ended:
 		return false
 	return run_active or run_bootstrapped
+
+
+static func lockout_on_hit(_current_lockout: float = 0.0, delay: float = REGEN_LOCKOUT_SEC) -> float:
+	return delay
+
+
+## Tick one regen step. Incoming lockout blocks accumulation for the whole
+## frame, even if the pause expires during it.
+static func tick_regen(rate: float, dt: float, accum: float, lockout: float) -> Dictionary:
+	var step := maxf(dt, 0.0)
+	if lockout > 0.0:
+		return {"lockout": maxf(lockout - step, 0.0), "accum": accum, "heal": 0}
+	if rate <= 0.0:
+		return {"lockout": 0.0, "accum": 0.0, "heal": 0}
+	var next_accum := accum + rate * step
+	var healed := int(floor(next_accum))
+	next_accum -= float(healed)
+	return {"lockout": 0.0, "accum": next_accum, "heal": healed}
