@@ -402,6 +402,12 @@ theme_type_variation = &"HudLabel"
 text = "HP Regen 0/3s"
 horizontal_alignment = 2
 
+[node name="HealthLabel" type="Label" parent="RifleDebugPanel/RifleDebugVBox"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "Health 50"
+horizontal_alignment = 2
+
 [node name="LuckLabel" type="Label" parent="RifleDebugPanel/RifleDebugVBox"]
 unique_name_in_owner = true
 theme_type_variation = &"HudLabel"

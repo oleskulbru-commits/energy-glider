@@ -1,6 +1,7 @@
 extends SceneTree
 
 const PlayerHealthScript = preload("res://scripts/player/player_health.gd")
+const RunUpgradeStateScript = preload("res://scripts/game/run_upgrade_state.gd")
 const SwarmPillScript = preload("res://scripts/enemies/swarm_pill.gd")
 
 
@@ -12,22 +13,27 @@ func _run() -> void:
 	_verify_damage_heal_clamp()
 	_verify_knockback_strength()
 	_verify_hp_regen()
+	await _verify_health_bonus()
 	print("Player health verification passed.")
 	quit(0)
 
 
 func _verify_damage_heal_clamp() -> void:
 	_fail_unless(
-		PlayerHealthScript.apply_damage(100, 2) == 98,
-		"Contact damage 2 should yield 98 from 100"
+		PlayerHealthScript.BASE_HEALTH == 50,
+		"Base player health should be 50"
 	)
 	_fail_unless(
-		PlayerHealthScript.apply_heal(40, 50) == 90,
-		"Heal 50 from 40 should yield 90"
+		PlayerHealthScript.apply_damage(50, 2) == 48,
+		"Contact damage 2 should yield 48 from 50"
 	)
 	_fail_unless(
-		PlayerHealthScript.apply_heal(80, 50) == 100,
-		"Heal should clamp at 100"
+		PlayerHealthScript.apply_heal(40, 50) == 50,
+		"Heal should clamp at base 50"
+	)
+	_fail_unless(
+		PlayerHealthScript.apply_heal(20, 10, 60) == 30,
+		"Heal 10 from 20 should yield 30 when max is 60"
 	)
 	_fail_unless(
 		PlayerHealthScript.apply_damage(1, 2) == 0,
@@ -36,10 +42,9 @@ func _verify_damage_heal_clamp() -> void:
 	var health := PlayerHealthScript.new()
 	var dealt := {"n": 0}
 	health.damaged.connect(func(amount: int) -> void: dealt["n"] = amount)
-	# Node needs tree for nothing here — take_damage works without glider.
 	health.take_damage(2)
 	_fail_unless(dealt["n"] == 2, "damaged signal should emit dealt amount")
-	_fail_unless(health.get_current() == 98, "Health should be 98 after take_damage(2)")
+	_fail_unless(health.get_current() == 48, "Health should be 48 after take_damage(2)")
 	health.free()
 
 
@@ -100,7 +105,7 @@ func _verify_hp_regen() -> void:
 		"Reset pause should leave more than the leftover 0.4s"
 	)
 	_fail_unless(
-		PlayerHealthScript.apply_heal(99, 5) == 100,
+		PlayerHealthScript.apply_heal(49, 5) == 50,
 		"Regen should clamp at full health"
 	)
 	var health := PlayerHealthScript.new()
@@ -109,6 +114,32 @@ func _verify_hp_regen() -> void:
 		is_equal_approx(float(health.get("_regen_lockout")), 4.0),
 		"take_damage should reset regen lockout to 4s"
 	)
+	health.free()
+
+
+func _verify_health_bonus() -> void:
+	var state: RunUpgradeState = RunUpgradeStateScript.new()
+	root.add_child(state)
+	var health: PlayerHealth = PlayerHealthScript.new()
+	root.add_child(health)
+	await process_frame
+	_fail_unless(health.get_max() == 50, "Max health should start at 50")
+	_fail_unless(health.get_current() == 50, "Current health should start at 50")
+	health.take_damage(30)
+	_fail_unless(health.get_current() == 20, "30 damage from 50 should leave 20")
+	state.max_health_bonus = 10
+	health.add_bonus_health(10)
+	_fail_unless(health.get_max() == 60, "Common Health should raise max to 60")
+	_fail_unless(health.get_current() == 30, "Common Health should add 10 current (20 -> 30)")
+	health.reset_full()
+	_fail_unless(health.get_current() == 50, "reset_full should restore base 50 current")
+	state.max_health_bonus = 0
+	health.reset_full()
+	state.max_health_bonus = 10
+	health.add_bonus_health(10)
+	_fail_unless(health.get_current() == 60, "Full health plus common should become 60/60")
+	_fail_unless(health.get_max() == 60, "Full health plus common should raise max to 60")
+	state.free()
 	health.free()
 
 

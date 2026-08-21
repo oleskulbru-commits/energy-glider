@@ -4,13 +4,13 @@ extends Node
 signal health_changed(current: int, max_health: int)
 signal damaged(amount: int)
 
-const MAX_HEALTH := 100
+const BASE_HEALTH := 50
 const CONTACT_DAMAGE := 2
 const REGEN_LOCKOUT_SEC := 4.0
 
 @export var glider_path: NodePath
 
-var current: int = MAX_HEALTH
+var current: int = BASE_HEALTH
 
 var _glider: Node
 var _death_triggered := false
@@ -26,8 +26,8 @@ func _ready() -> void:
 		var parent := get_parent()
 		if parent != null and parent.has_method("get_glider"):
 			_glider = parent.get_glider()
-	current = MAX_HEALTH
-	health_changed.emit(current, MAX_HEALTH)
+	current = BASE_HEALTH
+	health_changed.emit(current, get_max())
 
 
 func get_current() -> int:
@@ -35,25 +35,39 @@ func get_current() -> int:
 
 
 func get_max() -> int:
-	return MAX_HEALTH
+	return BASE_HEALTH + _max_health_bonus()
 
 
 func get_ratio() -> float:
-	return float(current) / float(MAX_HEALTH)
+	var cap := get_max()
+	if cap <= 0:
+		return 0.0
+	return float(current) / float(cap)
 
 
 func reset_full() -> void:
 	_death_triggered = false
 	_regen_lockout = 0.0
 	_regen_accum = 0.0
-	current = MAX_HEALTH
-	health_changed.emit(current, MAX_HEALTH)
+	current = BASE_HEALTH
+	health_changed.emit(current, get_max())
+
+
+func add_bonus_health(amount: int) -> void:
+	if amount <= 0:
+		return
+	current += amount
+	var cap := get_max()
+	if current > cap:
+		current = cap
+	health_changed.emit(current, cap)
 
 
 func _process(delta: float) -> void:
 	if _is_run_ended():
 		return
-	var rate := 0.0 if current >= MAX_HEALTH else _regen_rate()
+	var cap := get_max()
+	var rate := 0.0 if current >= cap else _regen_rate()
 	var stepped := tick_regen(rate, delta, _regen_accum, _regen_lockout)
 	_regen_lockout = float(stepped["lockout"])
 	_regen_accum = float(stepped["accum"])
@@ -74,7 +88,7 @@ func take_damage(amount: int) -> void:
 	current = next
 	_regen_lockout = lockout_on_hit(_regen_lockout)
 	damaged.emit(dealt)
-	health_changed.emit(current, MAX_HEALTH)
+	health_changed.emit(current, get_max())
 	if current <= 0:
 		_trigger_death()
 
@@ -84,25 +98,39 @@ func heal(amount: int) -> void:
 		return
 	if _is_run_ended():
 		return
-	var next := mini(current + amount, MAX_HEALTH)
+	var cap := get_max()
+	var next := mini(current + amount, cap)
 	if next == current:
 		return
 	current = next
-	health_changed.emit(current, MAX_HEALTH)
+	health_changed.emit(current, cap)
 
 
 func _is_run_ended() -> bool:
 	return _glider != null and _glider.has_method("is_run_ended") and _glider.is_run_ended()
 
 
+func _max_health_bonus() -> int:
+	var state := _upgrade_state()
+	if state == null:
+		return 0
+	return maxi(state.max_health_bonus, 0)
+
+
 func _regen_rate() -> float:
-	var tree := get_tree()
-	if tree == null:
-		return 0.0
-	var state := tree.get_first_node_in_group("run_upgrade_state") as RunUpgradeState
+	var state := _upgrade_state()
 	if state == null:
 		return 0.0
 	return state.health_regen_per_sec
+
+
+func _upgrade_state() -> RunUpgradeState:
+	if not is_inside_tree():
+		return null
+	var tree := get_tree()
+	if tree == null:
+		return null
+	return tree.get_first_node_in_group("run_upgrade_state") as RunUpgradeState
 
 
 func _trigger_death() -> void:
@@ -115,11 +143,11 @@ func _trigger_death() -> void:
 
 
 ## Pure helpers for verifies / tuning.
-static func apply_damage(current_hp: int, amount: int, max_hp: int = MAX_HEALTH) -> int:
+static func apply_damage(current_hp: int, amount: int, max_hp: int = BASE_HEALTH) -> int:
 	return clampi(current_hp - maxi(amount, 0), 0, max_hp)
 
 
-static func apply_heal(current_hp: int, amount: int, max_hp: int = MAX_HEALTH) -> int:
+static func apply_heal(current_hp: int, amount: int, max_hp: int = BASE_HEALTH) -> int:
 	return clampi(current_hp + maxi(amount, 0), 0, max_hp)
 
 

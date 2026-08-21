@@ -10,6 +10,7 @@ const FAMILY_DAMAGE := &"damage"
 const FAMILY_PROJECTILE_SPEED := &"projectile_speed"
 const FAMILY_GLIDER_SPEED := &"glider_speed"
 const FAMILY_HP_REGEN := &"hp_regen"
+const FAMILY_HEALTH := &"health"
 const FAMILY_LUCK := &"luck"
 const FAMILY_MOMENTUM_RETENTION := &"momentum_retention"
 const FAMILY_CRIT := &"crit"
@@ -75,6 +76,12 @@ const HP_REGEN_RARE := 1.5
 const HP_REGEN_EPIC := 2.0
 const HP_REGEN_LEGENDARY := 3.0
 
+const HEALTH_COMMON := 10
+const HEALTH_UNCOMMON := 15
+const HEALTH_RARE := 25
+const HEALTH_EPIC := 35
+const HEALTH_LEGENDARY := 45
+
 const LUCK_COMMON := 1
 const LUCK_UNCOMMON := 2
 const LUCK_RARE := 3
@@ -119,6 +126,8 @@ static func family_of(id: StringName) -> StringName:
 		return FAMILY_MOMENTUM_RETENTION
 	if text.begins_with("hp_regen_"):
 		return FAMILY_HP_REGEN
+	if text.begins_with("health_"):
+		return FAMILY_HEALTH
 	if text.begins_with("luck_"):
 		return FAMILY_LUCK
 	if text.begins_with("projectile_"):
@@ -235,6 +244,20 @@ static func hp_regen_period_text(amount_per_period: float) -> String:
 	return "%.1f/%ds" % [amount, period]
 
 
+static func health_bonus(rarity: StringName) -> int:
+	match rarity:
+		RARITY_UNCOMMON:
+			return HEALTH_UNCOMMON
+		RARITY_RARE:
+			return HEALTH_RARE
+		RARITY_EPIC:
+			return HEALTH_EPIC
+		RARITY_LEGENDARY:
+			return HEALTH_LEGENDARY
+		_:
+			return HEALTH_COMMON
+
+
 static func luck_points(rarity: StringName) -> int:
 	match rarity:
 		RARITY_UNCOMMON:
@@ -325,6 +348,8 @@ static func display_name(id: StringName) -> String:
 		return "Glider Speed +%d%%" % pct
 	if family == FAMILY_HP_REGEN:
 		return "HP Regen +%s" % hp_regen_period_text(hp_regen_per_period(rarity_of(id)))
+	if family == FAMILY_HEALTH:
+		return "Health +%d" % health_bonus(rarity_of(id))
 	if family == FAMILY_LUCK:
 		return "Luck +%d" % luck_points(rarity_of(id))
 	if family == FAMILY_MOMENTUM_RETENTION:
@@ -413,6 +438,7 @@ static func _roll_unique_id(
 		FAMILY_PROJECTILE_SPEED,
 		FAMILY_GLIDER_SPEED,
 		FAMILY_HP_REGEN,
+		FAMILY_HEALTH,
 		FAMILY_LUCK,
 		FAMILY_MOMENTUM_RETENTION,
 		FAMILY_CRIT
@@ -473,7 +499,7 @@ static func _apply_luck_point(weights: PackedInt32Array) -> PackedInt32Array:
 
 
 static func _roll_family(rng: RandomNumberGenerator) -> StringName:
-	match rng.randi_range(0, 8):
+	match rng.randi_range(0, 9):
 		0:
 			return FAMILY_PROJECTILE
 		1:
@@ -487,8 +513,10 @@ static func _roll_family(rng: RandomNumberGenerator) -> StringName:
 		5:
 			return FAMILY_HP_REGEN
 		6:
-			return FAMILY_LUCK
+			return FAMILY_HEALTH
 		7:
+			return FAMILY_LUCK
+		8:
 			return FAMILY_MOMENTUM_RETENTION
 		_:
 			return FAMILY_CRIT

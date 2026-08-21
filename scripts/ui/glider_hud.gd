@@ -64,6 +64,7 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _rifle_projectile_speed_label: Label = %RifleProjectileSpeedLabel
 @onready var _glider_speed_label: Label = %GliderSpeedLabel
 @onready var _hp_regen_label: Label = %HpRegenLabel
+@onready var _health_label: Label = %HealthLabel
 @onready var _luck_label: Label = %LuckLabel
 @onready var _momentum_retention_label: Label = %MomentumRetentionLabel
 @onready var _crit_label: Label = %CritLabel
@@ -716,6 +717,7 @@ func _update_rifle_debug() -> void:
 	var speed_bonus := 0.0
 	var glider_bonus := 0.0
 	var regen := 0.0
+	var health_bonus := 0
 	var luck := 0
 	var retention := 0.0
 	var crit := 0.0
@@ -727,6 +729,7 @@ func _update_rifle_debug() -> void:
 		speed_bonus = state.projectile_speed_bonus
 		glider_bonus = state.glider_speed_bonus
 		regen = state.health_regen_per_sec
+		health_bonus = state.max_health_bonus
 		luck = state.luck_bonus
 		retention = clampf(state.momentum_retention, 0.0, UpgradeCatalog.MOMENTUM_RETENTION_CAP)
 		crit = clampf(state.crit_chance, 0.0, UpgradeCatalog.CRIT_CAP)
@@ -762,6 +765,11 @@ func _update_rifle_debug() -> void:
 			regen * UpgradeCatalog.HP_REGEN_PERIOD_SEC
 		),
 		regen > 0.0
+	) or any
+	any = _show_upgrade_line(
+		_health_label,
+		"Health %d" % (PlayerHealth.BASE_HEALTH + health_bonus),
+		health_bonus > 0
 	) or any
 	any = _show_upgrade_line(_luck_label, "Luck +%d" % luck, luck > 0) or any
 	any = _show_upgrade_line(

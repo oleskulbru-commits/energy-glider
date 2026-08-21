@@ -11,6 +11,7 @@ var damage_bonus := 0.0
 var projectile_speed_bonus := 0.0
 var glider_speed_bonus := 0.0
 var health_regen_per_sec := 0.0
+var max_health_bonus := 0
 var luck_bonus := 0
 var momentum_retention := 0.0
 var crit_chance := 0.0
@@ -48,6 +49,7 @@ func reset_run() -> void:
 	projectile_speed_bonus = 0.0
 	glider_speed_bonus = 0.0
 	health_regen_per_sec = 0.0
+	max_health_bonus = 0
 	luck_bonus = 0
 	momentum_retention = 0.0
 	crit_chance = 0.0
@@ -111,6 +113,12 @@ func _apply_upgrade(id: StringName) -> void:
 		glider_speed_bonus += UpgradeCatalog.glider_speed_percent(UpgradeCatalog.rarity_of(id))
 	elif family == UpgradeCatalog.FAMILY_HP_REGEN:
 		health_regen_per_sec += UpgradeCatalog.hp_regen_per_sec(UpgradeCatalog.rarity_of(id))
+	elif family == UpgradeCatalog.FAMILY_HEALTH:
+		var amount := UpgradeCatalog.health_bonus(UpgradeCatalog.rarity_of(id))
+		max_health_bonus += amount
+		var health := get_tree().get_first_node_in_group("player_health") as PlayerHealth
+		if health != null:
+			health.add_bonus_health(amount)
 	elif family == UpgradeCatalog.FAMILY_LUCK:
 		luck_bonus += UpgradeCatalog.luck_points(UpgradeCatalog.rarity_of(id))
 	elif family == UpgradeCatalog.FAMILY_MOMENTUM_RETENTION:

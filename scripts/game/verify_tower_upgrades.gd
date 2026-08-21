@@ -27,6 +27,7 @@ func _run() -> void:
 	_verify_luck_weights()
 	_verify_momentum_retention_stacking()
 	_verify_crit_stacking()
+	_verify_health_stacking()
 	_verify_dawn_pose()
 	await _verify_visit_radius()
 	print("Tower upgrade verification passed.")
@@ -86,6 +87,14 @@ func _verify_catalog() -> void:
 		and is_equal_approx(UpgradeCatalogScript.HP_REGEN_EPIC, 2.0)
 		and is_equal_approx(UpgradeCatalogScript.HP_REGEN_LEGENDARY, 3.0),
 		"HP Regen should be 0.5 / 1 / 1.5 / 2 / 3 hp per 3s"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.HEALTH_COMMON == 10
+		and UpgradeCatalogScript.HEALTH_UNCOMMON == 15
+		and UpgradeCatalogScript.HEALTH_RARE == 25
+		and UpgradeCatalogScript.HEALTH_EPIC == 35
+		and UpgradeCatalogScript.HEALTH_LEGENDARY == 45,
+		"Health bonuses should be +10 / +15 / +25 / +35 / +45"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.LUCK_COMMON == 1
@@ -257,6 +266,45 @@ func _verify_catalog() -> void:
 			)
 		) == "HP Regen +3/3s",
 		"HP Regen legendary should show +3/3s"
+	)
+	var rare_hp := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_HEALTH,
+		UpgradeCatalogScript.RARITY_RARE
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(rare_hp) == "Health +25",
+		"Health rare should show +25"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.family_of(rare_hp) == UpgradeCatalogScript.FAMILY_HEALTH,
+		"health_rare should parse as the health family"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_HEALTH,
+				UpgradeCatalogScript.RARITY_COMMON
+			)
+		) == "Health +10",
+		"Health common should show +10"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_HEALTH,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) == "Health +15",
+		"Health uncommon should show +15"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_HEALTH,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) == "Health +45",
+		"Health legendary should show +45"
 	)
 	var rare_luck := UpgradeCatalogScript.make_id(
 		UpgradeCatalogScript.FAMILY_LUCK,
@@ -551,6 +599,51 @@ func _verify_catalog() -> void:
 			)
 		) != null,
 		"Legendary HP Regen should use hp_regen_legendary.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_HEALTH,
+				UpgradeCatalogScript.RARITY_COMMON
+			)
+		) != null,
+		"Common Health should use health_common.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_HEALTH,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) != null,
+		"Uncommon Health should use health_uncommon.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_HEALTH,
+				UpgradeCatalogScript.RARITY_RARE
+			)
+		) != null,
+		"Rare Health should use health_rare.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_HEALTH,
+				UpgradeCatalogScript.RARITY_EPIC
+			)
+		) != null,
+		"Epic Health should use health_epic.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_HEALTH,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) != null,
+		"Legendary Health should use health_legendary.jpg"
 	)
 	var common_gs := UpgradeCatalogScript.make_id(
 		UpgradeCatalogScript.FAMILY_GLIDER_SPEED,
@@ -874,6 +967,7 @@ func _verify_offers_and_visit_lock() -> void:
 		is_equal_approx(state.crit_chance, 0.0),
 		"Try Again should clear Crit"
 	)
+	_fail_unless(state.max_health_bonus == 0, "Try Again should clear Health")
 	_fail_unless(state.remaining_count(1) == 4, "Try Again should not restore taken cards")
 	_fail_unless(
 		state.get_offers(1).size() == 5,
@@ -1393,6 +1487,37 @@ func _verify_crit_stacking() -> void:
 		is_equal_approx(state.crit_chance, 0.0),
 		"Try Again should clear Crit"
 	)
+	state.free()
+
+
+func _verify_health_stacking() -> void:
+	var state: RunUpgradeState = RunUpgradeStateScript.new()
+	root.add_child(state)
+	var common_hp := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_HEALTH,
+			UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	var rare_hp := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_HEALTH,
+			UpgradeCatalogScript.RARITY_RARE
+		)
+	)
+	var leftover := String(UpgradeCatalogScript.ID_EXTRA_PROJECTILE)
+	_seed_offers(
+		state,
+		17,
+		PackedStringArray([common_hp, rare_hp, leftover, leftover, leftover])
+	)
+	state.pick_offer(17, 0)
+	state.pick_offer(17, 1)
+	_fail_unless(state.max_health_bonus == 35, "Common + rare Health should sum to +35")
+	_fail_unless(state.remaining_count(17) == 3, "Leftover cards should stay in the shop")
+	_fail_unless(state.extra_projectiles == 0, "Health picks should not add projectiles")
+	state.reset_run()
+	_fail_unless(state.max_health_bonus == 0, "Try Again should clear Health")
 	state.free()
 
 
