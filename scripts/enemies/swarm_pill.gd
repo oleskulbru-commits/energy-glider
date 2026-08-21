@@ -79,7 +79,8 @@ func take_damage(amount: int, hit_dir: Vector3 = Vector3.ZERO, is_crit: bool = f
 	if _hp <= 0:
 		queue_free()
 		return true
-	_hit_velocity = hit_knockback_velocity_for(hit_dir)
+	if hit_dir.length_squared() > 0.0001:
+		_hit_velocity = hit_knockback_velocity_for(hit_dir)
 	return false
 
 

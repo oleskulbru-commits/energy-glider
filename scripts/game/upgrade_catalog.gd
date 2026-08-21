@@ -14,6 +14,7 @@ const FAMILY_HEALTH := &"health"
 const FAMILY_LUCK := &"luck"
 const FAMILY_MOMENTUM_RETENTION := &"momentum_retention"
 const FAMILY_CRIT := &"crit"
+const FAMILY_DURATION := &"duration"
 const RARITY_COMMON := &"common"
 const RARITY_UNCOMMON := &"uncommon"
 const RARITY_RARE := &"rare"
@@ -102,6 +103,12 @@ const CRIT_EPIC := 0.13
 const CRIT_LEGENDARY := 0.17
 const CRIT_CAP := 1.0
 
+const DURATION_COMMON := 0.10
+const DURATION_UNCOMMON := 0.15
+const DURATION_RARE := 0.25
+const DURATION_EPIC := 0.35
+const DURATION_LEGENDARY := 0.50
+
 const SHOP_SEED_WORLD := 1009
 const SHOP_SEED_TOWER := 9176
 
@@ -116,6 +123,8 @@ static func family_of(id: StringName) -> StringName:
 		return FAMILY_ATTACK_SPEED
 	if text.begins_with("crit_"):
 		return FAMILY_CRIT
+	if text.begins_with("duration_"):
+		return FAMILY_DURATION
 	if text.begins_with("damage_"):
 		return FAMILY_DAMAGE
 	if text.begins_with("projectile_speed_"):
@@ -300,6 +309,20 @@ static func crit_chance(rarity: StringName) -> float:
 			return CRIT_COMMON
 
 
+static func duration_percent(rarity: StringName) -> float:
+	match rarity:
+		RARITY_UNCOMMON:
+			return DURATION_UNCOMMON
+		RARITY_RARE:
+			return DURATION_RARE
+		RARITY_EPIC:
+			return DURATION_EPIC
+		RARITY_LEGENDARY:
+			return DURATION_LEGENDARY
+		_:
+			return DURATION_COMMON
+
+
 ## Luck cards always use the base rarity table.
 static func rarity_luck_for(family: StringName, luck: int) -> int:
 	if family == FAMILY_LUCK:
@@ -358,6 +381,9 @@ static func display_name(id: StringName) -> String:
 	if family == FAMILY_CRIT:
 		var pct := int(round(crit_chance(rarity_of(id)) * 100.0))
 		return "Crit +%d%%" % pct
+	if family == FAMILY_DURATION:
+		var pct := int(round(duration_percent(rarity_of(id)) * 100.0))
+		return "Duration +%d%%" % pct
 	return String(id)
 
 
@@ -441,7 +467,8 @@ static func _roll_unique_id(
 		FAMILY_HEALTH,
 		FAMILY_LUCK,
 		FAMILY_MOMENTUM_RETENTION,
-		FAMILY_CRIT
+		FAMILY_CRIT,
+		FAMILY_DURATION
 	]:
 		for rarity in [
 			RARITY_COMMON,
@@ -499,7 +526,7 @@ static func _apply_luck_point(weights: PackedInt32Array) -> PackedInt32Array:
 
 
 static func _roll_family(rng: RandomNumberGenerator) -> StringName:
-	match rng.randi_range(0, 9):
+	match rng.randi_range(0, 10):
 		0:
 			return FAMILY_PROJECTILE
 		1:
@@ -518,5 +545,7 @@ static func _roll_family(rng: RandomNumberGenerator) -> StringName:
 			return FAMILY_LUCK
 		8:
 			return FAMILY_MOMENTUM_RETENTION
-		_:
+		9:
 			return FAMILY_CRIT
+		_:
+			return FAMILY_DURATION

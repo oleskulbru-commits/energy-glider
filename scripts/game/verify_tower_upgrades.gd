@@ -28,6 +28,7 @@ func _run() -> void:
 	_verify_momentum_retention_stacking()
 	_verify_crit_stacking()
 	_verify_health_stacking()
+	_verify_duration_stacking()
 	_verify_dawn_pose()
 	await _verify_visit_radius()
 	print("Tower upgrade verification passed.")
@@ -121,6 +122,14 @@ func _verify_catalog() -> void:
 		and is_equal_approx(UpgradeCatalogScript.CRIT_LEGENDARY, 0.17)
 		and is_equal_approx(UpgradeCatalogScript.CRIT_CAP, 1.0),
 		"Crit chances should be 4 / 6 / 10 / 13 / 17 with a 100% cap"
+	)
+	_fail_unless(
+		is_equal_approx(UpgradeCatalogScript.DURATION_COMMON, 0.10)
+		and is_equal_approx(UpgradeCatalogScript.DURATION_UNCOMMON, 0.15)
+		and is_equal_approx(UpgradeCatalogScript.DURATION_RARE, 0.25)
+		and is_equal_approx(UpgradeCatalogScript.DURATION_EPIC, 0.35)
+		and is_equal_approx(UpgradeCatalogScript.DURATION_LEGENDARY, 0.50),
+		"Duration percents should be 10 / 15 / 25 / 35 / 50"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.PROJECTILE_COMMON == 1
@@ -426,6 +435,54 @@ func _verify_catalog() -> void:
 			)
 		) == "Crit +17%",
 		"Crit legendary should show +17%"
+	)
+	var rare_duration := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_DURATION,
+		UpgradeCatalogScript.RARITY_RARE
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(rare_duration) == "Duration +25%",
+		"Duration rare should show +25%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.family_of(rare_duration) == UpgradeCatalogScript.FAMILY_DURATION,
+		"duration_rare should parse as the duration family"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_DURATION,
+				UpgradeCatalogScript.RARITY_COMMON
+			)
+		) == "Duration +10%",
+		"Duration common should show +10%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_DURATION,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) == "Duration +15%",
+		"Duration uncommon should show +15%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_DURATION,
+				UpgradeCatalogScript.RARITY_EPIC
+			)
+		) == "Duration +35%",
+		"Duration epic should show +35%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_DURATION,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) == "Duration +50%",
+		"Duration legendary should show +50%"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.icon_for(
@@ -968,6 +1025,10 @@ func _verify_offers_and_visit_lock() -> void:
 		"Try Again should clear Crit"
 	)
 	_fail_unless(state.max_health_bonus == 0, "Try Again should clear Health")
+	_fail_unless(
+		is_equal_approx(state.duration_bonus, 0.0),
+		"Try Again should clear Duration"
+	)
 	_fail_unless(state.remaining_count(1) == 4, "Try Again should not restore taken cards")
 	_fail_unless(
 		state.get_offers(1).size() == 5,
@@ -1518,6 +1579,47 @@ func _verify_health_stacking() -> void:
 	_fail_unless(state.extra_projectiles == 0, "Health picks should not add projectiles")
 	state.reset_run()
 	_fail_unless(state.max_health_bonus == 0, "Try Again should clear Health")
+	state.free()
+
+
+func _verify_duration_stacking() -> void:
+	var state: RunUpgradeState = RunUpgradeStateScript.new()
+	root.add_child(state)
+	var common_duration := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_DURATION,
+			UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	var rare_duration := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_DURATION,
+			UpgradeCatalogScript.RARITY_RARE
+		)
+	)
+	var leftover := String(UpgradeCatalogScript.ID_EXTRA_PROJECTILE)
+	_seed_offers(
+		state,
+		18,
+		PackedStringArray([common_duration, rare_duration, leftover, leftover, leftover])
+	)
+	state.pick_offer(18, 0)
+	state.pick_offer(18, 1)
+	_fail_unless(
+		is_equal_approx(state.duration_bonus, 0.35),
+		"Common + rare Duration should sum to 35%"
+	)
+	_fail_unless(state.remaining_count(18) == 3, "Leftover cards should stay in the shop")
+	_fail_unless(state.extra_projectiles == 0, "Duration picks should not add projectiles")
+	_fail_unless(
+		is_equal_approx(state.damage_bonus, 0.0),
+		"Duration picks should not add Damage"
+	)
+	state.reset_run()
+	_fail_unless(
+		is_equal_approx(state.duration_bonus, 0.0),
+		"Try Again should clear Duration"
+	)
 	state.free()
 
 

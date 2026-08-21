@@ -68,6 +68,7 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _luck_label: Label = %LuckLabel
 @onready var _momentum_retention_label: Label = %MomentumRetentionLabel
 @onready var _crit_label: Label = %CritLabel
+@onready var _duration_label: Label = %DurationLabel
 @onready var _speed_label: Label = %SpeedLabel
 
 var _rig: PlayerRig
@@ -721,6 +722,7 @@ func _update_rifle_debug() -> void:
 	var luck := 0
 	var retention := 0.0
 	var crit := 0.0
+	var duration := 0.0
 	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
 	if state != null:
 		extras = state.extra_projectiles
@@ -733,6 +735,7 @@ func _update_rifle_debug() -> void:
 		luck = state.luck_bonus
 		retention = clampf(state.momentum_retention, 0.0, UpgradeCatalog.MOMENTUM_RETENTION_CAP)
 		crit = clampf(state.crit_chance, 0.0, UpgradeCatalog.CRIT_CAP)
+		duration = state.duration_bonus
 	var any := false
 	any = _show_upgrade_line(
 		_rifle_cooldown_label,
@@ -781,6 +784,11 @@ func _update_rifle_debug() -> void:
 		_crit_label,
 		"Crit %d%%" % int(roundf(crit * 100.0)),
 		crit > 0.0
+	) or any
+	any = _show_upgrade_line(
+		_duration_label,
+		"Duration %d%%" % int(roundf(duration * 100.0)),
+		duration > 0.0
 	) or any
 	_rifle_debug_panel.visible = any
 	if any:
