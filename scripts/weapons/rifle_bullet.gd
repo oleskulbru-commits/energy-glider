@@ -17,6 +17,7 @@ var _spent := false
 var _damage := DAMAGE
 var _speed := SPEED_MPS
 var _is_crit := false
+var _knockback_speed := SwarmPill.HIT_KNOCKBACK_SPEED
 
 
 func _ready() -> void:
@@ -31,13 +32,15 @@ func launch(
 	initial_dir: Vector3,
 	amount: int = DAMAGE,
 	speed_mps: float = SPEED_MPS,
-	is_crit: bool = false
+	is_crit: bool = false,
+	knockback_speed: float = SwarmPill.HIT_KNOCKBACK_SPEED
 ) -> void:
 	global_position = origin
 	_target = target
 	_damage = maxi(amount, 1)
 	_speed = maxf(speed_mps, 0.01)
 	_is_crit = is_crit
+	_knockback_speed = maxf(knockback_speed, 0.0)
 	if initial_dir.length_squared() > 0.0001:
 		_dir = initial_dir.normalized()
 	elif _aim_vector().length_squared() > 0.0001:
@@ -81,7 +84,7 @@ func _on_body_entered(body: Node) -> void:
 	if pill == null:
 		return
 	_spent = true
-	var killed := pill.take_damage(_damage, _dir, _is_crit)
+	var killed := pill.take_damage(_damage, _dir, _is_crit, _knockback_speed)
 	if killed:
 		KillSparksScript.spawn(get_tree(), pill.global_position)
 	queue_free()

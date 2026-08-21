@@ -70,7 +70,12 @@ func is_alive() -> bool:
 
 
 ## Returns true if the pill died from this hit. Lethal hits skip knockback.
-func take_damage(amount: int, hit_dir: Vector3 = Vector3.ZERO, is_crit: bool = false) -> bool:
+func take_damage(
+	amount: int,
+	hit_dir: Vector3 = Vector3.ZERO,
+	is_crit: bool = false,
+	knockback_speed: float = HIT_KNOCKBACK_SPEED
+) -> bool:
 	if amount <= 0 or _hp <= 0:
 		return false
 	var dealt := mini(amount, _hp)
@@ -80,7 +85,7 @@ func take_damage(amount: int, hit_dir: Vector3 = Vector3.ZERO, is_crit: bool = f
 		queue_free()
 		return true
 	if hit_dir.length_squared() > 0.0001:
-		_hit_velocity = hit_knockback_velocity_for(hit_dir)
+		_hit_velocity = hit_knockback_velocity_for(hit_dir, knockback_speed)
 	return false
 
 

@@ -29,6 +29,7 @@ func _run() -> void:
 	_verify_crit_stacking()
 	_verify_health_stacking()
 	_verify_duration_stacking()
+	_verify_pushback_stacking()
 	_verify_dawn_pose()
 	await _verify_visit_radius()
 	print("Tower upgrade verification passed.")
@@ -130,6 +131,14 @@ func _verify_catalog() -> void:
 		and is_equal_approx(UpgradeCatalogScript.DURATION_EPIC, 0.35)
 		and is_equal_approx(UpgradeCatalogScript.DURATION_LEGENDARY, 0.50),
 		"Duration percents should be 10 / 15 / 25 / 35 / 50"
+	)
+	_fail_unless(
+		is_equal_approx(UpgradeCatalogScript.PUSHBACK_COMMON, 0.10)
+		and is_equal_approx(UpgradeCatalogScript.PUSHBACK_UNCOMMON, 0.15)
+		and is_equal_approx(UpgradeCatalogScript.PUSHBACK_RARE, 0.25)
+		and is_equal_approx(UpgradeCatalogScript.PUSHBACK_EPIC, 0.35)
+		and is_equal_approx(UpgradeCatalogScript.PUSHBACK_LEGENDARY, 0.50),
+		"Pushback percents should be 10 / 15 / 25 / 35 / 50"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.PROJECTILE_COMMON == 1
@@ -483,6 +492,135 @@ func _verify_catalog() -> void:
 			)
 		) == "Duration +50%",
 		"Duration legendary should show +50%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_DURATION,
+				UpgradeCatalogScript.RARITY_COMMON
+			)
+		) != null,
+		"Common Duration should use duration_common.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_DURATION,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) != null,
+		"Uncommon Duration should use duration_uncommon.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_DURATION,
+				UpgradeCatalogScript.RARITY_RARE
+			)
+		) != null,
+		"Rare Duration should use duration_rare.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_DURATION,
+				UpgradeCatalogScript.RARITY_EPIC
+			)
+		) != null,
+		"Epic Duration should use duration_epic.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_DURATION,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) != null,
+		"Legendary Duration should use duration_legendary.jpg"
+	)
+	var rare_pushback := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_PUSHBACK,
+		UpgradeCatalogScript.RARITY_RARE
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(rare_pushback) == "Pushback +25%",
+		"Pushback rare should show +25%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.family_of(rare_pushback) == UpgradeCatalogScript.FAMILY_PUSHBACK,
+		"pushback_rare should parse as the pushback family"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_PUSHBACK,
+				UpgradeCatalogScript.RARITY_COMMON
+			)
+		) == "Pushback +10%",
+		"Pushback common should show +10%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_PUSHBACK,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) == "Pushback +15%",
+		"Pushback uncommon should show +15%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_PUSHBACK,
+				UpgradeCatalogScript.RARITY_EPIC
+			)
+		) == "Pushback +35%",
+		"Pushback epic should show +35%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_PUSHBACK,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) == "Pushback +50%",
+		"Pushback legendary should show +50%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_PUSHBACK,
+				UpgradeCatalogScript.RARITY_COMMON
+			)
+		) != null,
+		"Common Pushback should use pushback_common.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_PUSHBACK,
+				UpgradeCatalogScript.RARITY_RARE
+			)
+		) != null,
+		"Rare Pushback should use pushback_rare.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_PUSHBACK,
+				UpgradeCatalogScript.RARITY_EPIC
+			)
+		) != null,
+		"Epic Pushback should use pushback_epic.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_PUSHBACK,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) != null,
+		"Legendary Pushback should use pushback_legendary.jpg"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.icon_for(
@@ -1028,6 +1166,10 @@ func _verify_offers_and_visit_lock() -> void:
 	_fail_unless(
 		is_equal_approx(state.duration_bonus, 0.0),
 		"Try Again should clear Duration"
+	)
+	_fail_unless(
+		is_equal_approx(state.pushback_bonus, 0.0),
+		"Try Again should clear Pushback"
 	)
 	_fail_unless(state.remaining_count(1) == 4, "Try Again should not restore taken cards")
 	_fail_unless(
@@ -1619,6 +1761,51 @@ func _verify_duration_stacking() -> void:
 	_fail_unless(
 		is_equal_approx(state.duration_bonus, 0.0),
 		"Try Again should clear Duration"
+	)
+	state.free()
+
+
+func _verify_pushback_stacking() -> void:
+	var state: RunUpgradeState = RunUpgradeStateScript.new()
+	root.add_child(state)
+	var common_pushback := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_PUSHBACK,
+			UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	var rare_pushback := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_PUSHBACK,
+			UpgradeCatalogScript.RARITY_RARE
+		)
+	)
+	var leftover := String(UpgradeCatalogScript.ID_EXTRA_PROJECTILE)
+	_seed_offers(
+		state,
+		19,
+		PackedStringArray([common_pushback, rare_pushback, leftover, leftover, leftover])
+	)
+	state.pick_offer(19, 0)
+	state.pick_offer(19, 1)
+	_fail_unless(
+		is_equal_approx(state.pushback_bonus, 0.35),
+		"Common + rare Pushback should sum to 35%"
+	)
+	_fail_unless(state.remaining_count(19) == 3, "Leftover cards should stay in the shop")
+	_fail_unless(state.extra_projectiles == 0, "Pushback picks should not add projectiles")
+	_fail_unless(
+		is_equal_approx(state.duration_bonus, 0.0),
+		"Pushback picks should not add Duration"
+	)
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.knockback_speed_for(state.pushback_bonus), 12.0 * 1.35),
+		"35% Pushback should shove at 12 × 1.35"
+	)
+	state.reset_run()
+	_fail_unless(
+		is_equal_approx(state.pushback_bonus, 0.0),
+		"Try Again should clear Pushback"
 	)
 	state.free()
 

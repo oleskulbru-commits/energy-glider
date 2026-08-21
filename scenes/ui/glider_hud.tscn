@@ -432,6 +432,12 @@ theme_type_variation = &"HudLabel"
 text = "Duration 0%"
 horizontal_alignment = 2
 
+[node name="PushbackLabel" type="Label" parent="RifleDebugPanel/RifleDebugVBox"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "Pushback 0%"
+horizontal_alignment = 2
+
 [node name="InteractChip" type="PanelContainer" parent="."]
 unique_name_in_owner = true
 visible = false

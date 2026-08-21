@@ -13,6 +13,7 @@ func _init() -> void:
 func _run() -> void:
 	_verify_ticks_and_charge()
 	_verify_knockback_skip()
+	_verify_pushback_speed()
 	print("Laser verification passed.")
 	quit(0)
 
@@ -89,6 +90,35 @@ func _verify_knockback_skip() -> void:
 		"Zero-dir hits should skip knockback (got %s)" % leftover
 	)
 	wounded.free()
+
+
+func _verify_pushback_speed() -> void:
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.knockback_speed_for(0.0), SwarmPillScript.HIT_KNOCKBACK_SPEED),
+		"Base rifle shove should stay 12 m/s"
+	)
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.knockback_speed_for(0.50), 18.0),
+		"50% Pushback should shove at 18 m/s"
+	)
+	var wounded: SwarmPill = SwarmPillScript.new()
+	root.add_child(wounded)
+	wounded.take_damage(5, Vector3(-1.0, 0.0, 0.0), false, AutoRifleScript.knockback_speed_for(0.50))
+	var hit_vel: Vector3 = wounded.get("_hit_velocity")
+	_fail_unless(
+		is_equal_approx(hit_vel.x, -18.0),
+		"Legendary Pushback should apply 18 m/s west (got %s)" % hit_vel
+	)
+	wounded.free()
+	var laser_hit: SwarmPill = SwarmPillScript.new()
+	root.add_child(laser_hit)
+	laser_hit.take_damage(3, Vector3.ZERO, false, AutoRifleScript.knockback_speed_for(0.50))
+	var leftover: Vector3 = laser_hit.get("_hit_velocity")
+	_fail_unless(
+		leftover.length_squared() < 0.0001,
+		"Laser zero-dir should skip Pushback (got %s)" % leftover
+	)
+	laser_hit.free()
 
 
 func _fail_unless(ok: bool, message: String) -> void:

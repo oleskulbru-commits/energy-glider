@@ -80,6 +80,13 @@ func _projectile_speed_bonus() -> float:
 	return state.projectile_speed_bonus
 
 
+func _pushback_bonus() -> float:
+	var state := _upgrade_state()
+	if state == null:
+		return 0.0
+	return state.pushback_bonus
+
+
 func _upgrade_state() -> RunUpgradeState:
 	return get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
 
@@ -158,7 +165,8 @@ func _fire(origin: Vector3, target: Node3D) -> void:
 		aim,
 		crit_damage_for(damage_for(_damage_bonus()), is_crit),
 		speed_for(_projectile_speed_bonus()),
-		is_crit
+		is_crit,
+		knockback_speed_for(_pushback_bonus())
 	)
 
 
@@ -232,6 +240,10 @@ static func crit_damage_for(base: int, is_crit: bool) -> int:
 
 static func speed_for(bonus: float) -> float:
 	return RifleBullet.SPEED_MPS * (1.0 + minf(maxf(bonus, 0.0), SPEED_CAP))
+
+
+static func knockback_speed_for(bonus: float) -> float:
+	return SwarmPill.HIT_KNOCKBACK_SPEED * (1.0 + maxf(bonus, 0.0))
 
 
 static func projectile_count_for(extra_projectiles: int) -> int:
