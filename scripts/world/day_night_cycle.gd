@@ -9,6 +9,8 @@ signal time_changed(normalized: float)
 @export var world_environment_path: NodePath
 @export var day_phase_sec := 240.0
 @export var night_phase_sec := 240.0
+## When false, fog density/color stay at values set on the Environment resource (for editor tuning).
+@export var animate_fog := true
 ## Seconds into the full day+night cycle when the scene loads (skips the darkest dawn).
 @export var start_offset_sec := 20.0
 
@@ -146,7 +148,7 @@ func _apply_time_visuals() -> void:
 		_sky_material.sky_top_color = SKY_NIGHT_TOP.lerp(SKY_DAY_TOP, day_blend)
 		_sky_material.sky_horizon_color = SKY_NIGHT_HORIZON.lerp(SKY_DAY_HORIZON, day_blend)
 
-	if _environment != null and _environment.environment != null:
+	if _environment != null and _environment.environment != null and animate_fog:
 		_environment.environment.fog_light_color = FOG_NIGHT.lerp(FOG_DAY, day_blend)
 		_environment.environment.fog_density = lerpf(0.0022, 0.00085, day_blend)
 

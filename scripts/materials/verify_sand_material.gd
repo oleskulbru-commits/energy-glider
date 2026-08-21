@@ -42,6 +42,13 @@ func _init() -> void:
 		"Sand albedo_color should be Mars tint %s (got %s)" % [MARS_TINT, sand.albedo_color]
 	)
 
+	_fail_unless(sand.uv1_triplanar, "Sand UV1 triplanar must be enabled")
+	_fail_unless(sand.uv1_world_triplanar, "Sand UV1 world triplanar must be enabled")
+	_fail_unless(
+		is_equal_approx(sand.uv1_scale.x, 0.2) and is_equal_approx(sand.uv1_scale.y, 0.2),
+		"Sand UV1 scale should be 0.2 (got %s)" % sand.uv1_scale
+	)
+
 	print("Sand material verification passed.")
 	quit(0)
 

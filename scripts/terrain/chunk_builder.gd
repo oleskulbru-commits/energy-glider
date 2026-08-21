@@ -2,7 +2,7 @@ class_name ChunkBuilder
 extends RefCounted
 
 const CHUNK_SIZE := 256.0
-## Mesh UV divisor; keep in sync with SandMaterial.texture_world_scale default.
+## Mesh UV divisor; SandMaterial.texture_world_scale default (40) yields uv1_scale 0.2.
 const TEXTURE_UV_WORLD_SCALE := 8.0
 ## Near home (~4 m spacing). Farther west uses denser grids so mesh tracks sharp dunes.
 const RENDER_VERTS_NEAR := 65

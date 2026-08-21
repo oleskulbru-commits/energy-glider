@@ -157,6 +157,11 @@ var _hull_integrity := 1.0
 var _grounded_lock_timer := 0.0
 var _airborne_time := 0.0
 var _jump_cooldown := 0.0
+var _jump_anim_pending := false
+var _boost_anim_pending := false
+var _was_boost_active := false
+var _brake_anim_pending := false
+var _was_brake_active := false
 var _air_hold_horizontal_speed := 0.0
 var _saved_collision_layer := 2
 var _physics_ctx: GliderPhysicsScript.Context = null
@@ -238,6 +243,16 @@ func _physics_process(delta: float) -> void:
 
 	if not _uses_external_camera():
 		_update_camera(delta)
+
+	var boost_active := _is_boost_active()
+	if boost_active and not _was_boost_active:
+		_boost_anim_pending = true
+	_was_boost_active = boost_active
+
+	var brake_active := is_braking()
+	if brake_active and not _was_brake_active:
+		_brake_anim_pending = true
+	_was_brake_active = brake_active
 
 	_last_physics_delta = delta
 	_physics_ctx = _build_physics_context()
@@ -930,7 +945,17 @@ func _try_jump() -> void:
 	_airborne_time = 0.0
 	_state = State.GLIDING
 	_jump_cooldown = GliderPhysicsScript.JUMP_COOLDOWN
-	_align_yaw_to_travel_direction(1.0)
+	_jump_anim_pending = true
+	if not _should_preserve_yaw_on_jump():
+		_align_yaw_to_travel_direction(1.0)
+
+
+func _should_preserve_yaw_on_jump() -> bool:
+	if absf(get_steer_axis()) > 0.01:
+		return true
+	if is_forward_held() or _is_boost_active():
+		return true
+	return false
 
 
 func _crest_board_clearances() -> Vector3:
@@ -1402,9 +1427,9 @@ func _update_camera(delta: float) -> void:
 		return
 	_camera.follow(
 		self, _yaw, velocity, delta,
-		_get_clearance(), is_grounded(), _terrain_manager, _yaw_velocity,
-		false, get_camera_air_blend(),
-		_input != null and _input.is_steering()
+		is_grounded(), _terrain_manager,
+		_input != null and _input.is_steering(),
+		_is_boost_active()
 	)
 
 
@@ -1478,6 +1503,27 @@ func is_landing() -> bool:
 	return _landing_stabilize_timer > 0.0
 
 
+func consume_jump_anim_trigger() -> bool:
+	if not _jump_anim_pending:
+		return false
+	_jump_anim_pending = false
+	return true
+
+
+func consume_boost_anim_trigger() -> bool:
+	if not _boost_anim_pending:
+		return false
+	_boost_anim_pending = false
+	return true
+
+
+func consume_brake_anim_trigger() -> bool:
+	if not _brake_anim_pending:
+		return false
+	_brake_anim_pending = false
+	return true
+
+
 func is_boost_active() -> bool:
 	return _is_boost_active()
 
@@ -1497,10 +1543,7 @@ func get_steer_axis() -> float:
 
 
 func get_anim_steer() -> float:
-	var steer := get_steer_axis()
-	if absf(steer) > 0.05:
-		return steer
-	return clampf(_yaw_velocity / MAX_YAW_VELOCITY, -1.0, 1.0)
+	return get_steer_axis()
 
 
 func is_run_ended() -> bool:
@@ -1552,6 +1595,11 @@ func reset_for_respawn() -> void:
 	_grounded_lock_timer = 0.0
 	_airborne_time = 0.0
 	_jump_cooldown = 0.0
+	_jump_anim_pending = false
+	_boost_anim_pending = false
+	_was_boost_active = false
+	_brake_anim_pending = false
+	_was_brake_active = false
 	_air_hold_horizontal_speed = 0.0
 	_hull_integrity = 1.0
 	_landing_feedback_label = ""
@@ -1571,6 +1619,19 @@ func reset_for_respawn() -> void:
 		_smoothed_clearance = _get_raw_clearance()
 		_prev_raw_clearance = _smoothed_clearance
 		_sync_visual_basis_from_ground()
+	_reset_animation_controllers()
+
+
+func _reset_animation_controllers() -> void:
+	var skin := get_node_or_null("Visual/GliderSkin")
+	if skin == null:
+		return
+	var body_anim := skin.get_node_or_null("GliderAnimController")
+	if body_anim != null and body_anim.has_method("reset_animation_state"):
+		body_anim.reset_animation_state()
+	var sail_anim := skin.get_node_or_null("SailAnimController")
+	if sail_anim != null and sail_anim.has_method("reset_animation_state"):
+		sail_anim.reset_animation_state()
 
 
 ## RigidBody3D teleports must sync PhysicsServer or the body snaps back next tick.

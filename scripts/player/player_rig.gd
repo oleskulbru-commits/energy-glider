@@ -126,6 +126,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		_release_mouse()
 		return
 
+	if event.is_action_pressed("cycle_camera") and _camera != null:
+		_camera.cycle_distance_preset()
+		return
+
 	if event is InputEventMouseButton:
 		var mouse := event as InputEventMouseButton
 		if mouse.pressed and mouse.button_index == MOUSE_BUTTON_LEFT:
@@ -172,13 +176,10 @@ func _update_glider_camera(delta: float) -> void:
 		_glider.get_yaw(),
 		_glider.velocity,
 		delta,
-		_glider.get_smoothed_clearance(),
 		_glider.is_grounded(),
 		_terrain_manager,
-		_glider.get_yaw_velocity(),
-		false,
-		_glider.get_camera_air_blend(),
-		steering
+		steering,
+		_glider.is_boost_active()
 	)
 
 

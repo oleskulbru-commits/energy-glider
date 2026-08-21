@@ -39,6 +39,9 @@ Write-Host "Importing project (class cache)..."
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Write-Host ""
 
+& $Godot --headless --path $ProjectRoot --script res://scripts/tools/verify_glb_animations.gd
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 & $Godot --headless --path $ProjectRoot --script res://scripts/player/verify_glider.gd
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
