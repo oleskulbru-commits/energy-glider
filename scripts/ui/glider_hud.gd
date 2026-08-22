@@ -154,10 +154,6 @@ func _ready() -> void:
 	if _sail_chip != null:
 		_sail_chip.visible = false
 	_lock_eon_tracker_layout()
-	if _radar_pulse != null:
-		_radar_pulse.pulse_fired.connect(_on_pulse_fired)
-		_radar_pulse.cooldown_changed.connect(_on_pulse_cooldown_changed)
-	_update_pulse_chip()
 
 
 func _connect_weapon_tray() -> void:
@@ -770,14 +766,10 @@ func _show_upgrade_line(label: Label, text: String, active: bool) -> bool:
 
 
 func _on_stop_chip_gui_input(event: InputEvent) -> void:
-	if _input == null:
+	if _input == null or _stop_chip == null or not _stop_chip.is_inside_tree():
 		return
-
-	if event is InputEventMouseButton:
-		if event is InputEvent:
-			(event as InputEvent).set_handled()
-
-	if event is InputEventMouseButton:
-		var mouse := event as InputEventMouseButton
-		if mouse.button_index == MOUSE_BUTTON_LEFT:
-			_input.set_brake_ui_hold(mouse.pressed)
+	var mouse := event as InputEventMouseButton
+	if mouse == null or mouse.button_index != MOUSE_BUTTON_LEFT:
+		return
+	_input.set_brake_ui_hold(mouse.pressed)
+	_stop_chip.accept_event()
