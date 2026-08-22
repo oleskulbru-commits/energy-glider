@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://ceqhf3n5dule0" path="res://scripts/terrain/terrain_manager.gd" id="1_terrain"]
 [ext_resource type="Material" uid="uid://suwp2571pfe0" path="res://assets/materials/sand.tres" id="2_sand"]
 [ext_resource type="PackedScene" uid="uid://cplayerrig001" path="res://scenes/player/player_rig.tscn" id="3_player_rig"]
-[ext_resource type="Environment" uid="uid://c8envgameworld01" path="res://assets/environment/game_world_env.tres" id="19_env"]
+[ext_resource type="Environment" uid="uid://c16k12ob5acay" path="res://assets/environment/game_world_env.tres" id="19_env"]
 [ext_resource type="Script" uid="uid://dq2xgav7i0f6q" path="res://scripts/game/run_score.gd" id="5_run_score"]
 [ext_resource type="Script" uid="uid://cdl1mrr1dgcci" path="res://scripts/world/outpost_spawner.gd" id="8_outpost_spawner"]
 [ext_resource type="Script" uid="uid://dq7antenna001" path="res://scripts/game/antenna_state.gd" id="9_antenna_state"]

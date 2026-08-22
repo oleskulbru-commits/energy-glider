@@ -187,11 +187,14 @@ func follow(
 		var velocity_dir := horizontal_vel / speed
 		lead_dir = velocity_dir.lerp(boom_forward, low_speed_blend).normalized()
 
-	var look_offset := lead_dir * look_ahead + Vector3.UP * look_height
+	var effective_look_ahead := compute_effective_look_ahead(
+		look_ahead, _look_yaw_offset, max_look_yaw_deg
+	)
+	var look_offset := lead_dir * effective_look_ahead + Vector3.UP * look_height
 	if speed_3d > 3.0:
 		if not grounded:
 			_land_recover_vel_dir = velocity / speed_3d
-		var vel_offset := _land_recover_vel_dir * look_ahead + Vector3.UP * look_height * 0.35
+		var vel_offset := _land_recover_vel_dir * effective_look_ahead + Vector3.UP * look_height * 0.35
 		var look_blend := 0.0
 		if not grounded:
 			var fall_blend := clampf(descent_speed / maxf(fall_pitch_speed_ref, 0.001), 0.0, 1.0)
@@ -396,6 +399,21 @@ func _update_fall_pitch(descent_speed: float, grounded: bool, delta: float) -> v
 
 static func angle_diff(from_yaw: float, to_yaw: float) -> float:
 	return MathUtil.angle_diff(from_yaw, to_yaw)
+
+
+static func compute_orbit_look_blend(look_yaw_offset: float, max_look_yaw_deg: float) -> float:
+	if max_look_yaw_deg <= 0.0:
+		return 0.0
+	return clampf(absf(look_yaw_offset) / deg_to_rad(max_look_yaw_deg), 0.0, 1.0)
+
+
+static func compute_effective_look_ahead(
+	look_ahead: float,
+	look_yaw_offset: float,
+	max_look_yaw_deg: float
+) -> float:
+	var orbit_blend := compute_orbit_look_blend(look_yaw_offset, max_look_yaw_deg)
+	return lerpf(look_ahead, 0.0, orbit_blend)
 
 
 static func compute_fall_pitch(

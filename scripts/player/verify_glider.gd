@@ -126,7 +126,9 @@ func _run_tests() -> void:
 	await _verify_inertia_jump()
 	await _verify_jump_preserves_turn_yaw()
 	await _verify_jump_preserves_forward_yaw()
+	await _verify_jump_to_glide_anim()
 	await _verify_landing_forward_anim()
+	await _verify_idle_to_forward_enter()
 	await _verify_respawn_animation()
 	await _verify_cruise_drift_align()
 	await _verify_touchdown_slope_momentum()
@@ -226,6 +228,25 @@ func _verify_chase_camera_math() -> void:
 		"No descent should yield zero fall pitch"
 	)
 
+	_fail_unless(
+		is_equal_approx(GliderCameraScript.compute_effective_look_ahead(14.0, 0.0, 180.0), 14.0),
+		"Zero orbit offset should keep full look-ahead"
+	)
+	_fail_unless(
+		is_equal_approx(
+			GliderCameraScript.compute_effective_look_ahead(14.0, deg_to_rad(180.0), 180.0),
+			0.0
+		),
+		"Full orbit should zero look-ahead"
+	)
+	_fail_unless(
+		is_equal_approx(
+			GliderCameraScript.compute_effective_look_ahead(14.0, deg_to_rad(90.0), 180.0),
+			7.0
+		),
+		"Mid orbit should halve look-ahead"
+	)
+
 
 func _verify_landing_recovery() -> void:
 	var min_sec := 0.35
@@ -273,20 +294,29 @@ func _verify_landing_recovery() -> void:
 
 func _verify_brake_boost_time_scale() -> void:
 	var boost_scale := 1.35
-	var brake_shake_scale := 0.25
+	var brake_loop_scale := 0.25
 	_fail_unless(
 		is_equal_approx(
-			GliderAnimControllerScript.compute_boost_loop_time_scale(
-				boost_scale, brake_shake_scale, true, false, true
+			GliderAnimControllerScript.compute_brake_loop_time_scale(
+				boost_scale, brake_loop_scale, true
 			),
-			boost_scale * brake_shake_scale
+			boost_scale * brake_loop_scale
 		),
-		"Brake boost loop should run at 25%% of boost time scale (75%% less shake)"
+		"Brake loop should run at 25%% of boost time scale (75%% less shake)"
+	)
+	_fail_unless(
+		is_equal_approx(
+			GliderAnimControllerScript.compute_brake_loop_time_scale(
+				boost_scale, brake_loop_scale, false
+			),
+			1.0
+		),
+		"Brake loop time scale should reset outside brake root state"
 	)
 	_fail_unless(
 		is_equal_approx(
 			GliderAnimControllerScript.compute_boost_loop_time_scale(
-				boost_scale, brake_shake_scale, true, true, true
+				boost_scale, brake_loop_scale, true, true, true
 			),
 			boost_scale
 		),
@@ -295,7 +325,7 @@ func _verify_brake_boost_time_scale() -> void:
 	_fail_unless(
 		is_equal_approx(
 			GliderAnimControllerScript.compute_boost_loop_time_scale(
-				boost_scale, brake_shake_scale, false, false, true
+				boost_scale, brake_loop_scale, false, false, true
 			),
 			1.0
 		),
@@ -907,25 +937,28 @@ func _verify_brake_stop() -> void:
 
 	_release_forward()
 	Input.action_press("brake")
-	var saw_boost := false
-	var boost_sub := &""
+	var saw_brake := false
+	var brake_sub := &""
 	for i in 30:
 		await physics_frame
 		var tree: AnimationTree = glider.get_node("Visual/GliderSkin/AnimationTree") as AnimationTree
 		var root_playback := tree.get("parameters/body/playback") as AnimationNodeStateMachinePlayback
-		if root_playback.get_current_node() == &"boost":
-			saw_boost = true
-			var boost_playback := tree.get("parameters/body/boost/playback") as AnimationNodeStateMachinePlayback
-			boost_sub = boost_playback.get_current_node()
-			if boost_sub == &"loop":
+		if root_playback.get_current_node() == &"brake":
+			saw_brake = true
+			var brake_playback := tree.get("parameters/body/brake/playback") as AnimationNodeStateMachinePlayback
+			brake_sub = brake_playback.get_current_node()
+			if brake_sub == &"loop":
 				break
-	_fail_unless(saw_boost, "Brake while moving should enter boost animation")
-	_fail_unless(boost_sub == &"loop", "Brake should snap to boost loop, not enter (state=%s)" % boost_sub)
+	_fail_unless(saw_brake, "Brake while moving should enter brake animation")
+	_fail_unless(brake_sub == &"loop", "Brake should snap to loop, not enter (state=%s)" % brake_sub)
 
-	for i in 120:
+	for i in 180:
 		await physics_frame
-		if Vector2(glider.velocity.x, glider.velocity.z).length() < 0.35:
+		if Vector2(glider.velocity.x, glider.velocity.z).length() < 0.25:
 			break
+
+	for i in 24:
+		await physics_frame
 
 	var tree: AnimationTree = glider.get_node("Visual/GliderSkin/AnimationTree") as AnimationTree
 	var root_playback := tree.get("parameters/body/playback") as AnimationNodeStateMachinePlayback
@@ -1175,6 +1208,81 @@ func _verify_jump_preserves_forward_yaw() -> void:
 	terrain.queue_free()
 
 
+func _verify_jump_to_glide_anim() -> void:
+	var terrain := _spawn_terrain("jump_glide")
+	await physics_frame
+
+	var glider := _spawn_glider(terrain)
+	_get_input(glider)
+	glider.global_position = Vector3(0.0, _hover_spawn_y(terrain), 0.0)
+	glider.velocity = Vector3.ZERO
+	await physics_frame
+
+	for i in 60:
+		await physics_frame
+
+	var skin: Node3D = glider.get_node("Visual/GliderSkin")
+	var tree: AnimationTree = skin.get_node("AnimationTree") as AnimationTree
+	var root_playback := tree.get("parameters/body/playback") as AnimationNodeStateMachinePlayback
+
+	_fail_unless(glider.is_grounded(), "Jump-to-glide test needs grounded start")
+
+	glider.velocity = Vector3(0.0, 0.0, 14.0)
+	_hold_forward()
+	Input.action_press("jump")
+	await physics_frame
+	Input.action_release("jump")
+	await physics_frame
+
+	_fail_unless(glider.is_gliding(), "Jump-to-glide test needs gliding after jump")
+
+	# Flat-ground hops land before Eve_Jump finishes; lift into sustained glide so the
+	# clip can complete and hand off to the glide loop (same pattern as air_hold tests).
+	var ground_y := terrain.sample_height(glider.global_position.x, glider.global_position.z)
+	glider.global_position.y = ground_y + 12.0
+	glider.velocity = Vector3(0.0, -0.5, 14.0)
+	glider.set("_state", GliderPlayerScript.State.GLIDING)
+	await physics_frame
+
+	var saw_jump := false
+	var saw_glide := false
+	var jump_near_finish := false
+	var max_jump_pos := 0.0
+	for i in 180:
+		await physics_frame
+		if not glider.is_gliding():
+			continue
+		var root_node := root_playback.get_current_node()
+		if root_node == &"jump":
+			saw_jump = true
+			var jump_length := root_playback.get_current_length()
+			var jump_pos := root_playback.get_current_play_position()
+			max_jump_pos = maxf(max_jump_pos, jump_pos)
+			if jump_length > 0.05 and jump_pos >= jump_length * 0.9:
+				jump_near_finish = true
+			elif jump_pos >= 0.9:
+				jump_near_finish = true
+		elif root_node == &"glide":
+			_fail_unless(
+				jump_near_finish or max_jump_pos >= 0.85,
+				"Jump-to-glide should finish jump before glide (max_pos=%.2f)" % max_jump_pos
+			)
+			saw_glide = true
+			break
+
+	_fail_unless(saw_jump, "Jump-to-glide should play jump on takeoff (root=%s)" % root_playback.get_current_node())
+	_fail_unless(
+		jump_near_finish,
+		"Jump-to-glide should finish most of jump before glide (max_pos=%.2f)" % max_jump_pos
+	)
+	_fail_unless(saw_glide, "Jump-to-glide should transition to glide while airborne (root=%s)" % root_playback.get_current_node())
+
+	_release_forward()
+	glider.queue_free()
+	terrain.queue_free()
+	_release_all_input()
+
+
 func _verify_landing_forward_anim() -> void:
 	var terrain := _spawn_terrain("land_forward_anim")
 	await physics_frame
@@ -1231,6 +1339,65 @@ func _verify_landing_forward_anim() -> void:
 		not spine_rot.is_equal_approx(Quaternion.IDENTITY),
 		"Hero skeleton T-pose after landing with W held"
 	)
+
+	glider.queue_free()
+	terrain.queue_free()
+	_release_all_input()
+
+
+func _verify_idle_to_forward_enter() -> void:
+	var terrain := _spawn_terrain("idle_enter")
+	await physics_frame
+
+	var glider := _spawn_glider(terrain)
+	_get_input(glider)
+	glider.global_position = Vector3(0.0, _hover_spawn_y(terrain), 0.0)
+	glider.velocity = Vector3.ZERO
+	await physics_frame
+
+	var skin: Node3D = glider.get_node("Visual/GliderSkin")
+	var tree: AnimationTree = skin.get_node("AnimationTree") as AnimationTree
+	var root_playback := tree.get("parameters/body/playback") as AnimationNodeStateMachinePlayback
+	var locomotion_playback := tree.get("parameters/body/locomotion/playback") as AnimationNodeStateMachinePlayback
+	var hero_skel: Skeleton3D = skin.get_node("Model/GliderRoot/Hero_Rig/Skeleton3D") as Skeleton3D
+	var spine_idx := maxi(0, hero_skel.find_bone("spine"))
+
+	for i in 60:
+		await physics_frame
+
+	_fail_unless(glider.is_grounded(), "Idle enter test needs grounded start")
+	_fail_unless(
+		root_playback.get_current_node() == &"grounded",
+		"Idle enter test needs grounded root (root=%s)" % root_playback.get_current_node()
+	)
+
+	var idle_spine_rot := hero_skel.get_bone_pose_rotation(spine_idx)
+	_fail_unless(
+		not idle_spine_rot.is_equal_approx(Quaternion.IDENTITY),
+		"Idle enter test needs non-bind idle pose before W"
+	)
+
+	_hold_forward()
+	await physics_frame
+	_fail_unless(glider.is_forward_held(), "Idle enter test needs forward input after W press")
+	var saw_enter := false
+	var saw_spine_motion := false
+	for i in 30:
+		await physics_frame
+		if locomotion_playback.get_current_node() == &"enter":
+			saw_enter = true
+		var spine_rot := hero_skel.get_bone_pose_rotation(spine_idx)
+		if not spine_rot.is_equal_approx(idle_spine_rot):
+			saw_spine_motion = true
+		if saw_enter and saw_spine_motion:
+			break
+
+	_fail_unless(
+		saw_enter,
+		"Idle to forward should play enter (loco=%s root=%s)"
+		% [locomotion_playback.get_current_node(), root_playback.get_current_node()]
+	)
+	_fail_unless(saw_spine_motion, "Idle to forward enter should move hero skeleton")
 
 	glider.queue_free()
 	terrain.queue_free()

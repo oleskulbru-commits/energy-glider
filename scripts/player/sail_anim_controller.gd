@@ -18,9 +18,11 @@ var _anim_player: AnimationPlayer
 var _sail_playback: AnimationNodeStateMachinePlayback
 var _sail_state := &""
 var _was_sail_deployed := false
+var _deploy_reverse_started_at := -1.0
 
 
 func _ready() -> void:
+	process_priority = -101
 	if _tree == null:
 		push_warning("SailAnimController: AnimationTree node missing on GliderSkin")
 		return
@@ -44,6 +46,7 @@ func reset_animation_state() -> void:
 	_sail_playback.start("sail_down")
 	_sail_state = &"sail_down"
 	_was_sail_deployed = _is_sail_deployed()
+	_deploy_reverse_started_at = -1.0
 
 
 func _bootstrap_sail_state() -> void:
@@ -51,9 +54,10 @@ func _bootstrap_sail_state() -> void:
 	_sail_playback.start("sail_down")
 	_sail_state = &"sail_down"
 	_was_sail_deployed = _is_sail_deployed()
+	_deploy_reverse_started_at = -1.0
 
 
-func _physics_process(_delta: float) -> void:
+func _process(_delta: float) -> void:
 	if _tree == null or _sail_playback == null:
 		return
 	if _glider == null or not is_instance_valid(_glider):
@@ -70,6 +74,14 @@ func _physics_process(_delta: float) -> void:
 		_was_sail_deployed = sail_deployed
 
 	_sail_state = _sail_playback.get_current_node()
+	if _sail_state == &"deploy_reverse":
+		var finished := _is_deploy_reverse_finished()
+		if finished:
+			_deploy_reverse_started_at = -1.0
+			_tree.set(PARAM_DEPLOY_REV_SEEK, 0.0)
+			_tree.set(PARAM_DEPLOY_REV_SCALE, 1.0)
+			_sail_playback.start("sail_down")
+			_sail_state = &"sail_down"
 
 
 func _begin_deploy_forward() -> void:
@@ -81,13 +93,24 @@ func _begin_deploy_forward() -> void:
 
 func _begin_deploy_reverse() -> void:
 	match _sail_state:
-		&"sail_up", &"sail_down":
+		&"sail_down":
 			_sail_playback.travel("sail_down")
 		_:
 			var seek := _deploy_seek_for_reverse()
 			_tree.set(PARAM_DEPLOY_REV_SEEK, seek)
 			_tree.set(PARAM_DEPLOY_REV_SCALE, -1.0)
+			_deploy_reverse_started_at = Time.get_ticks_msec() / 1000.0
 			_sail_playback.travel("deploy_reverse")
+
+
+func _is_deploy_reverse_finished() -> bool:
+	var pos := _sail_playback.get_current_play_position()
+	if pos > 0.02:
+		return false
+	if _deploy_reverse_started_at < 0.0:
+		return false
+	var scale: float = _tree.get(PARAM_DEPLOY_REV_SCALE)
+	return scale < 0.0
 
 
 func _deploy_seek_for_forward() -> float:
@@ -99,7 +122,11 @@ func _deploy_seek_for_forward() -> float:
 func _deploy_seek_for_reverse() -> float:
 	if _sail_state == &"deploy_forward" or _sail_state == &"deploy_reverse":
 		return _current_deploy_seconds()
-	return _deploy_length()
+	var length := _deploy_length()
+	if length <= 0.0:
+		return 0.0
+	# Seek slightly before clip end so reverse playback does not instant-trigger AT_END.
+	return maxf(length - 0.05, 0.0)
 
 
 func _current_deploy_seconds() -> float:

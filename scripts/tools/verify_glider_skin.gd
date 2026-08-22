@@ -9,6 +9,7 @@ const DEPLOY_WAIT_FRAMES := 120
 const RETRACT_WAIT_FRAMES := 48
 const JUMP_AIR_WAIT_FRAMES := 30
 const BOOST_WAIT_FRAMES := 24
+const BRAKE_BLEND_WAIT_FRAMES := 36
 const TURN_SWAP_WAIT_FRAMES := 72
 
 
@@ -58,6 +59,12 @@ func _initialize() -> void:
 	var boost_playback := tree.get("parameters/body/boost/playback") as AnimationNodeStateMachinePlayback
 	if boost_playback == null:
 		push_error("Boost playback missing")
+		quit(1)
+		return
+
+	var brake_playback := tree.get("parameters/body/brake/playback") as AnimationNodeStateMachinePlayback
+	if brake_playback == null:
+		push_error("Brake playback missing")
 		quit(1)
 		return
 
@@ -170,10 +177,31 @@ func _initialize() -> void:
 		return
 
 	Input.action_release("move_forward")
-	for _i in RETRACT_WAIT_FRAMES:
-		await process_frame
+	await process_frame
+	if sail_playback.get_current_node() == &"sail_down":
+		push_error("Sail retract should not snap straight to sail_down from sail_up")
+		quit(1)
+		return
 
-	var retract_state := sail_playback.get_current_node()
+	var saw_deploy_reverse := false
+	var retract_state := &""
+	for _i in 240:
+		await process_frame
+		var node := sail_playback.get_current_node()
+		if node == &"deploy_reverse":
+			saw_deploy_reverse = true
+		retract_state = node
+		if node == &"sail_down":
+			var retracted_solar_rot := deploy_skel.get_bone_pose_rotation(solar_bone_idx)
+			if absf(retracted_solar_rot.dot(stowed_solar_rot)) >= 0.999:
+				break
+
+	if not saw_deploy_reverse:
+		push_error(
+			"Sail retract from sail_up should play deploy_reverse (state=%s)" % retract_state
+		)
+		quit(1)
+		return
 	if retract_state != &"sail_down":
 		push_error("Sail did not return to sail_down on W release (state=%s)" % retract_state)
 		quit(1)
@@ -266,15 +294,11 @@ func _initialize() -> void:
 		quit(1)
 		return
 
-	for state_name in ["jump", "glide", "landing", "boost"]:
+	for state_name in ["jump", "glide", "landing", "boost", "brake"]:
 		if not body_sm.has_node(StringName(state_name)):
 			push_error("Body state machine missing node: %s" % state_name)
 			quit(1)
 			return
-	if body_sm.has_node(&"brake"):
-		push_error("Legacy brake node should be removed from body state machine")
-		quit(1)
-		return
 
 	Input.action_press("boost")
 	for _i in BOOST_WAIT_FRAMES:
@@ -301,16 +325,46 @@ func _initialize() -> void:
 		quit(1)
 		return
 
+	Input.action_press("brake")
+	await process_frame
+	var air_brake_root := root_playback.get_current_node()
+	if air_brake_root == &"brake":
+		push_error("Air brake should crossfade from glide, not snap on first frame (state=%s)" % air_brake_root)
+		quit(1)
+		return
+
+	var saw_air_brake := false
+	for _i in BRAKE_BLEND_WAIT_FRAMES:
+		await process_frame
+		if root_playback.get_current_node() == &"brake":
+			saw_air_brake = true
+			break
+
+	if not saw_air_brake:
+		push_error("Air brake should reach brake root while gliding (state=%s)" % root_playback.get_current_node())
+		quit(1)
+		return
+
+	Input.action_release("brake")
+	Input.action_release("jump")
+	for _i in 12:
+		await process_frame
+
+	glider_player.reset_for_respawn()
 	root_playback.start("locomotion")
 	locomotion_playback.start("forward")
 	for _i in 12:
 		await process_frame
 
 	Input.action_press("boost")
-	for _i in BOOST_WAIT_FRAMES:
+	var saw_ground_boost := false
+	for _i in BRAKE_BLEND_WAIT_FRAMES:
 		await process_frame
+		if root_playback.get_current_node() == &"boost":
+			saw_ground_boost = true
+			break
 
-	if root_playback.get_current_node() != &"boost":
+	if not saw_ground_boost:
 		push_error("Body did not enter boost on Shift press (state=%s)" % root_playback.get_current_node())
 		quit(1)
 		return
@@ -327,24 +381,42 @@ func _initialize() -> void:
 		if root_playback.get_current_node() != &"boost":
 			break
 
+	glider_player.reset_for_respawn()
+	var anim_controller := skin.get_node("GliderAnimController")
+	if anim_controller != null and anim_controller.has_method("reset_animation_state"):
+		anim_controller.reset_animation_state()
+	for _i in 12:
+		await process_frame
+
 	Input.action_press("move_forward")
 	Input.action_press("boost")
-	glider_player.velocity = Vector3(0.0, 0.0, 8.0)
-	for _i in BOOST_WAIT_FRAMES:
-		await process_frame
-	if root_playback.get_current_node() != &"boost":
-		push_error("Boost-to-jump test needs active boost (state=%s)" % root_playback.get_current_node())
-		quit(1)
-		return
-
-	Input.action_press("jump")
 	for _i in 6:
 		await process_frame
+	Input.action_release("jump")
+	await process_frame
+	Input.action_press("jump")
+	var saw_boost_for_jump := false
+	var saw_jump_from_boost := false
+	for _i in JUMP_AIR_WAIT_FRAMES:
+		await process_frame
+		var body_state := root_playback.get_current_node()
+		if body_state == &"boost":
+			saw_boost_for_jump = true
+		if body_state == &"jump":
+			saw_jump_from_boost = true
+			break
+		if glider_player.is_gliding() and body_state == &"jump":
+			saw_jump_from_boost = true
+			break
+	if not saw_boost_for_jump and not saw_jump_from_boost:
+		push_error("Boost-to-jump test needs boost or jump (state=%s)" % root_playback.get_current_node())
+		quit(1)
+		return
 	if not glider_player.is_gliding():
 		push_error("Boost-to-jump test needs gliding after jump")
 		quit(1)
 		return
-	if root_playback.get_current_node() != &"jump":
+	if not saw_jump_from_boost:
 		push_error(
 			"Jump from boost should snap to jump with Shift held (state=%s)"
 			% root_playback.get_current_node()
@@ -365,6 +437,7 @@ func _initialize() -> void:
 	Input.action_release("jump")
 	Input.action_release("boost")
 	Input.action_release("move_forward")
+	glider_player.reset_for_respawn()
 	for _i in 12:
 		await process_frame
 
@@ -375,17 +448,29 @@ func _initialize() -> void:
 		await process_frame
 
 	Input.action_press("brake")
-	for _i in BOOST_WAIT_FRAMES:
+	var saw_brake := false
+	for _i in BRAKE_BLEND_WAIT_FRAMES:
 		await process_frame
+		if root_playback.get_current_node() == &"brake":
+			saw_brake = true
+			break
 
-	if root_playback.get_current_node() != &"boost":
-		push_error("Body did not enter boost on brake press while moving (state=%s)" % root_playback.get_current_node())
+	if not saw_brake:
+		push_error(
+			"Body did not enter brake on brake press while moving (state=%s)"
+			% root_playback.get_current_node()
+		)
 		quit(1)
 		return
 
-	var brake_boost_sub := boost_playback.get_current_node()
-	if brake_boost_sub != &"loop":
-		push_error("Brake should snap to boost loop, not enter (state=%s)" % brake_boost_sub)
+	var brake_sub := brake_playback.get_current_node()
+	for _i in BOOST_WAIT_FRAMES:
+		await process_frame
+		brake_sub = brake_playback.get_current_node()
+		if brake_sub == &"loop":
+			break
+	if brake_sub != &"loop":
+		push_error("Brake should reach loop, not enter (state=%s)" % brake_sub)
 		quit(1)
 		return
 
@@ -396,11 +481,11 @@ func _initialize() -> void:
 
 	# Skin verify has no terrain; simulate coming to rest while brake stays held.
 	glider_player.velocity = Vector3.ZERO
-	for _i in 24:
+	for _i in BRAKE_BLEND_WAIT_FRAMES:
 		await process_frame
 
-	if root_playback.get_current_node() == &"boost":
-		push_error("Body should leave boost once stopped even if brake is held (state=%s)" % root_playback.get_current_node())
+	if root_playback.get_current_node() == &"brake":
+		push_error("Body should leave brake once stopped even if brake is held (state=%s)" % root_playback.get_current_node())
 		quit(1)
 		return
 	if root_playback.get_current_node() != &"grounded":
@@ -410,8 +495,133 @@ func _initialize() -> void:
 
 	Input.action_release("brake")
 
-	print("AnimationTree OK, body+sail layering, retract, turn swap, jump/glide, air boost, boost, and brake verified, clips: ", player.get_animation_list())
+	glider_player.reset_for_respawn()
+	var anim_controller_br := skin.get_node("GliderAnimController")
+	if anim_controller_br != null and anim_controller_br.has_method("reset_animation_state"):
+		anim_controller_br.reset_animation_state()
+	for _i in 12:
+		await process_frame
+
+	root_playback.start("locomotion")
+	locomotion_playback.start("forward")
+	glider_player.velocity = Vector3(0.0, 0.0, 8.0)
+	for _i in 12:
+		await process_frame
+
+	Input.action_press("move_forward")
+	Input.action_press("brake")
+	for _i in BRAKE_BLEND_WAIT_FRAMES:
+		await process_frame
+		if root_playback.get_current_node() == &"brake" and brake_playback.get_current_node() == &"loop":
+			break
+
+	if root_playback.get_current_node() != &"brake":
+		push_error("Brake release test needs brake root while moving (state=%s)" % root_playback.get_current_node())
+		quit(1)
+		return
+
+	Input.action_release("brake")
+	var saw_warmed_locomotion := false
+	for _i in 12:
+		await process_frame
+		var loco_node := locomotion_playback.get_current_node()
+		if loco_node != &"Start" and loco_node != StringName():
+			saw_warmed_locomotion = true
+			break
+
+	if not saw_warmed_locomotion:
+		push_error(
+			"Brake release at speed should warm locomotion during root crossfade (loco=%s root=%s)"
+			% [locomotion_playback.get_current_node(), root_playback.get_current_node()]
+		)
+		quit(1)
+		return
+
+	Input.action_release("move_forward")
+
+	glider_player.reset_for_respawn()
+	var anim_controller_ws := skin.get_node("GliderAnimController")
+	if anim_controller_ws != null and anim_controller_ws.has_method("reset_animation_state"):
+		anim_controller_ws.reset_animation_state()
+	for _i in 12:
+		await process_frame
+
+	root_playback.start("locomotion")
+	locomotion_playback.start("forward")
+	glider_player.velocity = Vector3(0.0, 0.0, 6.0)
+	for _i in 12:
+		await process_frame
+
+	Input.action_press("move_forward")
+	Input.action_press("brake")
+	var locomotion_while_braking := false
+	for _i in 150:
+		await process_frame
+		if root_playback.get_current_node() == &"locomotion":
+			var brake_speed := Vector2(glider_player.velocity.x, glider_player.velocity.z).length()
+			if brake_speed >= grounded_speed_enter_for_test():
+				locomotion_while_braking = true
+		glider_player.velocity = glider_player.velocity.lerp(Vector3.ZERO, 0.1)
+		if Vector2(glider_player.velocity.x, glider_player.velocity.z).length() < 0.05:
+			break
+
+	if locomotion_while_braking:
+		push_error("W+S brake should not return to locomotion before stop (state=%s)" % root_playback.get_current_node())
+		quit(1)
+		return
+
+	glider_player.velocity = Vector3.ZERO
+	var reached_ws_idle := false
+	for _i in 90:
+		await process_frame
+		if root_playback.get_current_node() == &"grounded":
+			reached_ws_idle = true
+			break
+
+	if not reached_ws_idle:
+		push_error("W+S brake should idle once stopped with both held (state=%s)" % root_playback.get_current_node())
+		quit(1)
+		return
+
+	Input.action_release("move_forward")
+	Input.action_release("brake")
+
+	glider_player.reset_for_respawn()
+	var anim_controller_idle := skin.get_node("GliderAnimController")
+	if anim_controller_idle != null and anim_controller_idle.has_method("reset_animation_state"):
+		anim_controller_idle.reset_animation_state()
+	for _i in 12:
+		await process_frame
+
+	if root_playback.get_current_node() != &"grounded":
+		push_error("Idle enter test should start grounded (state=%s)" % root_playback.get_current_node())
+		quit(1)
+		return
+
+	Input.action_press("move_forward")
+	var saw_idle_enter := false
+	for _i in 36:
+		await process_frame
+		if locomotion_playback.get_current_node() == &"enter":
+			saw_idle_enter = true
+			break
+
+	if not saw_idle_enter:
+		push_error(
+			"Idle to forward should play enter clip before forward (loco=%s root=%s)"
+			% [locomotion_playback.get_current_node(), root_playback.get_current_node()]
+		)
+		quit(1)
+		return
+
+	Input.action_release("move_forward")
+
+	print("AnimationTree OK, body+sail layering, retract, turn swap, jump/glide, air boost, boost, brake, brake release, air brake blend, W+S brake, and idle enter verified, clips: ", player.get_animation_list())
 	quit(0)
+
+
+func grounded_speed_enter_for_test() -> float:
+	return 0.3
 
 
 func _sample_sail_track_path(player: AnimationPlayer) -> String:

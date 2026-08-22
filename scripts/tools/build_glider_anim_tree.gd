@@ -12,7 +12,8 @@ func _initialize() -> void:
 	var ease := _make_ease_in_out_curve()
 	var locomotion := _build_locomotion_state_machine(ease)
 	var boost := _build_boost_state_machine(ease)
-	var body := _build_body_state_machine(locomotion, boost, ease)
+	var brake := _build_brake_state_machine(ease)
+	var body := _build_body_state_machine(locomotion, boost, brake, ease)
 	var sail := _build_sail_state_machine(ease)
 	var root := _build_root_blend_tree(body, sail)
 
@@ -45,19 +46,21 @@ func _build_root_blend_tree(
 func _build_body_state_machine(
 	locomotion: AnimationNodeStateMachine,
 	boost: AnimationNodeStateMachine,
+	brake: AnimationNodeStateMachine,
 	ease: Curve
 ) -> AnimationNodeStateMachine:
 	var sm := AnimationNodeStateMachine.new()
 	sm.add_node("grounded", _make_clip("Eve_Idle"), Vector2(0, 0))
 	sm.add_node("locomotion", locomotion, Vector2(280, 0))
-	sm.add_node("jump", _make_timescaled_clip("Eve_Jump"), Vector2(560, -160))
+	sm.add_node("jump", _make_timescaled_one_shot_clip("Eve_Jump"), Vector2(560, -160))
 	sm.add_node("glide", _make_loop_clip("Eve_Glide"), Vector2(840, -160))
 	sm.add_node("boost", boost, Vector2(560, 0))
+	sm.add_node("brake", brake, Vector2(560, 120))
 	sm.add_node("landing", _make_clip("Eve_Land"), Vector2(1120, -160))
 	sm.add_node("death", _make_clip("Eve_Idle"), Vector2(1400, 0))
 
 	var body_states := [
-		"grounded", "locomotion", "jump", "glide", "boost", "landing", "death",
+		"grounded", "locomotion", "jump", "glide", "boost", "brake", "landing", "death",
 	]
 	for from_state in body_states:
 		for to_state in body_states:
@@ -71,7 +74,8 @@ func _build_body_state_machine(
 			sm.add_transition(from_state, to_state, _make_transition(xfade, ease))
 
 	sm.add_transition("jump", "glide", _make_auto_end_transition(AIR_XFADE, ease))
-	sm.add_transition("landing", "locomotion", _make_auto_end_transition(AIR_XFADE, ease))
+	# Controller owns landing exit; do not auto-advance into locomotion.
+	sm.add_transition("landing", "locomotion", _make_transition(JUMP_ENTER_XFADE, ease))
 
 	var start := _make_transition(XFADE_START, ease)
 	sm.add_transition("Start", "grounded", start)
@@ -84,9 +88,9 @@ func _uses_air_xfade(from_state: String, to_state: String) -> bool:
 
 
 func _body_transition_xfade(from_state: String, to_state: String) -> float:
-	if to_state == "jump" and from_state in ["grounded", "locomotion", "boost"]:
+	if to_state == "jump" and from_state in ["grounded", "locomotion", "boost", "brake"]:
 		return JUMP_ENTER_XFADE
-	if to_state == "locomotion" and from_state == "landing":
+	if to_state == "locomotion" and from_state in ["grounded", "landing"]:
 		return JUMP_ENTER_XFADE
 	if _uses_air_xfade(from_state, to_state):
 		return AIR_XFADE
@@ -123,17 +127,39 @@ func _build_sail_state_machine(ease: Curve) -> AnimationNodeStateMachine:
 
 func _build_locomotion_state_machine(ease: Curve) -> AnimationNodeStateMachine:
 	var sm := AnimationNodeStateMachine.new()
+	sm.add_node("enter", _make_clip("Eve_Idle_To_Forward"), Vector2(-280, 0))
 	sm.add_node("forward", _make_timescaled_clip("Eve_Forward"), Vector2(0, 0))
 	sm.add_node("turn_left", _make_clip("Eve_Turn_Left"), Vector2(280, -120))
 	sm.add_node("turn_right", _make_clip("Eve_Turn_Right"), Vector2(280, 120))
 
-	sm.add_transition("Start", "forward", _make_transition(XFADE_START, ease))
+	sm.add_transition("Start", "enter", _make_transition(XFADE_START, ease))
+	sm.add_transition("enter", "forward", _make_auto_end_transition(AIR_XFADE, ease))
 	sm.add_transition("forward", "turn_left", _make_transition(XFADE, ease))
 	sm.add_transition("turn_left", "forward", _make_transition(XFADE, ease))
 	sm.add_transition("forward", "turn_right", _make_transition(XFADE, ease))
 	sm.add_transition("turn_right", "forward", _make_transition(XFADE, ease))
 	sm.add_transition("turn_left", "turn_right", _make_transition(XFADE, ease))
 	sm.add_transition("turn_right", "turn_left", _make_transition(XFADE, ease))
+	return sm
+
+
+func _build_brake_state_machine(ease: Curve) -> AnimationNodeStateMachine:
+	# Swap enter clip to Eve_Forward_To_Brake when that art lands in the GLB.
+	var sm := AnimationNodeStateMachine.new()
+	sm.add_node("enter", _make_clip("Eve_Forward"), Vector2(0, 0))
+	sm.add_node("loop", _make_timescaled_loop_clip("Eve_Boost"), Vector2(280, 0))
+
+	sm.add_transition("Start", "enter", _make_transition(XFADE_START, ease))
+	sm.add_transition("enter", "loop", _make_auto_end_transition(AIR_XFADE, ease))
+
+	for from_state in ["enter", "loop"]:
+		for to_state in ["enter", "loop"]:
+			if from_state == to_state:
+				continue
+			if from_state == "enter" and to_state == "loop":
+				continue
+			sm.add_transition(from_state, to_state, _make_transition(AIR_XFADE, ease))
+
 	return sm
 
 
@@ -159,6 +185,23 @@ func _build_boost_state_machine(ease: Curve) -> AnimationNodeStateMachine:
 func _make_timescaled_loop_clip(clip_name: String) -> AnimationNodeBlendTree:
 	var tree := AnimationNodeBlendTree.new()
 	var clip := _make_loop_clip(clip_name)
+	var time_scale := AnimationNodeTimeScale.new()
+	tree.add_node("clip", clip, Vector2(0, 100))
+	tree.add_node("time_scale", time_scale, Vector2(240, 100))
+	tree.connect_node(&"time_scale", 0, &"clip")
+	tree.connect_node(&"output", 0, &"time_scale")
+	return tree
+
+
+func _make_one_shot_clip(name: String) -> AnimationNodeAnimation:
+	var node := _make_clip(name)
+	node.loop_mode = Animation.LOOP_NONE
+	return node
+
+
+func _make_timescaled_one_shot_clip(clip_name: String) -> AnimationNodeBlendTree:
+	var tree := AnimationNodeBlendTree.new()
+	var clip := _make_one_shot_clip(clip_name)
 	var time_scale := AnimationNodeTimeScale.new()
 	tree.add_node("clip", clip, Vector2(0, 100))
 	tree.add_node("time_scale", time_scale, Vector2(240, 100))

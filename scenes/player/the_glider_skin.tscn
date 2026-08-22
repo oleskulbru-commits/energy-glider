@@ -2,7 +2,7 @@
 
 [ext_resource type="PackedScene" uid="uid://btugy7urkguc1" path="res://assets/3dmodels/player_models/Glider/The_Glider_Animated_Skin.glb" id="1_kvey2"]
 [ext_resource type="Script" uid="uid://dkdrw05t4sw8n" path="res://scripts/player/glider_anim_controller.gd" id="2_anim"]
-[ext_resource type="AnimationNodeBlendTree" uid="uid://0dfgp5danydu" path="res://resources/anims/glider_anim_state_machine.tres" id="3_state_machine"]
+[ext_resource type="AnimationNodeBlendTree" uid="uid://p7mefe6m8bbl" path="res://resources/anims/glider_anim_state_machine.tres" id="3_state_machine"]
 [ext_resource type="Script" uid="uid://di0wixewh5h62" path="res://scripts/player/sail_anim_controller.gd" id="4_sail_anim"]
 
 [node name="GliderSkin" type="Node3D" unique_id=1976380139]
@@ -18,7 +18,7 @@ update_rotation = false
 update_scale = false
 
 [node name="SailPivot" parent="Model/GliderRoot" parent_id_path=PackedInt32Array(678267291, 82523037) index="2" unique_id=1845391848]
-transform = Transform3D(0.99998933, 0, 0, 0, 0.99998605, 0, 0, 0, 0.9999885, 0.0066010416, 0.0830713, 0.7217533)
+transform = Transform3D(0.99998754, 0, 0, 0, 0.99998295, 0, 0, 0, 0.99998707, 0.0066010416, 0.0830713, 0.7217533)
 
 [node name="BattensBottom" parent="Model/GliderRoot/SailPivot/MastBase" parent_id_path=PackedInt32Array(678267291, 705383593) index="0" unique_id=1779668393]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.13578466, 0.4300244, 0.0010060817)
@@ -58,6 +58,7 @@ root_node = NodePath("../Model")
 tree_root = ExtResource("3_state_machine")
 anim_player = NodePath("../Model/AnimationPlayer")
 parameters/body/boost/loop/time_scale/scale = 1.0
+parameters/body/brake/loop/time_scale/scale = 1.0
 parameters/body/jump/time_scale/scale = 0.625
 parameters/body/locomotion/forward/time_scale/scale = 1.0
 parameters/sail/deploy_forward/seek/seek_request = -1.0
