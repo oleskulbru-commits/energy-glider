@@ -1306,6 +1306,7 @@ func _verify_jump_to_glide_repair() -> void:
 	var anim_controller: GliderAnimControllerScript = skin.get_node("GliderAnimController") as GliderAnimControllerScript
 	var tree: AnimationTree = skin.get_node("AnimationTree") as AnimationTree
 	var root_playback := tree.get("parameters/body/playback") as AnimationNodeStateMachinePlayback
+	var anim_player := tree.get_node(tree.anim_player) as AnimationPlayer
 
 	_fail_unless(glider.is_grounded(), "Jump-to-glide repair test needs grounded start")
 
@@ -1339,12 +1340,40 @@ func _verify_jump_to_glide_repair() -> void:
 		% root_playback.get_current_node()
 	)
 
+	var jump_time_scale: float = tree.get("parameters/body/jump/time_scale/scale")
+	var jump_duration := 0.0
+	if anim_player != null and anim_player.has_animation("Eve_Jump") and jump_time_scale > 0.0:
+		jump_duration = anim_player.get_animation("Eve_Jump").length / jump_time_scale
+	_fail_unless(jump_duration > 0.0, "Jump-to-glide repair test needs Eve_Jump duration")
+
+	# Simulate missed handoff: controller considers jump finished and wants glide,
+	# but playback is still on jump with no active root blend.
+	_fail_unless(
+		root_playback.get_current_node() == &"jump",
+		"Jump-to-glide repair desync setup needs playback on jump (root=%s)"
+		% root_playback.get_current_node()
+	)
+	anim_controller.set("_jump_elapsed", jump_duration)
 	anim_controller.set("_root_state", &"glide")
 	anim_controller.set("_root_blend_time", 0.0)
 	anim_controller.set("_root_blend_target", &"")
 
-	var recovered := false
-	for i in 90:
+	await physics_frame
+
+	_fail_unless(
+		anim_controller.get("_root_state") == &"glide",
+		"Jump-to-glide repair should keep root_state glide (got %s)"
+		% anim_controller.get("_root_state")
+	)
+	_fail_unless(
+		float(anim_controller.get("_jump_elapsed")) > 0.0,
+		"Jump-to-glide repair should not restart jump via glide→jump state change"
+	)
+
+	var recovered := root_playback.get_current_node() == &"glide"
+	for i in 89:
+		if recovered:
+			break
 		await physics_frame
 		if not glider.is_gliding():
 			continue
