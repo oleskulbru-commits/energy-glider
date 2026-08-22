@@ -11,6 +11,7 @@ var attack_speed_reduction := 0.0
 var damage_bonus := 0.0
 var projectile_speed_bonus := 0.0
 var glider_speed_bonus := 0.0
+var glide_bonus := 0.0
 var health_regen_per_sec := 0.0
 var max_health_bonus := 0
 var luck_bonus := 0
@@ -77,6 +78,7 @@ func reset_run() -> void:
 	damage_bonus = 0.0
 	projectile_speed_bonus = 0.0
 	glider_speed_bonus = 0.0
+	glide_bonus = 0.0
 	health_regen_per_sec = 0.0
 	max_health_bonus = 0
 	luck_bonus = 0
@@ -237,6 +239,8 @@ func _apply_upgrade(id: StringName, weapon_family: StringName = &"") -> void:
 			projectile_speed_bonus += amount
 	elif family == UpgradeCatalog.FAMILY_GLIDER_SPEED:
 		glider_speed_bonus += UpgradeCatalog.glider_speed_percent(UpgradeCatalog.rarity_of(id))
+	elif family == UpgradeCatalog.FAMILY_GLIDE:
+		glide_bonus += UpgradeCatalog.glide_percent(UpgradeCatalog.rarity_of(id))
 	elif family == UpgradeCatalog.FAMILY_HP_REGEN:
 		health_regen_per_sec += UpgradeCatalog.hp_regen_per_sec(UpgradeCatalog.rarity_of(id))
 	elif family == UpgradeCatalog.FAMILY_HEALTH:

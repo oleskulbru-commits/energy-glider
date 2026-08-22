@@ -9,6 +9,7 @@ const FAMILY_ATTACK_SPEED := &"attack_speed"
 const FAMILY_DAMAGE := &"damage"
 const FAMILY_PROJECTILE_SPEED := &"projectile_speed"
 const FAMILY_GLIDER_SPEED := &"glider_speed"
+const FAMILY_GLIDE := &"glide"
 const FAMILY_HP_REGEN := &"hp_regen"
 const FAMILY_HEALTH := &"health"
 const FAMILY_LUCK := &"luck"
@@ -72,6 +73,13 @@ const GLIDER_SPEED_UNCOMMON := 0.10
 const GLIDER_SPEED_RARE := 0.12
 const GLIDER_SPEED_EPIC := 0.16
 const GLIDER_SPEED_LEGENDARY := 0.22
+
+const GLIDE_COMMON := 0.08
+const GLIDE_UNCOMMON := 0.11
+const GLIDE_RARE := 0.15
+const GLIDE_EPIC := 0.20
+const GLIDE_LEGENDARY := 0.25
+const GLIDE_CAP := 0.50
 
 const HP_REGEN_PERIOD_SEC := 3.0
 const HP_REGEN_COMMON := 0.5
@@ -308,6 +316,8 @@ static func family_of(id: StringName) -> StringName:
 		return FAMILY_PROJECTILE_SPEED
 	if text.begins_with("glider_speed_"):
 		return FAMILY_GLIDER_SPEED
+	if text.begins_with("glide_"):
+		return FAMILY_GLIDE
 	if text.begins_with("momentum_retention_"):
 		return FAMILY_MOMENTUM_RETENTION
 	if text.begins_with("hp_regen_"):
@@ -407,6 +417,20 @@ static func glider_speed_percent(rarity: StringName) -> float:
 			return GLIDER_SPEED_LEGENDARY
 		_:
 			return GLIDER_SPEED_COMMON
+
+
+static func glide_percent(rarity: StringName) -> float:
+	match rarity:
+		RARITY_UNCOMMON:
+			return GLIDE_UNCOMMON
+		RARITY_RARE:
+			return GLIDE_RARE
+		RARITY_EPIC:
+			return GLIDE_EPIC
+		RARITY_LEGENDARY:
+			return GLIDE_LEGENDARY
+		_:
+			return GLIDE_COMMON
 
 
 static func hp_regen_per_period(rarity: StringName) -> float:
@@ -569,6 +593,9 @@ static func display_name(id: StringName) -> String:
 	if family == FAMILY_GLIDER_SPEED:
 		var pct := int(round(glider_speed_percent(rarity_of(id)) * 100.0))
 		return "Glider Speed +%d%%" % pct
+	if family == FAMILY_GLIDE:
+		var pct := int(round(glide_percent(rarity_of(id)) * 100.0))
+		return "Glide +%d%%" % pct
 	if family == FAMILY_HP_REGEN:
 		return "HP Regen +%s" % hp_regen_period_text(hp_regen_per_period(rarity_of(id)))
 	if family == FAMILY_HEALTH:
@@ -652,6 +679,7 @@ static func eligible_shop_families(has_rifle: bool, has_laser: bool) -> Array[St
 		FAMILY_ATTACK_SPEED,
 		FAMILY_DAMAGE,
 		FAMILY_GLIDER_SPEED,
+		FAMILY_GLIDE,
 		FAMILY_HP_REGEN,
 		FAMILY_HEALTH,
 		FAMILY_LUCK,

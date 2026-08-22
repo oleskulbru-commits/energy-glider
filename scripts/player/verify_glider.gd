@@ -104,6 +104,7 @@ func _run_tests() -> void:
 	_verify_ground_boost_accel_rate()
 	_verify_glider_speed_caps()
 	_verify_momentum_retention()
+	_verify_glide_upgrade_gravity()
 	await _verify_hover_rest()
 	await _verify_hover_settle_from_high()
 	await _verify_terrain_probes_math()
@@ -944,6 +945,34 @@ func _verify_cruise_momentum_crest() -> void:
 	_release_forward()
 	glider.queue_free()
 	terrain.queue_free()
+
+
+func _verify_glide_upgrade_gravity() -> void:
+	var ctx := GliderPhysicsScript.Context.new()
+	ctx.air_gravity_scale = 1.0
+	var base := GliderPhysicsScript.air_gravity_force(ctx, 90.0)
+	_fail_unless(
+		is_equal_approx(GliderPhysicsScript.air_gravity_mul(0.0), 1.0),
+		"Zero Glide should keep full air gravity"
+	)
+	ctx.glide_bonus = 0.15
+	var reduced := GliderPhysicsScript.air_gravity_force(ctx, 90.0)
+	_fail_unless(
+		is_equal_approx(reduced.y, base.y * 0.85),
+		"15%% Glide should cut air gravity to 85%% (got %.1f want %.1f)" % [reduced.y, base.y * 0.85]
+	)
+	ctx.glide_bonus = 0.80
+	var capped := GliderPhysicsScript.air_gravity_force(ctx, 90.0)
+	_fail_unless(
+		is_equal_approx(capped.y, base.y * 0.50),
+		"Over-cap Glide should still leave 50%% air gravity (got %.1f want %.1f)" % [
+			capped.y, base.y * 0.50
+		]
+	)
+	ctx.velocity = Vector3(0.0, 0.0, 40.0)
+	ctx.glide_bonus = 0.50
+	var force := GliderPhysicsScript.compute_air_force(ctx, 90.0, 0.016)
+	_fail_unless(force.y < -1.0, "Capped Glide should still fall (got %.1f)" % force.y)
 
 
 func _verify_crest_air_gravity_ramp() -> void:

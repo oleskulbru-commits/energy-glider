@@ -61,6 +61,7 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _rifle_damage_label: Label = %RifleDamageLabel
 @onready var _rifle_projectile_speed_label: Label = %RifleProjectileSpeedLabel
 @onready var _glider_speed_label: Label = %GliderSpeedLabel
+@onready var _glide_label: Label = %GlideLabel
 @onready var _hp_regen_label: Label = %HpRegenLabel
 @onready var _health_label: Label = %HealthLabel
 @onready var _luck_label: Label = %LuckLabel
@@ -726,6 +727,7 @@ func _update_rifle_debug() -> void:
 	var bonus := 0.0
 	var speed_bonus := 0.0
 	var glider_bonus := 0.0
+	var glide_bonus := 0.0
 	var regen := 0.0
 	var health_bonus := 0
 	var luck := 0
@@ -740,6 +742,7 @@ func _update_rifle_debug() -> void:
 		bonus = state.hud_damage_bonus()
 		speed_bonus = state.hud_projectile_speed_bonus()
 		glider_bonus = state.glider_speed_bonus
+		glide_bonus = clampf(state.glide_bonus, 0.0, UpgradeCatalog.GLIDE_CAP)
 		regen = state.health_regen_per_sec
 		health_bonus = state.max_health_bonus
 		luck = state.luck_bonus
@@ -772,6 +775,11 @@ func _update_rifle_debug() -> void:
 		_glider_speed_label,
 		"Glider Speed %d%%" % int(roundf(glider_bonus * 100.0)),
 		glider_bonus > 0.0
+	) or any
+	any = _show_upgrade_line(
+		_glide_label,
+		"Glide %d%%" % int(roundf(glide_bonus * 100.0)),
+		glide_bonus > 0.0
 	) or any
 	any = _show_upgrade_line(
 		_hp_regen_label,

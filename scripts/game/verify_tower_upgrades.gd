@@ -22,6 +22,7 @@ func _run() -> void:
 	_verify_damage_stacking()
 	_verify_projectile_speed_stacking()
 	_verify_glider_speed_stacking()
+	_verify_glide_stacking()
 	_verify_hp_regen_stacking()
 	_verify_luck_stacking()
 	_verify_luck_weights()
@@ -81,6 +82,15 @@ func _verify_catalog() -> void:
 		and is_equal_approx(UpgradeCatalogScript.GLIDER_SPEED_EPIC, 0.16)
 		and is_equal_approx(UpgradeCatalogScript.GLIDER_SPEED_LEGENDARY, 0.22),
 		"Glider Speed percents should be 8 / 10 / 12 / 16 / 22"
+	)
+	_fail_unless(
+		is_equal_approx(UpgradeCatalogScript.GLIDE_COMMON, 0.08)
+		and is_equal_approx(UpgradeCatalogScript.GLIDE_UNCOMMON, 0.11)
+		and is_equal_approx(UpgradeCatalogScript.GLIDE_RARE, 0.15)
+		and is_equal_approx(UpgradeCatalogScript.GLIDE_EPIC, 0.20)
+		and is_equal_approx(UpgradeCatalogScript.GLIDE_LEGENDARY, 0.25)
+		and is_equal_approx(UpgradeCatalogScript.GLIDE_CAP, 0.50),
+		"Glide percents should be 8 / 11 / 15 / 20 / 25 with a 50% cap"
 	)
 	_fail_unless(
 		is_equal_approx(UpgradeCatalogScript.HP_REGEN_PERIOD_SEC, 3.0)
@@ -246,6 +256,45 @@ func _verify_catalog() -> void:
 	_fail_unless(
 		UpgradeCatalogScript.family_of(rare_gs) == UpgradeCatalogScript.FAMILY_GLIDER_SPEED,
 		"glider_speed_rare should parse as the glider_speed family"
+	)
+	var rare_glide := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_GLIDE,
+		UpgradeCatalogScript.RARITY_RARE
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(rare_glide) == "Glide +15%",
+		"Glide rare should show +15%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.family_of(rare_glide) == UpgradeCatalogScript.FAMILY_GLIDE,
+		"glide_rare should parse as the glide family"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_GLIDE,
+				UpgradeCatalogScript.RARITY_COMMON
+			)
+		) == "Glide +8%",
+		"Glide common should show +8%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_GLIDE,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) == "Glide +11%",
+		"Glide uncommon should show +11%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_GLIDE,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) == "Glide +25%",
+		"Glide legendary should show +25%"
 	)
 	var rare_regen := UpgradeCatalogScript.make_id(
 		UpgradeCatalogScript.FAMILY_HP_REGEN,
@@ -889,6 +938,46 @@ func _verify_catalog() -> void:
 		) != null,
 		"Legendary Glider Speed should use glider_speed_legendary.jpg"
 	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_GLIDE,
+				UpgradeCatalogScript.RARITY_COMMON
+			)
+		) != null,
+		"Common Glide should use glide_common.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_GLIDE,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) != null,
+		"Uncommon Glide should use glide_uncommon.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(rare_glide) != null,
+		"Rare Glide should use glide_rare.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_GLIDE,
+				UpgradeCatalogScript.RARITY_EPIC
+			)
+		) != null,
+		"Epic Glide should use glide_epic.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_GLIDE,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) != null,
+		"Legendary Glide should use glide_legendary.jpg"
+	)
 	var common_ps := UpgradeCatalogScript.make_id(
 		UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED,
 		UpgradeCatalogScript.RARITY_COMMON
@@ -1158,6 +1247,10 @@ func _verify_offers_and_visit_lock() -> void:
 	_fail_unless(
 		is_equal_approx(state.glider_speed_bonus, 0.0),
 		"Try Again should clear Glider Speed"
+	)
+	_fail_unless(
+		is_equal_approx(state.glide_bonus, 0.0),
+		"Try Again should clear Glide"
 	)
 	_fail_unless(
 		is_equal_approx(state.health_regen_per_sec, 0.0),
@@ -1465,6 +1558,51 @@ func _verify_glider_speed_stacking() -> void:
 	_fail_unless(
 		is_equal_approx(state.glider_speed_bonus, 0.0),
 		"Try Again should clear Glider Speed"
+	)
+	state.free()
+
+
+func _verify_glide_stacking() -> void:
+	var state: RunUpgradeState = RunUpgradeStateScript.new()
+	root.add_child(state)
+	var common_glide := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_GLIDE,
+			UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	var rare_glide := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_GLIDE,
+			UpgradeCatalogScript.RARITY_RARE
+		)
+	)
+	var leftover := String(UpgradeCatalogScript.ID_EXTRA_PROJECTILE)
+	_seed_offers(
+		state,
+		21,
+		PackedStringArray([common_glide, rare_glide, leftover, leftover, leftover])
+	)
+	state.pick_offer(21, 0)
+	state.pick_offer(21, 1)
+	_fail_unless(
+		is_equal_approx(state.glide_bonus, 0.23),
+		"Common + rare Glide should sum to 23%"
+	)
+	_fail_unless(
+		is_equal_approx(GliderPhysicsScript.air_gravity_mul(state.glide_bonus), 0.77),
+		"23% Glide should cut air gravity to 77%"
+	)
+	_fail_unless(state.remaining_count(21) == 3, "Leftover cards should stay in the shop")
+	_fail_unless(state.extra_projectiles == 0, "Glide picks should not add projectiles")
+	_fail_unless(
+		is_equal_approx(GliderPhysicsScript.air_gravity_mul(0.80), 0.50),
+		"Glide over the cap should still leave half air gravity"
+	)
+	state.reset_run()
+	_fail_unless(
+		is_equal_approx(state.glide_bonus, 0.0),
+		"Try Again should clear Glide"
 	)
 	state.free()
 
@@ -1964,6 +2102,11 @@ func _verify_weapon_cards() -> void:
 	_fail_unless(
 		UpgradeCatalogScript.icon_for(UpgradeCatalogScript.ID_UNLOCK_LASER) != null,
 		"Unlock laser should use the common laser icon"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.FAMILY_GLIDE
+		in UpgradeCatalogScript.eligible_shop_families(false, false),
+		"Glide should roll without owning a weapon"
 	)
 	var rifle_n := UpgradeCatalogScript.eligible_shop_families(true, false).size()
 	var laser_n := UpgradeCatalogScript.eligible_shop_families(false, true).size()

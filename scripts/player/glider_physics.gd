@@ -166,6 +166,7 @@ class Context:
 	var air_thruster_accel: float = 0.0
 	var speed_bonus: float = 0.0
 	var momentum_retention: float = 0.0
+	var glide_bonus: float = 0.0
 
 
 static func horizontal_velocity(velocity: Vector3) -> Vector3:
@@ -495,9 +496,13 @@ static func compute_corner_hover_forces(
 	return results
 
 
+static func air_gravity_mul(bonus: float) -> float:
+	return 1.0 - clampf(bonus, 0.0, UpgradeCatalog.GLIDE_CAP)
+
+
 static func air_gravity_force(ctx: Context, mass: float) -> Vector3:
 	var gravity_scale := clampf(ctx.air_gravity_scale, 0.0, 1.0)
-	return Vector3.DOWN * AIR_GRAVITY * gravity_scale * mass
+	return Vector3.DOWN * AIR_GRAVITY * gravity_scale * air_gravity_mul(ctx.glide_bonus) * mass
 
 
 static func compute_air_force(ctx: Context, mass: float, _delta: float) -> Vector3:
@@ -522,8 +527,8 @@ static func compute_air_force(ctx: Context, mass: float, _delta: float) -> Vecto
 	if forward_speed <= 0.1:
 		return force
 
-	## Soft cushion only — not powered glide lift.
-	var lift := minf(forward_speed * 0.45, AIR_GRAVITY * 0.5)
+	## Soft cushion only — not powered glide lift. Scale with glide so stacks still fall.
+	var lift := minf(forward_speed * 0.45, AIR_GRAVITY * 0.5) * air_gravity_mul(ctx.glide_bonus)
 	force += Vector3.UP * lift * mass
 
 	var brake := clampf(ctx.brake_strength, 0.0, 1.0)
