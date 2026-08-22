@@ -49,8 +49,6 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _day_label: Label = %DayLabel
 @onready var _compass_bar: CompassBar = %CompassBar
 @onready var _stopped_summary: Label = %StoppedSummary
-@onready var _day_summary_panel: PanelContainer = %DaySummaryPanel
-@onready var _day_summary_label: Label = %DaySummaryLabel
 @onready var _night_warning_panel: PanelContainer = %NightWarningPanel
 @onready var _night_warning_label: Label = %NightWarningLabel
 @onready var _safe_chip: PanelContainer = %SafeChip
@@ -89,7 +87,6 @@ var _battery_fill: StyleBoxFlat
 var _solar_pulse_time := 0.0
 var _interact_tap_down := false
 var _pulse_scan_timer := 0.0
-var _day_summary_timer := 0.0
 var _night_warning_timer := 0.0
 var _safe_pulse_time := 0.0
 var _fail_fade_tween: Tween
@@ -119,7 +116,6 @@ func _ready() -> void:
 	_night_survival = get_tree().get_first_node_in_group("night_survival") as NightSurvival
 	if _expedition != null:
 		_expedition.day_started.connect(_on_day_started)
-		_expedition.day_ended.connect(_on_day_ended)
 	if _director != null:
 		_director.integrity_changed.connect(_on_integrity_changed)
 		_director.objective_changed.connect(_on_objective_changed)
@@ -247,7 +243,6 @@ func _process(delta: float) -> void:
 	_update_pulse_chip(delta)
 	_update_compass()
 	_update_outpost_board()
-	_update_day_summary(delta)
 	_update_night_warning(delta)
 	_update_safe_chip(delta)
 	_update_integrity_bar()
@@ -461,30 +456,6 @@ func _on_day_started(day: int) -> void:
 	if _day_label != null:
 		_day_label.text = "DAY %d" % day
 		_day_label.visible = true
-
-
-func _on_day_ended(summary: Dictionary) -> void:
-	if _day_summary_panel == null or _day_summary_label == null:
-		return
-	var distance_m := float(summary.get("distance_m", 0.0))
-	var score := int(summary.get("score", 0))
-	_day_summary_label.text = "DAY %d COMPLETE\n%s  +%d pts" % [
-		int(summary.get("day", 1)),
-		MathUtil.format_distance_m(distance_m),
-		score,
-	]
-	_day_summary_panel.visible = true
-	_day_summary_timer = 3.5
-
-
-func _update_day_summary(delta: float) -> void:
-	if _day_summary_timer <= 0.0:
-		if _day_summary_panel != null:
-			_day_summary_panel.visible = false
-		return
-	_day_summary_timer = maxf(_day_summary_timer - delta, 0.0)
-	if _day_summary_timer <= 0.0 and _day_summary_panel != null:
-		_day_summary_panel.visible = false
 
 
 func _on_night_warning() -> void:

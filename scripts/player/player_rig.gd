@@ -3,6 +3,8 @@ extends Node3D
 
 ## East of home tower so the tower sits behind when facing west (−X).
 const SPAWN_EAST_OFFSET_M := 40.0
+## West of a visited tower so Wait until dawn continues the run, not behind it.
+const SPAWN_WEST_OFFSET_M := 40.0
 const SPAWN_YAW_WEST := -PI / 2.0
 
 @export var terrain_manager_path: NodePath
@@ -221,7 +223,7 @@ func teleport_in_front_of(tower_pos: Vector3) -> void:
 
 
 static func in_front_xz(tower_pos: Vector3) -> Vector2:
-	return Vector2(tower_pos.x + SPAWN_EAST_OFFSET_M, tower_pos.z)
+	return Vector2(tower_pos.x - SPAWN_WEST_OFFSET_M, tower_pos.z)
 
 
 func _capture_mouse() -> void:

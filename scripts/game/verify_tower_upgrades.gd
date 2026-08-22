@@ -2232,8 +2232,8 @@ func _verify_dawn_pose() -> void:
 	var tower_pos := Vector3(-1000.0, 12.0, 8.0)
 	var xz: Vector2 = PlayerRigScript.in_front_xz(tower_pos)
 	_fail_unless(
-		is_equal_approx(xz.x, tower_pos.x + PlayerRigScript.SPAWN_EAST_OFFSET_M),
-		"Wait until dawn should spawn east of the tower, not at home"
+		is_equal_approx(xz.x, tower_pos.x - PlayerRigScript.SPAWN_WEST_OFFSET_M),
+		"Wait until dawn should spawn west of the tower, not behind it"
 	)
 	_fail_unless(is_equal_approx(xz.y, tower_pos.z), "Wait until dawn should keep the tower Z")
 	_fail_unless(not is_equal_approx(xz.x, 40.0) or not is_equal_approx(tower_pos.x, 0.0), "Pose must be relative to this tower")
