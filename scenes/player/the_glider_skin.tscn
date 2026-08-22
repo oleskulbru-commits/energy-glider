@@ -2,7 +2,7 @@
 
 [ext_resource type="PackedScene" uid="uid://btugy7urkguc1" path="res://assets/3dmodels/player_models/Glider/The_Glider_Animated_Skin.glb" id="1_kvey2"]
 [ext_resource type="Script" uid="uid://dkdrw05t4sw8n" path="res://scripts/player/glider_anim_controller.gd" id="2_anim"]
-[ext_resource type="AnimationNodeBlendTree" uid="uid://p7mefe6m8bbl" path="res://resources/anims/glider_anim_state_machine.tres" id="3_state_machine"]
+[ext_resource type="AnimationNodeBlendTree" uid="uid://dq3o5njm4cjei" path="res://resources/anims/glider_anim_state_machine.tres" id="3_state_machine"]
 [ext_resource type="Script" uid="uid://di0wixewh5h62" path="res://scripts/player/sail_anim_controller.gd" id="4_sail_anim"]
 
 [node name="GliderSkin" type="Node3D" unique_id=1976380139]
@@ -61,10 +61,12 @@ parameters/body/boost/loop/time_scale/scale = 1.0
 parameters/body/brake/loop/time_scale/scale = 1.0
 parameters/body/jump/time_scale/scale = 0.625
 parameters/body/locomotion/forward/time_scale/scale = 1.0
-parameters/sail/deploy_forward/seek/seek_request = -1.0
+parameters/sail/deploy_forward/seek/seek_request = 0.0
 parameters/sail/deploy_forward/time_scale/scale = 1.0
 parameters/sail/deploy_reverse/seek/seek_request = -1.0
 parameters/sail/deploy_reverse/time_scale/scale = -1.0
+parameters/sail/sail_down/seek/seek_request = -1.0
+parameters/sail/sail_down/time_scale/scale = 1.0
 parameters/blend/blend_amount = 1.0
 
 [node name="GliderAnimController" type="Node" parent="." unique_id=1801887011]

@@ -66,16 +66,8 @@ func _build_body_state_machine(
 		for to_state in body_states:
 			if from_state == to_state:
 				continue
-			if from_state == "jump" and to_state == "glide":
-				continue
-			if from_state == "landing" and to_state == "locomotion":
-				continue
 			var xfade := _body_transition_xfade(from_state, to_state)
 			sm.add_transition(from_state, to_state, _make_transition(xfade, ease))
-
-	sm.add_transition("jump", "glide", _make_auto_end_transition(AIR_XFADE, ease))
-	# Controller owns landing exit; do not auto-advance into locomotion.
-	sm.add_transition("landing", "locomotion", _make_transition(JUMP_ENTER_XFADE, ease))
 
 	var start := _make_transition(XFADE_START, ease)
 	sm.add_transition("Start", "grounded", start)
@@ -88,9 +80,11 @@ func _uses_air_xfade(from_state: String, to_state: String) -> bool:
 
 
 func _body_transition_xfade(from_state: String, to_state: String) -> float:
+	if from_state == "landing":
+		return XFADE
 	if to_state == "jump" and from_state in ["grounded", "locomotion", "boost", "brake"]:
 		return JUMP_ENTER_XFADE
-	if to_state == "locomotion" and from_state in ["grounded", "landing"]:
+	if to_state == "locomotion" and from_state == "grounded":
 		return JUMP_ENTER_XFADE
 	if _uses_air_xfade(from_state, to_state):
 		return AIR_XFADE
@@ -99,26 +93,19 @@ func _body_transition_xfade(from_state: String, to_state: String) -> float:
 
 func _build_sail_state_machine(ease: Curve) -> AnimationNodeStateMachine:
 	var sm := AnimationNodeStateMachine.new()
-	sm.add_node("sail_down", _make_clip("Sail_Down"), Vector2(0, 0))
+	# Stowed pose is Sail_Deploy t=0 (time_scale=0); avoids Sail_Down vs Sail_Deploy mismatch pops.
+	sm.add_node("sail_down", _make_seek_timescaled_clip("Sail_Deploy"), Vector2(0, 0))
 	sm.add_node("deploy_forward", _make_seek_timescaled_clip("Sail_Deploy"), Vector2(280, 0))
 	sm.add_node("sail_up", _make_loop_clip("Sail_Up"), Vector2(560, 0))
 	sm.add_node("deploy_reverse", _make_seek_timescaled_clip("Sail_Deploy"), Vector2(840, 0))
 
 	sm.add_transition("Start", "sail_down", _make_transition(XFADE_START, ease))
 
-	var to_up := _make_auto_end_transition(SAIL_XFADE, ease)
-	sm.add_transition("deploy_forward", "sail_up", to_up)
-
-	var to_down := _make_auto_end_transition(SAIL_XFADE, ease)
-	sm.add_transition("deploy_reverse", "sail_down", to_down)
+	# deploy_forward→sail_up and deploy_reverse→sail_down are driven via start() in SailAnimController.
 
 	for from_state in ["sail_down", "deploy_forward", "sail_up", "deploy_reverse"]:
 		for to_state in ["sail_down", "deploy_forward", "sail_up", "deploy_reverse"]:
 			if from_state == to_state:
-				continue
-			if from_state == "deploy_forward" and to_state == "sail_up":
-				continue
-			if from_state == "deploy_reverse" and to_state == "sail_down":
 				continue
 			sm.add_transition(from_state, to_state, _make_transition(SAIL_XFADE, ease))
 

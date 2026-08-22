@@ -128,6 +128,7 @@ func _run_tests() -> void:
 	await _verify_jump_preserves_forward_yaw()
 	await _verify_jump_to_glide_anim()
 	await _verify_landing_forward_anim()
+	await _verify_landing_turn_anim()
 	await _verify_idle_to_forward_enter()
 	await _verify_respawn_animation()
 	await _verify_cruise_drift_align()
@@ -1224,6 +1225,7 @@ func _verify_jump_to_glide_anim() -> void:
 	var skin: Node3D = glider.get_node("Visual/GliderSkin")
 	var tree: AnimationTree = skin.get_node("AnimationTree") as AnimationTree
 	var root_playback := tree.get("parameters/body/playback") as AnimationNodeStateMachinePlayback
+	var anim_player := tree.get_node(tree.anim_player) as AnimationPlayer
 
 	_fail_unless(glider.is_grounded(), "Jump-to-glide test needs grounded start")
 
@@ -1244,36 +1246,39 @@ func _verify_jump_to_glide_anim() -> void:
 	glider.set("_state", GliderPlayerScript.State.GLIDING)
 	await physics_frame
 
+	var jump_time_scale: float = tree.get("parameters/body/jump/time_scale/scale")
+	var jump_duration := 0.0
+	if anim_player != null and anim_player.has_animation("Eve_Jump") and jump_time_scale > 0.0:
+		jump_duration = anim_player.get_animation("Eve_Jump").length / jump_time_scale
+	var min_jump_frames := int(ceil(jump_duration * 0.9 / (1.0 / 60.0))) if jump_duration > 0.0 else 30
+	var max_wait_frames := int(ceil((jump_duration + 0.25) / (1.0 / 60.0))) + 30
+
 	var saw_jump := false
 	var saw_glide := false
-	var jump_near_finish := false
-	var max_jump_pos := 0.0
-	for i in 180:
+	var frames_in_jump := 0
+	for i in maxi(max_wait_frames, 180):
 		await physics_frame
 		if not glider.is_gliding():
 			continue
 		var root_node := root_playback.get_current_node()
 		if root_node == &"jump":
 			saw_jump = true
-			var jump_length := root_playback.get_current_length()
-			var jump_pos := root_playback.get_current_play_position()
-			max_jump_pos = maxf(max_jump_pos, jump_pos)
-			if jump_length > 0.05 and jump_pos >= jump_length * 0.9:
-				jump_near_finish = true
-			elif jump_pos >= 0.9:
-				jump_near_finish = true
+			frames_in_jump += 1
 		elif root_node == &"glide":
+			var min_before_glide := maxi(1, int(min_jump_frames * 0.85))
 			_fail_unless(
-				jump_near_finish or max_jump_pos >= 0.85,
-				"Jump-to-glide should finish jump before glide (max_pos=%.2f)" % max_jump_pos
+				saw_jump and frames_in_jump >= min_before_glide,
+				"Jump-to-glide should finish jump before glide (frames_in_jump=%d min=%d)"
+				% [frames_in_jump, min_before_glide]
 			)
 			saw_glide = true
 			break
 
 	_fail_unless(saw_jump, "Jump-to-glide should play jump on takeoff (root=%s)" % root_playback.get_current_node())
 	_fail_unless(
-		jump_near_finish,
-		"Jump-to-glide should finish most of jump before glide (max_pos=%.2f)" % max_jump_pos
+		saw_glide or frames_in_jump >= min_jump_frames,
+		"Jump-to-glide should finish most of jump before glide (frames_in_jump=%d min=%d)"
+		% [frames_in_jump, min_jump_frames]
 	)
 	_fail_unless(saw_glide, "Jump-to-glide should transition to glide while airborne (root=%s)" % root_playback.get_current_node())
 
@@ -1315,15 +1320,35 @@ func _verify_landing_forward_anim() -> void:
 
 	var was_airborne := false
 	var resumed_forward := false
+	var saw_warmed_locomotion := false
+	var prev_spine_rot := hero_skel.get_bone_pose_rotation(spine_idx)
+	var saw_landing_blend := false
 	for i in 240:
 		await physics_frame
+		var spine_rot := hero_skel.get_bone_pose_rotation(spine_idx)
 		if glider.is_gliding() or not glider.is_grounded():
 			was_airborne = true
+		var root_node := root_playback.get_current_node()
+		var loco_node := locomotion_playback.get_current_node()
+		if was_airborne and root_node in [&"landing", &"locomotion"]:
+			if loco_node != &"Start" and loco_node != StringName():
+				saw_warmed_locomotion = true
+			elif root_node == &"locomotion":
+				_fail_unless(
+					false,
+					"Landing to forward should warm locomotion during crossfade (loco=%s root=%s)"
+					% [loco_node, root_node]
+				)
+			if absf(prev_spine_rot.dot(spine_rot)) < 0.995:
+				_fail_unless(
+					saw_landing_blend,
+					"Landing to forward should not snap spine (root=%s loco=%s dot=%.3f)"
+					% [root_node, locomotion_playback.get_current_node(), absf(prev_spine_rot.dot(spine_rot))]
+				)
+			saw_landing_blend = true
+		prev_spine_rot = spine_rot
 		if was_airborne and glider.is_grounded() and not glider.is_gliding():
-			if (
-				root_playback.get_current_node() == &"locomotion"
-				and locomotion_playback.get_current_node() == &"forward"
-			):
+			if root_node == &"locomotion" and locomotion_playback.get_current_node() == &"forward":
 				resumed_forward = true
 				break
 
@@ -1333,6 +1358,11 @@ func _verify_landing_forward_anim() -> void:
 		"Locomotion should resume forward after landing with W (root=%s, loco=%s)"
 		% [root_playback.get_current_node(), locomotion_playback.get_current_node()]
 	)
+	_fail_unless(
+		saw_warmed_locomotion,
+		"Landing to forward should warm locomotion before/during crossfade (loco=%s)"
+		% locomotion_playback.get_current_node()
+	)
 
 	var spine_rot := hero_skel.get_bone_pose_rotation(spine_idx)
 	_fail_unless(
@@ -1340,6 +1370,90 @@ func _verify_landing_forward_anim() -> void:
 		"Hero skeleton T-pose after landing with W held"
 	)
 
+	glider.queue_free()
+	terrain.queue_free()
+	_release_all_input()
+
+
+func _verify_landing_turn_anim() -> void:
+	var terrain := _spawn_terrain("land_turn_anim")
+	await physics_frame
+
+	var glider := _spawn_glider(terrain)
+	_get_input(glider)
+	glider.global_position = Vector3(0.0, _hover_spawn_y(terrain), 0.0)
+	glider.velocity = Vector3.ZERO
+	await physics_frame
+
+	for i in 60:
+		await physics_frame
+
+	var skin: Node3D = glider.get_node("Visual/GliderSkin")
+	var tree: AnimationTree = skin.get_node("AnimationTree") as AnimationTree
+	var root_playback := tree.get("parameters/body/playback") as AnimationNodeStateMachinePlayback
+	var locomotion_playback := tree.get("parameters/body/locomotion/playback") as AnimationNodeStateMachinePlayback
+	var hero_skel: Skeleton3D = skin.get_node("Model/GliderRoot/Hero_Rig/Skeleton3D") as Skeleton3D
+	var spine_idx := maxi(0, hero_skel.find_bone("spine"))
+
+	_fail_unless(glider.is_grounded(), "Landing turn anim test needs grounded start")
+	_hold_forward()
+	Input.action_press("steer_left")
+	glider.velocity = Vector3(0.0, 0.0, 8.0)
+	Input.action_press("jump")
+	await physics_frame
+	Input.action_release("jump")
+	await physics_frame
+
+	_fail_unless(glider.is_gliding(), "Landing turn anim test needs jump into glide")
+
+	var was_airborne := false
+	var resumed_turn := false
+	var saw_warmed_locomotion := false
+	var prev_spine_rot := hero_skel.get_bone_pose_rotation(spine_idx)
+	var saw_landing_blend := false
+	for i in 240:
+		await physics_frame
+		var spine_rot := hero_skel.get_bone_pose_rotation(spine_idx)
+		if glider.is_gliding() or not glider.is_grounded():
+			was_airborne = true
+		var root_node := root_playback.get_current_node()
+		var loco_node := locomotion_playback.get_current_node()
+		if was_airborne and root_node in [&"landing", &"locomotion"]:
+			if loco_node != &"Start" and loco_node != StringName():
+				saw_warmed_locomotion = true
+			elif root_node == &"locomotion":
+				_fail_unless(
+					false,
+					"Landing to turn_left should warm locomotion during crossfade (loco=%s root=%s)"
+					% [loco_node, root_node]
+				)
+			if absf(prev_spine_rot.dot(spine_rot)) < 0.995:
+				_fail_unless(
+					saw_landing_blend,
+					"Landing to turn_left should not snap spine (root=%s loco=%s dot=%.3f)"
+					% [root_node, locomotion_playback.get_current_node(), absf(prev_spine_rot.dot(spine_rot))]
+				)
+			saw_landing_blend = true
+		prev_spine_rot = spine_rot
+		if was_airborne and glider.is_grounded() and not glider.is_gliding():
+			if root_node == &"locomotion" and locomotion_playback.get_current_node() == &"turn_left":
+				resumed_turn = true
+				break
+
+	_fail_unless(was_airborne, "Landing turn anim test never left the ground")
+	_fail_unless(
+		resumed_turn,
+		"Locomotion should resume turn_left after landing with W+A (root=%s, loco=%s)"
+		% [root_playback.get_current_node(), locomotion_playback.get_current_node()]
+	)
+	_fail_unless(
+		saw_warmed_locomotion,
+		"Landing to turn_left should warm locomotion before/during crossfade (loco=%s)"
+		% locomotion_playback.get_current_node()
+	)
+
+	Input.action_release("steer_left")
+	_release_forward()
 	glider.queue_free()
 	terrain.queue_free()
 	_release_all_input()

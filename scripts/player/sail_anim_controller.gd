@@ -6,10 +6,13 @@ const GliderInputScript = preload("res://scripts/input/glider_input.gd")
 
 const DEPLOY_CLIP := &"Sail_Deploy"
 const PARAM_SAIL_PLAYBACK := "parameters/sail/playback"
+const PARAM_SAIL_DOWN_SEEK := "parameters/sail/sail_down/seek/seek_request"
+const PARAM_SAIL_DOWN_SCALE := "parameters/sail/sail_down/time_scale/scale"
 const PARAM_DEPLOY_FWD_SEEK := "parameters/sail/deploy_forward/seek/seek_request"
 const PARAM_DEPLOY_FWD_SCALE := "parameters/sail/deploy_forward/time_scale/scale"
 const PARAM_DEPLOY_REV_SEEK := "parameters/sail/deploy_reverse/seek/seek_request"
 const PARAM_DEPLOY_REV_SCALE := "parameters/sail/deploy_reverse/time_scale/scale"
+const DEPLOY_END_EPSILON := 0.03
 
 @onready var _tree: AnimationTree = get_parent().get_node("AnimationTree")
 
@@ -22,7 +25,8 @@ var _deploy_reverse_started_at := -1.0
 
 
 func _ready() -> void:
-	process_priority = -101
+	# After GliderInput (0) so deploy/retract reacts same frame W/S changes.
+	process_priority = 1
 	if _tree == null:
 		push_warning("SailAnimController: AnimationTree node missing on GliderSkin")
 		return
@@ -43,16 +47,18 @@ func reset_animation_state() -> void:
 	_tree.set(PARAM_DEPLOY_FWD_SCALE, 1.0)
 	_tree.set(PARAM_DEPLOY_REV_SEEK, 0.0)
 	_tree.set(PARAM_DEPLOY_REV_SCALE, 1.0)
-	_sail_playback.start("sail_down")
-	_sail_state = &"sail_down"
+	_enter_stowed()
 	_was_sail_deployed = _is_sail_deployed()
 	_deploy_reverse_started_at = -1.0
 
 
 func _bootstrap_sail_state() -> void:
 	_glider = _find_glider()
-	_sail_playback.start("sail_down")
-	_sail_state = &"sail_down"
+	_tree.set(PARAM_DEPLOY_FWD_SEEK, 0.0)
+	_tree.set(PARAM_DEPLOY_FWD_SCALE, 1.0)
+	_tree.set(PARAM_DEPLOY_REV_SEEK, 0.0)
+	_tree.set(PARAM_DEPLOY_REV_SCALE, 1.0)
+	_enter_stowed()
 	_was_sail_deployed = _is_sail_deployed()
 	_deploy_reverse_started_at = -1.0
 
@@ -74,21 +80,49 @@ func _process(_delta: float) -> void:
 		_was_sail_deployed = sail_deployed
 
 	_sail_state = _sail_playback.get_current_node()
-	if _sail_state == &"deploy_reverse":
-		var finished := _is_deploy_reverse_finished()
-		if finished:
+	if _sail_state == &"deploy_forward" and sail_deployed:
+		_try_finish_deploy_forward()
+	elif _sail_state == &"deploy_reverse":
+		if _is_deploy_reverse_finished():
 			_deploy_reverse_started_at = -1.0
 			_tree.set(PARAM_DEPLOY_REV_SEEK, 0.0)
 			_tree.set(PARAM_DEPLOY_REV_SCALE, 1.0)
-			_sail_playback.start("sail_down")
-			_sail_state = &"sail_down"
+			_enter_stowed()
+
+
+func _enter_stowed() -> void:
+	_tree.set(PARAM_SAIL_DOWN_SEEK, 0.0)
+	_tree.set(PARAM_SAIL_DOWN_SCALE, 0.0)
+	_sail_playback.start("sail_down")
+	_sail_state = &"sail_down"
+	_tree.advance(0.0)
 
 
 func _begin_deploy_forward() -> void:
 	var seek := _deploy_seek_for_forward()
 	_tree.set(PARAM_DEPLOY_FWD_SEEK, seek)
 	_tree.set(PARAM_DEPLOY_FWD_SCALE, 1.0)
-	_sail_playback.travel("deploy_forward")
+	if _sail_state == &"sail_down":
+		_sail_playback.start("deploy_forward")
+	else:
+		_sail_playback.travel("deploy_forward")
+	_tree.advance(0.0)
+	_sail_state = &"deploy_forward"
+
+
+func _begin_sail_up() -> void:
+	_sail_playback.start("sail_up")
+	_sail_state = &"sail_up"
+
+
+func _try_finish_deploy_forward() -> void:
+	var length := _deploy_length()
+	if length <= 0.0:
+		return
+	var pos := _sail_playback.get_current_play_position()
+	if pos < length - DEPLOY_END_EPSILON:
+		return
+	_begin_sail_up()
 
 
 func _begin_deploy_reverse() -> void:

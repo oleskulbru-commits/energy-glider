@@ -11,6 +11,8 @@ const JUMP_AIR_WAIT_FRAMES := 30
 const BOOST_WAIT_FRAMES := 24
 const BRAKE_BLEND_WAIT_FRAMES := 36
 const TURN_SWAP_WAIT_FRAMES := 72
+const PARAM_SAIL_DOWN_SEEK := "parameters/sail/sail_down/seek/seek_request"
+const PARAM_SAIL_DOWN_SCALE := "parameters/sail/sail_down/time_scale/scale"
 
 
 func _initialize() -> void:
@@ -88,7 +90,7 @@ func _initialize() -> void:
 
 	root_playback.start("locomotion")
 	locomotion_playback.start("forward")
-	sail_playback.start("sail_down")
+	_enter_stowed_sail(tree, sail_playback)
 
 	for _i in 12:
 		await process_frame
@@ -148,8 +150,31 @@ func _initialize() -> void:
 		return
 
 	Input.action_press("move_forward")
-	for _i in 8:
+	var pre_deploy_solar_rot := deploy_skel.get_bone_pose_rotation(solar_bone_idx)
+	for i in 8:
 		await process_frame
+		var cur_sail_state := sail_playback.get_current_node()
+		var deploy_pos := sail_playback.get_current_play_position()
+		if cur_sail_state != &"deploy_forward" or deploy_pos <= 0.05:
+			var stowed_q := Quaternion.from_euler(stowed_mast_rot)
+			var current_q := Quaternion.from_euler(mast_joint.rotation)
+			if absf(stowed_q.dot(current_q)) < 0.995:
+				push_error(
+					"Mast should stay stowed until deploy starts (frame %d state=%s pos=%.3f dot=%.3f)" % [
+						i, cur_sail_state, deploy_pos, absf(stowed_q.dot(current_q))
+					]
+				)
+				quit(1)
+				return
+			var solar_q := deploy_skel.get_bone_pose_rotation(solar_bone_idx)
+			if absf(stowed_solar_rot.dot(solar_q)) < 0.995:
+				push_error(
+					"Solar bone should stay stowed until deploy starts (frame %d state=%s dot=%.3f)" % [
+						i, cur_sail_state, absf(stowed_solar_rot.dot(solar_q))
+					]
+				)
+				quit(1)
+				return
 	var deploy_state := sail_playback.get_current_node()
 	if deploy_state != &"deploy_forward" and deploy_state != &"sail_up":
 		push_error("Sail did not enter deploy on W press (state=%s)" % deploy_state)
@@ -157,11 +182,20 @@ func _initialize() -> void:
 		return
 
 	var reached_sail_up := false
+	var prev_solar_rot := pre_deploy_solar_rot
 	for _i in DEPLOY_WAIT_FRAMES:
 		await process_frame
+		var solar_now := deploy_skel.get_bone_pose_rotation(solar_bone_idx)
 		if sail_playback.get_current_node() == &"sail_up":
+			if absf(prev_solar_rot.dot(solar_now)) < 0.995:
+				push_error(
+					"Solar bone popped entering sail_up (dot=%.3f)" % absf(prev_solar_rot.dot(solar_now))
+				)
+				quit(1)
+				return
 			reached_sail_up = true
 			break
+		prev_solar_rot = solar_now
 	if not reached_sail_up:
 		push_error("Sail did not reach sail_up during deploy (state=%s)" % sail_playback.get_current_node())
 		quit(1)
@@ -622,6 +656,13 @@ func _initialize() -> void:
 
 func grounded_speed_enter_for_test() -> float:
 	return 0.3
+
+
+func _enter_stowed_sail(tree: AnimationTree, sail_playback: AnimationNodeStateMachinePlayback) -> void:
+	tree.set(PARAM_SAIL_DOWN_SEEK, 0.0)
+	tree.set(PARAM_SAIL_DOWN_SCALE, 0.0)
+	sail_playback.start("sail_down")
+	tree.advance(0.0)
 
 
 func _sample_sail_track_path(player: AnimationPlayer) -> String:
