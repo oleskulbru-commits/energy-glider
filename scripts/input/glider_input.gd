@@ -65,12 +65,6 @@ func is_jump_just_pressed() -> bool:
 	return Input.is_action_just_pressed("jump")
 
 
-func is_radar_pulse_just_pressed() -> bool:
-	if not _locomotion_enabled:
-		return false
-	return Input.is_action_just_pressed("radar_pulse")
-
-
 func _process(_delta: float) -> void:
 	_update_sail_state()
 

@@ -1,26 +1,20 @@
 [gd_scene format=3 uid="uid://cplayerrig001"]
 
 [ext_resource type="PackedScene" uid="uid://dvblpji1vy3ao" path="res://scenes/player/glider.tscn" id="1_glider"]
-[ext_resource type="Script" path="res://scripts/player/player_rig.gd" id="3_rig"]
-[ext_resource type="Script" path="res://scripts/input/glider_input.gd" id="4_input"]
-[ext_resource type="Script" path="res://scripts/game/player_interactor.gd" id="6_interactor"]
+[ext_resource type="Script" uid="uid://xg1ypccq3ryg" path="res://scripts/player/player_rig.gd" id="3_rig"]
+[ext_resource type="Script" uid="uid://djcdfv8efkgs1" path="res://scripts/input/glider_input.gd" id="4_input"]
 [ext_resource type="PackedScene" path="res://scenes/ui/glider_hud.tscn" id="7_hud"]
-[ext_resource type="Script" path="res://scripts/player/radar_pulse.gd" id="9_radar"]
 [ext_resource type="Script" path="res://scripts/player/player_health.gd" id="10_health"]
 [ext_resource type="Script" path="res://scripts/player/hub_health_recharge.gd" id="11_hub_heal"]
 [ext_resource type="Script" path="res://scripts/weapons/auto_rifle.gd" id="12_rifle"]
 
-[node name="PlayerRig" type="Node3D"]
+[node name="PlayerRig" type="Node3D" unique_id=1639311098]
 script = ExtResource("3_rig")
 
-[node name="Glider" parent="." instance=ExtResource("1_glider")]
-collision_mask = 0
+[node name="Glider" parent="." unique_id=1763567064 instance=ExtResource("1_glider")]
 
-[node name="GliderInput" type="Node" parent="."]
+[node name="GliderInput" type="Node" parent="." unique_id=1627648038]
 script = ExtResource("4_input")
-
-[node name="PlayerInteractor" type="Node" parent="."]
-script = ExtResource("6_interactor")
 
 [node name="PlayerHealth" type="Node" parent="."]
 script = ExtResource("10_health")
@@ -31,10 +25,7 @@ script = ExtResource("11_hub_heal")
 player_rig_path = NodePath("..")
 player_health_path = NodePath("../PlayerHealth")
 
-[node name="GliderHUD" parent="." instance=ExtResource("7_hud")]
-
-[node name="RadarPulse" type="Node" parent="."]
-script = ExtResource("9_radar")
+[node name="GliderHUD" parent="." unique_id=828124853 instance=ExtResource("7_hud")]
 
 [node name="AutoRifle" type="Node" parent="."]
 script = ExtResource("12_rifle")

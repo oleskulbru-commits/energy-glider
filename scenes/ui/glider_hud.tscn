@@ -88,18 +88,6 @@ value = 100.0
 unique_name_in_owner = true
 text = "Kill button - press k"
 
-[node name="CargoChip" type="PanelContainer" parent="TopLeft/TopLeftVBox"]
-unique_name_in_owner = true
-visible = false
-theme_type_variation = &"HudPanel"
-custom_minimum_size = Vector2(120, 0)
-
-[node name="CargoLabel" type="Label" parent="TopLeft/TopLeftVBox/CargoChip"]
-unique_name_in_owner = true
-theme_type_variation = &"HudLabel"
-text = "ANTENNA PART"
-horizontal_alignment = 1
-
 [node name="BottomLeft" type="MarginContainer" parent="."]
 anchors_preset = 2
 anchor_top = 1.0
@@ -349,38 +337,6 @@ text = "OUTPOSTS"
 horizontal_alignment = 0
 autowrap_mode = 2
 
-[node name="InteractChip" type="PanelContainer" parent="."]
-unique_name_in_owner = true
-visible = false
-anchors_preset = 7
-anchor_left = 0.5
-anchor_top = 1.0
-anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = -90.0
-offset_top = -120.0
-offset_right = 90.0
-offset_bottom = -72.0
-grow_horizontal = 2
-grow_vertical = 0
-mouse_filter = 0
-theme_type_variation = &"HudPanel"
-
-[node name="VBox" type="VBoxContainer" parent="InteractChip"]
-theme_override_constants/separation = 4
-
-[node name="InteractLabel" type="Label" parent="InteractChip/VBox"]
-unique_name_in_owner = true
-theme_type_variation = &"HudLabel"
-text = "HARVEST"
-horizontal_alignment = 1
-
-[node name="InteractBar" type="ProgressBar" parent="InteractChip/VBox"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(140, 6)
-max_value = 1.0
-show_percentage = false
-
 [node name="StopChip" type="PanelContainer" parent="."]
 unique_name_in_owner = true
 anchors_preset = 3
@@ -426,36 +382,6 @@ theme_type_variation = &"HudLabel"
 text = "SAIL"
 horizontal_alignment = 1
 vertical_alignment = 1
-
-[node name="PulseChip" type="PanelContainer" parent="."]
-unique_name_in_owner = true
-anchors_preset = 3
-anchor_left = 1.0
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = -120.0
-offset_top = -216.0
-offset_right = -24.0
-offset_bottom = -168.0
-grow_horizontal = 0
-grow_vertical = 0
-theme_type_variation = &"HudPanel"
-
-[node name="VBox" type="VBoxContainer" parent="PulseChip"]
-theme_override_constants/separation = 4
-
-[node name="PulseLabel" type="Label" parent="PulseChip/VBox"]
-unique_name_in_owner = true
-theme_type_variation = &"HudLabel"
-text = "PULSE [Q]"
-horizontal_alignment = 1
-
-[node name="PulseBar" type="ProgressBar" parent="PulseChip/VBox"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(80, 6)
-max_value = 1.0
-show_percentage = false
 
 [node name="SpeedLabel" type="Label" parent="."]
 unique_name_in_owner = true

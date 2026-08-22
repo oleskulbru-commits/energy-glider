@@ -10,7 +10,6 @@ const POWER_COLOR_OVERHEAT := Color(0.98, 0.45, 0.18)
 const BATTERY_COLOR_NORMAL := Color(0.95, 0.72, 0.28)
 const BATTERY_COLOR_LOW := Color(0.98, 0.78, 0.18)
 const BATTERY_COLOR_EMPTY := Color(0.85, 0.28, 0.22)
-const PULSE_COLOR := Color(1.0, 0.82, 0.28, 1.0)
 
 const GliderInputScript = preload("res://scripts/input/glider_input.gd")
 const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
@@ -36,16 +35,10 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _eon_tracker_label: Label = %EonTrackerLabel
 @onready var _objective_panel: PanelContainer = %ObjectivePanel
 @onready var _objective_label: Label = %ObjectiveLabel
-@onready var _interact_chip: PanelContainer = %InteractChip
-@onready var _interact_label: Label = %InteractLabel
-@onready var _interact_bar: ProgressBar = %InteractBar
 @onready var _stop_chip: PanelContainer = %StopChip
 @onready var _stop_label: Label = %StopLabel
 @onready var _sail_chip: PanelContainer = %SailChip
 @onready var _sail_label: Label = %SailLabel
-@onready var _pulse_chip: PanelContainer = %PulseChip
-@onready var _pulse_label: Label = %PulseLabel
-@onready var _pulse_bar: ProgressBar = %PulseBar
 @onready var _day_label: Label = %DayLabel
 @onready var _compass_bar: CompassBar = %CompassBar
 @onready var _stopped_summary: Label = %StoppedSummary
@@ -63,18 +56,14 @@ var _rig: PlayerRig
 var _player: GliderPlayer
 var _camera: GliderCamera
 var _input: GliderInputScript
-var _radar_pulse: RadarPulse
 var _run_score: RunScore
 var _expedition: ExpeditionState
-var _interactor: PlayerInteractor
 var _director: EonDirectorScript
 var _night_survival: NightSurvival
 var _day_night: DayNightCycle
 var _power_fill: StyleBoxFlat
 var _battery_fill: StyleBoxFlat
 var _solar_pulse_time := 0.0
-var _interact_tap_down := false
-var _pulse_scan_timer := 0.0
 var _day_summary_timer := 0.0
 var _night_warning_timer := 0.0
 var _safe_pulse_time := 0.0
@@ -89,16 +78,12 @@ func _ready() -> void:
 	if _rig != null:
 		_player = _rig.get_node_or_null("Glider") as GliderPlayer
 		_input = _rig.get_node_or_null("GliderInput") as GliderInputScript
-		_interactor = _rig.get_node_or_null("PlayerInteractor") as PlayerInteractor
-		_radar_pulse = _rig.get_node_or_null("RadarPulse") as RadarPulse
-		_camera = _rig.get_node_or_null("Glider/Camera3D") as GliderCamera
+		_camera = _rig.get_node_or_null("Glider/GliderCamera") as GliderCamera
+		if _camera == null:
+			_camera = _rig.get_node_or_null("Glider/Camera3D") as GliderCamera
 	else:
 		_player = get_parent() as GliderPlayer
 		_input = _player.get_node_or_null("GliderInput") as GliderInputScript
-		_interactor = _player.get_node_or_null("PlayerInteractor") as PlayerInteractor
-		if _interactor == null:
-			_interactor = _player.get_node_or_null("GliderInteractor") as PlayerInteractor
-
 	_run_score = get_tree().get_first_node_in_group("run_score") as RunScore
 	_expedition = get_tree().get_first_node_in_group("expedition_state") as ExpeditionState
 	_director = get_tree().get_first_node_in_group("eon_director") as EonDirectorScript
@@ -152,21 +137,14 @@ func _ready() -> void:
 		_battery_bar.add_theme_stylebox_override("fill", _battery_fill)
 		if _battery_fill != null:
 			_battery_fill.bg_color = BATTERY_COLOR_EMPTY
-	_interact_chip.gui_input.connect(_on_interact_chip_gui_input)
 	_stop_chip.gui_input.connect(_on_stop_chip_gui_input)
 	if _sail_chip != null:
 		_sail_chip.visible = false
 	_lock_eon_tracker_layout()
-	if _radar_pulse != null:
-		_radar_pulse.pulse_fired.connect(_on_pulse_fired)
-		_radar_pulse.cooldown_changed.connect(_on_pulse_cooldown_changed)
-	_update_pulse_chip()
-
-
 func _lock_eon_tracker_layout() -> void:
 	if _eon_tracker == null:
 		return
-	# Bottom-center under the interact chip; fixed offsets so soft retry
+	# Bottom-center; fixed offsets so soft retry
 	# and overlay visibility cannot shove this into the compass.
 	_eon_tracker.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	_eon_tracker.anchor_left = 0.5
@@ -192,9 +170,7 @@ func _process(delta: float) -> void:
 
 	_update_power_meter(delta)
 	_update_landing_feedback()
-	_update_interact_prompt()
 	_update_stop_chip()
-	_update_pulse_chip(delta)
 	_update_compass()
 	_update_outpost_board()
 	_update_day_summary(delta)
@@ -500,7 +476,9 @@ func _update_compass() -> void:
 	if _compass_bar == null:
 		return
 	if _camera == null and _rig != null:
-		_camera = _rig.get_node_or_null("Glider/Camera3D") as GliderCamera
+		_camera = _rig.get_node_or_null("Glider/GliderCamera") as GliderCamera
+		if _camera == null:
+			_camera = _rig.get_node_or_null("Glider/Camera3D") as GliderCamera
 	if _camera == null:
 		return
 
@@ -509,12 +487,7 @@ func _update_compass() -> void:
 
 	var track_pos := _tracking_position()
 
-	var poi_bearing := _resolve_poi_bearing(track_pos)
-	if is_nan(poi_bearing):
-		_compass_bar.set_poi_bearing(NAN)
-	else:
-		_compass_bar.set_poi_bearing(poi_bearing)
-
+	_compass_bar.set_poi_bearing(NAN)
 	_compass_bar.set_outpost_bearings(_resolve_outpost_bearings(track_pos))
 
 	if _director != null and _director.should_show_eon_tracker(track_pos):
@@ -618,26 +591,6 @@ func _bearing_to_compass_label(bearing_rad: float) -> String:
 	return dirs[idx]
 
 
-func _resolve_poi_bearing(track_pos: Vector3) -> float:
-	var best_ripple := 9999
-	var best_pos := Vector3.ZERO
-	var found := false
-	for node in get_tree().get_nodes_in_group("radar_poi"):
-		if not node.has_method("is_pulse_target_active"):
-			continue
-		if not bool(node.call("is_pulse_target_active")):
-			continue
-		var ripple_index := int(node.get("ripple_index"))
-		if ripple_index < best_ripple:
-			best_ripple = ripple_index
-			if node is Node3D:
-				best_pos = (node as Node3D).global_position
-				found = true
-	if not found:
-		return NAN
-	return MathUtil.bearing_to(track_pos, best_pos)
-
-
 func _update_landing_feedback() -> void:
 	if _sail_chip == null or _sail_label == null or _player == null:
 		return
@@ -651,25 +604,6 @@ func _update_landing_feedback() -> void:
 	_sail_chip.visible = true
 	_sail_label.text = feedback.get("label", "")
 	_sail_label.remove_theme_color_override("font_color")
-
-
-func _update_interact_prompt() -> void:
-	if _interactor == null:
-		_interact_chip.visible = false
-		return
-
-	var prompt: Dictionary = _interactor.get_interact_prompt()
-	_interact_chip.visible = prompt.get("visible", false)
-	if not _interact_chip.visible:
-		return
-
-	_interact_label.text = prompt.get("label", "")
-	var tap_action: bool = prompt.get("tap_action", false)
-	if tap_action:
-		_interact_bar.visible = false
-	else:
-		_interact_bar.visible = true
-		_interact_bar.value = prompt.get("progress", 0.0)
 
 
 func _update_stop_chip() -> void:
@@ -694,66 +628,6 @@ func _update_speedometer() -> void:
 		return
 	var speed := MathUtil.horizontal_speed(_player.velocity)
 	_speed_label.text = "%d m/s" % int(roundf(speed))
-
-
-func _on_pulse_fired(_target_ripple: int) -> void:
-	_pulse_scan_timer = 0.45
-
-
-func _on_pulse_cooldown_changed(_remaining_sec: float, _cooldown_sec: float) -> void:
-	_update_pulse_chip()
-
-
-func _update_pulse_chip(delta: float = 0.0) -> void:
-	if _pulse_chip == null or _pulse_label == null or _pulse_bar == null:
-		return
-	if _radar_pulse == null and _rig != null:
-		_radar_pulse = _rig.get_node_or_null("RadarPulse") as RadarPulse
-
-	_pulse_chip.visible = _player != null and not _player.is_run_ended()
-	if not _pulse_chip.visible:
-		return
-
-	if _pulse_scan_timer > 0.0:
-		_pulse_scan_timer = maxf(_pulse_scan_timer - delta, 0.0)
-
-	var cooldown_ratio := 0.0
-	if _radar_pulse != null:
-		cooldown_ratio = _radar_pulse.get_cooldown_ratio()
-
-	if _pulse_scan_timer > 0.0:
-		_pulse_label.text = "SCANNING"
-		_pulse_label.add_theme_color_override("font_color", PULSE_COLOR)
-	elif cooldown_ratio > 0.0:
-		var remaining := 0.0
-		if _radar_pulse != null:
-			remaining = _radar_pulse.get_cooldown_remaining()
-		_pulse_label.text = "PULSE %.0fs" % ceilf(remaining)
-		_pulse_label.add_theme_color_override("font_color", Color(0.72, 0.72, 0.72, 1.0))
-	else:
-		_pulse_label.text = "PULSE [Q]"
-		_pulse_label.add_theme_color_override("font_color", PULSE_COLOR)
-
-	_pulse_bar.visible = cooldown_ratio > 0.0
-	_pulse_bar.value = 1.0 - cooldown_ratio
-
-
-func _on_interact_chip_gui_input(event: InputEvent) -> void:
-	if _interactor == null:
-		return
-
-	if event is InputEventMouseButton:
-		if event is InputEvent:
-			(event as InputEvent).set_handled()
-
-	if event is InputEventMouseButton:
-		var mouse := event as InputEventMouseButton
-		if mouse.button_index == MOUSE_BUTTON_LEFT:
-			if mouse.pressed:
-				_interact_tap_down = true
-			else:
-				_interact_tap_down = false
-			_interactor.set_touch_hold(mouse.pressed)
 
 
 func _on_stop_chip_gui_input(event: InputEvent) -> void:

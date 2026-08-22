@@ -1,6 +1,6 @@
 # Glider Sacred — design constraints
 
-Non-negotiables for Energy Glider. Filter survival, tower, harvest, and on-foot features through this list.
+Non-negotiables for Energy Glider. Filter survival, tower, and route features through this list.
 
 1. **Momentum is the game.** Cruise forward → carry speed → line the next slope → boost when you need more. Do not add systems that punish normal surfing rhythm. **Slope gravity** scales with steepness on the ground; in the air, **full gravity** plus **speed-dependent lift** (slow hops fall fast, fast crests carry). No clearance-based zero-g — lift comes from forward speed and sail/boost only.
 
@@ -10,13 +10,13 @@ Non-negotiables for Energy Glider. Filter survival, tower, harvest, and on-foot 
 
 4. **Launch orientation follows velocity.** On crest takeoff, yaw snaps to travel direction; airborne attitude uses `_align_air_attitude` (not terrain tilt) so the board does not twist ~90° after leaving the sand.
 
-5. **Survival at stops and hub, not mid-flow.** Harvest, install parts, and inventory live at anomalies, ruins, and the tower — not during active traversal.
+5. **Survival at the hub, not mid-flow.** Heat, night, and safe zones live at the tower — not during active traversal.
 
-6. **Failure = recover and glide again** (for now). Stranded states should be recoverable on foot or via recharge lines, not instant hard game-over without player agency.
+6. **Failure = recover and glide again** (for now). Stranded states should be recoverable via recharge lines, not instant hard game-over without player agency.
 
 7. **Boost is always available.** Shift boost works from run start. Tower upgrades may enhance boost later.
 
-8. **On-foot is pit-stop scale.** Dismount for harvest, heat bleed, or cargo — then remount and return to flow. Not a second game mode.
+8. **Glider-only traversal.** The player stays on the board; no dismount or on-foot pit-stop loop.
 
 9. **No combat in v1.** Tension from flux, heat, distance from tower, and route choice — not enemy encounters.
 

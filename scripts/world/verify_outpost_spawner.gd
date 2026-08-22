@@ -4,7 +4,7 @@ const OutpostSpawnerScript = preload("res://scripts/world/outpost_spawner.gd")
 const UpgradeTowerScript = preload("res://scripts/world/upgrade_tower.gd")
 const TerrainManagerScript = preload("res://scripts/terrain/terrain_manager.gd")
 const LevelLayoutScript = preload("res://scripts/game/level_layout.gd")
-const SandMaterial = preload("res://materials/sand.tres")
+const SandMaterial = preload("res://assets/materials/sand.tres")
 
 
 func _init() -> void:
