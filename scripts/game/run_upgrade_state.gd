@@ -21,6 +21,13 @@ var _offers: Dictionary = {}
 var _visited_this_life: Dictionary = {}
 var _weapon_holes: Dictionary = {}
 var _life_index := 0
+var _weapon_extra_projectiles := 0
+var _weapon_attack_speed := 0.0
+var _weapon_damage := 0.0
+var _weapon_projectile_speed := 0.0
+var _weapon_crit := 0.0
+var _weapon_duration := 0.0
+var _weapon_pushback := 0.0
 
 
 func _ready() -> void:
@@ -59,6 +66,13 @@ func reset_run() -> void:
 	crit_chance = 0.0
 	duration_bonus = 0.0
 	pushback_bonus = 0.0
+	_weapon_extra_projectiles = 0
+	_weapon_attack_speed = 0.0
+	_weapon_damage = 0.0
+	_weapon_projectile_speed = 0.0
+	_weapon_crit = 0.0
+	_weapon_duration = 0.0
+	_weapon_pushback = 0.0
 	_life_index += 1
 	_refill_weapon_holes()
 	clear_visited_this_life()
@@ -105,24 +119,32 @@ func pick_offer(tower_index: int, slot: int) -> StringName:
 	return id
 
 
-func _apply_upgrade(id: StringName) -> void:
+func _apply_upgrade(id: StringName, from_weapon: bool = false) -> void:
 	if UpgradeCatalog.is_weapon_offer(id):
 		for part in UpgradeCatalog.weapon_parts(id):
-			_apply_upgrade(StringName(part))
+			_apply_upgrade(StringName(part), true)
 		return
 	var family := UpgradeCatalog.family_of(id)
 	if family == UpgradeCatalog.FAMILY_PROJECTILE:
-		add_extra_projectile(UpgradeCatalog.projectile_bonus(UpgradeCatalog.rarity_of(id)))
+		var amount := UpgradeCatalog.projectile_bonus(UpgradeCatalog.rarity_of(id))
+		add_extra_projectile(amount)
+		if from_weapon:
+			_weapon_extra_projectiles += maxi(amount, 0)
 	elif family == UpgradeCatalog.FAMILY_ATTACK_SPEED:
-		attack_speed_reduction += UpgradeCatalog.attack_speed_percent(
-			UpgradeCatalog.rarity_of(id)
-		)
+		var amount := UpgradeCatalog.attack_speed_percent(UpgradeCatalog.rarity_of(id))
+		attack_speed_reduction += amount
+		if from_weapon:
+			_weapon_attack_speed += amount
 	elif family == UpgradeCatalog.FAMILY_DAMAGE:
-		damage_bonus += UpgradeCatalog.damage_percent(UpgradeCatalog.rarity_of(id))
+		var amount := UpgradeCatalog.damage_percent(UpgradeCatalog.rarity_of(id))
+		damage_bonus += amount
+		if from_weapon:
+			_weapon_damage += amount
 	elif family == UpgradeCatalog.FAMILY_PROJECTILE_SPEED:
-		projectile_speed_bonus += UpgradeCatalog.projectile_speed_percent(
-			UpgradeCatalog.rarity_of(id)
-		)
+		var amount := UpgradeCatalog.projectile_speed_percent(UpgradeCatalog.rarity_of(id))
+		projectile_speed_bonus += amount
+		if from_weapon:
+			_weapon_projectile_speed += amount
 	elif family == UpgradeCatalog.FAMILY_GLIDER_SPEED:
 		glider_speed_bonus += UpgradeCatalog.glider_speed_percent(UpgradeCatalog.rarity_of(id))
 	elif family == UpgradeCatalog.FAMILY_HP_REGEN:
@@ -140,11 +162,48 @@ func _apply_upgrade(id: StringName) -> void:
 			UpgradeCatalog.rarity_of(id)
 		)
 	elif family == UpgradeCatalog.FAMILY_CRIT:
-		crit_chance += UpgradeCatalog.crit_chance(UpgradeCatalog.rarity_of(id))
+		var amount := UpgradeCatalog.crit_chance(UpgradeCatalog.rarity_of(id))
+		crit_chance += amount
+		if from_weapon:
+			_weapon_crit += amount
 	elif family == UpgradeCatalog.FAMILY_DURATION:
-		duration_bonus += UpgradeCatalog.duration_percent(UpgradeCatalog.rarity_of(id))
+		var amount := UpgradeCatalog.duration_percent(UpgradeCatalog.rarity_of(id))
+		duration_bonus += amount
+		if from_weapon:
+			_weapon_duration += amount
 	elif family == UpgradeCatalog.FAMILY_PUSHBACK:
-		pushback_bonus += UpgradeCatalog.pushback_percent(UpgradeCatalog.rarity_of(id))
+		var amount := UpgradeCatalog.pushback_percent(UpgradeCatalog.rarity_of(id))
+		pushback_bonus += amount
+		if from_weapon:
+			_weapon_pushback += amount
+
+
+func hud_extra_projectiles() -> int:
+	return extra_projectiles - _weapon_extra_projectiles
+
+
+func hud_attack_speed_reduction() -> float:
+	return attack_speed_reduction - _weapon_attack_speed
+
+
+func hud_damage_bonus() -> float:
+	return damage_bonus - _weapon_damage
+
+
+func hud_projectile_speed_bonus() -> float:
+	return projectile_speed_bonus - _weapon_projectile_speed
+
+
+func hud_crit_chance() -> float:
+	return crit_chance - _weapon_crit
+
+
+func hud_duration_bonus() -> float:
+	return duration_bonus - _weapon_duration
+
+
+func hud_pushback_bonus() -> float:
+	return pushback_bonus - _weapon_pushback
 
 
 func add_extra_projectile(amount: int = 1) -> void:

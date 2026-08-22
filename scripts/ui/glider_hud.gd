@@ -727,18 +727,18 @@ func _update_rifle_debug() -> void:
 	var pushback := 0.0
 	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
 	if state != null:
-		extras = state.extra_projectiles
-		reduction = state.attack_speed_reduction
-		bonus = state.damage_bonus
-		speed_bonus = state.projectile_speed_bonus
+		extras = state.hud_extra_projectiles()
+		reduction = state.hud_attack_speed_reduction()
+		bonus = state.hud_damage_bonus()
+		speed_bonus = state.hud_projectile_speed_bonus()
 		glider_bonus = state.glider_speed_bonus
 		regen = state.health_regen_per_sec
 		health_bonus = state.max_health_bonus
 		luck = state.luck_bonus
 		retention = clampf(state.momentum_retention, 0.0, UpgradeCatalog.MOMENTUM_RETENTION_CAP)
-		crit = clampf(state.crit_chance, 0.0, UpgradeCatalog.CRIT_CAP)
-		duration = state.duration_bonus
-		pushback = state.pushback_bonus
+		crit = clampf(state.hud_crit_chance(), 0.0, UpgradeCatalog.CRIT_CAP)
+		duration = state.hud_duration_bonus()
+		pushback = state.hud_pushback_bonus()
 	var any := false
 	any = _show_upgrade_line(
 		_rifle_cooldown_label,

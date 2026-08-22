@@ -1974,6 +1974,31 @@ func _verify_weapon_cards() -> void:
 		"Picking rifle_common|damage_common|attack_speed_common should add catalog common attack speed"
 	)
 	_fail_unless(state.extra_projectiles == 0, "That rifle pair should not add projectiles")
+	_fail_unless(
+		is_equal_approx(state.hud_damage_bonus(), 0.0)
+		and is_equal_approx(state.hud_attack_speed_reduction(), 0.0),
+		"Weapon stats should not show on the HUD"
+	)
+	var shop_damage := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_DAMAGE,
+			UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	_seed_offers(
+		state,
+		22,
+		PackedStringArray([shop_damage, leftover, leftover, leftover, leftover])
+	)
+	state.pick_offer(22, 0)
+	_fail_unless(
+		is_equal_approx(state.damage_bonus, 0.08),
+		"Shop Damage should still stack with hidden weapon Damage"
+	)
+	_fail_unless(
+		is_equal_approx(state.hud_damage_bonus(), 0.04),
+		"HUD Damage should only count shop cards, not weapon bundles"
+	)
 
 	var leftover_laser := UpgradeCatalogScript.encode_weapon_offer(
 		UpgradeCatalogScript.make_id(
