@@ -127,6 +127,7 @@ func _run_tests() -> void:
 	await _verify_jump_preserves_turn_yaw()
 	await _verify_jump_preserves_forward_yaw()
 	await _verify_jump_to_glide_anim()
+	await _verify_jump_to_glide_repair()
 	await _verify_landing_forward_anim()
 	await _verify_landing_turn_anim()
 	await _verify_idle_to_forward_enter()
@@ -1281,6 +1282,81 @@ func _verify_jump_to_glide_anim() -> void:
 		% [frames_in_jump, min_jump_frames]
 	)
 	_fail_unless(saw_glide, "Jump-to-glide should transition to glide while airborne (root=%s)" % root_playback.get_current_node())
+
+	_release_forward()
+	glider.queue_free()
+	terrain.queue_free()
+	_release_all_input()
+
+
+func _verify_jump_to_glide_repair() -> void:
+	var terrain := _spawn_terrain("jump_glide_repair")
+	await physics_frame
+
+	var glider := _spawn_glider(terrain)
+	_get_input(glider)
+	glider.global_position = Vector3(0.0, _hover_spawn_y(terrain), 0.0)
+	glider.velocity = Vector3.ZERO
+	await physics_frame
+
+	for i in 60:
+		await physics_frame
+
+	var skin: Node3D = glider.get_node("Visual/GliderSkin")
+	var anim_controller: GliderAnimControllerScript = skin.get_node("GliderAnimController") as GliderAnimControllerScript
+	var tree: AnimationTree = skin.get_node("AnimationTree") as AnimationTree
+	var root_playback := tree.get("parameters/body/playback") as AnimationNodeStateMachinePlayback
+
+	_fail_unless(glider.is_grounded(), "Jump-to-glide repair test needs grounded start")
+
+	glider.velocity = Vector3(0.0, 0.0, 14.0)
+	_hold_forward()
+	Input.action_press("jump")
+	await physics_frame
+	Input.action_release("jump")
+	await physics_frame
+
+	_fail_unless(glider.is_gliding(), "Jump-to-glide repair test needs gliding after jump")
+
+	var ground_y := terrain.sample_height(glider.global_position.x, glider.global_position.z)
+	glider.global_position.y = ground_y + 12.0
+	glider.velocity = Vector3(0.0, -0.5, 14.0)
+	glider.set("_state", GliderPlayerScript.State.GLIDING)
+	await physics_frame
+
+	var on_jump := false
+	for i in 120:
+		await physics_frame
+		if not glider.is_gliding():
+			continue
+		if root_playback.get_current_node() == &"jump":
+			on_jump = true
+			break
+
+	_fail_unless(
+		on_jump,
+		"Jump-to-glide repair test needs jump playing while gliding (root=%s)"
+		% root_playback.get_current_node()
+	)
+
+	anim_controller.set("_root_state", &"glide")
+	anim_controller.set("_root_blend_time", 0.0)
+	anim_controller.set("_root_blend_target", &"")
+
+	var recovered := false
+	for i in 90:
+		await physics_frame
+		if not glider.is_gliding():
+			continue
+		if root_playback.get_current_node() == &"glide":
+			recovered = true
+			break
+
+	_fail_unless(
+		recovered,
+		"Jump-to-glide repair should recover to glide after desync (root=%s)"
+		% root_playback.get_current_node()
+	)
 
 	_release_forward()
 	glider.queue_free()

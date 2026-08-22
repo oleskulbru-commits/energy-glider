@@ -330,6 +330,8 @@ func _sync_root_playback_after_advance(target: StringName) -> void:
 		_apply_boost_root(true)
 	elif target == &"brake":
 		_apply_brake_root()
+	elif target == &"glide" and cur == &"jump":
+		_apply_root_travel(&"glide", AIR_XFADE)
 	else:
 		_apply_root_transition(target, true)
 	_tree.advance(0.0)
@@ -530,8 +532,6 @@ func _is_jump_to_glide_blend_active() -> bool:
 
 func _should_skip_root_sync(target: StringName, cur: StringName) -> bool:
 	if _is_any_root_blend_active():
-		return true
-	if target == &"glide" and cur == &"jump":
 		return true
 	if target == &"jump" and cur == &"glide" and _glider.is_gliding():
 		return true
