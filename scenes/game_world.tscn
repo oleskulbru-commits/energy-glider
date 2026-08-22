@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3 uid="uid://cgame_world001"]
+[gd_scene load_steps=22 format=3 uid="uid://cgame_world001"]
 
 [ext_resource type="Script" uid="uid://ceqhf3n5dule0" path="res://scripts/terrain/terrain_manager.gd" id="1_terrain"]
 [ext_resource type="Material" uid="uid://suwp2571pfe0" path="res://materials/sand.tres" id="2_sand"]
@@ -19,6 +19,7 @@
 [ext_resource type="Script" path="res://scripts/game/run_upgrade_state.gd" id="19_upgrades"]
 [ext_resource type="Script" path="res://scripts/game/tower_visit_controller.gd" id="20_visit"]
 [ext_resource type="PackedScene" path="res://scenes/ui/upgrade_tower_menu.tscn" id="21_upgrade_menu"]
+[ext_resource type="PackedScene" path="res://scenes/ui/weapon_select_menu.tscn" id="22_weapon_select"]
 
 [sub_resource type="Sky" id="Sky_main"]
 sky_material = ExtResource("4_sky")
@@ -109,6 +110,8 @@ terrain_manager_path = NodePath("../TerrainManager")
 script = ExtResource("19_upgrades")
 
 [node name="UpgradeTowerMenu" parent="." instance=ExtResource("21_upgrade_menu")]
+
+[node name="WeaponSelectMenu" parent="." instance=ExtResource("22_weapon_select")]
 
 [node name="TowerVisitController" type="Node" parent="."]
 script = ExtResource("20_visit")

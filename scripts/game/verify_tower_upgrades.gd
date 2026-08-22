@@ -1093,24 +1093,24 @@ func _verify_catalog() -> void:
 
 
 func _verify_roll_shop() -> void:
-	var first := UpgradeCatalogScript.roll_shop(7, 3)
-	var again := UpgradeCatalogScript.roll_shop(7, 3)
+	var first := UpgradeCatalogScript.roll_shop(7, 3, 0, true, false)
+	var again := UpgradeCatalogScript.roll_shop(7, 3, 0, true, false)
 	_fail_unless(first.size() == 5, "roll_shop should fill 5 slots")
 	_fail_unless(first == again, "Same seed and tower should roll the same shop")
-	var other_tower := UpgradeCatalogScript.roll_shop(7, 4)
+	var other_tower := UpgradeCatalogScript.roll_shop(7, 4, 0, true, false)
 	_fail_unless(other_tower.size() == 5, "Other towers should also roll 5 cards")
 	for tower_index in range(1, 81):
-		var shop := UpgradeCatalogScript.roll_shop(1, tower_index)
+		var shop := UpgradeCatalogScript.roll_shop(1, tower_index, 0, true, false)
 		_fail_unless(
 			not _has_duplicate(shop),
 			"Shop %d should not repeat a card" % tower_index
 		)
-	var lucky := UpgradeCatalogScript.roll_shop(7, 3, 8)
-	var lucky_again := UpgradeCatalogScript.roll_shop(7, 3, 8)
+	var lucky := UpgradeCatalogScript.roll_shop(7, 3, 8, true, false)
+	var lucky_again := UpgradeCatalogScript.roll_shop(7, 3, 8, true, false)
 	_fail_unless(lucky == lucky_again, "Same seed, tower, and luck should roll the same shop")
 	_fail_unless(lucky.size() == 5, "Lucky shops should still fill 5 slots")
 	for tower_index in range(1, 81):
-		var shop := UpgradeCatalogScript.roll_shop(1, tower_index, 20)
+		var shop := UpgradeCatalogScript.roll_shop(1, tower_index, 20, true, false)
 		_fail_unless(
 			not _has_duplicate(shop),
 			"Lucky shop %d should not repeat a card" % tower_index
@@ -1955,9 +1955,60 @@ func _verify_weapon_cards() -> void:
 		UpgradeCatalogScript.icon_for(StringName(encoded)) != null,
 		"Encoded rifle offers should load rifle_common.jpg from the base id"
 	)
+	_fail_unless(
+		UpgradeCatalogScript.is_weapon_unlock(UpgradeCatalogScript.ID_UNLOCK_RIFLE)
+		and UpgradeCatalogScript.display_name(UpgradeCatalogScript.ID_UNLOCK_RIFLE) == "Rifle"
+		and UpgradeCatalogScript.rarity_display_name(UpgradeCatalogScript.ID_UNLOCK_RIFLE) == "",
+		"Unlock rifle should be named Rifle with no rarity line"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(UpgradeCatalogScript.ID_UNLOCK_LASER) != null,
+		"Unlock laser should use the common laser icon"
+	)
+	var rifle_n := UpgradeCatalogScript.eligible_shop_families(true, false).size()
+	var laser_n := UpgradeCatalogScript.eligible_shop_families(false, true).size()
+	_fail_unless(
+		UpgradeCatalogScript.FAMILY_DURATION not in UpgradeCatalogScript.eligible_shop_families(true, false),
+		"Rifle-only shops should not roll Duration"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.FAMILY_PUSHBACK not in UpgradeCatalogScript.eligible_shop_families(false, true)
+		and UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED not in UpgradeCatalogScript.eligible_shop_families(false, true),
+		"Laser-only shops should not roll Pushback or Projectile Speed"
+	)
+	_fail_unless(
+		is_equal_approx(UpgradeCatalogScript.unlock_chance(1, rifle_n), 1.0 / float(rifle_n)),
+		"Tower 1 unlock chance should be 1/N"
+	)
+	_fail_unless(
+		is_equal_approx(
+			UpgradeCatalogScript.unlock_chance(2, rifle_n),
+			1.0 / float(rifle_n) + 0.05
+		),
+		"Tower 2 unlock chance should be 1/N + 5%"
+	)
+	_fail_unless(laser_n > 0, "Laser-only shops should still have families")
+	_fail_unless(
+		UpgradeCatalogScript.missing_unlock_id(true, true) == &"",
+		"Both weapons owned should skip the unlock card"
+	)
+	for tower_index in range(1, 41):
+		var both := UpgradeCatalogScript.roll_shop(3, tower_index, 0, true, true)
+		for id in both:
+			_fail_unless(
+				not UpgradeCatalogScript.is_weapon_unlock(StringName(id)),
+				"Owned both weapons should never roll an unlock"
+			)
 
 	var state: RunUpgradeState = RunUpgradeStateScript.new()
 	root.add_child(state)
+	_fail_unless(not state.has_rifle and not state.has_laser, "No weapons until grant_starter")
+	state.grant_starter(UpgradeCatalogScript.FAMILY_LASER)
+	_fail_unless(state.has_laser and not state.has_rifle, "Starter Laser should own only Laser")
+	_fail_unless(
+		state.owned_weapon_ids() == PackedStringArray(["laser"]),
+		"HUD order should list the starter first"
+	)
 	var leftover := String(UpgradeCatalogScript.ID_EXTRA_PROJECTILE)
 	_seed_offers(
 		state,
@@ -1966,12 +2017,24 @@ func _verify_weapon_cards() -> void:
 	)
 	state.pick_offer(20, 0)
 	_fail_unless(
-		is_equal_approx(state.damage_bonus, 0.04),
-		"Picking rifle_common|damage_common|attack_speed_common should add catalog common damage"
+		is_equal_approx(state.damage_bonus, 0.0)
+		and is_equal_approx(state.attack_speed_reduction, 0.0),
+		"Rifle bundle stats should not enter the shared shop totals"
 	)
 	_fail_unless(
-		is_equal_approx(state.attack_speed_reduction, 0.04),
-		"Picking rifle_common|damage_common|attack_speed_common should add catalog common attack speed"
+		is_equal_approx(
+			state.damage_bonus_for(UpgradeCatalogScript.FAMILY_RIFLE),
+			0.04
+		)
+		and is_equal_approx(
+			state.attack_speed_reduction_for(UpgradeCatalogScript.FAMILY_RIFLE),
+			0.04
+		),
+		"Picking rifle_common|damage_common|attack_speed_common should add catalog common stats to the Rifle"
+	)
+	_fail_unless(
+		is_equal_approx(state.damage_bonus_for(UpgradeCatalogScript.FAMILY_LASER), 0.0),
+		"Rifle bundle Damage should not buff the Laser"
 	)
 	_fail_unless(state.extra_projectiles == 0, "That rifle pair should not add projectiles")
 	_fail_unless(
@@ -1992,12 +2055,109 @@ func _verify_weapon_cards() -> void:
 	)
 	state.pick_offer(22, 0)
 	_fail_unless(
-		is_equal_approx(state.damage_bonus, 0.08),
-		"Shop Damage should still stack with hidden weapon Damage"
+		is_equal_approx(state.damage_bonus, 0.04),
+		"Shop Damage should stack on the shared total"
 	)
 	_fail_unless(
 		is_equal_approx(state.hud_damage_bonus(), 0.04),
 		"HUD Damage should only count shop cards, not weapon bundles"
+	)
+	_fail_unless(
+		is_equal_approx(
+			state.damage_bonus_for(UpgradeCatalogScript.FAMILY_RIFLE),
+			0.08
+		),
+		"Rifle should use shop Damage plus its bundle"
+	)
+	state.grant_weapon(UpgradeCatalogScript.FAMILY_RIFLE)
+	_fail_unless(state.has_rifle and state.has_laser, "Unlocking Rifle should own both")
+	_fail_unless(
+		state.owned_weapon_ids() == PackedStringArray(["laser", "rifle"]),
+		"HUD order should keep starter then the found weapon"
+	)
+	_fail_unless(
+		is_equal_approx(
+			state.damage_bonus_for(UpgradeCatalogScript.FAMILY_RIFLE),
+			0.08
+		),
+		"A later Rifle should keep shared shop Damage"
+	)
+
+	var generic_only: RunUpgradeState = RunUpgradeStateScript.new()
+	root.add_child(generic_only)
+	generic_only.grant_starter(UpgradeCatalogScript.FAMILY_LASER)
+	_seed_offers(
+		generic_only,
+		30,
+		PackedStringArray([shop_damage, leftover, leftover, leftover, leftover])
+	)
+	generic_only.pick_offer(30, 0)
+	generic_only.grant_weapon(UpgradeCatalogScript.FAMILY_RIFLE)
+	_fail_unless(
+		is_equal_approx(
+			generic_only.damage_bonus_for(UpgradeCatalogScript.FAMILY_RIFLE),
+			0.04
+		),
+		"Generic Damage should buff a Rifle found later"
+	)
+	var laser_bundle := UpgradeCatalogScript.encode_weapon_offer(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_LASER,
+			UpgradeCatalogScript.RARITY_COMMON
+		),
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_DAMAGE,
+			UpgradeCatalogScript.RARITY_COMMON
+		),
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_DURATION,
+			UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	var bundle_only: RunUpgradeState = RunUpgradeStateScript.new()
+	root.add_child(bundle_only)
+	bundle_only.grant_starter(UpgradeCatalogScript.FAMILY_LASER)
+	_seed_offers(
+		bundle_only,
+		31,
+		PackedStringArray([laser_bundle, leftover, leftover, leftover, leftover])
+	)
+	bundle_only.pick_offer(31, 0)
+	bundle_only.grant_weapon(UpgradeCatalogScript.FAMILY_RIFLE)
+	_fail_unless(
+		is_equal_approx(
+			bundle_only.damage_bonus_for(UpgradeCatalogScript.FAMILY_LASER),
+			0.04
+		),
+		"Laser bundle Damage should apply to the Laser"
+	)
+	_fail_unless(
+		is_equal_approx(
+			bundle_only.damage_bonus_for(UpgradeCatalogScript.FAMILY_RIFLE),
+			0.0
+		),
+		"Laser bundle Damage should not buff a later Rifle"
+	)
+
+	var unlock_state: RunUpgradeState = RunUpgradeStateScript.new()
+	root.add_child(unlock_state)
+	unlock_state.grant_starter(UpgradeCatalogScript.FAMILY_LASER)
+	_seed_offers(
+		unlock_state,
+		24,
+		PackedStringArray([
+			String(UpgradeCatalogScript.ID_UNLOCK_RIFLE),
+			leftover,
+			leftover,
+			leftover,
+			leftover
+		])
+	)
+	unlock_state.pick_offer(24, 0)
+	_fail_unless(unlock_state.has_rifle, "Picking unlock_rifle should grant the Rifle")
+	_fail_unless(
+		is_equal_approx(unlock_state.damage_bonus, 0.0),
+		"Unlocking a weapon should not apply stats"
 	)
 
 	var leftover_laser := UpgradeCatalogScript.encode_weapon_offer(
@@ -2042,14 +2202,11 @@ func _verify_weapon_cards() -> void:
 		"Taken normal slot should be Empty"
 	)
 	state.reset_run()
+	_fail_unless(not state.has_rifle and not state.has_laser, "Try Again should clear weapons")
 	var after := state.get_offers(21)
 	_fail_unless(
-		UpgradeCatalogScript.is_weapon_offer(StringName(after[0])),
-		"Try Again should refill a taken weapon slot with a new Rifle or Laser card"
-	)
-	_fail_unless(
-		not UpgradeCatalogScript.is_empty_offer(StringName(after[0])),
-		"Taken weapon slot should not stay Empty after Try Again"
+		UpgradeCatalogScript.is_empty_offer(StringName(after[0])),
+		"Taken weapon-bundle slots should not refill after weapons are cleared"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.is_empty_offer(StringName(after[1])),
@@ -2058,23 +2215,17 @@ func _verify_weapon_cards() -> void:
 	_fail_unless(after[2] == leftover_damage, "Untaken cards should stay in the shop")
 	_fail_unless(after[3] == leftover_laser, "Untaken weapon cards should stay")
 	_fail_unless(after[4] == leftover_luck, "Untaken luck cards should stay")
-	var refilled_base := String(UpgradeCatalogScript.weapon_base_id(StringName(after[0])))
-	var leftover_bases := [
-		String(UpgradeCatalogScript.weapon_base_id(StringName(leftover_damage))),
-		String(UpgradeCatalogScript.weapon_base_id(StringName(leftover_laser))),
-		String(UpgradeCatalogScript.weapon_base_id(StringName(leftover_luck)))
-	]
-	_fail_unless(
-		refilled_base not in leftover_bases,
-		"New weapon base id should not collide with leftover cards"
-	)
-	_fail_unless(state.remaining_count(21) == 4, "Refilled weapon plus 3 leftovers should remain")
+	_fail_unless(state.remaining_count(21) == 3, "Three leftover cards should remain")
 	_fail_unless(
 		is_equal_approx(state.damage_bonus, 0.0)
-		and is_equal_approx(state.attack_speed_reduction, 0.0),
+		and is_equal_approx(state.attack_speed_reduction, 0.0)
+		and is_equal_approx(state.damage_bonus_for(UpgradeCatalogScript.FAMILY_RIFLE), 0.0),
 		"Try Again should still zero stacked weapon stats"
 	)
 	state.free()
+	generic_only.free()
+	bundle_only.free()
+	unlock_state.free()
 
 
 func _verify_dawn_pose() -> void:

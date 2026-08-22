@@ -121,6 +121,9 @@ func _abort() -> void:
 func _can_fire() -> bool:
 	if _rig == null:
 		return false
+	var state := _upgrade_state()
+	if state == null or not state.has_laser:
+		return false
 	var glider := _rig.get_glider()
 	return glider != null and not glider.is_run_ended()
 
@@ -147,35 +150,35 @@ func _extra_projectiles() -> int:
 	var state := _upgrade_state()
 	if state == null:
 		return 0
-	return state.extra_projectiles
+	return state.extra_projectiles_for(UpgradeCatalog.FAMILY_LASER)
 
 
 func _attack_speed_reduction() -> float:
 	var state := _upgrade_state()
 	if state == null:
 		return 0.0
-	return state.attack_speed_reduction
+	return state.attack_speed_reduction_for(UpgradeCatalog.FAMILY_LASER)
 
 
 func _damage_bonus() -> float:
 	var state := _upgrade_state()
 	if state == null:
 		return 0.0
-	return state.damage_bonus
+	return state.damage_bonus_for(UpgradeCatalog.FAMILY_LASER)
 
 
 func _duration_bonus() -> float:
 	var state := _upgrade_state()
 	if state == null:
 		return 0.0
-	return state.duration_bonus
+	return state.duration_bonus_for(UpgradeCatalog.FAMILY_LASER)
 
 
 func _crit_chance() -> float:
 	var state := _upgrade_state()
 	if state == null:
 		return 0.0
-	return clampf(state.crit_chance, 0.0, UpgradeCatalog.CRIT_CAP)
+	return clampf(state.crit_chance_for(UpgradeCatalog.FAMILY_LASER), 0.0, UpgradeCatalog.CRIT_CAP)
 
 
 func _upgrade_state() -> RunUpgradeState:

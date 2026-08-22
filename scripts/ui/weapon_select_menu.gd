@@ -1,0 +1,98 @@
+class_name WeaponSelectMenu
+extends CanvasLayer
+
+## Paused start / Try Again pick: one of the available weapons.
+
+const SELECTED_MODULATE := Color(1.0, 0.95, 0.75, 1.0)
+const IDLE_MODULATE := Color(0.92, 0.88, 0.8, 1.0)
+
+@onready var _root: Control = %Root
+@onready var _rifle_button: Button = %RifleButton
+@onready var _laser_button: Button = %LaserButton
+@onready var _start_button: Button = %StartButton
+
+var _state: RunUpgradeState
+var _rig: PlayerRig
+var _selected: StringName = &""
+
+
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	layer = 21
+	visible = false
+	_root.visible = false
+	_rifle_button.pressed.connect(_on_weapon_pressed.bind(UpgradeCatalog.FAMILY_RIFLE))
+	_laser_button.pressed.connect(_on_weapon_pressed.bind(UpgradeCatalog.FAMILY_LASER))
+	_start_button.pressed.connect(_on_start_pressed)
+	_rifle_button.icon = UpgradeCatalog.icon_for(UpgradeCatalog.ID_UNLOCK_RIFLE)
+	_laser_button.icon = UpgradeCatalog.icon_for(UpgradeCatalog.ID_UNLOCK_LASER)
+	call_deferred("_bind_and_open")
+
+
+func _bind_and_open() -> void:
+	_state = get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
+	var health := get_tree().get_first_node_in_group("player_health") as PlayerHealth
+	if health != null:
+		_rig = health.get_parent() as PlayerRig
+	var director := get_tree().get_first_node_in_group("eon_director") as EonDirector
+	if director != null and director.has_signal("attempt_started"):
+		if not director.attempt_started.is_connected(_on_attempt_started):
+			director.attempt_started.connect(_on_attempt_started)
+	open()
+
+
+func _on_attempt_started() -> void:
+	open()
+
+
+func is_open() -> bool:
+	return visible
+
+
+func open() -> void:
+	if _state != null and (_state.has_rifle or _state.has_laser):
+		return
+	_selected = &""
+	_refresh()
+	visible = true
+	_root.visible = true
+	get_tree().paused = true
+	var viewport := get_viewport()
+	if viewport != null:
+		viewport.gui_disable_input = false
+	if _rig != null:
+		_rig.release_look_mouse()
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+func _process(_delta: float) -> void:
+	if not visible:
+		return
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+func _refresh() -> void:
+	_rifle_button.modulate = SELECTED_MODULATE if _selected == UpgradeCatalog.FAMILY_RIFLE else IDLE_MODULATE
+	_laser_button.modulate = SELECTED_MODULATE if _selected == UpgradeCatalog.FAMILY_LASER else IDLE_MODULATE
+	_start_button.disabled = _selected == &""
+
+
+func _on_weapon_pressed(family: StringName) -> void:
+	_selected = family
+	_refresh()
+
+
+func _on_start_pressed() -> void:
+	if _selected == &"":
+		return
+	if _state != null:
+		_state.grant_starter(_selected)
+	_close()
+
+
+func _close() -> void:
+	visible = false
+	_root.visible = false
+	get_tree().paused = false
+	if _rig != null:
+		_rig.capture_look_mouse()

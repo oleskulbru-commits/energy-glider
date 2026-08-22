@@ -1,9 +1,10 @@
 class_name RunUpgradeState
 extends Node
 
-## Stacks reset on Try Again. Taken weapon slots refill; other Empty slots stay empty.
+## Stacks and weapons reset on Try Again. Taken weapon-bundle slots refill if still owned.
 
 signal extra_projectiles_changed(count: int)
+signal weapons_changed
 
 var extra_projectiles := 0
 var attack_speed_reduction := 0.0
@@ -17,17 +18,34 @@ var momentum_retention := 0.0
 var crit_chance := 0.0
 var duration_bonus := 0.0
 var pushback_bonus := 0.0
+var has_rifle := false
+var has_laser := false
 var _offers: Dictionary = {}
 var _visited_this_life: Dictionary = {}
 var _weapon_holes: Dictionary = {}
 var _life_index := 0
-var _weapon_extra_projectiles := 0
-var _weapon_attack_speed := 0.0
-var _weapon_damage := 0.0
-var _weapon_projectile_speed := 0.0
-var _weapon_crit := 0.0
-var _weapon_duration := 0.0
-var _weapon_pushback := 0.0
+var _owned_order: PackedStringArray = PackedStringArray()
+var _rifle_bundle := WeaponBundle.new()
+var _laser_bundle := WeaponBundle.new()
+
+
+class WeaponBundle:
+	var extra_projectiles := 0
+	var attack_speed := 0.0
+	var damage := 0.0
+	var projectile_speed := 0.0
+	var crit := 0.0
+	var duration := 0.0
+	var pushback := 0.0
+
+	func clear() -> void:
+		extra_projectiles = 0
+		attack_speed = 0.0
+		damage = 0.0
+		projectile_speed = 0.0
+		crit = 0.0
+		duration = 0.0
+		pushback = 0.0
 
 
 func _ready() -> void:
@@ -66,17 +84,79 @@ func reset_run() -> void:
 	crit_chance = 0.0
 	duration_bonus = 0.0
 	pushback_bonus = 0.0
-	_weapon_extra_projectiles = 0
-	_weapon_attack_speed = 0.0
-	_weapon_damage = 0.0
-	_weapon_projectile_speed = 0.0
-	_weapon_crit = 0.0
-	_weapon_duration = 0.0
-	_weapon_pushback = 0.0
+	_rifle_bundle.clear()
+	_laser_bundle.clear()
+	has_rifle = false
+	has_laser = false
+	_owned_order = PackedStringArray()
 	_life_index += 1
 	_refill_weapon_holes()
 	clear_visited_this_life()
 	extra_projectiles_changed.emit(extra_projectiles)
+	weapons_changed.emit()
+
+
+func grant_starter(family: StringName) -> void:
+	has_rifle = false
+	has_laser = false
+	_owned_order = PackedStringArray()
+	grant_weapon(family)
+
+
+func grant_weapon(family: StringName) -> void:
+	if family == UpgradeCatalog.FAMILY_RIFLE:
+		if has_rifle:
+			return
+		has_rifle = true
+		_owned_order.append("rifle")
+	elif family == UpgradeCatalog.FAMILY_LASER:
+		if has_laser:
+			return
+		has_laser = true
+		_owned_order.append("laser")
+	else:
+		return
+	weapons_changed.emit()
+
+
+func owned_weapon_ids() -> PackedStringArray:
+	return _owned_order
+
+
+func owns_weapon(family: StringName) -> bool:
+	if family == UpgradeCatalog.FAMILY_RIFLE:
+		return has_rifle
+	if family == UpgradeCatalog.FAMILY_LASER:
+		return has_laser
+	return false
+
+
+func extra_projectiles_for(weapon: StringName) -> int:
+	return extra_projectiles + _bundle(weapon).extra_projectiles
+
+
+func attack_speed_reduction_for(weapon: StringName) -> float:
+	return attack_speed_reduction + _bundle(weapon).attack_speed
+
+
+func damage_bonus_for(weapon: StringName) -> float:
+	return damage_bonus + _bundle(weapon).damage
+
+
+func projectile_speed_bonus_for(weapon: StringName) -> float:
+	return projectile_speed_bonus + _bundle(weapon).projectile_speed
+
+
+func crit_chance_for(weapon: StringName) -> float:
+	return crit_chance + _bundle(weapon).crit
+
+
+func duration_bonus_for(weapon: StringName) -> float:
+	return duration_bonus + _bundle(weapon).duration
+
+
+func pushback_bonus_for(weapon: StringName) -> float:
+	return pushback_bonus + _bundle(weapon).pushback
 
 
 func ensure_tower(tower_index: int) -> void:
@@ -87,7 +167,9 @@ func ensure_tower(tower_index: int) -> void:
 	var seed := LevelRun.world_seed()
 	if seed < 0:
 		seed = 42
-	_offers[tower_index] = UpgradeCatalog.roll_shop(seed, tower_index, luck_bonus)
+	_offers[tower_index] = UpgradeCatalog.roll_shop(
+		seed, tower_index, luck_bonus, has_rifle, has_laser
+	)
 
 
 func get_offers(tower_index: int) -> PackedStringArray:
@@ -119,32 +201,40 @@ func pick_offer(tower_index: int, slot: int) -> StringName:
 	return id
 
 
-func _apply_upgrade(id: StringName, from_weapon: bool = false) -> void:
+func _apply_upgrade(id: StringName, weapon_family: StringName = &"") -> void:
+	if UpgradeCatalog.is_weapon_unlock(id):
+		grant_weapon(UpgradeCatalog.unlock_weapon_family(id))
+		return
 	if UpgradeCatalog.is_weapon_offer(id):
+		var family := UpgradeCatalog.family_of(id)
 		for part in UpgradeCatalog.weapon_parts(id):
-			_apply_upgrade(StringName(part), true)
+			_apply_upgrade(StringName(part), family)
 		return
 	var family := UpgradeCatalog.family_of(id)
 	if family == UpgradeCatalog.FAMILY_PROJECTILE:
 		var amount := UpgradeCatalog.projectile_bonus(UpgradeCatalog.rarity_of(id))
-		add_extra_projectile(amount)
-		if from_weapon:
-			_weapon_extra_projectiles += maxi(amount, 0)
+		if weapon_family != &"":
+			_bundle(weapon_family).extra_projectiles += maxi(amount, 0)
+		else:
+			add_extra_projectile(amount)
 	elif family == UpgradeCatalog.FAMILY_ATTACK_SPEED:
 		var amount := UpgradeCatalog.attack_speed_percent(UpgradeCatalog.rarity_of(id))
-		attack_speed_reduction += amount
-		if from_weapon:
-			_weapon_attack_speed += amount
+		if weapon_family != &"":
+			_bundle(weapon_family).attack_speed += amount
+		else:
+			attack_speed_reduction += amount
 	elif family == UpgradeCatalog.FAMILY_DAMAGE:
 		var amount := UpgradeCatalog.damage_percent(UpgradeCatalog.rarity_of(id))
-		damage_bonus += amount
-		if from_weapon:
-			_weapon_damage += amount
+		if weapon_family != &"":
+			_bundle(weapon_family).damage += amount
+		else:
+			damage_bonus += amount
 	elif family == UpgradeCatalog.FAMILY_PROJECTILE_SPEED:
 		var amount := UpgradeCatalog.projectile_speed_percent(UpgradeCatalog.rarity_of(id))
-		projectile_speed_bonus += amount
-		if from_weapon:
-			_weapon_projectile_speed += amount
+		if weapon_family != &"":
+			_bundle(weapon_family).projectile_speed += amount
+		else:
+			projectile_speed_bonus += amount
 	elif family == UpgradeCatalog.FAMILY_GLIDER_SPEED:
 		glider_speed_bonus += UpgradeCatalog.glider_speed_percent(UpgradeCatalog.rarity_of(id))
 	elif family == UpgradeCatalog.FAMILY_HP_REGEN:
@@ -163,47 +253,50 @@ func _apply_upgrade(id: StringName, from_weapon: bool = false) -> void:
 		)
 	elif family == UpgradeCatalog.FAMILY_CRIT:
 		var amount := UpgradeCatalog.crit_chance(UpgradeCatalog.rarity_of(id))
-		crit_chance += amount
-		if from_weapon:
-			_weapon_crit += amount
+		if weapon_family != &"":
+			_bundle(weapon_family).crit += amount
+		else:
+			crit_chance += amount
 	elif family == UpgradeCatalog.FAMILY_DURATION:
 		var amount := UpgradeCatalog.duration_percent(UpgradeCatalog.rarity_of(id))
-		duration_bonus += amount
-		if from_weapon:
-			_weapon_duration += amount
+		if weapon_family != &"":
+			_bundle(weapon_family).duration += amount
+		else:
+			duration_bonus += amount
 	elif family == UpgradeCatalog.FAMILY_PUSHBACK:
 		var amount := UpgradeCatalog.pushback_percent(UpgradeCatalog.rarity_of(id))
-		pushback_bonus += amount
-		if from_weapon:
-			_weapon_pushback += amount
+		if weapon_family != &"":
+			_bundle(weapon_family).pushback += amount
+		else:
+			pushback_bonus += amount
 
 
 func hud_extra_projectiles() -> int:
-	return extra_projectiles - _weapon_extra_projectiles
+	return extra_projectiles
 
 
 func hud_attack_speed_reduction() -> float:
-	return attack_speed_reduction - _weapon_attack_speed
+	return attack_speed_reduction
 
 
 func hud_damage_bonus() -> float:
-	return damage_bonus - _weapon_damage
+	return damage_bonus
 
 
 func hud_projectile_speed_bonus() -> float:
-	return projectile_speed_bonus - _weapon_projectile_speed
+	return projectile_speed_bonus
 
 
 func hud_crit_chance() -> float:
-	return crit_chance - _weapon_crit
+	return crit_chance
 
 
 func hud_duration_bonus() -> float:
-	return duration_bonus - _weapon_duration
+	return duration_bonus
 
 
 func hud_pushback_bonus() -> float:
-	return pushback_bonus - _weapon_pushback
+	return pushback_bonus
 
 
 func add_extra_projectile(amount: int = 1) -> void:
@@ -223,6 +316,12 @@ func mark_visited_this_life(tower_index: int) -> void:
 
 func clear_visited_this_life() -> void:
 	_visited_this_life.clear()
+
+
+func _bundle(weapon: StringName) -> WeaponBundle:
+	if weapon == UpgradeCatalog.FAMILY_LASER:
+		return _laser_bundle
+	return _rifle_bundle
 
 
 func _remember_weapon_hole(tower_index: int, slot: int) -> void:
@@ -259,7 +358,14 @@ func _refill_weapon_holes() -> void:
 			if not UpgradeCatalog.is_empty_offer(StringName(offers[slot])):
 				continue
 			var fresh := UpgradeCatalog.roll_weapon_refill(
-				seed, int(tower_index), _life_index, int(slot), used, luck_bonus
+				seed,
+				int(tower_index),
+				_life_index,
+				int(slot),
+				used,
+				luck_bonus,
+				has_rifle,
+				has_laser
 			)
 			if fresh.is_empty():
 				continue

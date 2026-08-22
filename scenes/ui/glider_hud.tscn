@@ -104,58 +104,133 @@ horizontal_alignment = 1
 anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
-offset_top = -124.0
+offset_top = -220.0
 offset_right = 280.0
 grow_vertical = 0
 theme_override_constants/margin_left = 24
 theme_override_constants/margin_bottom = 24
 
-[node name="PowerPanel" type="PanelContainer" parent="BottomLeft"]
+[node name="BottomLeftVBox" type="VBoxContainer" parent="BottomLeft"]
+theme_override_constants/separation = 8
+
+[node name="WeaponTray" type="HBoxContainer" parent="BottomLeft/BottomLeftVBox"]
+unique_name_in_owner = true
+theme_override_constants/separation = 6
+
+[node name="WeaponSlot0" type="VBoxContainer" parent="BottomLeft/BottomLeftVBox/WeaponTray"]
+theme_override_constants/separation = 2
+
+[node name="Frame" type="PanelContainer" parent="BottomLeft/BottomLeftVBox/WeaponTray/WeaponSlot0"]
+custom_minimum_size = Vector2(48, 48)
+theme_type_variation = &"HudPanel"
+
+[node name="Icon" type="TextureRect" parent="BottomLeft/BottomLeftVBox/WeaponTray/WeaponSlot0/Frame"]
+custom_minimum_size = Vector2(44, 44)
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Name" type="Label" parent="BottomLeft/BottomLeftVBox/WeaponTray/WeaponSlot0"]
+theme_type_variation = &"HudMuted"
+theme_override_font_sizes/font_size = 12
+horizontal_alignment = 1
+
+[node name="WeaponSlot1" type="VBoxContainer" parent="BottomLeft/BottomLeftVBox/WeaponTray"]
+theme_override_constants/separation = 2
+
+[node name="Frame" type="PanelContainer" parent="BottomLeft/BottomLeftVBox/WeaponTray/WeaponSlot1"]
+custom_minimum_size = Vector2(48, 48)
+theme_type_variation = &"HudPanel"
+
+[node name="Icon" type="TextureRect" parent="BottomLeft/BottomLeftVBox/WeaponTray/WeaponSlot1/Frame"]
+custom_minimum_size = Vector2(44, 44)
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Name" type="Label" parent="BottomLeft/BottomLeftVBox/WeaponTray/WeaponSlot1"]
+theme_type_variation = &"HudMuted"
+theme_override_font_sizes/font_size = 12
+horizontal_alignment = 1
+
+[node name="WeaponSlot2" type="VBoxContainer" parent="BottomLeft/BottomLeftVBox/WeaponTray"]
+theme_override_constants/separation = 2
+
+[node name="Frame" type="PanelContainer" parent="BottomLeft/BottomLeftVBox/WeaponTray/WeaponSlot2"]
+custom_minimum_size = Vector2(48, 48)
+theme_type_variation = &"HudPanel"
+
+[node name="Icon" type="TextureRect" parent="BottomLeft/BottomLeftVBox/WeaponTray/WeaponSlot2/Frame"]
+custom_minimum_size = Vector2(44, 44)
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Name" type="Label" parent="BottomLeft/BottomLeftVBox/WeaponTray/WeaponSlot2"]
+theme_type_variation = &"HudMuted"
+theme_override_font_sizes/font_size = 12
+horizontal_alignment = 1
+
+[node name="WeaponSlot3" type="VBoxContainer" parent="BottomLeft/BottomLeftVBox/WeaponTray"]
+theme_override_constants/separation = 2
+
+[node name="Frame" type="PanelContainer" parent="BottomLeft/BottomLeftVBox/WeaponTray/WeaponSlot3"]
+custom_minimum_size = Vector2(48, 48)
+theme_type_variation = &"HudPanel"
+
+[node name="Icon" type="TextureRect" parent="BottomLeft/BottomLeftVBox/WeaponTray/WeaponSlot3/Frame"]
+custom_minimum_size = Vector2(44, 44)
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Name" type="Label" parent="BottomLeft/BottomLeftVBox/WeaponTray/WeaponSlot3"]
+theme_type_variation = &"HudMuted"
+theme_override_font_sizes/font_size = 12
+horizontal_alignment = 1
+
+[node name="PowerPanel" type="PanelContainer" parent="BottomLeft/BottomLeftVBox"]
 theme_type_variation = &"HudPanel"
 custom_minimum_size = Vector2(220, 0)
 
-[node name="VBox" type="VBoxContainer" parent="BottomLeft/PowerPanel"]
+[node name="VBox" type="VBoxContainer" parent="BottomLeft/BottomLeftVBox/PowerPanel"]
 theme_override_constants/separation = 6
 
-[node name="Header" type="HBoxContainer" parent="BottomLeft/PowerPanel/VBox"]
+[node name="Header" type="HBoxContainer" parent="BottomLeft/BottomLeftVBox/PowerPanel/VBox"]
 theme_override_constants/separation = 8
 
-[node name="PowerLabel" type="Label" parent="BottomLeft/PowerPanel/VBox/Header"]
+[node name="PowerLabel" type="Label" parent="BottomLeft/BottomLeftVBox/PowerPanel/VBox/Header"]
 unique_name_in_owner = true
 theme_type_variation = &"HudLabel"
 text = "Thruster Charge"
 
-[node name="SolarChip" type="PanelContainer" parent="BottomLeft/PowerPanel/VBox/Header"]
+[node name="SolarChip" type="PanelContainer" parent="BottomLeft/BottomLeftVBox/PowerPanel/VBox/Header"]
 unique_name_in_owner = true
 visible = false
 theme_type_variation = &"HudSolarChip"
 
-[node name="SolarLabel" type="Label" parent="BottomLeft/PowerPanel/VBox/Header/SolarChip"]
+[node name="SolarLabel" type="Label" parent="BottomLeft/BottomLeftVBox/PowerPanel/VBox/Header/SolarChip"]
 theme_type_variation = &"HudSolarLabel"
 text = "SOLAR"
 
-[node name="Spacer" type="Control" parent="BottomLeft/PowerPanel/VBox/Header"]
+[node name="Spacer" type="Control" parent="BottomLeft/BottomLeftVBox/PowerPanel/VBox/Header"]
 size_flags_horizontal = 3
 
-[node name="PowerPercent" type="Label" parent="BottomLeft/PowerPanel/VBox/Header"]
+[node name="PowerPercent" type="Label" parent="BottomLeft/BottomLeftVBox/PowerPanel/VBox/Header"]
 unique_name_in_owner = true
 theme_type_variation = &"HudValue"
 text = "100%"
 horizontal_alignment = 2
 
-[node name="PowerBar" type="ProgressBar" parent="BottomLeft/PowerPanel/VBox"]
+[node name="PowerBar" type="ProgressBar" parent="BottomLeft/BottomLeftVBox/PowerPanel/VBox"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(196, 7)
 max_value = 100.0
 show_percentage = false
 value = 100.0
 
-[node name="BatteryLabel" type="Label" parent="BottomLeft/PowerPanel/VBox"]
+[node name="BatteryLabel" type="Label" parent="BottomLeft/BottomLeftVBox/PowerPanel/VBox"]
 unique_name_in_owner = true
 theme_type_variation = &"HudLabel"
 text = "Battery"
 
-[node name="BatteryBar" type="ProgressBar" parent="BottomLeft/PowerPanel/VBox"]
+[node name="BatteryBar" type="ProgressBar" parent="BottomLeft/BottomLeftVBox/PowerPanel/VBox"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(196, 7)
 max_value = 100.0

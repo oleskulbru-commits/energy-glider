@@ -49,42 +49,42 @@ func _extra_projectiles() -> int:
 	var state := _upgrade_state()
 	if state == null:
 		return 0
-	return state.extra_projectiles
+	return state.extra_projectiles_for(UpgradeCatalog.FAMILY_RIFLE)
 
 
 func _attack_speed_reduction() -> float:
 	var state := _upgrade_state()
 	if state == null:
 		return 0.0
-	return state.attack_speed_reduction
+	return state.attack_speed_reduction_for(UpgradeCatalog.FAMILY_RIFLE)
 
 
 func _damage_bonus() -> float:
 	var state := _upgrade_state()
 	if state == null:
 		return 0.0
-	return state.damage_bonus
+	return state.damage_bonus_for(UpgradeCatalog.FAMILY_RIFLE)
 
 
 func _crit_chance() -> float:
 	var state := _upgrade_state()
 	if state == null:
 		return 0.0
-	return clampf(state.crit_chance, 0.0, UpgradeCatalog.CRIT_CAP)
+	return clampf(state.crit_chance_for(UpgradeCatalog.FAMILY_RIFLE), 0.0, UpgradeCatalog.CRIT_CAP)
 
 
 func _projectile_speed_bonus() -> float:
 	var state := _upgrade_state()
 	if state == null:
 		return 0.0
-	return state.projectile_speed_bonus
+	return state.projectile_speed_bonus_for(UpgradeCatalog.FAMILY_RIFLE)
 
 
 func _pushback_bonus() -> float:
 	var state := _upgrade_state()
 	if state == null:
 		return 0.0
-	return state.pushback_bonus
+	return state.pushback_bonus_for(UpgradeCatalog.FAMILY_RIFLE)
 
 
 func _upgrade_state() -> RunUpgradeState:
@@ -132,6 +132,9 @@ func _fire_at_current_target() -> bool:
 
 func _can_fire() -> bool:
 	if _rig == null:
+		return false
+	var state := _upgrade_state()
+	if state == null or not state.has_rifle:
 		return false
 	var glider := _rig.get_glider()
 	return glider != null and not glider.is_run_ended()

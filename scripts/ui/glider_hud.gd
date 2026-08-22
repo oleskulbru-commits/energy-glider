@@ -71,6 +71,7 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _duration_label: Label = %DurationLabel
 @onready var _pushback_label: Label = %PushbackLabel
 @onready var _speed_label: Label = %SpeedLabel
+@onready var _weapon_tray: HBoxContainer = %WeaponTray
 
 var _rig: PlayerRig
 var _player: GliderPlayer
@@ -155,6 +156,7 @@ func _ready() -> void:
 		_fail_fade.color = Color(0, 0, 0, 0)
 		_fail_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_fail_fade.z_index = 100
+	call_deferred("_connect_weapon_tray")
 	if _stopped_overlay != null:
 		_stopped_overlay.z_index = 101
 	_fail_overlay_style = StyleBoxEmpty.new()
@@ -174,6 +176,41 @@ func _ready() -> void:
 		_radar_pulse.pulse_fired.connect(_on_pulse_fired)
 		_radar_pulse.cooldown_changed.connect(_on_pulse_cooldown_changed)
 	_update_pulse_chip()
+
+
+func _connect_weapon_tray() -> void:
+	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
+	if state != null and not state.weapons_changed.is_connected(_refresh_weapon_tray):
+		state.weapons_changed.connect(_refresh_weapon_tray)
+	_refresh_weapon_tray()
+
+
+func _refresh_weapon_tray() -> void:
+	if _weapon_tray == null:
+		return
+	var owned := PackedStringArray()
+	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
+	if state != null:
+		owned = state.owned_weapon_ids()
+	var slots := _weapon_tray.get_children()
+	for i in slots.size():
+		var slot := slots[i] as Control
+		if slot == null:
+			continue
+		var icon := slot.get_node_or_null("Frame/Icon") as TextureRect
+		var name_label := slot.get_node_or_null("Name") as Label
+		if i >= owned.size():
+			if icon != null:
+				icon.texture = null
+			if name_label != null:
+				name_label.text = ""
+			continue
+		var family := StringName(owned[i])
+		var unlock := UpgradeCatalog.unlock_id_for(family)
+		if icon != null:
+			icon.texture = UpgradeCatalog.icon_for(unlock)
+		if name_label != null:
+			name_label.text = UpgradeCatalog.display_name(unlock)
 
 
 func _lock_eon_tracker_layout() -> void:
