@@ -16,6 +16,8 @@ const FAMILY_MOMENTUM_RETENTION := &"momentum_retention"
 const FAMILY_CRIT := &"crit"
 const FAMILY_DURATION := &"duration"
 const FAMILY_PUSHBACK := &"pushback"
+const FAMILY_RIFLE := &"rifle"
+const FAMILY_LASER := &"laser"
 const RARITY_COMMON := &"common"
 const RARITY_UNCOMMON := &"uncommon"
 const RARITY_RARE := &"rare"
@@ -118,14 +120,131 @@ const PUSHBACK_LEGENDARY := 0.50
 
 const SHOP_SEED_WORLD := 1009
 const SHOP_SEED_TOWER := 9176
+const SHOP_SEED_LIFE := 4283
+const SHOP_SEED_SLOT := 7919
+const WEAPON_OFFER_SEP := "|"
 
 
 static func make_id(family: StringName, rarity: StringName) -> StringName:
 	return StringName("%s_%s" % [String(family), String(rarity)])
 
 
-static func family_of(id: StringName) -> StringName:
+static func weapon_base_id(id: StringName) -> StringName:
 	var text := String(id)
+	var pipe := text.find(WEAPON_OFFER_SEP)
+	if pipe < 0:
+		return id
+	return StringName(text.substr(0, pipe))
+
+
+static func is_weapon_family(family: StringName) -> bool:
+	return family == FAMILY_RIFLE or family == FAMILY_LASER
+
+
+static func is_weapon_offer(id: StringName) -> bool:
+	return is_weapon_family(family_of(id))
+
+
+static func eligible_families(weapon_family: StringName) -> Array[StringName]:
+	if weapon_family == FAMILY_LASER:
+		return [
+			FAMILY_PROJECTILE,
+			FAMILY_ATTACK_SPEED,
+			FAMILY_DAMAGE,
+			FAMILY_CRIT,
+			FAMILY_DURATION
+		]
+	return [
+		FAMILY_PROJECTILE,
+		FAMILY_ATTACK_SPEED,
+		FAMILY_DAMAGE,
+		FAMILY_PROJECTILE_SPEED,
+		FAMILY_CRIT,
+		FAMILY_PUSHBACK
+	]
+
+
+static func encode_weapon_offer(base_id: StringName, part_a: StringName, part_b: StringName) -> String:
+	return "%s%s%s%s%s" % [String(base_id), WEAPON_OFFER_SEP, String(part_a), WEAPON_OFFER_SEP, String(part_b)]
+
+
+static func weapon_parts(id: StringName) -> PackedStringArray:
+	var text := String(id)
+	var bits := text.split(WEAPON_OFFER_SEP, false)
+	if bits.size() < 3:
+		return PackedStringArray()
+	return PackedStringArray([bits[1], bits[2]])
+
+
+static func weapon_bonus_lines(id: StringName) -> PackedStringArray:
+	var lines := PackedStringArray()
+	for part in weapon_parts(id):
+		lines.append(display_name(StringName(part)))
+	return lines
+
+
+static func roll_weapon_parts(
+	weapon_family: StringName, rarity: StringName, rng: RandomNumberGenerator
+) -> PackedStringArray:
+	var families := eligible_families(weapon_family)
+	if families.size() < 2:
+		return PackedStringArray()
+	var first := rng.randi_range(0, families.size() - 1)
+	var second := rng.randi_range(0, families.size() - 2)
+	if second >= first:
+		second += 1
+	return PackedStringArray([
+		String(make_id(families[first], rarity)),
+		String(make_id(families[second], rarity))
+	])
+
+
+static func roll_weapon_offer(
+	rng: RandomNumberGenerator, used: Dictionary, luck: int = 0
+) -> String:
+	for _try in 40:
+		var family := FAMILY_RIFLE if rng.randi_range(0, 1) == 0 else FAMILY_LASER
+		var rarity := _roll_rarity(rng, rarity_luck_for(family, luck))
+		var base := String(make_id(family, rarity))
+		if used.has(base):
+			continue
+		var parts := roll_weapon_parts(family, rarity, rng)
+		if parts.size() < 2:
+			continue
+		return encode_weapon_offer(StringName(base), StringName(parts[0]), StringName(parts[1]))
+	for family in [FAMILY_RIFLE, FAMILY_LASER]:
+		for rarity in [
+			RARITY_COMMON,
+			RARITY_UNCOMMON,
+			RARITY_RARE,
+			RARITY_EPIC,
+			RARITY_LEGENDARY
+		]:
+			var base := String(make_id(family, rarity))
+			if used.has(base):
+				continue
+			var parts := roll_weapon_parts(family, rarity, rng)
+			if parts.size() < 2:
+				continue
+			return encode_weapon_offer(StringName(base), StringName(parts[0]), StringName(parts[1]))
+	return ""
+
+
+static func roll_weapon_refill(
+	world_seed: int, tower_index: int, life_index: int, slot: int, used: Dictionary, luck: int = 0
+) -> String:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = (
+		world_seed * SHOP_SEED_WORLD
+		+ tower_index * SHOP_SEED_TOWER
+		+ life_index * SHOP_SEED_LIFE
+		+ slot * SHOP_SEED_SLOT
+	)
+	return roll_weapon_offer(rng, used, luck)
+
+
+static func family_of(id: StringName) -> StringName:
+	var text := String(weapon_base_id(id))
 	if text.begins_with("attack_speed_"):
 		return FAMILY_ATTACK_SPEED
 	if text.begins_with("crit_"):
@@ -148,6 +267,10 @@ static func family_of(id: StringName) -> StringName:
 		return FAMILY_HEALTH
 	if text.begins_with("luck_"):
 		return FAMILY_LUCK
+	if text.begins_with("rifle_"):
+		return FAMILY_RIFLE
+	if text.begins_with("laser_"):
+		return FAMILY_LASER
 	if text.begins_with("projectile_"):
 		return FAMILY_PROJECTILE
 	if id == &"extra_projectile":
@@ -156,11 +279,12 @@ static func family_of(id: StringName) -> StringName:
 
 
 static func rarity_of(id: StringName) -> StringName:
-	var family := family_of(id)
+	var base := weapon_base_id(id)
+	var family := family_of(base)
 	if family == &"":
 		return RARITY_COMMON
 	var prefix := "%s_" % String(family)
-	var text := String(id)
+	var text := String(base)
 	if not text.begins_with(prefix):
 		return RARITY_COMMON
 	return StringName(text.substr(prefix.length()))
@@ -410,7 +534,11 @@ static func display_name(id: StringName) -> String:
 	if family == FAMILY_PUSHBACK:
 		var pct := int(round(pushback_percent(rarity_of(id)) * 100.0))
 		return "Pushback +%d%%" % pct
-	return String(id)
+	if family == FAMILY_RIFLE:
+		return "Rifle"
+	if family == FAMILY_LASER:
+		return "Laser"
+	return String(weapon_base_id(id))
 
 
 static func rarity_display_name(id: StringName) -> String:
@@ -434,7 +562,7 @@ static func rarity_color(id: StringName) -> Color:
 
 
 static func icon_path_for(id: StringName) -> String:
-	return "%s%s.jpg" % [ICON_DIR, String(id)]
+	return "%s%s.jpg" % [ICON_DIR, String(weapon_base_id(id))]
 
 
 static func icon_for(id: StringName) -> Texture2D:
@@ -470,7 +598,7 @@ static func roll_shop(world_seed: int, tower_index: int, luck: int = 0) -> Packe
 	var used: Dictionary = {}
 	for _i in SLOTS_PER_TOWER:
 		var id := _roll_unique_id(rng, used, luck)
-		used[id] = true
+		used[String(weapon_base_id(StringName(id)))] = true
 		slots.append(id)
 	return slots
 
@@ -480,9 +608,16 @@ static func _roll_unique_id(
 ) -> String:
 	for _try in 80:
 		var family := _roll_family(rng)
-		var id := String(make_id(family, _roll_rarity(rng, rarity_luck_for(family, luck))))
-		if not used.has(id):
-			return id
+		var rarity := _roll_rarity(rng, rarity_luck_for(family, luck))
+		var base := String(make_id(family, rarity))
+		if used.has(base):
+			continue
+		if is_weapon_family(family):
+			var parts := roll_weapon_parts(family, rarity, rng)
+			if parts.size() < 2:
+				continue
+			return encode_weapon_offer(StringName(base), StringName(parts[0]), StringName(parts[1]))
+		return base
 	for family in [
 		FAMILY_PROJECTILE,
 		FAMILY_ATTACK_SPEED,
@@ -495,7 +630,9 @@ static func _roll_unique_id(
 		FAMILY_MOMENTUM_RETENTION,
 		FAMILY_CRIT,
 		FAMILY_DURATION,
-		FAMILY_PUSHBACK
+		FAMILY_PUSHBACK,
+		FAMILY_RIFLE,
+		FAMILY_LASER
 	]:
 		for rarity in [
 			RARITY_COMMON,
@@ -505,8 +642,14 @@ static func _roll_unique_id(
 			RARITY_LEGENDARY
 		]:
 			var id := String(make_id(family, rarity))
-			if not used.has(id):
-				return id
+			if used.has(id):
+				continue
+			if is_weapon_family(family):
+				var parts := roll_weapon_parts(family, rarity, rng)
+				if parts.size() < 2:
+					continue
+				return encode_weapon_offer(StringName(id), StringName(parts[0]), StringName(parts[1]))
+			return id
 	return String(ID_EXTRA_PROJECTILE)
 
 
@@ -553,7 +696,7 @@ static func _apply_luck_point(weights: PackedInt32Array) -> PackedInt32Array:
 
 
 static func _roll_family(rng: RandomNumberGenerator) -> StringName:
-	match rng.randi_range(0, 11):
+	match rng.randi_range(0, 13):
 		0:
 			return FAMILY_PROJECTILE
 		1:
@@ -576,5 +719,9 @@ static func _roll_family(rng: RandomNumberGenerator) -> StringName:
 			return FAMILY_CRIT
 		10:
 			return FAMILY_DURATION
-		_:
+		11:
 			return FAMILY_PUSHBACK
+		12:
+			return FAMILY_RIFLE
+		_:
+			return FAMILY_LASER

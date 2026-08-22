@@ -1,7 +1,7 @@
 class_name RunUpgradeState
 extends Node
 
-## Rifle stacks reset on Try Again; taken shop cards stay empty until New game.
+## Stacks reset on Try Again. Taken weapon slots refill; other Empty slots stay empty.
 
 signal extra_projectiles_changed(count: int)
 
@@ -19,6 +19,8 @@ var duration_bonus := 0.0
 var pushback_bonus := 0.0
 var _offers: Dictionary = {}
 var _visited_this_life: Dictionary = {}
+var _weapon_holes: Dictionary = {}
+var _life_index := 0
 
 
 func _ready() -> void:
@@ -57,6 +59,8 @@ func reset_run() -> void:
 	crit_chance = 0.0
 	duration_bonus = 0.0
 	pushback_bonus = 0.0
+	_life_index += 1
+	_refill_weapon_holes()
 	clear_visited_this_life()
 	extra_projectiles_changed.emit(extra_projectiles)
 
@@ -93,6 +97,8 @@ func pick_offer(tower_index: int, slot: int) -> StringName:
 	var id := StringName(offers[slot])
 	if UpgradeCatalog.is_empty_offer(id):
 		return &""
+	if UpgradeCatalog.is_weapon_offer(id):
+		_remember_weapon_hole(tower_index, slot)
 	offers[slot] = String(UpgradeCatalog.EMPTY_OFFER)
 	_offers[tower_index] = offers
 	_apply_upgrade(id)
@@ -100,6 +106,10 @@ func pick_offer(tower_index: int, slot: int) -> StringName:
 
 
 func _apply_upgrade(id: StringName) -> void:
+	if UpgradeCatalog.is_weapon_offer(id):
+		for part in UpgradeCatalog.weapon_parts(id):
+			_apply_upgrade(StringName(part))
+		return
 	var family := UpgradeCatalog.family_of(id)
 	if family == UpgradeCatalog.FAMILY_PROJECTILE:
 		add_extra_projectile(UpgradeCatalog.projectile_bonus(UpgradeCatalog.rarity_of(id)))
@@ -154,3 +164,47 @@ func mark_visited_this_life(tower_index: int) -> void:
 
 func clear_visited_this_life() -> void:
 	_visited_this_life.clear()
+
+
+func _remember_weapon_hole(tower_index: int, slot: int) -> void:
+	var holes := PackedInt32Array()
+	if _weapon_holes.has(tower_index):
+		holes = PackedInt32Array(_weapon_holes[tower_index])
+	for existing in holes:
+		if existing == slot:
+			return
+	holes.append(slot)
+	_weapon_holes[tower_index] = holes
+
+
+func _refill_weapon_holes() -> void:
+	if _weapon_holes.is_empty():
+		return
+	var seed := LevelRun.world_seed()
+	if seed < 0:
+		seed = 42
+	for tower_index in _weapon_holes.keys():
+		if not _offers.has(tower_index):
+			continue
+		var holes := PackedInt32Array(_weapon_holes[tower_index])
+		var offers: PackedStringArray = _offers[tower_index] as PackedStringArray
+		var used: Dictionary = {}
+		for id in offers:
+			var named := StringName(id)
+			if UpgradeCatalog.is_empty_offer(named):
+				continue
+			used[String(UpgradeCatalog.weapon_base_id(named))] = true
+		for slot in holes:
+			if slot < 0 or slot >= offers.size():
+				continue
+			if not UpgradeCatalog.is_empty_offer(StringName(offers[slot])):
+				continue
+			var fresh := UpgradeCatalog.roll_weapon_refill(
+				seed, int(tower_index), _life_index, int(slot), used, luck_bonus
+			)
+			if fresh.is_empty():
+				continue
+			offers[slot] = fresh
+			used[String(UpgradeCatalog.weapon_base_id(StringName(fresh)))] = true
+		_offers[tower_index] = offers
+	_weapon_holes.clear()

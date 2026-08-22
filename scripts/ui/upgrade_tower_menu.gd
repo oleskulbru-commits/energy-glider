@@ -91,7 +91,7 @@ func _refresh_cards() -> void:
 		button.disabled = false
 		button.icon = UpgradeCatalog.icon_for(id)
 		button.text = ""
-		button.tooltip_text = UpgradeCatalog.display_name(id)
+		button.tooltip_text = _card_tooltip(id)
 		button.modulate = SELECTED_MODULATE if i == _selected_slot else IDLE_MODULATE
 		var rarity_label := wrapper.get_node_or_null("RarityLabel") as Label
 		if rarity_label != null:
@@ -100,6 +100,7 @@ func _refresh_cards() -> void:
 		var label := wrapper.get_node_or_null("NameLabel") as Label
 		if label != null:
 			label.text = UpgradeCatalog.display_name(id)
+		_apply_bonus_label(wrapper, id)
 	var remaining := 0
 	if _state != null and _tower != null:
 		remaining = _state.remaining_count(_tower.tower_index)
@@ -122,6 +123,27 @@ func _apply_empty_card(button: Button, wrapper: Node) -> void:
 	var label := wrapper.get_node_or_null("NameLabel") as Label
 	if label != null:
 		label.text = ""
+	_apply_bonus_label(wrapper, UpgradeCatalog.EMPTY_OFFER)
+
+
+func _apply_bonus_label(wrapper: Node, id: StringName) -> void:
+	var bonus := wrapper.get_node_or_null("BonusLabel") as Label
+	if bonus == null:
+		return
+	var lines := UpgradeCatalog.weapon_bonus_lines(id)
+	if lines.is_empty():
+		bonus.text = ""
+		bonus.visible = false
+		return
+	bonus.visible = true
+	bonus.text = "\n".join(lines)
+
+
+func _card_tooltip(id: StringName) -> String:
+	var tip := UpgradeCatalog.display_name(id)
+	for line in UpgradeCatalog.weapon_bonus_lines(id):
+		tip += "\n%s" % line
+	return tip
 
 
 func _on_card_pressed(slot: int) -> void:

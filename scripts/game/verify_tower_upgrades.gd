@@ -30,6 +30,7 @@ func _run() -> void:
 	_verify_health_stacking()
 	_verify_duration_stacking()
 	_verify_pushback_stacking()
+	_verify_weapon_cards()
 	_verify_dawn_pose()
 	await _verify_visit_radius()
 	print("Tower upgrade verification passed.")
@@ -1819,6 +1820,238 @@ func _verify_pushback_stacking() -> void:
 	state.free()
 
 
+func _verify_weapon_cards() -> void:
+	var rifle_common := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_RIFLE,
+		UpgradeCatalogScript.RARITY_COMMON
+	)
+	var laser_legendary := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_LASER,
+		UpgradeCatalogScript.RARITY_LEGENDARY
+	)
+	var encoded := UpgradeCatalogScript.encode_weapon_offer(
+		rifle_common,
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_DAMAGE,
+			UpgradeCatalogScript.RARITY_COMMON
+		),
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_ATTACK_SPEED,
+			UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	_fail_unless(
+		encoded == "rifle_common|damage_common|attack_speed_common",
+		"Weapon offers should encode as base|part|part"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.weapon_base_id(StringName(encoded)) == rifle_common,
+		"weapon_base_id should strip the pair payload"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.family_of(StringName(encoded)) == UpgradeCatalogScript.FAMILY_RIFLE,
+		"Encoded rifle cards should parse as the rifle family"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.rarity_of(StringName(encoded)) == UpgradeCatalogScript.RARITY_COMMON,
+		"Encoded rifle cards should keep COMMON rarity"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(StringName(encoded)) == "Rifle",
+		"Rifle cards should be labeled Rifle"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(laser_legendary) == "Laser",
+		"Laser cards should be labeled Laser"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.rarity_display_name(StringName(encoded)) == "COMMON",
+		"Weapon rarity line should stay COMMON–LEGENDARY"
+	)
+	var bonus_lines := UpgradeCatalogScript.weapon_bonus_lines(StringName(encoded))
+	_fail_unless(
+		bonus_lines.size() == 2
+		and bonus_lines[0] == "Damage +4%"
+		and bonus_lines[1] == "Attack Speed −4%",
+		"Weapon bonus lines should use child catalog display names"
+	)
+	var laser_families := UpgradeCatalogScript.eligible_families(UpgradeCatalogScript.FAMILY_LASER)
+	var rifle_families := UpgradeCatalogScript.eligible_families(UpgradeCatalogScript.FAMILY_RIFLE)
+	_fail_unless(
+		UpgradeCatalogScript.FAMILY_PUSHBACK not in laser_families
+		and UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED not in laser_families
+		and UpgradeCatalogScript.FAMILY_DURATION in laser_families,
+		"Laser should roll duration, not pushback or projectile speed"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.FAMILY_DURATION not in rifle_families
+		and UpgradeCatalogScript.FAMILY_PUSHBACK in rifle_families,
+		"Rifle should roll pushback, not duration"
+	)
+	var rng := RandomNumberGenerator.new()
+	for seed in range(1, 241):
+		rng.seed = seed
+		var laser_parts := UpgradeCatalogScript.roll_weapon_parts(
+			UpgradeCatalogScript.FAMILY_LASER,
+			UpgradeCatalogScript.RARITY_LEGENDARY,
+			rng
+		)
+		_fail_unless(laser_parts.size() == 2, "Laser cards should roll two stats")
+		var laser_a := UpgradeCatalogScript.family_of(StringName(laser_parts[0]))
+		var laser_b := UpgradeCatalogScript.family_of(StringName(laser_parts[1]))
+		_fail_unless(laser_a != laser_b, "Weapon pair families should be unique")
+		_fail_unless(
+			UpgradeCatalogScript.rarity_of(StringName(laser_parts[0]))
+			== UpgradeCatalogScript.RARITY_LEGENDARY
+			and UpgradeCatalogScript.rarity_of(StringName(laser_parts[1]))
+			== UpgradeCatalogScript.RARITY_LEGENDARY,
+			"Both weapon children should share the card rarity"
+		)
+		_fail_unless(
+			laser_a != UpgradeCatalogScript.FAMILY_PUSHBACK
+			and laser_b != UpgradeCatalogScript.FAMILY_PUSHBACK
+			and laser_a != UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED
+			and laser_b != UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED,
+			"Laser legendary pair never includes pushback or projectile speed"
+		)
+		rng.seed = seed + 1000
+		var rifle_parts := UpgradeCatalogScript.roll_weapon_parts(
+			UpgradeCatalogScript.FAMILY_RIFLE,
+			UpgradeCatalogScript.RARITY_EPIC,
+			rng
+		)
+		_fail_unless(rifle_parts.size() == 2, "Rifle cards should roll two stats")
+		var rifle_a := UpgradeCatalogScript.family_of(StringName(rifle_parts[0]))
+		var rifle_b := UpgradeCatalogScript.family_of(StringName(rifle_parts[1]))
+		_fail_unless(rifle_a != rifle_b, "Rifle pair families should be unique")
+		_fail_unless(
+			rifle_a != UpgradeCatalogScript.FAMILY_DURATION
+			and rifle_b != UpgradeCatalogScript.FAMILY_DURATION,
+			"Rifle never includes duration"
+		)
+	var rarities: Array[StringName] = [
+		UpgradeCatalogScript.RARITY_COMMON,
+		UpgradeCatalogScript.RARITY_UNCOMMON,
+		UpgradeCatalogScript.RARITY_RARE,
+		UpgradeCatalogScript.RARITY_EPIC,
+		UpgradeCatalogScript.RARITY_LEGENDARY
+	]
+	for rarity in rarities:
+		_fail_unless(
+			UpgradeCatalogScript.icon_for(
+				UpgradeCatalogScript.make_id(UpgradeCatalogScript.FAMILY_RIFLE, rarity)
+			)
+			!= null,
+			"Rifle %s should use rifle_%s.jpg" % [String(rarity), String(rarity)]
+		)
+		_fail_unless(
+			UpgradeCatalogScript.icon_for(
+				UpgradeCatalogScript.make_id(UpgradeCatalogScript.FAMILY_LASER, rarity)
+			)
+			!= null,
+			"Laser %s should use laser_%s.jpg" % [String(rarity), String(rarity)]
+		)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(StringName(encoded)) != null,
+		"Encoded rifle offers should load rifle_common.jpg from the base id"
+	)
+
+	var state: RunUpgradeState = RunUpgradeStateScript.new()
+	root.add_child(state)
+	var leftover := String(UpgradeCatalogScript.ID_EXTRA_PROJECTILE)
+	_seed_offers(
+		state,
+		20,
+		PackedStringArray([encoded, leftover, leftover, leftover, leftover])
+	)
+	state.pick_offer(20, 0)
+	_fail_unless(
+		is_equal_approx(state.damage_bonus, 0.04),
+		"Picking rifle_common|damage_common|attack_speed_common should add catalog common damage"
+	)
+	_fail_unless(
+		is_equal_approx(state.attack_speed_reduction, 0.04),
+		"Picking rifle_common|damage_common|attack_speed_common should add catalog common attack speed"
+	)
+	_fail_unless(state.extra_projectiles == 0, "That rifle pair should not add projectiles")
+
+	var leftover_laser := UpgradeCatalogScript.encode_weapon_offer(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_LASER,
+			UpgradeCatalogScript.RARITY_EPIC
+		),
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_CRIT,
+			UpgradeCatalogScript.RARITY_EPIC
+		),
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_DURATION,
+			UpgradeCatalogScript.RARITY_EPIC
+		)
+	)
+	var leftover_damage := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_DAMAGE,
+			UpgradeCatalogScript.RARITY_RARE
+		)
+	)
+	var leftover_luck := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_LUCK,
+			UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	_seed_offers(
+		state,
+		21,
+		PackedStringArray([encoded, leftover, leftover_damage, leftover_laser, leftover_luck])
+	)
+	state.pick_offer(21, 0)
+	state.pick_offer(21, 1)
+	_fail_unless(
+		UpgradeCatalogScript.is_empty_offer(StringName(state.get_offers(21)[0])),
+		"Taken weapon slot should be Empty until Try Again"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.is_empty_offer(StringName(state.get_offers(21)[1])),
+		"Taken normal slot should be Empty"
+	)
+	state.reset_run()
+	var after := state.get_offers(21)
+	_fail_unless(
+		UpgradeCatalogScript.is_weapon_offer(StringName(after[0])),
+		"Try Again should refill a taken weapon slot with a new Rifle or Laser card"
+	)
+	_fail_unless(
+		not UpgradeCatalogScript.is_empty_offer(StringName(after[0])),
+		"Taken weapon slot should not stay Empty after Try Again"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.is_empty_offer(StringName(after[1])),
+		"A normal Empty slot should stay Empty after Try Again"
+	)
+	_fail_unless(after[2] == leftover_damage, "Untaken cards should stay in the shop")
+	_fail_unless(after[3] == leftover_laser, "Untaken weapon cards should stay")
+	_fail_unless(after[4] == leftover_luck, "Untaken luck cards should stay")
+	var refilled_base := String(UpgradeCatalogScript.weapon_base_id(StringName(after[0])))
+	var leftover_bases := [
+		String(UpgradeCatalogScript.weapon_base_id(StringName(leftover_damage))),
+		String(UpgradeCatalogScript.weapon_base_id(StringName(leftover_laser))),
+		String(UpgradeCatalogScript.weapon_base_id(StringName(leftover_luck)))
+	]
+	_fail_unless(
+		refilled_base not in leftover_bases,
+		"New weapon base id should not collide with leftover cards"
+	)
+	_fail_unless(state.remaining_count(21) == 4, "Refilled weapon plus 3 leftovers should remain")
+	_fail_unless(
+		is_equal_approx(state.damage_bonus, 0.0)
+		and is_equal_approx(state.attack_speed_reduction, 0.0),
+		"Try Again should still zero stacked weapon stats"
+	)
+	state.free()
+
+
 func _verify_dawn_pose() -> void:
 	var tower_pos := Vector3(-1000.0, 12.0, 8.0)
 	var xz: Vector2 = PlayerRigScript.in_front_xz(tower_pos)
@@ -1873,9 +2106,10 @@ func _five_projectiles() -> PackedStringArray:
 func _has_duplicate(shop: PackedStringArray) -> bool:
 	var seen: Dictionary = {}
 	for id in shop:
-		if seen.has(id):
+		var base := String(UpgradeCatalogScript.weapon_base_id(StringName(id)))
+		if seen.has(base):
 			return true
-		seen[id] = true
+		seen[base] = true
 	return false
 
 

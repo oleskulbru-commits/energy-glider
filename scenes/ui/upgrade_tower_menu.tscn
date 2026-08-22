@@ -40,7 +40,7 @@ grow_vertical = 2
 mouse_filter = 0
 
 [node name="Panel" type="PanelContainer" parent="Root/Center"]
-custom_minimum_size = Vector2(860, 460)
+custom_minimum_size = Vector2(860, 520)
 layout_mode = 2
 theme_type_variation = &"HudOverlay"
 
@@ -90,6 +90,15 @@ theme_type_variation = &"HudValue"
 text = "+1 projectile"
 horizontal_alignment = 1
 
+[node name="BonusLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card0"]
+visible = false
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+theme_type_variation = &"HudMuted"
+theme_override_font_sizes/font_size = 14
+horizontal_alignment = 1
+autowrap_mode = 3
+
 [node name="Card1" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards"]
 layout_mode = 2
 theme_override_constants/separation = 6
@@ -112,6 +121,15 @@ layout_mode = 2
 theme_type_variation = &"HudValue"
 text = "+1 projectile"
 horizontal_alignment = 1
+
+[node name="BonusLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card1"]
+visible = false
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+theme_type_variation = &"HudMuted"
+theme_override_font_sizes/font_size = 14
+horizontal_alignment = 1
+autowrap_mode = 3
 
 [node name="Card2" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards"]
 layout_mode = 2
@@ -136,6 +154,15 @@ theme_type_variation = &"HudValue"
 text = "+1 projectile"
 horizontal_alignment = 1
 
+[node name="BonusLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card2"]
+visible = false
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+theme_type_variation = &"HudMuted"
+theme_override_font_sizes/font_size = 14
+horizontal_alignment = 1
+autowrap_mode = 3
+
 [node name="Card3" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards"]
 layout_mode = 2
 theme_override_constants/separation = 6
@@ -159,6 +186,15 @@ theme_type_variation = &"HudValue"
 text = "+1 projectile"
 horizontal_alignment = 1
 
+[node name="BonusLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card3"]
+visible = false
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+theme_type_variation = &"HudMuted"
+theme_override_font_sizes/font_size = 14
+horizontal_alignment = 1
+autowrap_mode = 3
+
 [node name="Card4" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards"]
 layout_mode = 2
 theme_override_constants/separation = 6
@@ -181,6 +217,15 @@ layout_mode = 2
 theme_type_variation = &"HudValue"
 text = "+1 projectile"
 horizontal_alignment = 1
+
+[node name="BonusLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card4"]
+visible = false
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+theme_type_variation = &"HudMuted"
+theme_override_font_sizes/font_size = 14
+horizontal_alignment = 1
+autowrap_mode = 3
 
 [node name="Actions" type="HBoxContainer" parent="Root/Center/Panel/VBox"]
 layout_mode = 2
