@@ -1,47 +1,25 @@
-[gd_scene load_steps=22 format=3 uid="uid://cgame_world001"]
+[gd_scene format=3]
 
 [ext_resource type="Script" uid="uid://ceqhf3n5dule0" path="res://scripts/terrain/terrain_manager.gd" id="1_terrain"]
-[ext_resource type="Material" uid="uid://suwp2571pfe0" path="res://materials/sand.tres" id="2_sand"]
-[ext_resource type="PackedScene" path="res://scenes/player/player_rig.tscn" id="3_player_rig"]
-[ext_resource type="Material" path="res://materials/desert_sky.tres" id="4_sky"]
-[ext_resource type="Script" path="res://scripts/game/run_score.gd" id="5_run_score"]
-[ext_resource type="Script" path="res://scripts/world/outpost_spawner.gd" id="8_outpost_spawner"]
-[ext_resource type="Script" path="res://scripts/game/antenna_state.gd" id="9_antenna_state"]
-[ext_resource type="Script" path="res://scripts/world/wind_field.gd" id="10_wind_field"]
-[ext_resource type="Script" path="res://scripts/world/wind_streaks.gd" id="11_wind_streaks"]
-[ext_resource type="Script" path="res://scripts/world/ripple_spawner.gd" id="12_ripple_spawner"]
-[ext_resource type="Script" path="res://scripts/game/expedition_state.gd" id="13_expedition"]
-[ext_resource type="Script" path="res://scripts/world/day_night_cycle.gd" id="14_daynight"]
-[ext_resource type="Script" path="res://scripts/game/eon_director.gd" id="15_eon"]
-[ext_resource type="Script" path="res://scripts/world/night_survival.gd" id="16_night"]
-[ext_resource type="Script" path="res://scripts/game/level_progress.gd" id="17_level"]
-[ext_resource type="Script" path="res://scripts/enemies/enemy_stream_spawner.gd" id="18_stream"]
-[ext_resource type="Script" path="res://scripts/game/run_upgrade_state.gd" id="19_upgrades"]
-[ext_resource type="Script" path="res://scripts/game/tower_visit_controller.gd" id="20_visit"]
-[ext_resource type="PackedScene" path="res://scenes/ui/upgrade_tower_menu.tscn" id="21_upgrade_menu"]
-[ext_resource type="PackedScene" path="res://scenes/ui/weapon_select_menu.tscn" id="22_weapon_select"]
-
-[sub_resource type="Sky" id="Sky_main"]
-sky_material = ExtResource("4_sky")
-
-[sub_resource type="Environment" id="Environment_main"]
-background_mode = 2
-sky = SubResource("Sky_main")
-ambient_light_source = 2
-ambient_light_color = Color(1, 1, 1, 1)
-ambient_light_energy = 0.02
-reflected_light_source = 2
-tonemap_mode = 2
-tonemap_exposure = 0.85
-fog_enabled = true
-fog_light_color = Color(0.4, 0.42, 0.47, 1)
-fog_density = 0.00125
-fog_aerial_perspective = 0.12
+[ext_resource type="Material" uid="uid://suwp2571pfe0" path="res://assets/materials/sand.tres" id="2_sand"]
+[ext_resource type="PackedScene" uid="uid://cplayerrig001" path="res://scenes/player/player_rig.tscn" id="3_player_rig"]
+[ext_resource type="Environment" uid="uid://c16k12ob5acay" path="res://assets/environment/game_world_env.tres" id="19_env"]
+[ext_resource type="Script" uid="uid://dq2xgav7i0f6q" path="res://scripts/game/run_score.gd" id="5_run_score"]
+[ext_resource type="Script" uid="uid://cdl1mrr1dgcci" path="res://scripts/world/outpost_spawner.gd" id="8_outpost_spawner"]
+[ext_resource type="Script" uid="uid://dq7antenna001" path="res://scripts/game/antenna_state.gd" id="9_antenna_state"]
+[ext_resource type="Script" uid="uid://p2cuy6v7c2pb" path="res://scripts/world/wind_field.gd" id="10_wind_field"]
+[ext_resource type="Script" uid="uid://dviu8cndx88wh" path="res://scripts/world/wind_streaks.gd" id="11_wind_streaks"]
+[ext_resource type="Script" uid="uid://b7jwrfowb1qnq" path="res://scripts/game/expedition_state.gd" id="13_expedition"]
+[ext_resource type="Script" uid="uid://b0trnpq2xw7h7" path="res://scripts/world/day_night_cycle.gd" id="14_daynight"]
+[ext_resource type="Script" uid="uid://cx4g652ulhs8w" path="res://scripts/game/eon_director.gd" id="15_eon"]
+[ext_resource type="Script" uid="uid://bdtr5aefc5k10" path="res://scripts/world/night_survival.gd" id="16_night"]
+[ext_resource type="Script" uid="uid://d304h7bfwf23y" path="res://scripts/game/level_progress.gd" id="17_level"]
+[ext_resource type="Script" uid="uid://cmltivlks2lph" path="res://scripts/enemies/enemy_stream_spawner.gd" id="18_stream"]
 
 [node name="GameWorld" type="Node3D"]
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
-environment = SubResource("Environment_main")
+environment = ExtResource("19_env")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.05233616, -0.27525946, 0.95994455, 0, 0.96126115, 0.27563742, -0.99862975, -0.01442579, 0.050308745, 0, 80, 0)
@@ -118,13 +96,6 @@ script = ExtResource("20_visit")
 player_rig_path = NodePath("../PlayerRig")
 run_upgrade_state_path = NodePath("../RunUpgradeState")
 menu_path = NodePath("../UpgradeTowerMenu")
-
-[node name="RippleSpawner" type="Node3D" parent="."]
-script = ExtResource("12_ripple_spawner")
-terrain_manager_path = NodePath("../TerrainManager")
-ripple_count = 8
-first_ripple_center_m = 1200.0
-ripple_spacing_m = 1200.0
 
 [node name="EnemyStreamSpawner" type="Node3D" parent="."]
 script = ExtResource("18_stream")

@@ -1,7 +1,7 @@
 class_name GroundShadow
 extends Node3D
 
-const GroundShadowMaterial = preload("res://materials/ground_shadow.tres")
+const GroundShadowMaterial = preload("res://assets/materials/ground_shadow.tres")
 
 const SHADOW_BASE_SIZE := 1.6
 const SHADOW_GROUND_OFFSET := 0.05

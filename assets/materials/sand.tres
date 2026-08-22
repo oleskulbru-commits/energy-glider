@@ -1,0 +1,26 @@
+[gd_resource type="StandardMaterial3D" script_class="SandMaterial" format=3 uid="uid://suwp2571pfe0"]
+
+[ext_resource type="Script" uid="uid://jnr5p7yn4kvf" path="res://scripts/materials/sand_material.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://v3duxiv8b0do" path="res://assets/materials/textures/Desert_Texture/128/xd0mda1_2K_Albedo.jpg" id="2_albedo"]
+[ext_resource type="Texture2D" uid="uid://b6xwe3sjmyt60" path="res://assets/materials/textures/Desert_Texture/128/xd0mda1_2K_AO.jpg" id="2_mqyyt"]
+[ext_resource type="Texture2D" uid="uid://c3u46lcbnt5yp" path="res://assets/materials/textures/Desert_Texture/128/xd0mda1_2K_Displacement.jpg" id="3_0ef4j"]
+[ext_resource type="Texture2D" uid="uid://boa8x0wdfeos6" path="res://assets/materials/textures/Desert_Texture/128/xd0mda1_2K_Normal.jpg" id="3_normal"]
+[ext_resource type="Texture2D" uid="uid://m2pum4qiqa0q" path="res://assets/materials/textures/Desert_Texture/128/xd0mda1_2K_Roughness.jpg" id="4_roughness"]
+
+[resource]
+resource_name = "sand"
+albedo_color = Color(1.15, 0.78, 0.58, 1)
+albedo_texture = ExtResource("2_albedo")
+metallic_specular = 0.2
+roughness_texture = ExtResource("4_roughness")
+normal_enabled = true
+normal_texture = ExtResource("3_normal")
+ao_enabled = true
+ao_texture = ExtResource("2_mqyyt")
+heightmap_enabled = true
+heightmap_texture = ExtResource("3_0ef4j")
+uv1_scale = Vector3(0.15, 0.15, 0.15)
+uv1_triplanar = true
+uv1_world_triplanar = true
+texture_filter = 0
+script = ExtResource("1_script")

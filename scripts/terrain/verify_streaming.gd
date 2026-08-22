@@ -3,7 +3,7 @@ extends SceneTree
 const TerrainManagerScript = preload("res://scripts/terrain/terrain_manager.gd")
 const ChunkBuilderScript = preload("res://scripts/terrain/chunk_builder.gd")
 const DuneHeightScript = preload("res://scripts/terrain/dune_height.gd")
-const SandMaterial = preload("res://materials/sand.tres")
+const SandMaterial = preload("res://assets/materials/sand.tres")
 
 const EXPECTED_INITIAL_CHUNKS := 25
 const HEIGHT_TOLERANCE := 2.0

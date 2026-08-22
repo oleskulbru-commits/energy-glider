@@ -15,7 +15,6 @@ const GliderPhysicsScript = preload("res://scripts/player/glider_physics.gd")
 
 var _input: GliderInputScript
 var _camera: GliderCamera
-var _interactor: PlayerInteractor
 var _terrain_manager: TerrainManager
 var _mouse_captured := false
 var _spawn_position := Vector3.ZERO
@@ -26,20 +25,17 @@ var _spawn_pose_ready := false
 func _ready() -> void:
 	_glider = get_node_or_null("Glider") as GliderPlayer
 	_input = get_node_or_null("GliderInput") as GliderInputScript
-	_interactor = get_node_or_null("PlayerInteractor") as PlayerInteractor
 
 	if _glider != null:
-		_camera = _glider.get_node_or_null("Camera3D") as GliderCamera
+		_camera = _glider.get_node_or_null("GliderCamera") as GliderCamera
+		if _camera == null:
+			_camera = _glider.get_node_or_null("Camera3D") as GliderCamera
+		_glider.set_piloted(true)
 
 	if terrain_manager_path != NodePath():
 		_terrain_manager = get_node_or_null(terrain_manager_path) as TerrainManager
 
-	if _input != null:
-		_input.set_locomotion_enabled(true)
-	if _glider != null:
-		_glider.set_piloted(true)
 	_update_terrain_track_node()
-	_capture_mouse()
 	call_deferred("_setup_west_start_pose")
 
 
@@ -71,6 +67,7 @@ func _setup_west_start_pose() -> void:
 		_camera.snap_follow_yaw(SPAWN_YAW_WEST)
 		snap_camera_now()
 	_capture_spawn_pose()
+	_capture_mouse()
 
 
 func _capture_spawn_pose() -> void:
@@ -133,6 +130,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		_release_mouse()
 		return
 
+	if event.is_action_pressed("cycle_camera") and _camera != null:
+		_camera.cycle_distance_preset()
+		return
+
 	if event is InputEventMouseButton:
 		var mouse := event as InputEventMouseButton
 		if mouse.pressed and mouse.button_index == MOUSE_BUTTON_LEFT:
@@ -142,10 +143,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and _mouse_captured and _camera != null:
 		var motion := event as InputEventMouseMotion
 		_camera.apply_look_input(motion.relative.x, motion.relative.y)
-
-
-func is_mounted() -> bool:
-	return true
 
 
 func get_glider() -> GliderPlayer:
@@ -165,9 +162,8 @@ func get_active_body() -> PhysicsBody3D:
 
 
 func get_tracking_position() -> Vector3:
-	var body := get_active_body()
-	if body != null:
-		return body.global_position
+	if _glider != null:
+		return _glider.global_position
 	return global_position
 
 
@@ -184,13 +180,10 @@ func _update_glider_camera(delta: float) -> void:
 		_glider.get_yaw(),
 		_glider.velocity,
 		delta,
-		_glider.get_smoothed_clearance(),
 		_glider.is_grounded(),
 		_terrain_manager,
-		_glider.get_yaw_velocity(),
-		false,
-		_glider.get_camera_air_blend(),
-		steering
+		steering,
+		_glider.is_boost_active()
 	)
 
 
