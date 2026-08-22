@@ -599,6 +599,15 @@ func _verify_catalog() -> void:
 		UpgradeCatalogScript.icon_for(
 			UpgradeCatalogScript.make_id(
 				UpgradeCatalogScript.FAMILY_PUSHBACK,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) != null,
+		"Uncommon Pushback should use pushback_uncommon.jpg"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_PUSHBACK,
 				UpgradeCatalogScript.RARITY_RARE
 			)
 		) != null,
