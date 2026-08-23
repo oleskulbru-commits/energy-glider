@@ -3,9 +3,12 @@ extends CanvasLayer
 
 signal closed
 
-const SELECTED_MODULATE := Color(1.0, 0.95, 0.75, 1.0)
+const SELECTED_MODULATE := Color(1.0, 1.0, 1.0, 1.0)
 const IDLE_MODULATE := Color(0.92, 0.88, 0.8, 1.0)
 const EMPTY_MODULATE := Color(0.55, 0.52, 0.48, 1.0)
+const SELECTED_BORDER := Color(1.0, 0.9, 0.38, 1.0)
+const IDLE_BORDER := Color(0.85, 0.72, 0.55, 0.28)
+const EMPTY_BORDER := Color(0.45, 0.42, 0.38, 0.32)
 
 @onready var _root: Control = %Root
 @onready var _title: Label = %TitleLabel
@@ -18,12 +21,19 @@ var _state: RunUpgradeState
 var _rig: PlayerRig
 var _selected_slot := -1
 var _card_buttons: Array[Button] = []
+var _card_frames: Array[Control] = []
+var _selected_frame_style: StyleBoxFlat
+var _idle_frame_style: StyleBoxFlat
+var _empty_frame_style: StyleBoxFlat
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
 	_root.visible = false
+	_selected_frame_style = _make_frame_style(SELECTED_BORDER, 5, Color(0.16, 0.12, 0.05, 0.72), true)
+	_idle_frame_style = _make_frame_style(IDLE_BORDER, 2, Color(0.05, 0.05, 0.06, 0.28), false)
+	_empty_frame_style = _make_frame_style(EMPTY_BORDER, 1, Color(0.03, 0.03, 0.04, 0.22), false)
 	_wait_button.pressed.connect(_on_wait_pressed)
 	_keep_button.pressed.connect(_on_keep_pressed)
 	_cache_cards()
@@ -58,15 +68,15 @@ func _process(_delta: float) -> void:
 
 func _cache_cards() -> void:
 	_card_buttons.clear()
+	_card_frames.clear()
 	for child in _cards.get_children():
-		var button := child as Button
-		if button == null:
-			button = child.get_node_or_null("Button") as Button
+		var button := child.find_child("Button", true, false) as Button
 		if button == null:
 			continue
 		var slot := _card_buttons.size()
 		button.pressed.connect(_on_card_pressed.bind(slot))
 		_card_buttons.append(button)
+		_card_frames.append(child as Control)
 
 
 func _refresh_cards() -> void:
@@ -93,6 +103,7 @@ func _refresh_cards() -> void:
 		button.text = ""
 		button.tooltip_text = _card_tooltip(id)
 		button.modulate = SELECTED_MODULATE if i == _selected_slot else IDLE_MODULATE
+		_apply_selection_frame(i, i == _selected_slot, false)
 		var rarity_label := wrapper.get_node_or_null("RarityLabel") as Label
 		if rarity_label != null:
 			rarity_label.text = UpgradeCatalog.rarity_display_name(id)
@@ -117,6 +128,8 @@ func _apply_empty_card(button: Button, wrapper: Node) -> void:
 	button.text = "Empty"
 	button.tooltip_text = "Empty"
 	button.modulate = EMPTY_MODULATE
+	var slot := _card_buttons.find(button)
+	_apply_selection_frame(slot, false, true)
 	var rarity_label := wrapper.get_node_or_null("RarityLabel") as Label
 	if rarity_label != null:
 		rarity_label.text = ""
@@ -124,6 +137,32 @@ func _apply_empty_card(button: Button, wrapper: Node) -> void:
 	if label != null:
 		label.text = ""
 	_apply_bonus_label(wrapper, UpgradeCatalog.EMPTY_OFFER)
+
+
+func _apply_selection_frame(slot: int, selected: bool, empty: bool) -> void:
+	if slot < 0 or slot >= _card_frames.size():
+		return
+	var frame := _card_frames[slot]
+	if frame == null:
+		return
+	var style := _empty_frame_style
+	if not empty:
+		style = _selected_frame_style if selected else _idle_frame_style
+	frame.add_theme_stylebox_override("panel", style)
+
+
+func _make_frame_style(border: Color, width: int, bg: Color, glow: bool) -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = bg
+	box.set_border_width_all(width)
+	box.border_color = border
+	box.set_corner_radius_all(8)
+	box.set_content_margin_all(8)
+	if glow:
+		box.shadow_color = Color(1.0, 0.82, 0.28, 0.62)
+		box.shadow_size = 12
+		box.shadow_offset = Vector2.ZERO
+	return box
 
 
 func _apply_bonus_label(wrapper: Node, id: StringName) -> void:

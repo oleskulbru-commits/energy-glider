@@ -10,6 +10,7 @@ const FAMILY_DAMAGE := &"damage"
 const FAMILY_PROJECTILE_SPEED := &"projectile_speed"
 const FAMILY_GLIDER_SPEED := &"glider_speed"
 const FAMILY_GLIDE := &"glide"
+const FAMILY_STEERING := &"steering"
 const FAMILY_HP_REGEN := &"hp_regen"
 const FAMILY_HEALTH := &"health"
 const FAMILY_LUCK := &"luck"
@@ -17,6 +18,7 @@ const FAMILY_MOMENTUM_RETENTION := &"momentum_retention"
 const FAMILY_CRIT := &"crit"
 const FAMILY_DURATION := &"duration"
 const FAMILY_PUSHBACK := &"pushback"
+const FAMILY_BOUNCE := &"bounce"
 const FAMILY_RIFLE := &"rifle"
 const FAMILY_LASER := &"laser"
 const RARITY_COMMON := &"common"
@@ -81,6 +83,13 @@ const GLIDE_EPIC := 0.20
 const GLIDE_LEGENDARY := 0.25
 const GLIDE_CAP := 0.50
 
+const STEERING_COMMON := 0.06
+const STEERING_UNCOMMON := 0.08
+const STEERING_RARE := 0.12
+const STEERING_EPIC := 0.16
+const STEERING_LEGENDARY := 0.20
+const STEERING_CAP := 0.40
+
 const HP_REGEN_PERIOD_SEC := 3.0
 const HP_REGEN_COMMON := 0.5
 const HP_REGEN_UNCOMMON := 1.0
@@ -125,6 +134,12 @@ const PUSHBACK_UNCOMMON := 0.15
 const PUSHBACK_RARE := 0.25
 const PUSHBACK_EPIC := 0.35
 const PUSHBACK_LEGENDARY := 0.50
+
+const BOUNCE_COMMON := 1
+const BOUNCE_UNCOMMON := 2
+const BOUNCE_RARE := 3
+const BOUNCE_EPIC := 4
+const BOUNCE_LEGENDARY := 5
 
 const SHOP_SEED_WORLD := 1009
 const SHOP_SEED_TOWER := 9176
@@ -191,7 +206,8 @@ static func eligible_families(weapon_family: StringName) -> Array[StringName]:
 			FAMILY_ATTACK_SPEED,
 			FAMILY_DAMAGE,
 			FAMILY_CRIT,
-			FAMILY_DURATION
+			FAMILY_DURATION,
+			FAMILY_BOUNCE
 		]
 	return [
 		FAMILY_PROJECTILE,
@@ -199,7 +215,8 @@ static func eligible_families(weapon_family: StringName) -> Array[StringName]:
 		FAMILY_DAMAGE,
 		FAMILY_PROJECTILE_SPEED,
 		FAMILY_CRIT,
-		FAMILY_PUSHBACK
+		FAMILY_PUSHBACK,
+		FAMILY_BOUNCE
 	]
 
 
@@ -310,6 +327,8 @@ static func family_of(id: StringName) -> StringName:
 		return FAMILY_DURATION
 	if text.begins_with("pushback_"):
 		return FAMILY_PUSHBACK
+	if text.begins_with("bounce_"):
+		return FAMILY_BOUNCE
 	if text.begins_with("damage_"):
 		return FAMILY_DAMAGE
 	if text.begins_with("projectile_speed_"):
@@ -318,6 +337,8 @@ static func family_of(id: StringName) -> StringName:
 		return FAMILY_GLIDER_SPEED
 	if text.begins_with("glide_"):
 		return FAMILY_GLIDE
+	if text.begins_with("steering_"):
+		return FAMILY_STEERING
 	if text.begins_with("momentum_retention_"):
 		return FAMILY_MOMENTUM_RETENTION
 	if text.begins_with("hp_regen_"):
@@ -433,6 +454,20 @@ static func glide_percent(rarity: StringName) -> float:
 			return GLIDE_COMMON
 
 
+static func steering_percent(rarity: StringName) -> float:
+	match rarity:
+		RARITY_UNCOMMON:
+			return STEERING_UNCOMMON
+		RARITY_RARE:
+			return STEERING_RARE
+		RARITY_EPIC:
+			return STEERING_EPIC
+		RARITY_LEGENDARY:
+			return STEERING_LEGENDARY
+		_:
+			return STEERING_COMMON
+
+
 static func hp_regen_per_period(rarity: StringName) -> float:
 	match rarity:
 		RARITY_UNCOMMON:
@@ -543,6 +578,20 @@ static func pushback_percent(rarity: StringName) -> float:
 			return PUSHBACK_COMMON
 
 
+static func bounce_count(rarity: StringName) -> int:
+	match rarity:
+		RARITY_UNCOMMON:
+			return BOUNCE_UNCOMMON
+		RARITY_RARE:
+			return BOUNCE_RARE
+		RARITY_EPIC:
+			return BOUNCE_EPIC
+		RARITY_LEGENDARY:
+			return BOUNCE_LEGENDARY
+		_:
+			return BOUNCE_COMMON
+
+
 ## Luck cards always use the base rarity table.
 static func rarity_luck_for(family: StringName, luck: int) -> int:
 	if family == FAMILY_LUCK:
@@ -596,6 +645,9 @@ static func display_name(id: StringName) -> String:
 	if family == FAMILY_GLIDE:
 		var pct := int(round(glide_percent(rarity_of(id)) * 100.0))
 		return "Glide +%d%%" % pct
+	if family == FAMILY_STEERING:
+		var pct := int(round(steering_percent(rarity_of(id)) * 100.0))
+		return "Steering +%d%%" % pct
 	if family == FAMILY_HP_REGEN:
 		return "HP Regen +%s" % hp_regen_period_text(hp_regen_per_period(rarity_of(id)))
 	if family == FAMILY_HEALTH:
@@ -614,6 +666,8 @@ static func display_name(id: StringName) -> String:
 	if family == FAMILY_PUSHBACK:
 		var pct := int(round(pushback_percent(rarity_of(id)) * 100.0))
 		return "Pushback +%d%%" % pct
+	if family == FAMILY_BOUNCE:
+		return "Bounce +%d" % bounce_count(rarity_of(id))
 	if family == FAMILY_RIFLE:
 		return "Rifle"
 	if family == FAMILY_LASER:
@@ -644,7 +698,14 @@ static func rarity_color(id: StringName) -> Color:
 static func icon_path_for(id: StringName) -> String:
 	if is_weapon_unlock(id):
 		return "%s%s.jpg" % [ICON_DIR, String(make_id(unlock_weapon_family(id), RARITY_COMMON))]
-	return "%s%s.jpg" % [ICON_DIR, String(weapon_base_id(id))]
+	var stem := String(weapon_base_id(id))
+	var jpg := "%s%s.jpg" % [ICON_DIR, stem]
+	if ResourceLoader.exists(jpg):
+		return jpg
+	var png := "%s%s.png" % [ICON_DIR, stem]
+	if ResourceLoader.exists(png):
+		return png
+	return jpg
 
 
 static func icon_for(id: StringName) -> Texture2D:
@@ -656,6 +717,22 @@ static func icon_for(id: StringName) -> Texture2D:
 		if loaded is Texture2D:
 			return loaded as Texture2D
 	return _family_fallback_icon(family_of(id))
+
+
+static func rarity_for_weapon_level(level: int) -> StringName:
+	var rungs: Array[StringName] = [
+		RARITY_COMMON,
+		RARITY_UNCOMMON,
+		RARITY_RARE,
+		RARITY_EPIC,
+		RARITY_LEGENDARY
+	]
+	var index := clampi(level, 1, rungs.size()) - 1
+	return rungs[index]
+
+
+static func icon_for_weapon_level(family: StringName, level: int) -> Texture2D:
+	return icon_for(make_id(family, rarity_for_weapon_level(level)))
 
 
 static func _family_fallback_icon(family: StringName) -> Texture2D:
@@ -680,6 +757,7 @@ static func eligible_shop_families(has_rifle: bool, has_laser: bool) -> Array[St
 		FAMILY_DAMAGE,
 		FAMILY_GLIDER_SPEED,
 		FAMILY_GLIDE,
+		FAMILY_STEERING,
 		FAMILY_HP_REGEN,
 		FAMILY_HEALTH,
 		FAMILY_LUCK,
@@ -693,6 +771,8 @@ static func eligible_shop_families(has_rifle: bool, has_laser: bool) -> Array[St
 	if has_laser:
 		families.append(FAMILY_DURATION)
 		families.append(FAMILY_LASER)
+	if has_rifle or has_laser:
+		families.append(FAMILY_BOUNCE)
 	return families
 
 

@@ -55,6 +55,7 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _rifle_projectile_speed_label: Label = %RifleProjectileSpeedLabel
 @onready var _glider_speed_label: Label = %GliderSpeedLabel
 @onready var _glide_label: Label = %GlideLabel
+@onready var _steering_label: Label = %SteeringLabel
 @onready var _hp_regen_label: Label = %HpRegenLabel
 @onready var _health_label: Label = %HealthLabel
 @onready var _luck_label: Label = %LuckLabel
@@ -182,13 +183,22 @@ func _refresh_weapon_tray() -> void:
 				icon.texture = null
 			if name_label != null:
 				name_label.text = ""
+			var empty_level := slot.get_node_or_null("Level") as Label
+			if empty_level != null:
+				empty_level.text = ""
 			continue
 		var family := StringName(owned[i])
 		var unlock := UpgradeCatalog.unlock_id_for(family)
+		var level := 1
+		if state != null:
+			level = maxi(state.weapon_level(family), 1)
 		if icon != null:
-			icon.texture = UpgradeCatalog.icon_for(unlock)
+			icon.texture = UpgradeCatalog.icon_for_weapon_level(family, level)
 		if name_label != null:
 			name_label.text = UpgradeCatalog.display_name(unlock)
+		var level_label := slot.get_node_or_null("Level") as Label
+		if level_label != null:
+			level_label.text = "Level %d" % level
 
 
 func _lock_eon_tracker_layout() -> void:
@@ -665,6 +675,7 @@ func _update_rifle_debug() -> void:
 	var speed_bonus := 0.0
 	var glider_bonus := 0.0
 	var glide_bonus := 0.0
+	var steering_bonus := 0.0
 	var regen := 0.0
 	var health_bonus := 0
 	var luck := 0
@@ -680,6 +691,7 @@ func _update_rifle_debug() -> void:
 		speed_bonus = state.hud_projectile_speed_bonus()
 		glider_bonus = state.glider_speed_bonus
 		glide_bonus = clampf(state.glide_bonus, 0.0, UpgradeCatalog.GLIDE_CAP)
+		steering_bonus = clampf(state.steering_bonus, 0.0, UpgradeCatalog.STEERING_CAP)
 		regen = state.health_regen_per_sec
 		health_bonus = state.max_health_bonus
 		luck = state.luck_bonus
@@ -717,6 +729,11 @@ func _update_rifle_debug() -> void:
 		_glide_label,
 		"Glide %d%%" % int(roundf(glide_bonus * 100.0)),
 		glide_bonus > 0.0
+	) or any
+	any = _show_upgrade_line(
+		_steering_label,
+		"Steering %d%%" % int(roundf(steering_bonus * 100.0)),
+		steering_bonus > 0.0
 	) or any
 	any = _show_upgrade_line(
 		_hp_regen_label,

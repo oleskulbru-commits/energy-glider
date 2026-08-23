@@ -122,6 +122,11 @@ theme_type_variation = &"HudMuted"
 theme_override_font_sizes/font_size = 12
 horizontal_alignment = 1
 
+[node name="Level" type="Label" parent="BottomLeft/BottomLeftVBox/WeaponTray/WeaponSlot0"]
+theme_type_variation = &"HudMuted"
+theme_override_font_sizes/font_size = 10
+horizontal_alignment = 1
+
 [node name="WeaponSlot1" type="VBoxContainer" parent="BottomLeft/BottomLeftVBox/WeaponTray"]
 theme_override_constants/separation = 2
 
@@ -137,6 +142,11 @@ stretch_mode = 5
 [node name="Name" type="Label" parent="BottomLeft/BottomLeftVBox/WeaponTray/WeaponSlot1"]
 theme_type_variation = &"HudMuted"
 theme_override_font_sizes/font_size = 12
+horizontal_alignment = 1
+
+[node name="Level" type="Label" parent="BottomLeft/BottomLeftVBox/WeaponTray/WeaponSlot1"]
+theme_type_variation = &"HudMuted"
+theme_override_font_sizes/font_size = 10
 horizontal_alignment = 1
 
 [node name="WeaponSlot2" type="VBoxContainer" parent="BottomLeft/BottomLeftVBox/WeaponTray"]
@@ -156,6 +166,11 @@ theme_type_variation = &"HudMuted"
 theme_override_font_sizes/font_size = 12
 horizontal_alignment = 1
 
+[node name="Level" type="Label" parent="BottomLeft/BottomLeftVBox/WeaponTray/WeaponSlot2"]
+theme_type_variation = &"HudMuted"
+theme_override_font_sizes/font_size = 10
+horizontal_alignment = 1
+
 [node name="WeaponSlot3" type="VBoxContainer" parent="BottomLeft/BottomLeftVBox/WeaponTray"]
 theme_override_constants/separation = 2
 
@@ -171,6 +186,11 @@ stretch_mode = 5
 [node name="Name" type="Label" parent="BottomLeft/BottomLeftVBox/WeaponTray/WeaponSlot3"]
 theme_type_variation = &"HudMuted"
 theme_override_font_sizes/font_size = 12
+horizontal_alignment = 1
+
+[node name="Level" type="Label" parent="BottomLeft/BottomLeftVBox/WeaponTray/WeaponSlot3"]
+theme_type_variation = &"HudMuted"
+theme_override_font_sizes/font_size = 10
 horizontal_alignment = 1
 
 [node name="PowerPanel" type="PanelContainer" parent="BottomLeft/BottomLeftVBox"]
@@ -463,6 +483,12 @@ horizontal_alignment = 2
 unique_name_in_owner = true
 theme_type_variation = &"HudLabel"
 text = "Glide 0%"
+horizontal_alignment = 2
+
+[node name="SteeringLabel" type="Label" parent="RifleDebugPanel/RifleDebugVBox"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "Steering 0%"
 horizontal_alignment = 2
 
 [node name="HpRegenLabel" type="Label" parent="RifleDebugPanel/RifleDebugVBox"]

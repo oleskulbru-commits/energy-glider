@@ -66,6 +66,8 @@ func _release_all_input() -> void:
 	Input.action_release("jump")
 	Input.action_release("steer_left")
 	Input.action_release("steer_right")
+	Input.action_release("strafe_left")
+	Input.action_release("strafe_right")
 
 
 func _spawn_terrain(name_suffix: String) -> TerrainManager:
@@ -87,6 +89,23 @@ func _hover_spawn_y(terrain: TerrainManager, world_x: float = 0.0, world_z: floa
 	return terrain.sample_height(world_x, world_z) + GliderPhysicsScript.BASE_HEIGHT + 0.05
 
 
+func _flattest_xz(terrain: TerrainManager) -> Vector2:
+	var best := Vector2(32.0, 32.0)
+	var best_grade := 99.0
+	var x := 0.0
+	while x <= 64.0:
+		var z := 0.0
+		while z <= 64.0:
+			var n: Vector3 = terrain.sample_normal(x, z)
+			var grade := n.angle_to(Vector3.UP)
+			if grade < best_grade:
+				best_grade = grade
+				best = Vector2(x, z)
+			z += 8.0
+		x += 8.0
+	return best
+
+
 func _min_board_clearance(glider: GliderPlayer) -> float:
 	return glider.call("_live_min_board_probe_clearance")
 
@@ -100,6 +119,8 @@ func _yaw_travel_misalign_deg(glider: GliderPlayer) -> float:
 
 
 func _run_tests() -> void:
+	_verify_boost_steering_harder()
+	_verify_steering_upgrade_scale()
 	_verify_chase_camera_math()
 	_verify_landing_recovery()
 	_verify_brake_boost_time_scale()
@@ -136,6 +157,9 @@ func _run_tests() -> void:
 	await _verify_idle_to_forward_enter()
 	await _verify_respawn_animation()
 	await _verify_cruise_drift_align()
+	await _verify_strafe_adds_lateral_speed()
+	await _verify_strafe_while_thrusting()
+	await _verify_air_steering_weaker()
 	await _verify_touchdown_slope_momentum()
 	await _verify_touchdown_soft()
 	_verify_land_speed_keep_kernel()
@@ -148,6 +172,53 @@ func _run_tests() -> void:
 	await _verify_jump_while_boosting()
 	print("Glider controller verification passed.")
 	quit(0)
+
+
+func _verify_boost_steering_harder() -> void:
+	_fail_unless(
+		GliderPlayerScript.BOOST_TURN_RATE < GliderPlayerScript.SAIL_TURN_RATE,
+		"Boost yaw should be slower than cruise (boost %.2f cruise %.2f)"
+		% [GliderPlayerScript.BOOST_TURN_RATE, GliderPlayerScript.SAIL_TURN_RATE]
+	)
+	_fail_unless(
+		GliderPlayerScript.BOOST_STEER_GRIP_RATE < GliderPlayerScript.SAIL_STEER_GRIP_RATE,
+		"Boost grip should be weaker than cruise (boost %.2f cruise %.2f)"
+		% [GliderPlayerScript.BOOST_STEER_GRIP_RATE, GliderPlayerScript.SAIL_STEER_GRIP_RATE]
+	)
+	_fail_unless(
+		is_equal_approx(GliderPlayerScript.AIR_STEER_SCALE, 0.20),
+		"Air steering should be 20%% of ground (got %.2f)" % GliderPlayerScript.AIR_STEER_SCALE
+	)
+	_verify_strafe_ground_force()
+
+
+func _verify_steering_upgrade_scale() -> void:
+	_fail_unless(
+		is_equal_approx(GliderPlayerScript.steering_mul(0.0), 1.0),
+		"No Steering bonus should keep base yaw and grip"
+	)
+	_fail_unless(
+		is_equal_approx(GliderPlayerScript.steering_mul(0.12), 1.12),
+		"Rare Steering should scale yaw and grip by 1.12"
+	)
+	_fail_unless(
+		is_equal_approx(GliderPlayerScript.steering_mul(0.80), 1.40),
+		"Steering should cap at +40%"
+	)
+	_fail_unless(
+		is_equal_approx(
+			GliderPlayerScript.SAIL_TURN_RATE * GliderPlayerScript.steering_mul(0.20) * GliderPlayerScript.AIR_STEER_SCALE,
+			GliderPlayerScript.SAIL_TURN_RATE * 1.20 * 0.20
+		),
+		"Air yaw should stay 20% of upgraded ground yaw"
+	)
+	_fail_unless(
+		is_equal_approx(
+			GliderPlayerScript.SAIL_STEER_GRIP_RATE * GliderPlayerScript.steering_mul(0.20) * GliderPlayerScript.AIR_STEER_SCALE,
+			GliderPlayerScript.SAIL_STEER_GRIP_RATE * 1.20 * 0.20
+		),
+		"Air grip should stay 20% of upgraded ground grip"
+	)
 
 
 func _verify_boost_climb_target_speed() -> void:
@@ -1810,11 +1881,12 @@ func _verify_respawn_animation() -> void:
 
 
 func _verify_cruise_drift_align() -> void:
+	_release_all_input()
 	var terrain := _spawn_terrain("drift_align")
 	await physics_frame
 
 	var glider := _spawn_glider(terrain)
-	var input := _get_input(glider)
+	_get_input(glider)
 	glider.global_position = Vector3(32.0, _hover_spawn_y(terrain, 32.0, 32.0), 32.0)
 	glider.set("_yaw", 0.0)
 	glider.velocity = Vector3(2.0, 0.0, 6.0)
@@ -1826,32 +1898,149 @@ func _verify_cruise_drift_align() -> void:
 		initial_misalign >= deg_to_rad(10.0),
 		"Drift test needs meaningful initial misalign (got %.1f deg)" % rad_to_deg(initial_misalign)
 	)
+	var yaw_before := glider.get_yaw()
 
-	var early_misalign := initial_misalign
-	for i in 10:
-		await physics_frame
-		early_misalign = minf(early_misalign, _yaw_travel_misalign_deg(glider))
-	_fail_unless(
-		early_misalign > initial_misalign * 0.55,
-		"Cruise drift should not snap yaw instantly (%.1f -> %.1f deg in 10 frames)" % [
-			rad_to_deg(initial_misalign), rad_to_deg(early_misalign)
-		]
-	)
-
-	for i in 80:
+	for i in 90:
 		await physics_frame
 
-	var final_misalign := _yaw_travel_misalign_deg(glider)
+	var yaw_delta := absf(wrapf(glider.get_yaw() - yaw_before, -PI, PI))
 	_fail_unless(
-		final_misalign <= initial_misalign * 0.6,
-		"Cruise drift should align yaw toward travel (%.1f -> %.1f deg)" % [
-			rad_to_deg(initial_misalign), rad_to_deg(final_misalign)
-		]
+		yaw_delta < deg_to_rad(2.0),
+		"Holding W must not pull yaw onto velocity (yaw moved %.1f deg)" % rad_to_deg(yaw_delta)
 	)
 
 	_release_forward()
 	glider.queue_free()
 	terrain.queue_free()
+
+
+func _verify_strafe_adds_lateral_speed() -> void:
+	_release_all_input()
+	var terrain := _spawn_terrain("strafe")
+	await physics_frame
+
+	var glider := _spawn_glider(terrain)
+	_get_input(glider)
+	glider.global_position = Vector3(0.0, _hover_spawn_y(terrain), 0.0)
+	glider.set("_yaw", 0.0)
+	glider.velocity = Vector3(0.0, 0.0, 6.0)
+	await physics_frame
+
+	var yaw_before := glider.get_yaw()
+	var x_before := glider.velocity.x
+	Input.action_press("strafe_right")
+	for i in 20:
+		await physics_frame
+	Input.action_release("strafe_right")
+
+	_fail_unless(
+		glider.velocity.x > x_before + 0.35,
+		"Strafe right at yaw 0 should add +X speed (%.2f -> %.2f)" % [x_before, glider.velocity.x]
+	)
+	var yaw_delta := absf(wrapf(glider.get_yaw() - yaw_before, -PI, PI))
+	_fail_unless(
+		yaw_delta < deg_to_rad(1.0),
+		"Strafe should not yaw (delta %.1f deg)" % rad_to_deg(yaw_delta)
+	)
+
+	_release_all_input()
+	glider.queue_free()
+	terrain.queue_free()
+
+
+func _verify_strafe_ground_force() -> void:
+	var ctx := GliderPhysicsScript.Context.new()
+	ctx.ground_normal = Vector3.UP
+	ctx.forward_held = true
+	ctx.board_forward = Vector3(0.0, 0.0, 1.0)
+	ctx.thrust_forward = Vector3(0.0, 0.0, 1.0)
+	ctx.velocity = Vector3(0.0, 0.0, 10.0)
+	ctx.strafe = 0.0
+	var straight := GliderPhysicsScript.compute_ground_force(ctx, 90.0, PHYSICS_DT)
+	_fail_unless(
+		absf(straight.x) < 0.5,
+		"Thrust with no strafe should not shove sideways (got %s)" % straight
+	)
+	ctx.strafe = 1.0
+	var slipped := GliderPhysicsScript.compute_ground_force(ctx, 90.0, PHYSICS_DT)
+	_fail_unless(
+		slipped.x > 1.0,
+		"Thrust + Q/E should request +X slip (got %s)" % slipped
+	)
+
+
+func _verify_strafe_while_thrusting() -> void:
+	_release_all_input()
+	var terrain := _spawn_terrain("strafe_thrust")
+	await physics_frame
+
+	var glider := _spawn_glider(terrain)
+	_get_input(glider)
+	glider.global_position = Vector3(0.0, _hover_spawn_y(terrain), 0.0)
+	glider.set("_yaw", 0.0)
+	glider.velocity = Vector3(0.0, 0.0, 8.0)
+	await physics_frame
+
+	var x_before := glider.velocity.x
+	_hold_forward()
+	Input.action_press("strafe_right")
+	for i in 24:
+		await physics_frame
+	Input.action_release("strafe_right")
+	_release_forward()
+
+	_fail_unless(
+		glider.velocity.x > x_before + 0.35,
+		"Q/E must slip while holding W (%.2f -> %.2f)" % [x_before, glider.velocity.x]
+	)
+
+	_release_all_input()
+	glider.queue_free()
+	terrain.queue_free()
+
+
+func _verify_air_steering_weaker() -> void:
+	_release_all_input()
+	var ground_yaw := await _measure_steer_yaw(false)
+	var air_yaw := await _measure_steer_yaw(true)
+	_fail_unless(
+		air_yaw < ground_yaw * 0.40,
+		"Air steering should be much weaker than ground (air %.3f ground %.3f)" % [air_yaw, ground_yaw]
+	)
+	_fail_unless(
+		air_yaw > ground_yaw * 0.08,
+		"Air steering should still exist at ~20%% (air %.3f ground %.3f)" % [air_yaw, ground_yaw]
+	)
+
+
+func _measure_steer_yaw(airborne: bool) -> float:
+	var tag := "air_steer" if airborne else "ground_steer"
+	var terrain := _spawn_terrain(tag)
+	await physics_frame
+	var glider := _spawn_glider(terrain)
+	_get_input(glider)
+	if airborne:
+		var ground_y := terrain.sample_height(0.0, 0.0)
+		glider.global_position = Vector3(0.0, ground_y + 14.0, 0.0)
+		glider.velocity = Vector3(0.0, 0.0, 18.0)
+		glider.set("_state", GliderPlayerScript.State.GLIDING)
+	else:
+		glider.global_position = Vector3(0.0, _hover_spawn_y(terrain), 0.0)
+		glider.velocity = Vector3(0.0, 0.0, 10.0)
+		glider.set("_yaw", 0.0)
+	await physics_frame
+	var yaw_before := glider.get_yaw()
+	Input.action_press("steer_right")
+	for i in 36:
+		await physics_frame
+		if airborne:
+			_fail_unless(glider.is_gliding(), "Air steering test should stay airborne")
+	Input.action_release("steer_right")
+	var yaw_delta := absf(wrapf(glider.get_yaw() - yaw_before, -PI, PI))
+	_release_all_input()
+	glider.queue_free()
+	terrain.queue_free()
+	return yaw_delta
 
 
 func _verify_touchdown_slope_momentum() -> void:
@@ -2004,14 +2193,24 @@ func _verify_land_speed_keep_kernel() -> void:
 
 
 func _verify_soft_land_keeps_speed() -> void:
+	_release_all_input()
 	var terrain := _spawn_terrain("soft_land_keep")
 	await physics_frame
 
 	var glider := _spawn_glider(terrain)
 	_get_input(glider)
-	var ground_y := terrain.sample_height(0.0, 0.0)
-	glider.global_position = Vector3(0.0, ground_y + 2.2, 0.0)
-	glider.velocity = Vector3(0.0, -3.0, 18.0)
+	var xz := _flattest_xz(terrain)
+	var world_x := xz.x
+	var world_z := xz.y
+	var ground_y := terrain.sample_height(world_x, world_z)
+	var n: Vector3 = terrain.sample_normal(world_x, world_z)
+	var downhill_h := Vector3(-n.x, 0.0, -n.z)
+	var dir := Vector3(0.0, 0.0, 1.0)
+	if downhill_h.length_squared() > 0.0001:
+		dir = downhill_h.normalized()
+	glider.global_position = Vector3(world_x, ground_y + 2.2, world_z)
+	glider.set("_yaw", atan2(dir.x, dir.z))
+	glider.velocity = Vector3(dir.x * 18.0, -3.0, dir.z * 18.0)
 	glider.set("_state", GliderPlayerScript.State.GLIDING)
 	await physics_frame
 
@@ -2045,9 +2244,19 @@ func _verify_uphill_land_speed_tax() -> void:
 
 	var glider := _spawn_glider(terrain)
 	_get_input(glider)
-	var ground_y := terrain.sample_height(0.0, 0.0)
-	glider.global_position = Vector3(0.0, ground_y + 8.0, 0.0)
-	glider.velocity = Vector3(0.0, -16.0, 20.0)
+	_release_all_input()
+	var xz := _flattest_xz(terrain)
+	var world_x := xz.x
+	var world_z := xz.y
+	var ground_y := terrain.sample_height(world_x, world_z)
+	var n: Vector3 = terrain.sample_normal(world_x, world_z)
+	var downhill_h := Vector3(-n.x, 0.0, -n.z)
+	var dir := Vector3(0.0, 0.0, 1.0)
+	if downhill_h.length_squared() > 0.0001:
+		dir = downhill_h.normalized()
+	glider.global_position = Vector3(world_x, ground_y + 8.0, world_z)
+	glider.set("_yaw", atan2(dir.x, dir.z))
+	glider.velocity = Vector3(dir.x * 20.0, -16.0, dir.z * 20.0)
 	glider.set("_state", GliderPlayerScript.State.GLIDING)
 	await physics_frame
 

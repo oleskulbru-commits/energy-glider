@@ -87,6 +87,13 @@ func _pushback_bonus() -> float:
 	return state.pushback_bonus_for(UpgradeCatalog.FAMILY_RIFLE)
 
 
+func _bounce_count() -> int:
+	var state := _upgrade_state()
+	if state == null:
+		return 0
+	return state.bounce_count_for(UpgradeCatalog.FAMILY_RIFLE)
+
+
 func _upgrade_state() -> RunUpgradeState:
 	return get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
 
@@ -169,7 +176,9 @@ func _fire(origin: Vector3, target: Node3D) -> void:
 		crit_damage_for(damage_for(_damage_bonus()), is_crit),
 		speed_for(_projectile_speed_bonus()),
 		is_crit,
-		knockback_speed_for(_pushback_bonus())
+		knockback_speed_for(_pushback_bonus()),
+		_bounce_count(),
+		bounce_range_for(RANGE_M)
 	)
 
 
@@ -218,6 +227,57 @@ static func pick_target(
 	if candidates.is_empty():
 		return null
 	return candidates[rng.randi_range(0, candidates.size() - 1)]
+
+
+static func bounce_range_for(weapon_range: float) -> float:
+	return maxf(weapon_range, 0.0) * 0.5
+
+
+static func pick_bounce_target(
+	pills: Array,
+	from: Vector3,
+	bounce_range: float,
+	exclude: Dictionary,
+	rng: RandomNumberGenerator
+) -> Node3D:
+	var found: Array[Node3D] = []
+	for node in pills:
+		var pill := node as Node3D
+		if pill == null or not is_instance_valid(pill):
+			continue
+		if pill is SwarmPill and not (pill as SwarmPill).is_alive():
+			continue
+		if exclude.has(pill.get_instance_id()):
+			continue
+		if xz_distance(from, pill.global_position) > bounce_range:
+			continue
+		found.append(pill)
+	if found.is_empty() or rng == null:
+		return null
+	return found[rng.randi_range(0, found.size() - 1)]
+
+
+static func build_bounce_chain(
+	start: Node3D,
+	pills: Array,
+	bounce_count: int,
+	bounce_range: float,
+	rng: RandomNumberGenerator
+) -> Array[Node3D]:
+	var chain: Array[Node3D] = []
+	if start == null or not is_instance_valid(start) or bounce_count <= 0:
+		return chain
+	var exclude: Dictionary = {}
+	exclude[start.get_instance_id()] = true
+	var from := start.global_position
+	for _i in bounce_count:
+		var next := pick_bounce_target(pills, from, bounce_range, exclude, rng)
+		if next == null:
+			break
+		chain.append(next)
+		exclude[next.get_instance_id()] = true
+		from = next.global_position
+	return chain
 
 
 static func fire_interval_for(reduction: float) -> float:

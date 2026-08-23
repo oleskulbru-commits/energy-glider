@@ -81,7 +81,10 @@ func _spawn_beam() -> bool:
 		target,
 		_damage_bonus(),
 		_crit_chance(),
-		_rng
+		_rng,
+		_bounce_count(),
+		AutoRifle.bounce_range_for(AutoRifle.RANGE_M),
+		_pills()
 	)
 	_beams.append(beam)
 	return true
@@ -172,6 +175,13 @@ func _duration_bonus() -> float:
 	if state == null:
 		return 0.0
 	return state.duration_bonus_for(UpgradeCatalog.FAMILY_LASER)
+
+
+func _bounce_count() -> int:
+	var state := _upgrade_state()
+	if state == null:
+		return 0
+	return state.bounce_count_for(UpgradeCatalog.FAMILY_LASER)
 
 
 func _crit_chance() -> float:

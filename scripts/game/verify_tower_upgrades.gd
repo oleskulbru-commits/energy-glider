@@ -7,6 +7,7 @@ const PlayerRigScript = preload("res://scripts/player/player_rig.gd")
 const UpgradeTowerScript = preload("res://scripts/world/upgrade_tower.gd")
 const AutoRifleScript = preload("res://scripts/weapons/auto_rifle.gd")
 const GliderPhysicsScript = preload("res://scripts/player/glider_physics.gd")
+const GliderPlayerScript = preload("res://scripts/player/glider_player.gd")
 
 
 func _init() -> void:
@@ -23,6 +24,7 @@ func _run() -> void:
 	_verify_projectile_speed_stacking()
 	_verify_glider_speed_stacking()
 	_verify_glide_stacking()
+	_verify_steering_stacking()
 	_verify_hp_regen_stacking()
 	_verify_luck_stacking()
 	_verify_luck_weights()
@@ -31,7 +33,9 @@ func _run() -> void:
 	_verify_health_stacking()
 	_verify_duration_stacking()
 	_verify_pushback_stacking()
+	_verify_bounce_stacking()
 	_verify_weapon_cards()
+	_verify_weapon_hud_levels()
 	_verify_dawn_pose()
 	await _verify_visit_radius()
 	print("Tower upgrade verification passed.")
@@ -91,6 +95,15 @@ func _verify_catalog() -> void:
 		and is_equal_approx(UpgradeCatalogScript.GLIDE_LEGENDARY, 0.25)
 		and is_equal_approx(UpgradeCatalogScript.GLIDE_CAP, 0.50),
 		"Glide percents should be 8 / 11 / 15 / 20 / 25 with a 50% cap"
+	)
+	_fail_unless(
+		is_equal_approx(UpgradeCatalogScript.STEERING_COMMON, 0.06)
+		and is_equal_approx(UpgradeCatalogScript.STEERING_UNCOMMON, 0.08)
+		and is_equal_approx(UpgradeCatalogScript.STEERING_RARE, 0.12)
+		and is_equal_approx(UpgradeCatalogScript.STEERING_EPIC, 0.16)
+		and is_equal_approx(UpgradeCatalogScript.STEERING_LEGENDARY, 0.20)
+		and is_equal_approx(UpgradeCatalogScript.STEERING_CAP, 0.40),
+		"Steering percents should be 6 / 8 / 12 / 16 / 20 with a 40% cap"
 	)
 	_fail_unless(
 		is_equal_approx(UpgradeCatalogScript.HP_REGEN_PERIOD_SEC, 3.0)
@@ -158,6 +171,14 @@ func _verify_catalog() -> void:
 		and UpgradeCatalogScript.PROJECTILE_EPIC == 4
 		and UpgradeCatalogScript.PROJECTILE_LEGENDARY == 5,
 		"Projectile bonuses should be +1 / +2 / +3 / +4 / +5"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.BOUNCE_COMMON == 1
+		and UpgradeCatalogScript.BOUNCE_UNCOMMON == 2
+		and UpgradeCatalogScript.BOUNCE_RARE == 3
+		and UpgradeCatalogScript.BOUNCE_EPIC == 4
+		and UpgradeCatalogScript.BOUNCE_LEGENDARY == 5,
+		"Bounce counts should be 1 / 2 / 3 / 4 / 5"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.is_empty_offer(UpgradeCatalogScript.EMPTY_OFFER),
@@ -295,6 +316,54 @@ func _verify_catalog() -> void:
 			)
 		) == "Glide +25%",
 		"Glide legendary should show +25%"
+	)
+	var rare_steering := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_STEERING,
+		UpgradeCatalogScript.RARITY_RARE
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(rare_steering) == "Steering +12%",
+		"Steering rare should show +12%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.family_of(rare_steering) == UpgradeCatalogScript.FAMILY_STEERING,
+		"steering_rare should parse as the steering family"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_STEERING,
+				UpgradeCatalogScript.RARITY_COMMON
+			)
+		) == "Steering +6%",
+		"Steering common should show +6%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_STEERING,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) == "Steering +8%",
+		"Steering uncommon should show +8%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_STEERING,
+				UpgradeCatalogScript.RARITY_EPIC
+			)
+		) == "Steering +16%",
+		"Steering epic should show +16%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_STEERING,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) == "Steering +20%",
+		"Steering legendary should show +20%"
 	)
 	var rare_regen := UpgradeCatalogScript.make_id(
 		UpgradeCatalogScript.FAMILY_HP_REGEN,
@@ -681,6 +750,94 @@ func _verify_catalog() -> void:
 		) != null,
 		"Legendary Pushback should use pushback_legendary.jpg"
 	)
+	var rare_bounce := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_BOUNCE,
+		UpgradeCatalogScript.RARITY_RARE
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(rare_bounce) == "Bounce +3",
+		"Bounce rare should show +3"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.family_of(rare_bounce) == UpgradeCatalogScript.FAMILY_BOUNCE,
+		"bounce_rare should parse as the bounce family"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_BOUNCE,
+				UpgradeCatalogScript.RARITY_COMMON
+			)
+		) == "Bounce +1",
+		"Bounce common should show +1"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_BOUNCE,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) == "Bounce +2",
+		"Bounce uncommon should show +2"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_BOUNCE,
+				UpgradeCatalogScript.RARITY_EPIC
+			)
+		) == "Bounce +4",
+		"Bounce epic should show +4"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_BOUNCE,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) == "Bounce +5",
+		"Bounce legendary should show +5"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_BOUNCE,
+				UpgradeCatalogScript.RARITY_COMMON
+			)
+		) != null,
+		"Common Bounce should use bounce_common.png"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_BOUNCE,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) != null,
+		"Uncommon Bounce should use bounce_uncommon.png"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(rare_bounce) != null,
+		"Rare Bounce should use bounce_rare.png"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_BOUNCE,
+				UpgradeCatalogScript.RARITY_EPIC
+			)
+		) != null,
+		"Epic Bounce should use bounce_epic.png"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_BOUNCE,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) != null,
+		"Legendary Bounce should use bounce_legendary.png"
+	)
 	_fail_unless(
 		UpgradeCatalogScript.icon_for(
 			UpgradeCatalogScript.make_id(
@@ -978,6 +1135,46 @@ func _verify_catalog() -> void:
 		) != null,
 		"Legendary Glide should use glide_legendary.jpg"
 	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_STEERING,
+				UpgradeCatalogScript.RARITY_COMMON
+			)
+		) != null,
+		"Common Steering should use steering_common.png"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_STEERING,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) != null,
+		"Uncommon Steering should use steering_uncommon.png"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(rare_steering) != null,
+		"Rare Steering should use steering_rare.png"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_STEERING,
+				UpgradeCatalogScript.RARITY_EPIC
+			)
+		) != null,
+		"Epic Steering should use steering_epic.png"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_STEERING,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) != null,
+		"Legendary Steering should use steering_legendary.png"
+	)
 	var common_ps := UpgradeCatalogScript.make_id(
 		UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED,
 		UpgradeCatalogScript.RARITY_COMMON
@@ -1274,6 +1471,7 @@ func _verify_offers_and_visit_lock() -> void:
 		is_equal_approx(state.pushback_bonus, 0.0),
 		"Try Again should clear Pushback"
 	)
+	_fail_unless(state.bounce_count == 0, "Try Again should clear Bounce")
 	_fail_unless(state.remaining_count(1) == 4, "Try Again should not restore taken cards")
 	_fail_unless(
 		state.get_offers(1).size() == 5,
@@ -1603,6 +1801,68 @@ func _verify_glide_stacking() -> void:
 	_fail_unless(
 		is_equal_approx(state.glide_bonus, 0.0),
 		"Try Again should clear Glide"
+	)
+	state.free()
+
+
+func _verify_steering_stacking() -> void:
+	var state: RunUpgradeState = RunUpgradeStateScript.new()
+	root.add_child(state)
+	var common_steer := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_STEERING,
+			UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	var rare_steer := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_STEERING,
+			UpgradeCatalogScript.RARITY_RARE
+		)
+	)
+	var leftover := String(UpgradeCatalogScript.ID_EXTRA_PROJECTILE)
+	_seed_offers(
+		state,
+		32,
+		PackedStringArray([common_steer, rare_steer, leftover, leftover, leftover])
+	)
+	state.pick_offer(32, 0)
+	state.pick_offer(32, 1)
+	_fail_unless(
+		is_equal_approx(state.steering_bonus, 0.18),
+		"Common + rare Steering should sum to 18%"
+	)
+	_fail_unless(
+		is_equal_approx(GliderPlayerScript.steering_mul(state.steering_bonus), 1.18),
+		"18% Steering should multiply yaw and grip by 1.18"
+	)
+	_fail_unless(state.remaining_count(32) == 3, "Leftover cards should stay in the shop")
+	_fail_unless(state.extra_projectiles == 0, "Steering picks should not add projectiles")
+	var legendary_steer := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_STEERING,
+			UpgradeCatalogScript.RARITY_LEGENDARY
+		)
+	)
+	_seed_offers(
+		state,
+		33,
+		PackedStringArray([legendary_steer, legendary_steer, leftover, leftover, leftover])
+	)
+	state.pick_offer(33, 0)
+	state.pick_offer(33, 1)
+	_fail_unless(
+		is_equal_approx(state.steering_bonus, 0.58),
+		"Stacks past the cap should still add their percent"
+	)
+	_fail_unless(
+		is_equal_approx(GliderPlayerScript.steering_mul(state.steering_bonus), 1.40),
+		"Steering should cap at +40%"
+	)
+	state.reset_run()
+	_fail_unless(
+		is_equal_approx(state.steering_bonus, 0.0),
+		"Try Again should clear Steering"
 	)
 	state.free()
 
@@ -1958,6 +2218,69 @@ func _verify_pushback_stacking() -> void:
 	state.free()
 
 
+func _verify_bounce_stacking() -> void:
+	var state: RunUpgradeState = RunUpgradeStateScript.new()
+	root.add_child(state)
+	var common_bounce := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_BOUNCE,
+			UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	var rare_bounce := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_BOUNCE,
+			UpgradeCatalogScript.RARITY_RARE
+		)
+	)
+	var leftover := String(UpgradeCatalogScript.ID_EXTRA_PROJECTILE)
+	_seed_offers(
+		state,
+		23,
+		PackedStringArray([common_bounce, rare_bounce, leftover, leftover, leftover])
+	)
+	state.pick_offer(23, 0)
+	state.pick_offer(23, 1)
+	_fail_unless(state.bounce_count == 4, "Common + rare Bounce should sum to 4")
+	_fail_unless(state.remaining_count(23) == 3, "Leftover cards should stay in the shop")
+	_fail_unless(state.extra_projectiles == 0, "Bounce picks should not add projectiles")
+	_fail_unless(
+		state.bounce_count_for(UpgradeCatalogScript.FAMILY_RIFLE) == 4
+		and state.bounce_count_for(UpgradeCatalogScript.FAMILY_LASER) == 4,
+		"Shop Bounce should apply to every owned projectile weapon"
+	)
+	state.reset_run()
+	_fail_unless(state.bounce_count == 0, "Try Again should clear Bounce")
+	state.grant_starter(UpgradeCatalogScript.FAMILY_RIFLE)
+	var rifle_bounce := UpgradeCatalogScript.encode_weapon_offer(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_RIFLE,
+			UpgradeCatalogScript.RARITY_COMMON
+		),
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_BOUNCE,
+			UpgradeCatalogScript.RARITY_COMMON
+		),
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_DAMAGE,
+			UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	_seed_offers(
+		state,
+		24,
+		PackedStringArray([rifle_bounce, leftover, leftover, leftover, leftover])
+	)
+	state.pick_offer(24, 0)
+	_fail_unless(
+		state.bounce_count == 0
+		and state.bounce_count_for(UpgradeCatalogScript.FAMILY_RIFLE) == 1
+		and state.bounce_count_for(UpgradeCatalogScript.FAMILY_LASER) == 0,
+		"Rifle bundle Bounce should stay on the Rifle"
+	)
+	state.free()
+
+
 func _verify_weapon_cards() -> void:
 	var rifle_common := UpgradeCatalogScript.make_id(
 		UpgradeCatalogScript.FAMILY_RIFLE,
@@ -2018,13 +2341,15 @@ func _verify_weapon_cards() -> void:
 	_fail_unless(
 		UpgradeCatalogScript.FAMILY_PUSHBACK not in laser_families
 		and UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED not in laser_families
-		and UpgradeCatalogScript.FAMILY_DURATION in laser_families,
-		"Laser should roll duration, not pushback or projectile speed"
+		and UpgradeCatalogScript.FAMILY_DURATION in laser_families
+		and UpgradeCatalogScript.FAMILY_BOUNCE in laser_families,
+		"Laser should roll duration and bounce, not pushback or projectile speed"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.FAMILY_DURATION not in rifle_families
-		and UpgradeCatalogScript.FAMILY_PUSHBACK in rifle_families,
-		"Rifle should roll pushback, not duration"
+		and UpgradeCatalogScript.FAMILY_PUSHBACK in rifle_families
+		and UpgradeCatalogScript.FAMILY_BOUNCE in rifle_families,
+		"Rifle should roll pushback and bounce, not duration"
 	)
 	var rng := RandomNumberGenerator.new()
 	for seed in range(1, 241):
@@ -2107,6 +2432,30 @@ func _verify_weapon_cards() -> void:
 		UpgradeCatalogScript.FAMILY_GLIDE
 		in UpgradeCatalogScript.eligible_shop_families(false, false),
 		"Glide should roll without owning a weapon"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.FAMILY_STEERING
+		in UpgradeCatalogScript.eligible_shop_families(false, false),
+		"Steering should roll without owning a weapon"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.FAMILY_STEERING
+		not in UpgradeCatalogScript.eligible_families(UpgradeCatalogScript.FAMILY_RIFLE)
+		and UpgradeCatalogScript.FAMILY_STEERING
+		not in UpgradeCatalogScript.eligible_families(UpgradeCatalogScript.FAMILY_LASER),
+		"Steering should be a shop-wide glider card, not a weapon part"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.FAMILY_BOUNCE
+		not in UpgradeCatalogScript.eligible_shop_families(false, false),
+		"Bounce should not roll until a weapon is owned"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.FAMILY_BOUNCE
+		in UpgradeCatalogScript.eligible_shop_families(true, false)
+		and UpgradeCatalogScript.FAMILY_BOUNCE
+		in UpgradeCatalogScript.eligible_shop_families(false, true),
+		"Bounce should roll in rifle-only and laser-only shops"
 	)
 	var rifle_n := UpgradeCatalogScript.eligible_shop_families(true, false).size()
 	var laser_n := UpgradeCatalogScript.eligible_shop_families(false, true).size()
@@ -2407,6 +2756,129 @@ func _verify_visit_radius() -> void:
 	_fail_unless(at_home == null, "Home tower should not open the upgrade menu")
 	tower.free()
 	home.free()
+
+
+func _verify_weapon_hud_levels() -> void:
+	_fail_unless(
+		UpgradeCatalogScript.rarity_for_weapon_level(1) == UpgradeCatalogScript.RARITY_COMMON
+		and UpgradeCatalogScript.rarity_for_weapon_level(2) == UpgradeCatalogScript.RARITY_UNCOMMON
+		and UpgradeCatalogScript.rarity_for_weapon_level(3) == UpgradeCatalogScript.RARITY_RARE
+		and UpgradeCatalogScript.rarity_for_weapon_level(4) == UpgradeCatalogScript.RARITY_EPIC
+		and UpgradeCatalogScript.rarity_for_weapon_level(5) == UpgradeCatalogScript.RARITY_LEGENDARY
+		and UpgradeCatalogScript.rarity_for_weapon_level(9) == UpgradeCatalogScript.RARITY_LEGENDARY,
+		"Weapon HUD rarity should climb common to legendary then stay"
+	)
+	var common_rifle := UpgradeCatalogScript.icon_for(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_RIFLE, UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	var uncommon_rifle := UpgradeCatalogScript.icon_for(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_RIFLE, UpgradeCatalogScript.RARITY_UNCOMMON
+		)
+	)
+	var legendary_rifle := UpgradeCatalogScript.icon_for(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_RIFLE, UpgradeCatalogScript.RARITY_LEGENDARY
+		)
+	)
+	_fail_unless(
+		common_rifle != null and uncommon_rifle != null and legendary_rifle != null,
+		"Rifle rarity icons should exist"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for_weapon_level(UpgradeCatalogScript.FAMILY_RIFLE, 1)
+		== common_rifle,
+		"Level 1 Rifle should use the common icon"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for_weapon_level(UpgradeCatalogScript.FAMILY_RIFLE, 2)
+		== uncommon_rifle,
+		"Level 2 Rifle should use the uncommon icon"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for_weapon_level(UpgradeCatalogScript.FAMILY_RIFLE, 5)
+		== legendary_rifle
+		and UpgradeCatalogScript.icon_for_weapon_level(UpgradeCatalogScript.FAMILY_RIFLE, 8)
+		== legendary_rifle,
+		"Level 5+ Rifle should stay on the legendary icon"
+	)
+
+	var root := get_root()
+	var leftover := String(UpgradeCatalogScript.ID_EXTRA_PROJECTILE)
+	var rifle_card := UpgradeCatalogScript.encode_weapon_offer(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_RIFLE, UpgradeCatalogScript.RARITY_COMMON
+		),
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_DAMAGE, UpgradeCatalogScript.RARITY_COMMON
+		),
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_ATTACK_SPEED, UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	var shop_damage := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_DAMAGE, UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+
+	var state: RunUpgradeState = RunUpgradeStateScript.new()
+	root.add_child(state)
+	state.grant_starter(UpgradeCatalogScript.FAMILY_RIFLE)
+	_fail_unless(
+		state.weapon_level(UpgradeCatalogScript.FAMILY_RIFLE) == 1,
+		"A new Rifle should start at Level 1"
+	)
+	_fail_unless(
+		state.weapon_level(UpgradeCatalogScript.FAMILY_LASER) == 0,
+		"An unowned Laser should have no level"
+	)
+	_seed_offers(
+		state,
+		30,
+		PackedStringArray([shop_damage, leftover, leftover, leftover, leftover])
+	)
+	state.pick_offer(30, 0)
+	_fail_unless(
+		state.weapon_level(UpgradeCatalogScript.FAMILY_RIFLE) == 1,
+		"A shared shop card should not raise the Rifle level"
+	)
+	_seed_offers(
+		state,
+		31,
+		PackedStringArray([rifle_card, leftover, leftover, leftover, leftover])
+	)
+	state.pick_offer(31, 0)
+	_fail_unless(
+		state.weapon_level(UpgradeCatalogScript.FAMILY_RIFLE) == 2,
+		"Picking a Rifle upgrade should raise the Rifle to Level 2"
+	)
+	for tower in range(32, 36):
+		_seed_offers(
+			state,
+			tower,
+			PackedStringArray([rifle_card, leftover, leftover, leftover, leftover])
+		)
+		state.pick_offer(tower, 0)
+	_fail_unless(
+		state.weapon_level(UpgradeCatalogScript.FAMILY_RIFLE) == 6,
+		"Further Rifle upgrades should keep raising the level"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.rarity_for_weapon_level(
+			state.weapon_level(UpgradeCatalogScript.FAMILY_RIFLE)
+		)
+		== UpgradeCatalogScript.RARITY_LEGENDARY,
+		"Past Level 5 the Rifle icon should stay legendary"
+	)
+	state.reset_run()
+	_fail_unless(
+		state.weapon_level(UpgradeCatalogScript.FAMILY_RIFLE) == 0,
+		"Try Again should clear weapon levels"
+	)
+	state.queue_free()
 
 
 func _pick_all_slots(state: RunUpgradeState, tower_index: int) -> void:

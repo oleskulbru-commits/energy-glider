@@ -59,6 +59,8 @@ const CRUISE_MAX_GROUND_SPEED := MAX_GROUND_SPEED * CRUISE_SPEED_SCALE
 const BOOST_MAX_GROUND_SPEED := CRUISE_MAX_GROUND_SPEED * BOOST_SPEED_FACTOR
 const BOOST_MAX_SURF_SPEED := FLAT_MAX_SPEED * BOOST_SPEED_FACTOR
 const CRUISE_GROUND_ACCEL := FLAT_ACCEL
+const STRAFE_SPEED := 8.0
+const STRAFE_BLEND_ACCEL := 14.0
 
 # Air
 const AIR_GRAVITY := 14.5
@@ -159,6 +161,7 @@ class Context:
 	var coast_blend: float = 0.0
 	var hover_at_rest: bool = false
 	var steering: bool = false
+	var strafe: float = 0.0
 	var air_gravity_scale: float = 1.0
 	var ground_drag_scale: float = 1.0
 	var glide_drag_scale: float = 1.0
@@ -266,26 +269,30 @@ static func compute_ground_force(ctx: Context, mass: float, delta: float) -> Vec
 	var speed := h.length()
 	var target := target_horizontal_speed(ctx)
 	var rate := horizontal_speed_accel_rate(ctx, speed, target)
-	if rate <= 0.0001 and absf(target - speed) <= 0.05:
+	if rate <= 0.0001 and absf(target - speed) <= 0.05 and absf(ctx.strafe) <= 0.01:
 		return Vector3.ZERO
 
 	var board_h := MathUtil.horizontal(ctx.thrust_forward)
 	if board_h.length_squared() < 0.0001:
 		board_h = MathUtil.horizontal(ctx.board_forward)
-	var desired_dir := board_h
-	## Ease speed along travel; only gently bias toward board so yaw/drift stay soft.
-	if speed > 0.5:
-		var travel := h.normalized()
-		if (ctx.forward_held or ctx.boost_active) and board_h.length_squared() > 0.0001:
-			desired_dir = travel.lerp(board_h.normalized(), 0.1).normalized()
-		else:
-			desired_dir = travel
-	elif desired_dir.length_squared() < 0.0001:
+	var thrusting := ctx.forward_held or ctx.boost_active
+	var desired_dir := Vector3.ZERO
+	if thrusting and board_h.length_squared() > 0.0001:
+		desired_dir = board_h.normalized()
+	elif speed > 0.5:
+		desired_dir = h.normalized()
+	elif board_h.length_squared() < 0.0001:
 		return Vector3.ZERO
 	else:
-		desired_dir = desired_dir.normalized()
+		desired_dir = board_h.normalized()
 
 	var desired_h := desired_dir * target
+	if absf(ctx.strafe) > 0.01 and desired_dir.length_squared() > 0.0001:
+		var right := ctx.ground_normal.cross(desired_dir)
+		if right.length_squared() > 0.0001:
+			desired_h += right.normalized() * ctx.strafe * STRAFE_SPEED
+			rate = maxf(rate, STRAFE_BLEND_ACCEL)
+
 	var delta_v := desired_h - h
 	var err := delta_v.length()
 	if err < 0.000001:
@@ -506,14 +513,12 @@ static func air_gravity_force(ctx: Context, mass: float) -> Vector3:
 
 
 static func compute_air_force(ctx: Context, mass: float, _delta: float) -> Vector3:
-	## Gravity + soft lift. W holds XZ (player preserve); boost accelerates toward boost max.
+	## Gravity + soft lift. W holds XZ (player preserve); boost accelerates along the nose.
 	var force := air_gravity_force(ctx, mass)
 	var horizontal := horizontal_velocity(ctx.velocity)
 	var forward_speed := horizontal.length()
 
-	var thrust_dir := horizontal
-	if thrust_dir.length_squared() < 0.0001:
-		thrust_dir = MathUtil.horizontal(ctx.thrust_forward)
+	var thrust_dir := MathUtil.horizontal(ctx.thrust_forward)
 	if thrust_dir.length_squared() < 0.0001:
 		thrust_dir = MathUtil.horizontal(ctx.board_forward)
 	if thrust_dir.length_squared() > 0.0001:

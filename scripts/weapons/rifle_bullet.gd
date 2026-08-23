@@ -18,6 +18,10 @@ var _damage := DAMAGE
 var _speed := SPEED_MPS
 var _is_crit := false
 var _knockback_speed := SwarmPill.HIT_KNOCKBACK_SPEED
+var _bounces_left := 0
+var _bounce_range := 0.0
+var _hit_ids: Dictionary = {}
+var _rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
@@ -33,7 +37,9 @@ func launch(
 	amount: int = DAMAGE,
 	speed_mps: float = SPEED_MPS,
 	is_crit: bool = false,
-	knockback_speed: float = SwarmPill.HIT_KNOCKBACK_SPEED
+	knockback_speed: float = SwarmPill.HIT_KNOCKBACK_SPEED,
+	bounces: int = 0,
+	bounce_range: float = 0.0
 ) -> void:
 	global_position = origin
 	_target = target
@@ -41,6 +47,12 @@ func launch(
 	_speed = maxf(speed_mps, 0.01)
 	_is_crit = is_crit
 	_knockback_speed = maxf(knockback_speed, 0.0)
+	_bounces_left = maxi(bounces, 0)
+	_bounce_range = maxf(bounce_range, 0.0)
+	_hit_ids.clear()
+	_spent = false
+	_life = LIFETIME_SEC
+	_rng.randomize()
 	if initial_dir.length_squared() > 0.0001:
 		_dir = initial_dir.normalized()
 	elif _aim_vector().length_squared() > 0.0001:
@@ -81,10 +93,35 @@ func _on_body_entered(body: Node) -> void:
 	if _spent:
 		return
 	var pill := body as SwarmPill
-	if pill == null:
+	if pill == null or not pill.is_alive():
 		return
-	_spent = true
+	var id := pill.get_instance_id()
+	if _hit_ids.has(id):
+		return
+	_hit_ids[id] = true
 	var killed := pill.take_damage(_damage, _dir, _is_crit, _knockback_speed)
 	if killed:
 		KillSparksScript.spawn(get_tree(), pill.global_position)
+	if _try_bounce(pill.global_position):
+		return
+	_spent = true
 	queue_free()
+
+
+func _try_bounce(from: Vector3) -> bool:
+	if _bounces_left <= 0:
+		return false
+	var pills: Array = []
+	if is_inside_tree():
+		pills = get_tree().get_nodes_in_group("swarm_pill")
+	var next := AutoRifle.pick_bounce_target(pills, from, _bounce_range, _hit_ids, _rng)
+	if next == null:
+		return false
+	_bounces_left -= 1
+	_target = next
+	_life = LIFETIME_SEC
+	var aim := _aim_vector()
+	if aim.length_squared() > 0.0001:
+		_dir = aim.normalized()
+		_orient()
+	return true

@@ -12,6 +12,7 @@ var damage_bonus := 0.0
 var projectile_speed_bonus := 0.0
 var glider_speed_bonus := 0.0
 var glide_bonus := 0.0
+var steering_bonus := 0.0
 var health_regen_per_sec := 0.0
 var max_health_bonus := 0
 var luck_bonus := 0
@@ -19,6 +20,7 @@ var momentum_retention := 0.0
 var crit_chance := 0.0
 var duration_bonus := 0.0
 var pushback_bonus := 0.0
+var bounce_count := 0
 var has_rifle := false
 var has_laser := false
 var _offers: Dictionary = {}
@@ -26,6 +28,8 @@ var _visited_this_life: Dictionary = {}
 var _weapon_holes: Dictionary = {}
 var _life_index := 0
 var _owned_order: PackedStringArray = PackedStringArray()
+var _rifle_level := 0
+var _laser_level := 0
 var _rifle_bundle := WeaponBundle.new()
 var _laser_bundle := WeaponBundle.new()
 
@@ -38,6 +42,7 @@ class WeaponBundle:
 	var crit := 0.0
 	var duration := 0.0
 	var pushback := 0.0
+	var bounce := 0
 
 	func clear() -> void:
 		extra_projectiles = 0
@@ -47,6 +52,7 @@ class WeaponBundle:
 		crit = 0.0
 		duration = 0.0
 		pushback = 0.0
+		bounce = 0
 
 
 func _ready() -> void:
@@ -79,6 +85,7 @@ func reset_run() -> void:
 	projectile_speed_bonus = 0.0
 	glider_speed_bonus = 0.0
 	glide_bonus = 0.0
+	steering_bonus = 0.0
 	health_regen_per_sec = 0.0
 	max_health_bonus = 0
 	luck_bonus = 0
@@ -86,11 +93,14 @@ func reset_run() -> void:
 	crit_chance = 0.0
 	duration_bonus = 0.0
 	pushback_bonus = 0.0
+	bounce_count = 0
 	_rifle_bundle.clear()
 	_laser_bundle.clear()
 	has_rifle = false
 	has_laser = false
 	_owned_order = PackedStringArray()
+	_rifle_level = 0
+	_laser_level = 0
 	_life_index += 1
 	_refill_weapon_holes()
 	clear_visited_this_life()
@@ -102,6 +112,8 @@ func grant_starter(family: StringName) -> void:
 	has_rifle = false
 	has_laser = false
 	_owned_order = PackedStringArray()
+	_rifle_level = 0
+	_laser_level = 0
 	grant_weapon(family)
 
 
@@ -111,11 +123,13 @@ func grant_weapon(family: StringName) -> void:
 			return
 		has_rifle = true
 		_owned_order.append("rifle")
+		_rifle_level = 1
 	elif family == UpgradeCatalog.FAMILY_LASER:
 		if has_laser:
 			return
 		has_laser = true
 		_owned_order.append("laser")
+		_laser_level = 1
 	else:
 		return
 	weapons_changed.emit()
@@ -123,6 +137,14 @@ func grant_weapon(family: StringName) -> void:
 
 func owned_weapon_ids() -> PackedStringArray:
 	return _owned_order
+
+
+func weapon_level(family: StringName) -> int:
+	if family == UpgradeCatalog.FAMILY_LASER:
+		return _laser_level
+	if family == UpgradeCatalog.FAMILY_RIFLE:
+		return _rifle_level
+	return 0
 
 
 func owns_weapon(family: StringName) -> bool:
@@ -159,6 +181,10 @@ func duration_bonus_for(weapon: StringName) -> float:
 
 func pushback_bonus_for(weapon: StringName) -> float:
 	return pushback_bonus + _bundle(weapon).pushback
+
+
+func bounce_count_for(weapon: StringName) -> int:
+	return bounce_count + _bundle(weapon).bounce
 
 
 func ensure_tower(tower_index: int) -> void:
@@ -211,6 +237,7 @@ func _apply_upgrade(id: StringName, weapon_family: StringName = &"") -> void:
 		var family := UpgradeCatalog.family_of(id)
 		for part in UpgradeCatalog.weapon_parts(id):
 			_apply_upgrade(StringName(part), family)
+		_raise_weapon_level(family)
 		return
 	var family := UpgradeCatalog.family_of(id)
 	if family == UpgradeCatalog.FAMILY_PROJECTILE:
@@ -241,6 +268,8 @@ func _apply_upgrade(id: StringName, weapon_family: StringName = &"") -> void:
 		glider_speed_bonus += UpgradeCatalog.glider_speed_percent(UpgradeCatalog.rarity_of(id))
 	elif family == UpgradeCatalog.FAMILY_GLIDE:
 		glide_bonus += UpgradeCatalog.glide_percent(UpgradeCatalog.rarity_of(id))
+	elif family == UpgradeCatalog.FAMILY_STEERING:
+		steering_bonus += UpgradeCatalog.steering_percent(UpgradeCatalog.rarity_of(id))
 	elif family == UpgradeCatalog.FAMILY_HP_REGEN:
 		health_regen_per_sec += UpgradeCatalog.hp_regen_per_sec(UpgradeCatalog.rarity_of(id))
 	elif family == UpgradeCatalog.FAMILY_HEALTH:
@@ -273,6 +302,12 @@ func _apply_upgrade(id: StringName, weapon_family: StringName = &"") -> void:
 			_bundle(weapon_family).pushback += amount
 		else:
 			pushback_bonus += amount
+	elif family == UpgradeCatalog.FAMILY_BOUNCE:
+		var amount := UpgradeCatalog.bounce_count(UpgradeCatalog.rarity_of(id))
+		if weapon_family != &"":
+			_bundle(weapon_family).bounce += maxi(amount, 0)
+		else:
+			bounce_count += maxi(amount, 0)
 
 
 func hud_extra_projectiles() -> int:
@@ -320,6 +355,15 @@ func mark_visited_this_life(tower_index: int) -> void:
 
 func clear_visited_this_life() -> void:
 	_visited_this_life.clear()
+
+
+func _raise_weapon_level(family: StringName) -> void:
+	if family == UpgradeCatalog.FAMILY_RIFLE and has_rifle:
+		_rifle_level += 1
+		weapons_changed.emit()
+	elif family == UpgradeCatalog.FAMILY_LASER and has_laser:
+		_laser_level += 1
+		weapons_changed.emit()
 
 
 func _bundle(weapon: StringName) -> WeaponBundle:

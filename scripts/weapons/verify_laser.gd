@@ -2,6 +2,7 @@ extends SceneTree
 
 const AutoLaserScript = preload("res://scripts/weapons/auto_laser.gd")
 const AutoRifleScript = preload("res://scripts/weapons/auto_rifle.gd")
+const LaserBeamScript = preload("res://scripts/weapons/laser_beam.gd")
 const SwarmPillScript = preload("res://scripts/enemies/swarm_pill.gd")
 const UpgradeCatalogScript = preload("res://scripts/game/upgrade_catalog.gd")
 
@@ -14,6 +15,8 @@ func _run() -> void:
 	_verify_ticks_and_charge()
 	_verify_knockback_skip()
 	_verify_pushback_speed()
+	_verify_bounce()
+	_verify_dead_hop_does_not_freeze()
 	print("Laser verification passed.")
 	quit(0)
 
@@ -119,6 +122,63 @@ func _verify_pushback_speed() -> void:
 		"Laser zero-dir should skip Pushback (got %s)" % leftover
 	)
 	laser_hit.free()
+
+
+func _verify_bounce() -> void:
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.bounce_range_for(AutoRifleScript.RANGE_M), 50.0),
+		"Rifle bounce range should be half of 100 m"
+	)
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.bounce_range_for(AutoRifleScript.RANGE_M), AutoRifleScript.RANGE_M * 0.5),
+		"Laser bounce range should be half the weapon range"
+	)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1
+	var start: SwarmPill = SwarmPillScript.new()
+	var near: SwarmPill = SwarmPillScript.new()
+	var far: SwarmPill = SwarmPillScript.new()
+	root.add_child(start)
+	root.add_child(near)
+	root.add_child(far)
+	start.global_position = Vector3.ZERO
+	near.global_position = Vector3(40.0, 0.0, 0.0)
+	far.global_position = Vector3(80.0, 0.0, 0.0)
+	var pills: Array = [start, near, far]
+	var chain := AutoRifleScript.build_bounce_chain(start, pills, 2, 50.0, rng)
+	_fail_unless(chain.size() == 2, "Two hops should chain start -> near -> far")
+	_fail_unless(chain[0] == near and chain[1] == far, "Each hop should measure from the last hit")
+	var ping := AutoRifleScript.build_bounce_chain(start, [start, near], 5, 50.0, rng)
+	_fail_unless(ping.size() == 1 and ping[0] == near, "Bounces must not return to a pill already hit")
+	var exclude: Dictionary = {}
+	exclude[start.get_instance_id()] = true
+	exclude[near.get_instance_id()] = true
+	_fail_unless(
+		AutoRifleScript.pick_bounce_target(pills, start.global_position, 50.0, exclude, rng) == null,
+		"Already-hit pills should be excluded from bounce picks"
+	)
+	start.free()
+	near.free()
+	far.free()
+
+
+func _verify_dead_hop_does_not_freeze() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1
+	var primary: SwarmPill = SwarmPillScript.new()
+	var hop: SwarmPill = SwarmPillScript.new()
+	root.add_child(primary)
+	root.add_child(hop)
+	primary.global_position = Vector3.ZERO
+	hop.global_position = Vector3(10.0, 0.0, 0.0)
+	var beam: LaserBeam = LaserBeamScript.new()
+	root.add_child(beam)
+	beam.begin(2.0, primary, 0.0, 0.0, rng, 1, 50.0, [primary, hop])
+	hop.free()
+	beam.advance(0.016, Vector3.ZERO, Vector3.FORWARD, [primary], rng, 0.0, 0.0)
+	_fail_unless(not beam.finished, "A freed bounce hop should not freeze or finish the laser")
+	beam.free()
+	primary.free()
 
 
 func _fail_unless(ok: bool, message: String) -> void:

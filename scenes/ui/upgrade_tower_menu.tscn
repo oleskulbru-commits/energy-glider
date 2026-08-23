@@ -1,7 +1,23 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/upgrade_tower_menu.gd" id="1_menu"]
 [ext_resource type="Theme" path="res://themes/hud_theme.tres" id="2_theme"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card_idle"]
+content_margin_left = 8.0
+content_margin_top = 8.0
+content_margin_right = 8.0
+content_margin_bottom = 8.0
+bg_color = Color(0.05, 0.05, 0.06, 0.28)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.85, 0.72, 0.55, 0.28)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
 
 [node name="UpgradeTowerMenu" type="CanvasLayer"]
 process_mode = 3
@@ -40,7 +56,7 @@ grow_vertical = 2
 mouse_filter = 0
 
 [node name="Panel" type="PanelContainer" parent="Root/Center"]
-custom_minimum_size = Vector2(860, 520)
+custom_minimum_size = Vector2(980, 540)
 layout_mode = 2
 theme_type_variation = &"HudOverlay"
 
@@ -64,33 +80,37 @@ horizontal_alignment = 1
 [node name="Cards" type="HBoxContainer" parent="Root/Center/Panel/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 16
 alignment = 1
 
-[node name="Card0" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards"]
+[node name="Card0" type="PanelContainer" parent="Root/Center/Panel/VBox/Cards"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_card_idle")
+
+[node name="Inner" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards/Card0"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="RarityLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card0"]
+[node name="RarityLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card0/Inner"]
 layout_mode = 2
 theme_type_variation = &"HudStoppedTitle"
 theme_override_font_sizes/font_size = 20
 text = "COMMON"
 horizontal_alignment = 1
 
-[node name="Button" type="Button" parent="Root/Center/Panel/VBox/Cards/Card0"]
+[node name="Button" type="Button" parent="Root/Center/Panel/VBox/Cards/Card0/Inner"]
 custom_minimum_size = Vector2(140, 140)
 layout_mode = 2
 icon_alignment = 1
 expand_icon = true
 
-[node name="NameLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card0"]
+[node name="NameLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card0/Inner"]
 layout_mode = 2
 theme_type_variation = &"HudValue"
 text = "+1 projectile"
 horizontal_alignment = 1
 
-[node name="BonusLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card0"]
+[node name="BonusLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card0/Inner"]
 visible = false
 custom_minimum_size = Vector2(140, 0)
 layout_mode = 2
@@ -99,30 +119,34 @@ theme_override_font_sizes/font_size = 14
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="Card1" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards"]
+[node name="Card1" type="PanelContainer" parent="Root/Center/Panel/VBox/Cards"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_card_idle")
+
+[node name="Inner" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards/Card1"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="RarityLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card1"]
+[node name="RarityLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card1/Inner"]
 layout_mode = 2
 theme_type_variation = &"HudStoppedTitle"
 theme_override_font_sizes/font_size = 20
 text = "COMMON"
 horizontal_alignment = 1
 
-[node name="Button" type="Button" parent="Root/Center/Panel/VBox/Cards/Card1"]
+[node name="Button" type="Button" parent="Root/Center/Panel/VBox/Cards/Card1/Inner"]
 custom_minimum_size = Vector2(140, 140)
 layout_mode = 2
 icon_alignment = 1
 expand_icon = true
 
-[node name="NameLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card1"]
+[node name="NameLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card1/Inner"]
 layout_mode = 2
 theme_type_variation = &"HudValue"
 text = "+1 projectile"
 horizontal_alignment = 1
 
-[node name="BonusLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card1"]
+[node name="BonusLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card1/Inner"]
 visible = false
 custom_minimum_size = Vector2(140, 0)
 layout_mode = 2
@@ -131,30 +155,34 @@ theme_override_font_sizes/font_size = 14
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="Card2" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards"]
+[node name="Card2" type="PanelContainer" parent="Root/Center/Panel/VBox/Cards"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_card_idle")
+
+[node name="Inner" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards/Card2"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="RarityLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card2"]
+[node name="RarityLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card2/Inner"]
 layout_mode = 2
 theme_type_variation = &"HudStoppedTitle"
 theme_override_font_sizes/font_size = 20
 text = "COMMON"
 horizontal_alignment = 1
 
-[node name="Button" type="Button" parent="Root/Center/Panel/VBox/Cards/Card2"]
+[node name="Button" type="Button" parent="Root/Center/Panel/VBox/Cards/Card2/Inner"]
 custom_minimum_size = Vector2(140, 140)
 layout_mode = 2
 icon_alignment = 1
 expand_icon = true
 
-[node name="NameLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card2"]
+[node name="NameLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card2/Inner"]
 layout_mode = 2
 theme_type_variation = &"HudValue"
 text = "+1 projectile"
 horizontal_alignment = 1
 
-[node name="BonusLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card2"]
+[node name="BonusLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card2/Inner"]
 visible = false
 custom_minimum_size = Vector2(140, 0)
 layout_mode = 2
@@ -163,30 +191,34 @@ theme_override_font_sizes/font_size = 14
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="Card3" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards"]
+[node name="Card3" type="PanelContainer" parent="Root/Center/Panel/VBox/Cards"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_card_idle")
+
+[node name="Inner" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards/Card3"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="RarityLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card3"]
+[node name="RarityLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card3/Inner"]
 layout_mode = 2
 theme_type_variation = &"HudStoppedTitle"
 theme_override_font_sizes/font_size = 20
 text = "COMMON"
 horizontal_alignment = 1
 
-[node name="Button" type="Button" parent="Root/Center/Panel/VBox/Cards/Card3"]
+[node name="Button" type="Button" parent="Root/Center/Panel/VBox/Cards/Card3/Inner"]
 custom_minimum_size = Vector2(140, 140)
 layout_mode = 2
 icon_alignment = 1
 expand_icon = true
 
-[node name="NameLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card3"]
+[node name="NameLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card3/Inner"]
 layout_mode = 2
 theme_type_variation = &"HudValue"
 text = "+1 projectile"
 horizontal_alignment = 1
 
-[node name="BonusLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card3"]
+[node name="BonusLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card3/Inner"]
 visible = false
 custom_minimum_size = Vector2(140, 0)
 layout_mode = 2
@@ -195,30 +227,34 @@ theme_override_font_sizes/font_size = 14
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="Card4" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards"]
+[node name="Card4" type="PanelContainer" parent="Root/Center/Panel/VBox/Cards"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_card_idle")
+
+[node name="Inner" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards/Card4"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="RarityLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card4"]
+[node name="RarityLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card4/Inner"]
 layout_mode = 2
 theme_type_variation = &"HudStoppedTitle"
 theme_override_font_sizes/font_size = 20
 text = "COMMON"
 horizontal_alignment = 1
 
-[node name="Button" type="Button" parent="Root/Center/Panel/VBox/Cards/Card4"]
+[node name="Button" type="Button" parent="Root/Center/Panel/VBox/Cards/Card4/Inner"]
 custom_minimum_size = Vector2(140, 140)
 layout_mode = 2
 icon_alignment = 1
 expand_icon = true
 
-[node name="NameLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card4"]
+[node name="NameLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card4/Inner"]
 layout_mode = 2
 theme_type_variation = &"HudValue"
 text = "+1 projectile"
 horizontal_alignment = 1
 
-[node name="BonusLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card4"]
+[node name="BonusLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card4/Inner"]
 visible = false
 custom_minimum_size = Vector2(140, 0)
 layout_mode = 2

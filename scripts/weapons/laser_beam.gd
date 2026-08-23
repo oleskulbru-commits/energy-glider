@@ -18,6 +18,14 @@ var _core_mesh: CylinderMesh
 var _glow_mesh: CylinderMesh
 var _spray: CPUParticles3D
 var _burst: CPUParticles3D
+var _bounce_count := 0
+var _bounce_range := 0.0
+var _hops: Array[Node3D] = []
+var _hop_hosts: Array[Node3D] = []
+var _hop_cores: Array[MeshInstance3D] = []
+var _hop_glows: Array[MeshInstance3D] = []
+var _hop_core_meshes: Array[CylinderMesh] = []
+var _hop_glow_meshes: Array[CylinderMesh] = []
 
 
 func begin(
@@ -25,13 +33,19 @@ func begin(
 	target: Node3D,
 	damage_bonus: float,
 	crit_chance: float,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	bounce_count: int = 0,
+	bounce_range: float = 0.0,
+	pills: Array = []
 ) -> void:
 	_fire_left = maxf(fire_time, 0.0)
 	_next_tick = AutoLaser.TICK_SEC
 	_target = target
+	_bounce_count = maxi(bounce_count, 0)
+	_bounce_range = maxf(bounce_range, 0.0)
 	finished = false
 	_ensure_visuals()
+	_rebuild_hops(pills, rng)
 	_deal_tick(damage_bonus, crit_chance, rng)
 
 
@@ -54,6 +68,7 @@ func advance(
 		_retarget(origin, facing, pills, rng)
 	if _is_target_alive():
 		_show_beam(origin, _aim_point())
+		_show_hops()
 		_next_tick -= delta
 		while _next_tick <= 0.0 and not finished:
 			_deal_tick(damage_bonus, crit_chance, rng)
@@ -70,16 +85,10 @@ func _deal_tick(
 	crit_chance: float = 0.0,
 	rng: RandomNumberGenerator = null
 ) -> void:
-	if not _is_target_alive():
-		return
-	var pill := _target as SwarmPill
-	if pill == null:
-		return
-	var is_crit := AutoRifle.roll_crit(crit_chance, rng)
-	var amount := AutoRifle.crit_damage_for(AutoLaser.damage_for(damage_bonus), is_crit)
-	var at := _aim_point()
-	pill.take_damage(amount, Vector3.ZERO, is_crit)
-	_pop_burst_at(at)
+	_hurt_living(_target, damage_bonus, crit_chance, rng, true)
+	_drop_dead_hops()
+	for hop in _hops:
+		_hurt_living(hop, damage_bonus, crit_chance, rng, false)
 
 
 func _retarget(
@@ -89,6 +98,7 @@ func _retarget(
 	if next == null:
 		next = AutoRifle.pick_target(pills, origin, facing, AutoRifle.RANGE_M, rng)
 	_target = next
+	_rebuild_hops(pills, rng)
 
 
 func _is_target_alive() -> bool:
@@ -244,3 +254,138 @@ func _hide_beam() -> void:
 		_glow.visible = false
 	if _spray != null:
 		_spray.emitting = false
+	_hide_hops()
+
+
+func _hurt_living(
+	node: Variant,
+	damage_bonus: float,
+	crit_chance: float,
+	rng: RandomNumberGenerator,
+	pop_burst: bool
+) -> void:
+	if not _is_living(node):
+		return
+	var pill := node as SwarmPill
+	if pill == null:
+		return
+	var is_crit := AutoRifle.roll_crit(crit_chance, rng)
+	var amount := AutoRifle.crit_damage_for(AutoLaser.damage_for(damage_bonus), is_crit)
+	var at := pill.global_position + Vector3(0.0, AIM_UP_M, 0.0)
+	pill.take_damage(amount, Vector3.ZERO, is_crit)
+	if pop_burst:
+		_pop_burst_at(at)
+
+
+func _is_living(node: Variant) -> bool:
+	## Untyped on purpose: a typed Node3D arg crashes if the hop was already freed.
+	if node == null or not is_instance_valid(node):
+		return false
+	if not (node is Node3D):
+		return false
+	if node is SwarmPill and not (node as SwarmPill).is_alive():
+		return false
+	return true
+
+
+func _rebuild_hops(pills: Array, rng: RandomNumberGenerator) -> void:
+	_hops.clear()
+	if _is_living(_target) and _bounce_count > 0:
+		_hops = AutoRifle.build_bounce_chain(_target, pills, _bounce_count, _bounce_range, rng)
+	_ensure_hop_visuals(_hops.size())
+	_hide_hops()
+
+
+func _ensure_hop_visuals(count: int) -> void:
+	while _hop_hosts.size() < count:
+		var host := Node3D.new()
+		host.top_level = true
+		var core_mesh := CylinderMesh.new()
+		core_mesh.top_radius = RADIUS_CORE
+		core_mesh.bottom_radius = RADIUS_CORE
+		core_mesh.height = 1.0
+		var glow_mesh := CylinderMesh.new()
+		glow_mesh.top_radius = RADIUS_GLOW
+		glow_mesh.bottom_radius = RADIUS_GLOW
+		glow_mesh.height = 1.0
+		var core := _make_rod(
+			core_mesh,
+			_make_mat(Color(1.0, 0.18, 0.12, 1.0), Color(1.0, 0.08, 0.04, 1.0), 4.2)
+		)
+		var glow := _make_rod(
+			glow_mesh,
+			_make_mat(Color(1.0, 0.16, 0.08, 0.35), Color(0.95, 0.08, 0.04, 1.0), 2.4)
+		)
+		host.add_child(glow)
+		host.add_child(core)
+		add_child(host)
+		_hop_hosts.append(host)
+		_hop_cores.append(core)
+		_hop_glows.append(glow)
+		_hop_core_meshes.append(core_mesh)
+		_hop_glow_meshes.append(glow_mesh)
+
+
+func _drop_dead_hops() -> void:
+	var keep: Array[Node3D] = []
+	for hop in _hops:
+		if _is_living(hop):
+			keep.append(hop)
+	_hops = keep
+
+
+func _show_hops() -> void:
+	_drop_dead_hops()
+	if not _is_living(_target):
+		_hide_hops()
+		return
+	var from := _aim_point()
+	var prev_alive := true
+	for i in _hops.size():
+		var hop := _hops[i]
+		var hop_alive := _is_living(hop)
+		if i >= _hop_hosts.size() or not prev_alive or not hop_alive:
+			if i < _hop_hosts.size():
+				_hop_hosts[i].visible = false
+			prev_alive = hop_alive
+			if hop_alive:
+				from = hop.global_position + Vector3(0.0, AIM_UP_M, 0.0)
+			continue
+		var to := hop.global_position + Vector3(0.0, AIM_UP_M, 0.0)
+		_place_hop_segment(i, from, to)
+		from = to
+		prev_alive = true
+	for i in range(_hops.size(), _hop_hosts.size()):
+		_hop_hosts[i].visible = false
+
+
+func _place_hop_segment(index: int, from: Vector3, to: Vector3) -> void:
+	var host := _hop_hosts[index]
+	var core := _hop_cores[index]
+	var glow := _hop_glows[index]
+	var core_mesh := _hop_core_meshes[index]
+	var glow_mesh := _hop_glow_meshes[index]
+	host.visible = true
+	host.global_position = from
+	var dir := to - from
+	var length := dir.length()
+	if length < 0.08:
+		host.visible = false
+		return
+	if absf(dir.normalized().dot(Vector3.UP)) > 0.98:
+		host.look_at(to, Vector3.FORWARD)
+	else:
+		host.look_at(to, Vector3.UP)
+	core_mesh.height = length
+	glow_mesh.height = length
+	var mid := Vector3(0.0, 0.0, -length * 0.5)
+	core.position = mid
+	glow.position = mid
+	core.visible = true
+	glow.visible = true
+
+
+func _hide_hops() -> void:
+	for host in _hop_hosts:
+		if is_instance_valid(host):
+			host.visible = false
