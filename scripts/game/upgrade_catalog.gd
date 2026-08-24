@@ -22,6 +22,7 @@ const FAMILY_BOUNCE := &"bounce"
 const FAMILY_RANGE := &"range"
 const FAMILY_RIFLE := &"rifle"
 const FAMILY_LASER := &"laser"
+const FAMILY_TESLA := &"tesla"
 const RARITY_COMMON := &"common"
 const RARITY_UNCOMMON := &"uncommon"
 const RARITY_RARE := &"rare"
@@ -155,6 +156,7 @@ const SHOP_SEED_SLOT := 7919
 const WEAPON_OFFER_SEP := "|"
 const ID_UNLOCK_RIFLE := &"unlock_rifle"
 const ID_UNLOCK_LASER := &"unlock_laser"
+const ID_UNLOCK_TESLA := &"unlock_tesla"
 const UNLOCK_PITY := 0.05
 
 
@@ -171,11 +173,11 @@ static func weapon_base_id(id: StringName) -> StringName:
 
 
 static func is_weapon_family(family: StringName) -> bool:
-	return family == FAMILY_RIFLE or family == FAMILY_LASER
+	return family == FAMILY_RIFLE or family == FAMILY_LASER or family == FAMILY_TESLA
 
 
 static func is_weapon_unlock(id: StringName) -> bool:
-	return id == ID_UNLOCK_RIFLE or id == ID_UNLOCK_LASER
+	return id == ID_UNLOCK_RIFLE or id == ID_UNLOCK_LASER or id == ID_UNLOCK_TESLA
 
 
 static func unlock_id_for(family: StringName) -> StringName:
@@ -183,6 +185,8 @@ static func unlock_id_for(family: StringName) -> StringName:
 		return ID_UNLOCK_RIFLE
 	if family == FAMILY_LASER:
 		return ID_UNLOCK_LASER
+	if family == FAMILY_TESLA:
+		return ID_UNLOCK_TESLA
 	return &""
 
 
@@ -191,15 +195,36 @@ static func unlock_weapon_family(id: StringName) -> StringName:
 		return FAMILY_RIFLE
 	if id == ID_UNLOCK_LASER:
 		return FAMILY_LASER
+	if id == ID_UNLOCK_TESLA:
+		return FAMILY_TESLA
 	return &""
 
 
-static func missing_unlock_id(has_rifle: bool, has_laser: bool) -> StringName:
-	if has_rifle and not has_laser:
-		return ID_UNLOCK_LASER
-	if has_laser and not has_rifle:
-		return ID_UNLOCK_RIFLE
-	return &""
+static func missing_unlock_ids(
+	has_rifle: bool, has_laser: bool, has_tesla: bool = false
+) -> Array[StringName]:
+	var missing: Array[StringName] = []
+	if not has_rifle:
+		missing.append(ID_UNLOCK_RIFLE)
+	if not has_laser:
+		missing.append(ID_UNLOCK_LASER)
+	if not has_tesla:
+		missing.append(ID_UNLOCK_TESLA)
+	return missing
+
+
+static func missing_unlock_id(
+	has_rifle: bool,
+	has_laser: bool,
+	has_tesla: bool = false,
+	rng: RandomNumberGenerator = null
+) -> StringName:
+	var missing := missing_unlock_ids(has_rifle, has_laser, has_tesla)
+	if missing.is_empty():
+		return &""
+	if rng == null:
+		return missing[0]
+	return missing[rng.randi_range(0, missing.size() - 1)]
 
 
 static func is_weapon_offer(id: StringName) -> bool:
@@ -214,6 +239,15 @@ static func eligible_families(weapon_family: StringName) -> Array[StringName]:
 			FAMILY_DAMAGE,
 			FAMILY_CRIT,
 			FAMILY_DURATION,
+			FAMILY_BOUNCE,
+			FAMILY_RANGE
+		]
+	if weapon_family == FAMILY_TESLA:
+		return [
+			FAMILY_PROJECTILE,
+			FAMILY_ATTACK_SPEED,
+			FAMILY_DAMAGE,
+			FAMILY_CRIT,
 			FAMILY_BOUNCE,
 			FAMILY_RANGE
 		]
@@ -269,13 +303,16 @@ static func roll_weapon_offer(
 	used: Dictionary,
 	luck: int = 0,
 	has_rifle: bool = true,
-	has_laser: bool = true
+	has_laser: bool = true,
+	has_tesla: bool = true
 ) -> String:
 	var pool: Array[StringName] = []
 	if has_rifle:
 		pool.append(FAMILY_RIFLE)
 	if has_laser:
 		pool.append(FAMILY_LASER)
+	if has_tesla:
+		pool.append(FAMILY_TESLA)
 	if pool.is_empty():
 		return ""
 	for _try in 40:
@@ -314,7 +351,8 @@ static func roll_weapon_refill(
 	used: Dictionary,
 	luck: int = 0,
 	has_rifle: bool = true,
-	has_laser: bool = true
+	has_laser: bool = true,
+	has_tesla: bool = true
 ) -> String:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = (
@@ -323,7 +361,7 @@ static func roll_weapon_refill(
 		+ life_index * SHOP_SEED_LIFE
 		+ slot * SHOP_SEED_SLOT
 	)
-	return roll_weapon_offer(rng, used, luck, has_rifle, has_laser)
+	return roll_weapon_offer(rng, used, luck, has_rifle, has_laser, has_tesla)
 
 
 static func family_of(id: StringName) -> StringName:
@@ -362,6 +400,8 @@ static func family_of(id: StringName) -> StringName:
 		return FAMILY_RIFLE
 	if text.begins_with("laser_"):
 		return FAMILY_LASER
+	if text.begins_with("tesla_"):
+		return FAMILY_TESLA
 	if text.begins_with("projectile_"):
 		return FAMILY_PROJECTILE
 	if id == &"extra_projectile":
@@ -648,7 +688,9 @@ static func display_name(id: StringName) -> String:
 	if is_weapon_unlock(id):
 		if id == ID_UNLOCK_RIFLE:
 			return "Rifle"
-		return "Laser"
+		if id == ID_UNLOCK_LASER:
+			return "Laser"
+		return "Tesla Coil"
 	var family := family_of(id)
 	if family == FAMILY_PROJECTILE:
 		var bonus := projectile_bonus(rarity_of(id))
@@ -700,6 +742,8 @@ static func display_name(id: StringName) -> String:
 		return "Rifle"
 	if family == FAMILY_LASER:
 		return "Laser"
+	if family == FAMILY_TESLA:
+		return "Tesla Coil"
 	return String(weapon_base_id(id))
 
 
@@ -725,7 +769,11 @@ static func rarity_color(id: StringName) -> Color:
 
 static func icon_path_for(id: StringName) -> String:
 	if is_weapon_unlock(id):
-		return "%s%s.jpg" % [ICON_DIR, String(make_id(unlock_weapon_family(id), RARITY_COMMON))]
+		var stem := String(make_id(unlock_weapon_family(id), RARITY_COMMON))
+		var jpg := "%s%s.jpg" % [ICON_DIR, stem]
+		if ResourceLoader.exists(jpg):
+			return jpg
+		return "%s%s.png" % [ICON_DIR, stem]
 	var stem := String(weapon_base_id(id))
 	var jpg := "%s%s.jpg" % [ICON_DIR, stem]
 	if ResourceLoader.exists(jpg):
@@ -778,7 +826,9 @@ static func default_offers() -> PackedStringArray:
 	return slots
 
 
-static func eligible_shop_families(has_rifle: bool, has_laser: bool) -> Array[StringName]:
+static func eligible_shop_families(
+	has_rifle: bool, has_laser: bool, has_tesla: bool = false
+) -> Array[StringName]:
 	var families: Array[StringName] = [
 		FAMILY_PROJECTILE,
 		FAMILY_ATTACK_SPEED,
@@ -799,7 +849,9 @@ static func eligible_shop_families(has_rifle: bool, has_laser: bool) -> Array[St
 	if has_laser:
 		families.append(FAMILY_DURATION)
 		families.append(FAMILY_LASER)
-	if has_rifle or has_laser:
+	if has_tesla:
+		families.append(FAMILY_TESLA)
+	if has_rifle or has_laser or has_tesla:
 		families.append(FAMILY_BOUNCE)
 		families.append(FAMILY_RANGE)
 	return families
@@ -816,18 +868,19 @@ static func roll_shop(
 	tower_index: int,
 	luck: int = 0,
 	has_rifle: bool = false,
-	has_laser: bool = false
+	has_laser: bool = false,
+	has_tesla: bool = false
 ) -> PackedStringArray:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = world_seed * SHOP_SEED_WORLD + tower_index * SHOP_SEED_TOWER
-	var families := eligible_shop_families(has_rifle, has_laser)
+	var families := eligible_shop_families(has_rifle, has_laser, has_tesla)
 	var slots := PackedStringArray()
 	var used: Dictionary = {}
 	for _i in SLOTS_PER_TOWER:
 		var id := _roll_unique_id(rng, used, luck, families)
 		used[String(weapon_base_id(StringName(id)))] = true
 		slots.append(id)
-	var unlock := missing_unlock_id(has_rifle, has_laser)
+	var unlock := missing_unlock_id(has_rifle, has_laser, has_tesla, rng)
 	if unlock != &"" and rng.randf() < unlock_chance(tower_index, families.size()):
 		var slot := rng.randi_range(0, SLOTS_PER_TOWER - 1)
 		slots[slot] = String(unlock)
@@ -917,5 +970,5 @@ static func _apply_luck_point(weights: PackedInt32Array) -> PackedInt32Array:
 
 
 static func _roll_family(rng: RandomNumberGenerator) -> StringName:
-	var families := eligible_shop_families(true, true)
+	var families := eligible_shop_families(true, true, true)
 	return families[rng.randi_range(0, families.size() - 1)]

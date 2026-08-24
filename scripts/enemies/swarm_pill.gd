@@ -33,6 +33,7 @@ var chase_speed_mult := 1.0
 var _hp := MAX_HEALTH
 var _hit_velocity := Vector3.ZERO
 var _rng := RandomNumberGenerator.new()
+var _stun_left := 0.0
 
 
 func _ready() -> void:
@@ -89,6 +90,16 @@ func take_damage(
 	return false
 
 
+func apply_stun(duration_sec: float) -> void:
+	if _hp <= 0:
+		return
+	_stun_left = maxf(_stun_left, maxf(duration_sec, 0.0))
+
+
+func is_stunned() -> bool:
+	return _stun_left > 0.0
+
+
 func _spawn_damage_float(amount: int, is_crit: bool = false) -> void:
 	DamageFloat.spawn_world(self, amount, _rng, DAMAGE_FLOAT_HEIGHT_M, is_crit)
 
@@ -106,6 +117,15 @@ func _physics_process(delta: float) -> void:
 		return
 
 	_update_chase(delta)
+
+	_stun_left = maxf(_stun_left - delta, 0.0)
+	if _stun_left > 0.0:
+		velocity = Vector3.ZERO
+		_hit_velocity = Vector3.ZERO
+		move_and_slide()
+		_snap_to_terrain()
+		_update_contact(delta)
+		return
 
 	var seek := Vector3(to_target.x, 0.0, to_target.z)
 	if seek.length_squared() > 0.01:

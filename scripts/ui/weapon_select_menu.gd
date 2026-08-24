@@ -10,6 +10,7 @@ const VOICE_DELAY_SEC := 1.0
 @onready var _root: Control = %Root
 @onready var _rifle_button: Button = %RifleButton
 @onready var _laser_button: Button = %LaserButton
+@onready var _tesla_button: Button = %TeslaButton
 @onready var _start_button: Button = %StartButton
 @onready var _choose_voice: AudioStreamPlayer = %ChooseWeaponVoice
 @onready var _eon_voice: AudioStreamPlayer = %GetTheEonVoice
@@ -28,9 +29,11 @@ func _ready() -> void:
 	_root.visible = false
 	_rifle_button.pressed.connect(_on_weapon_pressed.bind(UpgradeCatalog.FAMILY_RIFLE))
 	_laser_button.pressed.connect(_on_weapon_pressed.bind(UpgradeCatalog.FAMILY_LASER))
+	_tesla_button.pressed.connect(_on_weapon_pressed.bind(UpgradeCatalog.FAMILY_TESLA))
 	_start_button.pressed.connect(_on_start_pressed)
 	_rifle_button.icon = UpgradeCatalog.icon_for(UpgradeCatalog.ID_UNLOCK_RIFLE)
 	_laser_button.icon = UpgradeCatalog.icon_for(UpgradeCatalog.ID_UNLOCK_LASER)
+	_tesla_button.icon = UpgradeCatalog.icon_for(UpgradeCatalog.ID_UNLOCK_TESLA)
 	call_deferred("_bind_and_open")
 
 
@@ -55,7 +58,7 @@ func is_open() -> bool:
 
 
 func open() -> void:
-	if _state != null and (_state.has_rifle or _state.has_laser):
+	if _state != null and (_state.has_rifle or _state.has_laser or _state.has_tesla):
 		return
 	var already_open := visible
 	_selected = &""
@@ -83,6 +86,7 @@ func _process(_delta: float) -> void:
 func _refresh() -> void:
 	_rifle_button.modulate = SELECTED_MODULATE if _selected == UpgradeCatalog.FAMILY_RIFLE else IDLE_MODULATE
 	_laser_button.modulate = SELECTED_MODULATE if _selected == UpgradeCatalog.FAMILY_LASER else IDLE_MODULATE
+	_tesla_button.modulate = SELECTED_MODULATE if _selected == UpgradeCatalog.FAMILY_TESLA else IDLE_MODULATE
 	_start_button.disabled = _selected == &""
 
 

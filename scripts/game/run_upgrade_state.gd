@@ -24,6 +24,7 @@ var bounce_count := 0
 var range_bonus := 0.0
 var has_rifle := false
 var has_laser := false
+var has_tesla := false
 var _offers: Dictionary = {}
 var _visited_this_life: Dictionary = {}
 var _weapon_holes: Dictionary = {}
@@ -31,8 +32,10 @@ var _life_index := 0
 var _owned_order: PackedStringArray = PackedStringArray()
 var _rifle_level := 0
 var _laser_level := 0
+var _tesla_level := 0
 var _rifle_bundle := WeaponBundle.new()
 var _laser_bundle := WeaponBundle.new()
+var _tesla_bundle := WeaponBundle.new()
 
 
 class WeaponBundle:
@@ -100,11 +103,14 @@ func reset_run() -> void:
 	range_bonus = 0.0
 	_rifle_bundle.clear()
 	_laser_bundle.clear()
+	_tesla_bundle.clear()
 	has_rifle = false
 	has_laser = false
+	has_tesla = false
 	_owned_order = PackedStringArray()
 	_rifle_level = 0
 	_laser_level = 0
+	_tesla_level = 0
 	_life_index += 1
 	_refill_weapon_holes()
 	clear_visited_this_life()
@@ -115,9 +121,11 @@ func reset_run() -> void:
 func grant_starter(family: StringName) -> void:
 	has_rifle = false
 	has_laser = false
+	has_tesla = false
 	_owned_order = PackedStringArray()
 	_rifle_level = 0
 	_laser_level = 0
+	_tesla_level = 0
 	grant_weapon(family)
 
 
@@ -134,6 +142,12 @@ func grant_weapon(family: StringName) -> void:
 		has_laser = true
 		_owned_order.append("laser")
 		_laser_level = 1
+	elif family == UpgradeCatalog.FAMILY_TESLA:
+		if has_tesla:
+			return
+		has_tesla = true
+		_owned_order.append("tesla")
+		_tesla_level = 1
 	else:
 		return
 	weapons_changed.emit()
@@ -144,6 +158,8 @@ func owned_weapon_ids() -> PackedStringArray:
 
 
 func weapon_level(family: StringName) -> int:
+	if family == UpgradeCatalog.FAMILY_TESLA:
+		return _tesla_level
 	if family == UpgradeCatalog.FAMILY_LASER:
 		return _laser_level
 	if family == UpgradeCatalog.FAMILY_RIFLE:
@@ -156,6 +172,8 @@ func owns_weapon(family: StringName) -> bool:
 		return has_rifle
 	if family == UpgradeCatalog.FAMILY_LASER:
 		return has_laser
+	if family == UpgradeCatalog.FAMILY_TESLA:
+		return has_tesla
 	return false
 
 
@@ -204,7 +222,7 @@ func ensure_tower(tower_index: int) -> void:
 	if seed < 0:
 		seed = 42
 	_offers[tower_index] = UpgradeCatalog.roll_shop(
-		seed, tower_index, luck_bonus, has_rifle, has_laser
+		seed, tower_index, luck_bonus, has_rifle, has_laser, has_tesla
 	)
 
 
@@ -382,9 +400,14 @@ func _raise_weapon_level(family: StringName) -> void:
 	elif family == UpgradeCatalog.FAMILY_LASER and has_laser:
 		_laser_level += 1
 		weapons_changed.emit()
+	elif family == UpgradeCatalog.FAMILY_TESLA and has_tesla:
+		_tesla_level += 1
+		weapons_changed.emit()
 
 
 func _bundle(weapon: StringName) -> WeaponBundle:
+	if weapon == UpgradeCatalog.FAMILY_TESLA:
+		return _tesla_bundle
 	if weapon == UpgradeCatalog.FAMILY_LASER:
 		return _laser_bundle
 	return _rifle_bundle
@@ -431,7 +454,8 @@ func _refill_weapon_holes() -> void:
 				used,
 				luck_bonus,
 				has_rifle,
-				has_laser
+				has_laser,
+				has_tesla
 			)
 			if fresh.is_empty():
 				continue
