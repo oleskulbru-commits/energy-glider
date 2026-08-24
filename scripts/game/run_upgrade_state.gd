@@ -21,6 +21,7 @@ var crit_chance := 0.0
 var duration_bonus := 0.0
 var pushback_bonus := 0.0
 var bounce_count := 0
+var range_bonus := 0.0
 var has_rifle := false
 var has_laser := false
 var _offers: Dictionary = {}
@@ -43,6 +44,7 @@ class WeaponBundle:
 	var duration := 0.0
 	var pushback := 0.0
 	var bounce := 0
+	var range := 0.0
 
 	func clear() -> void:
 		extra_projectiles = 0
@@ -53,6 +55,7 @@ class WeaponBundle:
 		duration = 0.0
 		pushback = 0.0
 		bounce = 0
+		range = 0.0
 
 
 func _ready() -> void:
@@ -94,6 +97,7 @@ func reset_run() -> void:
 	duration_bonus = 0.0
 	pushback_bonus = 0.0
 	bounce_count = 0
+	range_bonus = 0.0
 	_rifle_bundle.clear()
 	_laser_bundle.clear()
 	has_rifle = false
@@ -185,6 +189,10 @@ func pushback_bonus_for(weapon: StringName) -> float:
 
 func bounce_count_for(weapon: StringName) -> int:
 	return bounce_count + _bundle(weapon).bounce
+
+
+func range_bonus_for(weapon: StringName) -> float:
+	return range_bonus + _bundle(weapon).range
 
 
 func ensure_tower(tower_index: int) -> void:
@@ -308,6 +316,12 @@ func _apply_upgrade(id: StringName, weapon_family: StringName = &"") -> void:
 			_bundle(weapon_family).bounce += maxi(amount, 0)
 		else:
 			bounce_count += maxi(amount, 0)
+	elif family == UpgradeCatalog.FAMILY_RANGE:
+		var amount := UpgradeCatalog.range_percent(UpgradeCatalog.rarity_of(id))
+		if weapon_family != &"":
+			_bundle(weapon_family).range += amount
+		else:
+			range_bonus += amount
 
 
 func hud_extra_projectiles() -> int:
@@ -336,6 +350,10 @@ func hud_duration_bonus() -> float:
 
 func hud_pushback_bonus() -> float:
 	return pushback_bonus
+
+
+func hud_range_bonus() -> float:
+	return range_bonus
 
 
 func add_extra_projectile(amount: int = 1) -> void:

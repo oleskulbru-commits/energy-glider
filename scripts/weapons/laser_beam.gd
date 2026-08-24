@@ -20,6 +20,7 @@ var _spray: CPUParticles3D
 var _burst: CPUParticles3D
 var _bounce_count := 0
 var _bounce_range := 0.0
+var _acquire_range := 0.0
 var _hops: Array[Node3D] = []
 var _hop_hosts: Array[Node3D] = []
 var _hop_cores: Array[MeshInstance3D] = []
@@ -36,13 +37,15 @@ func begin(
 	rng: RandomNumberGenerator,
 	bounce_count: int = 0,
 	bounce_range: float = 0.0,
-	pills: Array = []
+	pills: Array = [],
+	acquire_range: float = 0.0
 ) -> void:
 	_fire_left = maxf(fire_time, 0.0)
 	_next_tick = AutoLaser.TICK_SEC
 	_target = target
 	_bounce_count = maxi(bounce_count, 0)
 	_bounce_range = maxf(bounce_range, 0.0)
+	_acquire_range = maxf(acquire_range, 0.0)
 	finished = false
 	_ensure_visuals()
 	_rebuild_hops(pills, rng)
@@ -56,8 +59,11 @@ func advance(
 	pills: Array,
 	rng: RandomNumberGenerator,
 	damage_bonus: float,
-	crit_chance: float
+	crit_chance: float,
+	acquire_range: float = -1.0
 ) -> void:
+	if acquire_range >= 0.0:
+		_acquire_range = acquire_range
 	if finished:
 		return
 	_fire_left -= delta
@@ -94,9 +100,9 @@ func _deal_tick(
 func _retarget(
 	origin: Vector3, facing: Vector3, pills: Array, rng: RandomNumberGenerator
 ) -> void:
-	var next := AutoLaser.closest_in_front(pills, origin, facing, AutoRifle.RANGE_M)
+	var next := AutoLaser.closest_in_front(pills, origin, facing, _acquire_range)
 	if next == null:
-		next = AutoRifle.pick_target(pills, origin, facing, AutoRifle.RANGE_M, rng)
+		next = AutoRifle.pick_target(pills, origin, facing, _acquire_range, rng)
 	_target = next
 	_rebuild_hops(pills, rng)
 

@@ -9,13 +9,13 @@ const TerrainProbesScript = preload("res://scripts/player/terrain_probes.gd")
 enum State { GROUNDED, GLIDING }
 
 # Steering — A/D yaw the nose; boost turns a little slower. Q/E strafe.
-# Air uses AIR_STEER_SCALE so jumps stay mostly ballistic.
+# Air yaw, grip, and strafe are AIR_STEER_SCALE of the ground rates.
 const SAIL_TURN_RATE := 1.05
 const BOOST_TURN_RATE := 0.79
 const TURN_RESPONSE := 3.0
 const SAIL_STEER_GRIP_RATE := 1.85
 const BOOST_STEER_GRIP_RATE := 1.35
-const AIR_STEER_SCALE := 0.20
+const AIR_STEER_SCALE := 0.50
 const MIN_STEER_SPEED := 0.5
 const YAW_DAMPING := 3.2
 const MAX_YAW_VELOCITY := 1.8

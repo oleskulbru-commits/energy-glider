@@ -1,7 +1,9 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/weapon_select_menu.gd" id="1_menu"]
 [ext_resource type="Theme" path="res://themes/hud_theme.tres" id="2_theme"]
+[ext_resource type="AudioStream" uid="uid://bvc30ivfkcne0" path="res://assets/audio/ui/choose_a_weapon.mp3" id="3_voice"]
+[ext_resource type="AudioStream" uid="uid://dbinm04liq6go" path="res://assets/audio/ui/get_the_eon.mp3" id="4_eon"]
 
 [node name="WeaponSelectMenu" type="CanvasLayer"]
 process_mode = 3
@@ -106,3 +108,11 @@ layout_mode = 2
 size_flags_horizontal = 4
 disabled = true
 text = "Start"
+
+[node name="ChooseWeaponVoice" type="AudioStreamPlayer" parent="."]
+unique_name_in_owner = true
+stream = ExtResource("3_voice")
+
+[node name="GetTheEonVoice" type="AudioStreamPlayer" parent="."]
+unique_name_in_owner = true
+stream = ExtResource("4_eon")

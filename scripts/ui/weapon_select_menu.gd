@@ -5,15 +5,20 @@ extends CanvasLayer
 
 const SELECTED_MODULATE := Color(1.0, 0.95, 0.75, 1.0)
 const IDLE_MODULATE := Color(0.92, 0.88, 0.8, 1.0)
+const VOICE_DELAY_SEC := 1.0
 
 @onready var _root: Control = %Root
 @onready var _rifle_button: Button = %RifleButton
 @onready var _laser_button: Button = %LaserButton
 @onready var _start_button: Button = %StartButton
+@onready var _choose_voice: AudioStreamPlayer = %ChooseWeaponVoice
+@onready var _eon_voice: AudioStreamPlayer = %GetTheEonVoice
 
 var _state: RunUpgradeState
 var _rig: PlayerRig
 var _selected: StringName = &""
+var _choose_token := 0
+var _eon_token := 0
 
 
 func _ready() -> void:
@@ -52,6 +57,7 @@ func is_open() -> bool:
 func open() -> void:
 	if _state != null and (_state.has_rifle or _state.has_laser):
 		return
+	var already_open := visible
 	_selected = &""
 	_refresh()
 	visible = true
@@ -63,6 +69,9 @@ func open() -> void:
 	if _rig != null:
 		_rig.release_look_mouse()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_cancel_eon_voice()
+	if not already_open:
+		_schedule_choose_voice()
 
 
 func _process(_delta: float) -> void:
@@ -91,8 +100,52 @@ func _on_start_pressed() -> void:
 
 
 func _close() -> void:
+	_cancel_choose_voice()
 	visible = false
 	_root.visible = false
 	get_tree().paused = false
 	if _rig != null:
 		_rig.capture_look_mouse()
+	_schedule_eon_voice()
+
+
+func _schedule_choose_voice() -> void:
+	_choose_token += 1
+	var token := _choose_token
+	_play_choose_later(token)
+
+
+func _cancel_choose_voice() -> void:
+	_choose_token += 1
+	if _choose_voice != null and _choose_voice.playing:
+		_choose_voice.stop()
+
+
+func _play_choose_later(token: int) -> void:
+	await get_tree().create_timer(VOICE_DELAY_SEC, true).timeout
+	if token != _choose_token or not visible:
+		return
+	if _choose_voice == null:
+		return
+	_choose_voice.play()
+
+
+func _schedule_eon_voice() -> void:
+	_eon_token += 1
+	var token := _eon_token
+	_play_eon_later(token)
+
+
+func _cancel_eon_voice() -> void:
+	_eon_token += 1
+	if _eon_voice != null and _eon_voice.playing:
+		_eon_voice.stop()
+
+
+func _play_eon_later(token: int) -> void:
+	await get_tree().create_timer(VOICE_DELAY_SEC, true).timeout
+	if token != _eon_token or visible:
+		return
+	if _eon_voice == null:
+		return
+	_eon_voice.play()

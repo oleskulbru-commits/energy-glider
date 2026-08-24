@@ -241,7 +241,7 @@ func _verify_hit_knockback() -> void:
 
 
 func _verify_rifle_targeting() -> void:
-	_fail_unless(is_equal_approx(AutoRifleScript.RANGE_M, 100.0), "Rifle range should be 100 m")
+	_fail_unless(is_equal_approx(AutoRifleScript.RANGE_M, 75.0), "Rifle range should be 75 m")
 	_fail_unless(is_equal_approx(AutoRifleScript.FIRE_INTERVAL_SEC, 3.0), "Rifle interval should be 3 s")
 	_fail_unless(is_equal_approx(AutoRifleScript.CDR_CAP, 0.80), "Attack Speed should cap at 80% CDR")
 	_fail_unless(is_equal_approx(AutoRifleScript.SPEED_CAP, 0.80), "Projectile Speed should cap at 80%")
@@ -290,7 +290,7 @@ func _verify_rifle_targeting() -> void:
 		pills, origin, facing, AutoRifleScript.RANGE_M
 	)
 	_fail_unless(candidates.size() == 2, "Only in-range frontal pills should be candidates (got %d)" % candidates.size())
-	_fail_unless(not candidates.has(far), "Pills beyond 100 m must not be targeted")
+	_fail_unless(not candidates.has(far), "Pills beyond 75 m must not be targeted")
 	_fail_unless(not candidates.has(behind), "Pills behind the player must not be targeted")
 	_fail_unless(
 		AutoRifleScript.is_in_front(origin, facing, near_a.global_position),

@@ -19,6 +19,7 @@ const FAMILY_CRIT := &"crit"
 const FAMILY_DURATION := &"duration"
 const FAMILY_PUSHBACK := &"pushback"
 const FAMILY_BOUNCE := &"bounce"
+const FAMILY_RANGE := &"range"
 const FAMILY_RIFLE := &"rifle"
 const FAMILY_LASER := &"laser"
 const RARITY_COMMON := &"common"
@@ -141,6 +142,12 @@ const BOUNCE_RARE := 3
 const BOUNCE_EPIC := 4
 const BOUNCE_LEGENDARY := 5
 
+const RANGE_COMMON := 0.06
+const RANGE_UNCOMMON := 0.09
+const RANGE_RARE := 0.12
+const RANGE_EPIC := 0.16
+const RANGE_LEGENDARY := 0.20
+
 const SHOP_SEED_WORLD := 1009
 const SHOP_SEED_TOWER := 9176
 const SHOP_SEED_LIFE := 4283
@@ -207,7 +214,8 @@ static func eligible_families(weapon_family: StringName) -> Array[StringName]:
 			FAMILY_DAMAGE,
 			FAMILY_CRIT,
 			FAMILY_DURATION,
-			FAMILY_BOUNCE
+			FAMILY_BOUNCE,
+			FAMILY_RANGE
 		]
 	return [
 		FAMILY_PROJECTILE,
@@ -216,7 +224,8 @@ static func eligible_families(weapon_family: StringName) -> Array[StringName]:
 		FAMILY_PROJECTILE_SPEED,
 		FAMILY_CRIT,
 		FAMILY_PUSHBACK,
-		FAMILY_BOUNCE
+		FAMILY_BOUNCE,
+		FAMILY_RANGE
 	]
 
 
@@ -329,6 +338,8 @@ static func family_of(id: StringName) -> StringName:
 		return FAMILY_PUSHBACK
 	if text.begins_with("bounce_"):
 		return FAMILY_BOUNCE
+	if text.begins_with("range_"):
+		return FAMILY_RANGE
 	if text.begins_with("damage_"):
 		return FAMILY_DAMAGE
 	if text.begins_with("projectile_speed_"):
@@ -592,6 +603,20 @@ static func bounce_count(rarity: StringName) -> int:
 			return BOUNCE_COMMON
 
 
+static func range_percent(rarity: StringName) -> float:
+	match rarity:
+		RARITY_UNCOMMON:
+			return RANGE_UNCOMMON
+		RARITY_RARE:
+			return RANGE_RARE
+		RARITY_EPIC:
+			return RANGE_EPIC
+		RARITY_LEGENDARY:
+			return RANGE_LEGENDARY
+		_:
+			return RANGE_COMMON
+
+
 ## Luck cards always use the base rarity table.
 static func rarity_luck_for(family: StringName, luck: int) -> int:
 	if family == FAMILY_LUCK:
@@ -668,6 +693,9 @@ static func display_name(id: StringName) -> String:
 		return "Pushback +%d%%" % pct
 	if family == FAMILY_BOUNCE:
 		return "Bounce +%d" % bounce_count(rarity_of(id))
+	if family == FAMILY_RANGE:
+		var pct := int(round(range_percent(rarity_of(id)) * 100.0))
+		return "Range +%d%%" % pct
 	if family == FAMILY_RIFLE:
 		return "Rifle"
 	if family == FAMILY_LASER:
@@ -773,6 +801,7 @@ static func eligible_shop_families(has_rifle: bool, has_laser: bool) -> Array[St
 		families.append(FAMILY_LASER)
 	if has_rifle or has_laser:
 		families.append(FAMILY_BOUNCE)
+		families.append(FAMILY_RANGE)
 	return families
 
 

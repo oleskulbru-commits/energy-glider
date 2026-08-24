@@ -533,6 +533,12 @@ theme_type_variation = &"HudLabel"
 text = "Pushback 0%"
 horizontal_alignment = 2
 
+[node name="RangeLabel" type="Label" parent="RifleDebugPanel/RifleDebugVBox"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "Range 0%"
+horizontal_alignment = 2
+
 [node name="StopChip" type="PanelContainer" parent="."]
 unique_name_in_owner = true
 anchors_preset = 3

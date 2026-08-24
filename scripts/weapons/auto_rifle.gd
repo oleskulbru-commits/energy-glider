@@ -6,7 +6,8 @@ extends Node
 const RifleBulletScene := preload("res://scenes/weapons/rifle_bullet.tscn")
 
 const DAMAGE := 10
-const RANGE_M := 100.0
+const RANGE_M := 75.0
+const RANGE_ABSOLUTE_MAX := 200.0
 const FIRE_INTERVAL_SEC := 3.0
 const CDR_CAP := 0.80
 const SPEED_CAP := 0.80
@@ -94,6 +95,17 @@ func _bounce_count() -> int:
 	return state.bounce_count_for(UpgradeCatalog.FAMILY_RIFLE)
 
 
+func _range_bonus() -> float:
+	var state := _upgrade_state()
+	if state == null:
+		return 0.0
+	return state.range_bonus_for(UpgradeCatalog.FAMILY_RIFLE)
+
+
+func _current_range() -> float:
+	return range_for(RANGE_M, _range_bonus())
+
+
 func _upgrade_state() -> RunUpgradeState:
 	return get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
 
@@ -128,7 +140,7 @@ func _fire_at_current_target() -> bool:
 		get_tree().get_nodes_in_group("swarm_pill"),
 		origin,
 		facing,
-		RANGE_M,
+		_current_range(),
 		_rng
 	)
 	if target == null:
@@ -168,17 +180,16 @@ func _fire(origin: Vector3, target: Node3D) -> void:
 		parent = _rig
 	parent.add_child(bullet)
 	var aim := target.global_position + Vector3(0.0, 0.7, 0.0) - origin
-	var is_crit := roll_crit(_crit_chance(), _rng)
 	bullet.launch(
 		origin,
 		target,
 		aim,
-		crit_damage_for(damage_for(_damage_bonus()), is_crit),
+		damage_for(_damage_bonus()),
 		speed_for(_projectile_speed_bonus()),
-		is_crit,
+		_crit_chance(),
 		knockback_speed_for(_pushback_bonus()),
 		_bounce_count(),
-		bounce_range_for(RANGE_M)
+		bounce_range_for(_current_range())
 	)
 
 
@@ -227,6 +238,10 @@ static func pick_target(
 	if candidates.is_empty():
 		return null
 	return candidates[rng.randi_range(0, candidates.size() - 1)]
+
+
+static func range_for(base: float, bonus: float) -> float:
+	return minf(maxf(base, 0.0) * (1.0 + maxf(bonus, 0.0)), RANGE_ABSOLUTE_MAX)
 
 
 static func bounce_range_for(weapon_range: float) -> float:

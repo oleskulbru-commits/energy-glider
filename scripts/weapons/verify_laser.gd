@@ -3,6 +3,7 @@ extends SceneTree
 const AutoLaserScript = preload("res://scripts/weapons/auto_laser.gd")
 const AutoRifleScript = preload("res://scripts/weapons/auto_rifle.gd")
 const LaserBeamScript = preload("res://scripts/weapons/laser_beam.gd")
+const RifleBulletScript = preload("res://scripts/weapons/rifle_bullet.gd")
 const SwarmPillScript = preload("res://scripts/enemies/swarm_pill.gd")
 const UpgradeCatalogScript = preload("res://scripts/game/upgrade_catalog.gd")
 
@@ -17,6 +18,7 @@ func _run() -> void:
 	_verify_pushback_speed()
 	_verify_bounce()
 	_verify_dead_hop_does_not_freeze()
+	_verify_bounce_crits_are_independent()
 	print("Laser verification passed.")
 	quit(0)
 
@@ -126,12 +128,44 @@ func _verify_pushback_speed() -> void:
 
 func _verify_bounce() -> void:
 	_fail_unless(
-		is_equal_approx(AutoRifleScript.bounce_range_for(AutoRifleScript.RANGE_M), 50.0),
-		"Rifle bounce range should be half of 100 m"
+		is_equal_approx(AutoRifleScript.RANGE_M, 75.0),
+		"Rifle acquire range should be 75 m"
 	)
 	_fail_unless(
-		is_equal_approx(AutoRifleScript.bounce_range_for(AutoRifleScript.RANGE_M), AutoRifleScript.RANGE_M * 0.5),
-		"Laser bounce range should be half the weapon range"
+		is_equal_approx(AutoLaserScript.RANGE_M, 45.0),
+		"Laser acquire range should be 45 m"
+	)
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.RANGE_ABSOLUTE_MAX, 200.0),
+		"Weapon range should cap at 200 m"
+	)
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.range_for(75.0, 0.0), 75.0),
+		"Rifle with no Range bonus should stay 75 m"
+	)
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.range_for(45.0, 0.0), 45.0),
+		"Laser with no Range bonus should stay 45 m"
+	)
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.bounce_range_for(AutoRifleScript.range_for(75.0, 0.0)), 37.5),
+		"Rifle bounce range should be half of 75 m"
+	)
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.bounce_range_for(AutoRifleScript.range_for(45.0, 0.0)), 22.5),
+		"Laser bounce range should be half of 45 m"
+	)
+	_fail_unless(
+		is_equal_approx(AutoRifleScript.range_for(75.0, 2.0), 200.0)
+		and is_equal_approx(AutoRifleScript.range_for(45.0, 4.0), 200.0),
+		"Range bonus should clamp each weapon to 200 m"
+	)
+	_fail_unless(
+		is_equal_approx(
+			AutoRifleScript.bounce_range_for(AutoRifleScript.range_for(75.0, 2.0)),
+			100.0
+		),
+		"Bounce should use half of the capped current range"
 	)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1
@@ -179,6 +213,40 @@ func _verify_dead_hop_does_not_freeze() -> void:
 	_fail_unless(not beam.finished, "A freed bounce hop should not freeze or finish the laser")
 	beam.free()
 	primary.free()
+
+
+func _verify_bounce_crits_are_independent() -> void:
+	var bullet: RifleBullet = RifleBulletScript.new()
+	root.add_child(bullet)
+	bullet.launch(
+		Vector3.ZERO,
+		null,
+		Vector3.FORWARD,
+		10,
+		60.0,
+		1.0,
+		12.0,
+		4,
+		50.0
+	)
+	var first: Dictionary = bullet.call("_resolve_hit")
+	_fail_unless(
+		first.is_crit and int(first.damage) == 20,
+		"100% crit chance should crit the first hit for 20"
+	)
+	bullet.set("_crit_chance", 0.0)
+	var bounce: Dictionary = bullet.call("_resolve_hit")
+	_fail_unless(
+		not bounce.is_crit and int(bounce.damage) == 10,
+		"A bounce should re-roll crit; 0% must not inherit the first crit"
+	)
+	bullet.set("_crit_chance", 1.0)
+	var later: Dictionary = bullet.call("_resolve_hit")
+	_fail_unless(
+		later.is_crit and int(later.damage) == 20,
+		"A later bounce should still be able to crit on its own"
+	)
+	bullet.free()
 
 
 func _fail_unless(ok: bool, message: String) -> void:

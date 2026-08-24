@@ -186,8 +186,8 @@ func _verify_boost_steering_harder() -> void:
 		% [GliderPlayerScript.BOOST_STEER_GRIP_RATE, GliderPlayerScript.SAIL_STEER_GRIP_RATE]
 	)
 	_fail_unless(
-		is_equal_approx(GliderPlayerScript.AIR_STEER_SCALE, 0.20),
-		"Air steering should be 20%% of ground (got %.2f)" % GliderPlayerScript.AIR_STEER_SCALE
+		is_equal_approx(GliderPlayerScript.AIR_STEER_SCALE, 0.50),
+		"Air steering should be 50%% of ground (got %.2f)" % GliderPlayerScript.AIR_STEER_SCALE
 	)
 	_verify_strafe_ground_force()
 
@@ -208,16 +208,16 @@ func _verify_steering_upgrade_scale() -> void:
 	_fail_unless(
 		is_equal_approx(
 			GliderPlayerScript.SAIL_TURN_RATE * GliderPlayerScript.steering_mul(0.20) * GliderPlayerScript.AIR_STEER_SCALE,
-			GliderPlayerScript.SAIL_TURN_RATE * 1.20 * 0.20
+			GliderPlayerScript.SAIL_TURN_RATE * 1.20 * 0.50
 		),
-		"Air yaw should stay 20% of upgraded ground yaw"
+		"Air yaw should stay 50% of upgraded ground yaw"
 	)
 	_fail_unless(
 		is_equal_approx(
 			GliderPlayerScript.SAIL_STEER_GRIP_RATE * GliderPlayerScript.steering_mul(0.20) * GliderPlayerScript.AIR_STEER_SCALE,
-			GliderPlayerScript.SAIL_STEER_GRIP_RATE * 1.20 * 0.20
+			GliderPlayerScript.SAIL_STEER_GRIP_RATE * 1.20 * 0.50
 		),
-		"Air grip should stay 20% of upgraded ground grip"
+		"Air grip should stay 50% of upgraded ground grip"
 	)
 
 
@@ -2004,12 +2004,12 @@ func _verify_air_steering_weaker() -> void:
 	var ground_yaw := await _measure_steer_yaw(false)
 	var air_yaw := await _measure_steer_yaw(true)
 	_fail_unless(
-		air_yaw < ground_yaw * 0.40,
-		"Air steering should be much weaker than ground (air %.3f ground %.3f)" % [air_yaw, ground_yaw]
+		air_yaw < ground_yaw * 0.75,
+		"Air steering should still be weaker than ground (air %.3f ground %.3f)" % [air_yaw, ground_yaw]
 	)
 	_fail_unless(
-		air_yaw > ground_yaw * 0.08,
-		"Air steering should still exist at ~20%% (air %.3f ground %.3f)" % [air_yaw, ground_yaw]
+		air_yaw > ground_yaw * 0.30,
+		"Air steering should be about half of ground (air %.3f ground %.3f)" % [air_yaw, ground_yaw]
 	)
 
 

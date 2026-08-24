@@ -4,6 +4,7 @@ extends Node
 ## Always-on second weapon. Independent clock from the rifle.
 
 const DAMAGE := 3
+const RANGE_M := 45.0
 const FIRE_SEC := 2.0
 const CHARGE_SEC := 2.0
 const CHARGE_FLOOR := 0.5
@@ -65,11 +66,12 @@ func _tick_stagger(delta: float) -> void:
 func _spawn_beam() -> bool:
 	var origin := _muzzle_origin()
 	var facing := _facing_xz()
+	var range_m := _current_range()
 	var target := AutoRifle.pick_target(
 		_pills(),
 		origin,
 		facing,
-		AutoRifle.RANGE_M,
+		range_m,
 		_rng
 	)
 	if target == null:
@@ -83,8 +85,9 @@ func _spawn_beam() -> bool:
 		_crit_chance(),
 		_rng,
 		_bounce_count(),
-		AutoRifle.bounce_range_for(AutoRifle.RANGE_M),
-		_pills()
+		AutoRifle.bounce_range_for(range_m),
+		_pills(),
+		range_m
 	)
 	_beams.append(beam)
 	return true
@@ -99,7 +102,7 @@ func _tick_beams(delta: float) -> void:
 	for beam in _beams:
 		if not is_instance_valid(beam) or beam.finished:
 			continue
-		beam.advance(delta, origin, facing, pills, _rng, bonus, crit)
+		beam.advance(delta, origin, facing, pills, _rng, bonus, crit, _current_range())
 
 
 func _prune_finished() -> void:
@@ -182,6 +185,17 @@ func _bounce_count() -> int:
 	if state == null:
 		return 0
 	return state.bounce_count_for(UpgradeCatalog.FAMILY_LASER)
+
+
+func _range_bonus() -> float:
+	var state := _upgrade_state()
+	if state == null:
+		return 0.0
+	return state.range_bonus_for(UpgradeCatalog.FAMILY_LASER)
+
+
+func _current_range() -> float:
+	return AutoRifle.range_for(RANGE_M, _range_bonus())
 
 
 func _crit_chance() -> float:

@@ -34,6 +34,7 @@ func _run() -> void:
 	_verify_duration_stacking()
 	_verify_pushback_stacking()
 	_verify_bounce_stacking()
+	_verify_range_stacking()
 	_verify_weapon_cards()
 	_verify_weapon_hud_levels()
 	_verify_dawn_pose()
@@ -179,6 +180,14 @@ func _verify_catalog() -> void:
 		and UpgradeCatalogScript.BOUNCE_EPIC == 4
 		and UpgradeCatalogScript.BOUNCE_LEGENDARY == 5,
 		"Bounce counts should be 1 / 2 / 3 / 4 / 5"
+	)
+	_fail_unless(
+		is_equal_approx(UpgradeCatalogScript.RANGE_COMMON, 0.06)
+		and is_equal_approx(UpgradeCatalogScript.RANGE_UNCOMMON, 0.09)
+		and is_equal_approx(UpgradeCatalogScript.RANGE_RARE, 0.12)
+		and is_equal_approx(UpgradeCatalogScript.RANGE_EPIC, 0.16)
+		and is_equal_approx(UpgradeCatalogScript.RANGE_LEGENDARY, 0.20),
+		"Range percents should be 6 / 9 / 12 / 16 / 20"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.is_empty_offer(UpgradeCatalogScript.EMPTY_OFFER),
@@ -838,6 +847,94 @@ func _verify_catalog() -> void:
 		) != null,
 		"Legendary Bounce should use bounce_legendary.png"
 	)
+	var rare_range := UpgradeCatalogScript.make_id(
+		UpgradeCatalogScript.FAMILY_RANGE,
+		UpgradeCatalogScript.RARITY_RARE
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(rare_range) == "Range +12%",
+		"Range rare should show +12%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.family_of(rare_range) == UpgradeCatalogScript.FAMILY_RANGE,
+		"range_rare should parse as the range family"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_RANGE,
+				UpgradeCatalogScript.RARITY_COMMON
+			)
+		) == "Range +6%",
+		"Range common should show +6%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_RANGE,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) == "Range +9%",
+		"Range uncommon should show +9%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_RANGE,
+				UpgradeCatalogScript.RARITY_EPIC
+			)
+		) == "Range +16%",
+		"Range epic should show +16%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_RANGE,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) == "Range +20%",
+		"Range legendary should show +20%"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_RANGE,
+				UpgradeCatalogScript.RARITY_COMMON
+			)
+		) != null,
+		"Common Range should use range_common.png"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_RANGE,
+				UpgradeCatalogScript.RARITY_UNCOMMON
+			)
+		) != null,
+		"Uncommon Range should use range_uncommon.png"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(rare_range) != null,
+		"Rare Range should use range_rare.png"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_RANGE,
+				UpgradeCatalogScript.RARITY_EPIC
+			)
+		) != null,
+		"Epic Range should use range_epic.png"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_RANGE,
+				UpgradeCatalogScript.RARITY_LEGENDARY
+			)
+		) != null,
+		"Legendary Range should use range_legendary.png"
+	)
 	_fail_unless(
 		UpgradeCatalogScript.icon_for(
 			UpgradeCatalogScript.make_id(
@@ -1472,6 +1569,10 @@ func _verify_offers_and_visit_lock() -> void:
 		"Try Again should clear Pushback"
 	)
 	_fail_unless(state.bounce_count == 0, "Try Again should clear Bounce")
+	_fail_unless(
+		is_equal_approx(state.range_bonus, 0.0),
+		"Try Again should clear Range"
+	)
 	_fail_unless(state.remaining_count(1) == 4, "Try Again should not restore taken cards")
 	_fail_unless(
 		state.get_offers(1).size() == 5,
@@ -2281,6 +2382,72 @@ func _verify_bounce_stacking() -> void:
 	state.free()
 
 
+func _verify_range_stacking() -> void:
+	var state: RunUpgradeState = RunUpgradeStateScript.new()
+	root.add_child(state)
+	var common_range := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_RANGE,
+			UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	var rare_range := String(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_RANGE,
+			UpgradeCatalogScript.RARITY_RARE
+		)
+	)
+	var leftover := String(UpgradeCatalogScript.ID_EXTRA_PROJECTILE)
+	_seed_offers(
+		state,
+		25,
+		PackedStringArray([common_range, rare_range, leftover, leftover, leftover])
+	)
+	state.pick_offer(25, 0)
+	state.pick_offer(25, 1)
+	_fail_unless(
+		is_equal_approx(state.range_bonus, 0.18),
+		"Common + rare Range should sum to 18%"
+	)
+	_fail_unless(state.remaining_count(25) == 3, "Leftover cards should stay in the shop")
+	_fail_unless(state.extra_projectiles == 0, "Range picks should not add projectiles")
+	_fail_unless(
+		is_equal_approx(state.range_bonus_for(UpgradeCatalogScript.FAMILY_RIFLE), 0.18)
+		and is_equal_approx(state.range_bonus_for(UpgradeCatalogScript.FAMILY_LASER), 0.18),
+		"Shop Range should apply to every owned projectile weapon"
+	)
+	state.reset_run()
+	_fail_unless(is_equal_approx(state.range_bonus, 0.0), "Try Again should clear Range")
+	state.grant_starter(UpgradeCatalogScript.FAMILY_RIFLE)
+	var rifle_range := UpgradeCatalogScript.encode_weapon_offer(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_RIFLE,
+			UpgradeCatalogScript.RARITY_COMMON
+		),
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_RANGE,
+			UpgradeCatalogScript.RARITY_COMMON
+		),
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_DAMAGE,
+			UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	_seed_offers(
+		state,
+		26,
+		PackedStringArray([rifle_range, leftover, leftover, leftover, leftover])
+	)
+	state.pick_offer(26, 0)
+	_fail_unless(
+		is_equal_approx(state.range_bonus, 0.0)
+		and is_equal_approx(state.range_bonus_for(UpgradeCatalogScript.FAMILY_RIFLE), 0.06)
+		and is_equal_approx(state.range_bonus_for(UpgradeCatalogScript.FAMILY_LASER), 0.0),
+		"Rifle bundle Range should stay on the Rifle"
+	)
+	state.free()
+
+
 func _verify_weapon_cards() -> void:
 	var rifle_common := UpgradeCatalogScript.make_id(
 		UpgradeCatalogScript.FAMILY_RIFLE,
@@ -2342,14 +2509,16 @@ func _verify_weapon_cards() -> void:
 		UpgradeCatalogScript.FAMILY_PUSHBACK not in laser_families
 		and UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED not in laser_families
 		and UpgradeCatalogScript.FAMILY_DURATION in laser_families
-		and UpgradeCatalogScript.FAMILY_BOUNCE in laser_families,
-		"Laser should roll duration and bounce, not pushback or projectile speed"
+		and UpgradeCatalogScript.FAMILY_BOUNCE in laser_families
+		and UpgradeCatalogScript.FAMILY_RANGE in laser_families,
+		"Laser should roll duration, bounce, and range, not pushback or projectile speed"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.FAMILY_DURATION not in rifle_families
 		and UpgradeCatalogScript.FAMILY_PUSHBACK in rifle_families
-		and UpgradeCatalogScript.FAMILY_BOUNCE in rifle_families,
-		"Rifle should roll pushback and bounce, not duration"
+		and UpgradeCatalogScript.FAMILY_BOUNCE in rifle_families
+		and UpgradeCatalogScript.FAMILY_RANGE in rifle_families,
+		"Rifle should roll pushback, bounce, and range, not duration"
 	)
 	var rng := RandomNumberGenerator.new()
 	for seed in range(1, 241):
@@ -2456,6 +2625,18 @@ func _verify_weapon_cards() -> void:
 		and UpgradeCatalogScript.FAMILY_BOUNCE
 		in UpgradeCatalogScript.eligible_shop_families(false, true),
 		"Bounce should roll in rifle-only and laser-only shops"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.FAMILY_RANGE
+		not in UpgradeCatalogScript.eligible_shop_families(false, false),
+		"Range should not roll until a weapon is owned"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.FAMILY_RANGE
+		in UpgradeCatalogScript.eligible_shop_families(true, false)
+		and UpgradeCatalogScript.FAMILY_RANGE
+		in UpgradeCatalogScript.eligible_shop_families(false, true),
+		"Range should roll in rifle-only and laser-only shops"
 	)
 	var rifle_n := UpgradeCatalogScript.eligible_shop_families(true, false).size()
 	var laser_n := UpgradeCatalogScript.eligible_shop_families(false, true).size()
