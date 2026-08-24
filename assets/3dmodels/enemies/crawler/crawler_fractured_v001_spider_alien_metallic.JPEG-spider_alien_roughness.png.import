@@ -1,0 +1,44 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://cghe6w6mu0itw"
+path.s3tc="res://.godot/imported/crawler_fractured_v001_spider_alien_metallic.JPEG-spider_alien_roughness.png-fac9c5d7b8a5711616e2e19b9ba634f8.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
+generator_parameters={
+"md5": "844908546122297bb954dcd92aaea315"
+}
+
+[deps]
+
+source_file="res://assets/3dmodels/enemies/crawler/crawler_fractured_v001_spider_alien_metallic.JPEG-spider_alien_roughness.png"
+dest_files=["res://.godot/imported/crawler_fractured_v001_spider_alien_metallic.JPEG-spider_alien_roughness.png-fac9c5d7b8a5711616e2e19b9ba634f8.s3tc.ctex"]
+
+[params]
+
+compress/mode=2
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/uastc_level=0
+compress/rdo_quality_loss=0.0
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/channel_remap/red=0
+process/channel_remap/green=1
+process/channel_remap/blue=2
+process/channel_remap/alpha=3
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=0

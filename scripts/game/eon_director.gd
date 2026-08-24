@@ -27,6 +27,8 @@ const LevelLayoutScript = preload("res://scripts/game/level_layout.gd")
 @export var run_score_path: NodePath
 @export var expedition_state_path: NodePath
 @export var day_night_path: NodePath
+@export var death_overlay_delay_sec := 6.0
+@export var death_fade_lead_sec := 1.0
 
 ## Next westbound upgrade tower (1 = first tower). Updated from LevelProgress.
 var next_upgrade_tower_label := "1"
@@ -35,6 +37,7 @@ var phase: Phase = Phase.AWAITING_EON
 var integrity: int = INTEGRITY_START
 var death_position := Vector3.ZERO
 var awaiting_death_choice := false
+var death_fade_active := false
 
 var _rig: PlayerRig
 var _terrain: TerrainManager
@@ -46,6 +49,8 @@ var _spawn_position := Vector3.ZERO
 var _spawn_yaw := 0.0
 var _run_bootstrapped := false
 var _respawn_eon_at_death := false
+var _death_overlay_timer: SceneTreeTimer = null
+var _death_fade_timer: SceneTreeTimer = null
 var _rng := RandomNumberGenerator.new()
 
 
@@ -191,6 +196,7 @@ func get_eon_bearing(from: Vector3) -> float:
 func request_try_again() -> void:
 	if not awaiting_death_choice or not can_try_again():
 		return
+	_cancel_death_overlay_timer()
 	awaiting_death_choice = false
 	_soft_retry()
 
@@ -249,12 +255,68 @@ func _on_player_run_ended() -> void:
 	if should_apply_integrity_loss_on_death(_run_bootstrapped):
 		integrity = apply_death_integrity_loss(integrity)
 		integrity_changed.emit(integrity)
+	if death_overlay_delay_sec <= 0.0:
+		death_fade_active = true
+		_show_death_overlay()
+		return
+	_cancel_death_timers()
+	death_fade_active = false
+	var fade_delay := maxf(death_overlay_delay_sec - death_fade_lead_sec, 0.0)
+	if fade_delay <= 0.0:
+		death_fade_active = true
+	else:
+		_death_fade_timer = get_tree().create_timer(fade_delay)
+		_death_fade_timer.timeout.connect(_on_death_fade_timer_timeout)
+	_death_overlay_timer = get_tree().create_timer(death_overlay_delay_sec)
+	_death_overlay_timer.timeout.connect(_on_death_overlay_timer_timeout)
+
+
+func _on_death_fade_timer_timeout() -> void:
+	_death_fade_timer = null
+	if awaiting_death_choice:
+		return
+	var glider := _get_glider()
+	if glider == null or not glider.is_run_ended() or glider.get_end_reason() != "death":
+		return
+	death_fade_active = true
+
+
+func _on_death_overlay_timer_timeout() -> void:
+	_death_overlay_timer = null
+	if awaiting_death_choice:
+		return
+	var glider := _get_glider()
+	if glider == null or not glider.is_run_ended() or glider.get_end_reason() != "death":
+		return
+	_show_death_overlay()
+
+
+func _show_death_overlay() -> void:
+	if awaiting_death_choice:
+		return
 	awaiting_death_choice = true
 	player_died.emit(death_position)
 	objective_changed.emit(get_objective_text())
 
 
+func _cancel_death_timers() -> void:
+	if _death_fade_timer != null:
+		if _death_fade_timer.timeout.is_connected(_on_death_fade_timer_timeout):
+			_death_fade_timer.timeout.disconnect(_on_death_fade_timer_timeout)
+		_death_fade_timer = null
+	if _death_overlay_timer != null:
+		if _death_overlay_timer.timeout.is_connected(_on_death_overlay_timer_timeout):
+			_death_overlay_timer.timeout.disconnect(_on_death_overlay_timer_timeout)
+		_death_overlay_timer = null
+	death_fade_active = false
+
+
+func _cancel_death_overlay_timer() -> void:
+	_cancel_death_timers()
+
+
 func _soft_retry() -> void:
+	_cancel_death_overlay_timer()
 	# Teleport first while the run is still ended so proximity pickup cannot fire
 	# against a death-spot E.O.N before the player is back at start.
 	if _rig != null:

@@ -1,29 +1,18 @@
-[gd_scene load_steps=4 format=3 uid="uid://ccharger_pill01"]
+[gd_scene format=3 uid="uid://cbeg1udf41nmb"]
 
-[ext_resource type="Script" path="res://scripts/enemies/charger_pill.gd" id="1_charger"]
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_green"]
-shading_mode = 0
-albedo_color = Color(0.18, 0.88, 0.32, 1)
+[ext_resource type="Script" uid="uid://drsdbw2j5pxfi" path="res://scripts/enemies/charger_pill.gd" id="1_charger"]
+[ext_resource type="PackedScene" uid="uid://chqjbyfsqqnww" path="res://scenes/enemies/crawler_skin.tscn" id="2_skin"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
-radius = 0.48
-height = 1.68
+radius = 0.3
+height = 0.6
 
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
-radius = 0.48
-height = 1.68
-
-[node name="ChargerPill" type="CharacterBody3D"]
+[node name="ChargerPill" type="CharacterBody3D" unique_id=691195268]
 collision_layer = 8
-collision_mask = 1
 script = ExtResource("1_charger")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.84, 0)
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=725465032]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.32, 0)
 shape = SubResource("CapsuleShape3D_body")
 
-[node name="Visual" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.84, 0)
-mesh = SubResource("CapsuleMesh_body")
-surface_material_override/0 = SubResource("StandardMaterial3D_green")
+[node name="Visual" parent="." unique_id=51260804 instance=ExtResource("2_skin")]

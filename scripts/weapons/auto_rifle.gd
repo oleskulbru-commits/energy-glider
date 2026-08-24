@@ -64,9 +64,7 @@ func _facing_xz() -> Vector3:
 
 func _fire(origin: Vector3, target: Node3D) -> void:
 	var bullet: RifleBullet = RifleBulletScene.instantiate() as RifleBullet
-	var parent := get_tree().current_scene
-	if parent == null:
-		parent = _rig
+	var parent := SceneUtil.world_parent(get_tree(), _rig)
 	parent.add_child(bullet)
 	var aim := target.global_position + Vector3(0.0, 0.7, 0.0) - origin
 	bullet.launch(origin, target, aim)
