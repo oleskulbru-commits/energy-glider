@@ -4,7 +4,6 @@ extends Node
 ## Instant cone blast. Pellets are visual only.
 
 const ShotgunPelletScene := preload("res://scenes/weapons/shotgun_pellet.tscn")
-const KillSparksScript := preload("res://scripts/weapons/kill_sparks.gd")
 
 const DAMAGE := 17
 const RANGE_M := 15.0
@@ -195,7 +194,7 @@ func _hit_pill(
 	var dealt := AutoRifle.crit_damage_for(amount, is_crit)
 	var killed := swarm.take_damage(dealt, hit_dir.normalized(), is_crit, knock)
 	if killed:
-		KillSparksScript.spawn(get_tree(), pill.global_position)
+		KillSparks.spawn(get_tree(), pill.global_position)
 
 
 func _spawn_visuals(origin: Vector3, aim: Vector3, range_m: float) -> void:

@@ -6,7 +6,7 @@ extends Node3D
 const FRACTURED_SCENE := preload(
 	"res://assets/3dmodels/enemies/crawler/crawler_fractured_v001.glb"
 )
-const KillSparksScript := preload("res://scripts/weapons/kill_sparks.gd")
+const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 
 const LIFETIME_SEC := 3.0
 const IMPULSE_MIN := 5.0
@@ -28,7 +28,7 @@ static func spawn(
 ) -> void:
 	if tree == null:
 		return
-	var parent := SceneUtil.world_parent(tree)
+	var parent := SceneUtilScript.world_parent(tree)
 	if parent == null:
 		return
 	var burst := FRACTURED_SCENE.instantiate()
@@ -38,7 +38,7 @@ static func spawn(
 	wrapper.add_child(burst)
 	burst.scale = Vector3.ONE * scale
 	wrapper._build_shards(burst, hit_pos)
-	KillSparksScript.spawn(tree, xf.origin)
+	KillSparks.spawn(tree, xf.origin)
 	wrapper._schedule_cleanup()
 
 

@@ -104,6 +104,9 @@ func take_damage(
 	_hp = maxi(_hp - amount, 0)
 	_spawn_damage_float(dealt, is_crit)
 	if _hp <= 0:
+		var from_pos := global_position
+		if hit_dir.length_squared() > 0.0001:
+			from_pos = global_position - hit_dir.normalized()
 		_die(from_pos)
 		return true
 	if hit_dir.length_squared() > 0.0001:

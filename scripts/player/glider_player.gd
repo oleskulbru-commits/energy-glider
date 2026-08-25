@@ -1420,12 +1420,11 @@ func _update_contact_dust() -> void:
 
 
 func _update_camera(delta: float) -> void:
-	var camera := _resolve_follow_camera()
-	if camera == null:
+	if _camera == null:
 		return
 	var steering := _input != null and _input.is_steering() and not _run_ended
 	var boosting := _is_boost_active() and not _run_ended
-	camera.follow(
+	_camera.follow(
 		get_camera_follow_target(),
 		get_camera_follow_yaw(),
 		get_camera_follow_velocity(),
@@ -1490,7 +1489,8 @@ func _resolve_input() -> GliderInputScript:
 
 
 func _uses_external_camera() -> bool:
-	return get_parent() is PlayerRig
+	var parent := get_parent()
+	return parent != null and parent.has_method("get_follow_camera")
 
 
 # --- Public API ---

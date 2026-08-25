@@ -4,6 +4,7 @@ extends Node
 ## Invisible Megabonk-style rifle. Only the tracer is visible.
 
 const RifleBulletScene := preload("res://scenes/weapons/rifle_bullet.tscn")
+const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 
 const DAMAGE := 10
 const RANGE_M := 75.0
@@ -175,7 +176,7 @@ func _facing_xz() -> Vector3:
 
 func _fire(origin: Vector3, target: Node3D) -> void:
 	var bullet: RifleBullet = RifleBulletScene.instantiate() as RifleBullet
-	var parent := SceneUtil.world_parent(get_tree(), _rig)
+	var parent := SceneUtilScript.world_parent(get_tree(), _rig)
 	parent.add_child(bullet)
 	var aim := target.global_position + Vector3(0.0, 0.7, 0.0) - origin
 	bullet.launch(

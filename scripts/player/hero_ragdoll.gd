@@ -7,6 +7,7 @@ const SKIN_SCENE := preload(
 	"res://assets/3dmodels/player_models/Glider/The_Glider_Animated_Skin.glb"
 )
 const SelfScript := preload("res://scripts/player/hero_ragdoll.gd")
+const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 
 const LIFETIME_SEC := 4.0
 const IMPULSE_STRENGTH := 4.0
@@ -52,7 +53,7 @@ static func spawn(
 ) -> Node3D:
 	if tree == null:
 		return null
-	var parent := SceneUtil.world_parent(tree)
+	var parent := SceneUtilScript.world_parent(tree)
 	if parent == null:
 		return null
 	var ragdoll: Node3D = SelfScript.new()
