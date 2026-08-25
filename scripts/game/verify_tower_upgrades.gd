@@ -2849,9 +2849,16 @@ func _verify_weapon_cards() -> void:
 	_fail_unless(
 		is_equal_approx(
 			UpgradeCatalogScript.unlock_chance(2, rifle_n),
-			1.0 / float(rifle_n) + 0.05
+			1.0 / float(rifle_n) + 0.12
 		),
-		"Tower 2 unlock chance should be 1/N + 5%"
+		"Tower 2 unlock chance should be 1/N + 12%"
+	)
+	_fail_unless(
+		is_equal_approx(
+			UpgradeCatalogScript.unlock_chance(7, rifle_n),
+			1.0 / float(rifle_n) + 0.72
+		),
+		"Tower 7 unlock chance should be 1/N + 72%"
 	)
 	_fail_unless(laser_n > 0, "Laser-only shops should still have families")
 	_fail_unless(

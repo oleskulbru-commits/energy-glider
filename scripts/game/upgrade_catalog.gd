@@ -161,7 +161,7 @@ const ID_UNLOCK_LASER := &"unlock_laser"
 const ID_UNLOCK_TESLA := &"unlock_tesla"
 const ID_UNLOCK_ROCKET := &"unlock_rocket"
 const ID_UNLOCK_SHOTGUN := &"unlock_shotgun"
-const UNLOCK_PITY := 0.05
+const UNLOCK_PITY := 0.12
 
 
 static func make_id(family: StringName, rarity: StringName) -> StringName:
