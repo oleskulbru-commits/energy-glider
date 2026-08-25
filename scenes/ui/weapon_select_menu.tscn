@@ -42,7 +42,7 @@ grow_vertical = 2
 mouse_filter = 0
 
 [node name="Panel" type="PanelContainer" parent="Root/Center"]
-custom_minimum_size = Vector2(720, 360)
+custom_minimum_size = Vector2(960, 360)
 layout_mode = 2
 theme_type_variation = &"HudOverlay"
 
@@ -116,6 +116,23 @@ expand_icon = true
 layout_mode = 2
 theme_type_variation = &"HudValue"
 text = "Tesla Coil"
+horizontal_alignment = 1
+
+[node name="RocketCard" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="RocketButton" type="Button" parent="Root/Center/Panel/VBox/Cards/RocketCard"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(160, 160)
+layout_mode = 2
+icon_alignment = 1
+expand_icon = true
+
+[node name="RocketName" type="Label" parent="Root/Center/Panel/VBox/Cards/RocketCard"]
+layout_mode = 2
+theme_type_variation = &"HudValue"
+text = "Rocket Launcher"
 horizontal_alignment = 1
 
 [node name="StartButton" type="Button" parent="Root/Center/Panel/VBox"]

@@ -2415,7 +2415,8 @@ func _verify_range_stacking() -> void:
 	_fail_unless(
 		is_equal_approx(state.range_bonus_for(UpgradeCatalogScript.FAMILY_RIFLE), 0.18)
 		and is_equal_approx(state.range_bonus_for(UpgradeCatalogScript.FAMILY_LASER), 0.18)
-		and is_equal_approx(state.range_bonus_for(UpgradeCatalogScript.FAMILY_TESLA), 0.18),
+		and is_equal_approx(state.range_bonus_for(UpgradeCatalogScript.FAMILY_TESLA), 0.18)
+		and is_equal_approx(state.range_bonus_for(UpgradeCatalogScript.FAMILY_ROCKET), 0.18),
 		"Shop Range should apply to every owned projectile weapon"
 	)
 	state.reset_run()
@@ -2504,6 +2505,15 @@ func _verify_weapon_cards() -> void:
 		"Tesla cards should be labeled Tesla Coil"
 	)
 	_fail_unless(
+		UpgradeCatalogScript.display_name(
+			UpgradeCatalogScript.make_id(
+				UpgradeCatalogScript.FAMILY_ROCKET,
+				UpgradeCatalogScript.RARITY_COMMON
+			)
+		) == "Rocket Launcher",
+		"Rocket cards should be labeled Rocket Launcher"
+	)
+	_fail_unless(
 		UpgradeCatalogScript.rarity_display_name(StringName(encoded)) == "COMMON",
 		"Weapon rarity line should stay COMMON–LEGENDARY"
 	)
@@ -2515,6 +2525,7 @@ func _verify_weapon_cards() -> void:
 		"Weapon bonus lines should use child catalog display names"
 	)
 	var tesla_families := UpgradeCatalogScript.eligible_families(UpgradeCatalogScript.FAMILY_TESLA)
+	var rocket_families := UpgradeCatalogScript.eligible_families(UpgradeCatalogScript.FAMILY_ROCKET)
 	var laser_families := UpgradeCatalogScript.eligible_families(UpgradeCatalogScript.FAMILY_LASER)
 	var rifle_families := UpgradeCatalogScript.eligible_families(UpgradeCatalogScript.FAMILY_RIFLE)
 	_fail_unless(
@@ -2526,6 +2537,15 @@ func _verify_weapon_cards() -> void:
 		and UpgradeCatalogScript.FAMILY_RANGE in tesla_families
 		and UpgradeCatalogScript.FAMILY_PROJECTILE in tesla_families,
 		"Tesla should roll projectiles, crit, bounce, and range, not duration, pushback, or projectile speed"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.FAMILY_BOUNCE not in rocket_families
+		and UpgradeCatalogScript.FAMILY_DURATION not in rocket_families
+		and UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED in rocket_families
+		and UpgradeCatalogScript.FAMILY_PUSHBACK in rocket_families
+		and UpgradeCatalogScript.FAMILY_RANGE in rocket_families
+		and UpgradeCatalogScript.FAMILY_CRIT in rocket_families,
+		"Rocket should roll projectile speed, pushback, and range, not bounce or duration"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.FAMILY_PUSHBACK not in laser_families
@@ -2602,6 +2622,23 @@ func _verify_weapon_cards() -> void:
 			and tesla_b != UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED,
 			"Tesla never includes duration, pushback, or projectile speed"
 		)
+		rng.seed = seed + 3000
+		var rocket_parts := UpgradeCatalogScript.roll_weapon_parts(
+			UpgradeCatalogScript.FAMILY_ROCKET,
+			UpgradeCatalogScript.RARITY_RARE,
+			rng
+		)
+		_fail_unless(rocket_parts.size() == 2, "Rocket cards should roll two stats")
+		var rocket_a := UpgradeCatalogScript.family_of(StringName(rocket_parts[0]))
+		var rocket_b := UpgradeCatalogScript.family_of(StringName(rocket_parts[1]))
+		_fail_unless(rocket_a != rocket_b, "Rocket pair families should be unique")
+		_fail_unless(
+			rocket_a != UpgradeCatalogScript.FAMILY_DURATION
+			and rocket_b != UpgradeCatalogScript.FAMILY_DURATION
+			and rocket_a != UpgradeCatalogScript.FAMILY_BOUNCE
+			and rocket_b != UpgradeCatalogScript.FAMILY_BOUNCE,
+			"Rocket never includes duration or bounce"
+		)
 	var rarities: Array[StringName] = [
 		UpgradeCatalogScript.RARITY_COMMON,
 		UpgradeCatalogScript.RARITY_UNCOMMON,
@@ -2631,6 +2668,13 @@ func _verify_weapon_cards() -> void:
 			!= null,
 			"Tesla %s should use tesla_%s.png" % [String(rarity), String(rarity)]
 		)
+		_fail_unless(
+			UpgradeCatalogScript.icon_for(
+				UpgradeCatalogScript.make_id(UpgradeCatalogScript.FAMILY_ROCKET, rarity)
+			)
+			!= null,
+			"Rocket %s should use rocket_%s.png" % [String(rarity), String(rarity)]
+		)
 	_fail_unless(
 		UpgradeCatalogScript.icon_for(StringName(encoded)) != null,
 		"Encoded rifle offers should load rifle_common.jpg from the base id"
@@ -2656,6 +2700,16 @@ func _verify_weapon_cards() -> void:
 		"Unlock tesla should use tesla_common.png"
 	)
 	_fail_unless(
+		UpgradeCatalogScript.is_weapon_unlock(UpgradeCatalogScript.ID_UNLOCK_ROCKET)
+		and UpgradeCatalogScript.display_name(UpgradeCatalogScript.ID_UNLOCK_ROCKET) == "Rocket Launcher"
+		and UpgradeCatalogScript.rarity_display_name(UpgradeCatalogScript.ID_UNLOCK_ROCKET) == "",
+		"Unlock rocket should be named Rocket Launcher with no rarity line"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for(UpgradeCatalogScript.ID_UNLOCK_ROCKET) != null,
+		"Unlock rocket should use rocket_common.png"
+	)
+	_fail_unless(
 		UpgradeCatalogScript.FAMILY_GLIDE
 		in UpgradeCatalogScript.eligible_shop_families(false, false),
 		"Glide should roll without owning a weapon"
@@ -2671,7 +2725,9 @@ func _verify_weapon_cards() -> void:
 		and UpgradeCatalogScript.FAMILY_STEERING
 		not in UpgradeCatalogScript.eligible_families(UpgradeCatalogScript.FAMILY_LASER)
 		and UpgradeCatalogScript.FAMILY_STEERING
-		not in UpgradeCatalogScript.eligible_families(UpgradeCatalogScript.FAMILY_TESLA),
+		not in UpgradeCatalogScript.eligible_families(UpgradeCatalogScript.FAMILY_TESLA)
+		and UpgradeCatalogScript.FAMILY_STEERING
+		not in UpgradeCatalogScript.eligible_families(UpgradeCatalogScript.FAMILY_ROCKET),
 		"Steering should be a shop-wide glider card, not a weapon part"
 	)
 	_fail_unless(
@@ -2689,6 +2745,11 @@ func _verify_weapon_cards() -> void:
 		"Bounce should roll in rifle-only, laser-only, and tesla-only shops"
 	)
 	_fail_unless(
+		UpgradeCatalogScript.FAMILY_BOUNCE
+		not in UpgradeCatalogScript.eligible_shop_families(false, false, false, true),
+		"Rocket-only shops should not roll Bounce"
+	)
+	_fail_unless(
 		UpgradeCatalogScript.FAMILY_RANGE
 		not in UpgradeCatalogScript.eligible_shop_families(false, false),
 		"Range should not roll until a weapon is owned"
@@ -2699,8 +2760,10 @@ func _verify_weapon_cards() -> void:
 		and UpgradeCatalogScript.FAMILY_RANGE
 		in UpgradeCatalogScript.eligible_shop_families(false, true)
 		and UpgradeCatalogScript.FAMILY_RANGE
-		in UpgradeCatalogScript.eligible_shop_families(false, false, true),
-		"Range should roll in rifle-only, laser-only, and tesla-only shops"
+		in UpgradeCatalogScript.eligible_shop_families(false, false, true)
+		and UpgradeCatalogScript.FAMILY_RANGE
+		in UpgradeCatalogScript.eligible_shop_families(false, false, false, true),
+		"Range should roll in rifle-only, laser-only, tesla-only, and rocket-only shops"
 	)
 	var rifle_n := UpgradeCatalogScript.eligible_shop_families(true, false).size()
 	var laser_n := UpgradeCatalogScript.eligible_shop_families(false, true).size()
@@ -2740,32 +2803,52 @@ func _verify_weapon_cards() -> void:
 		"Tesla-only shops should not roll Duration, Pushback, or Projectile Speed"
 	)
 	_fail_unless(
-		UpgradeCatalogScript.missing_unlock_id(true, true, true) == &"",
-		"All three weapons owned should skip the unlock card"
+		UpgradeCatalogScript.FAMILY_ROCKET
+		in UpgradeCatalogScript.eligible_shop_families(false, false, false, true),
+		"Rocket-only shops should roll Rocket cards"
 	)
-	var missing := UpgradeCatalogScript.missing_unlock_ids(true, false, false)
+	_fail_unless(
+		UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED
+		in UpgradeCatalogScript.eligible_shop_families(false, false, false, true)
+		and UpgradeCatalogScript.FAMILY_PUSHBACK
+		in UpgradeCatalogScript.eligible_shop_families(false, false, false, true)
+		and UpgradeCatalogScript.FAMILY_DURATION
+		not in UpgradeCatalogScript.eligible_shop_families(false, false, false, true)
+		and UpgradeCatalogScript.FAMILY_BOUNCE
+		not in UpgradeCatalogScript.eligible_shop_families(false, false, false, true),
+		"Rocket-only shops should roll Projectile Speed and Pushback, not Duration or Bounce"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.missing_unlock_id(true, true, true, true) == &"",
+		"All four weapons owned should skip the unlock card"
+	)
+	var missing := UpgradeCatalogScript.missing_unlock_ids(true, false, false, false)
 	_fail_unless(
 		UpgradeCatalogScript.ID_UNLOCK_LASER in missing
 		and UpgradeCatalogScript.ID_UNLOCK_TESLA in missing
+		and UpgradeCatalogScript.ID_UNLOCK_ROCKET in missing
 		and UpgradeCatalogScript.ID_UNLOCK_RIFLE not in missing,
-		"Rifle-only should be able to unlock Laser or Tesla"
+		"Rifle-only should be able to unlock Laser, Tesla, or Rocket"
 	)
 	var unlock_rng := RandomNumberGenerator.new()
 	var saw_laser_unlock := false
 	var saw_tesla_unlock := false
-	for seed in range(1, 81):
+	var saw_rocket_unlock := false
+	for seed in range(1, 121):
 		unlock_rng.seed = seed
-		var rolled := UpgradeCatalogScript.missing_unlock_id(true, false, false, unlock_rng)
+		var rolled := UpgradeCatalogScript.missing_unlock_id(true, false, false, false, unlock_rng)
 		if rolled == UpgradeCatalogScript.ID_UNLOCK_LASER:
 			saw_laser_unlock = true
 		elif rolled == UpgradeCatalogScript.ID_UNLOCK_TESLA:
 			saw_tesla_unlock = true
+		elif rolled == UpgradeCatalogScript.ID_UNLOCK_ROCKET:
+			saw_rocket_unlock = true
 	_fail_unless(
-		saw_laser_unlock and saw_tesla_unlock,
-		"Rifle-only unlock card should randomly pick Laser or Tesla"
+		saw_laser_unlock and saw_tesla_unlock and saw_rocket_unlock,
+		"Rifle-only unlock card should randomly pick Laser, Tesla, or Rocket"
 	)
 	for tower_index in range(1, 41):
-		var all_owned := UpgradeCatalogScript.roll_shop(3, tower_index, 0, true, true, true)
+		var all_owned := UpgradeCatalogScript.roll_shop(3, tower_index, 0, true, true, true, true)
 		for id in all_owned:
 			_fail_unless(
 				not UpgradeCatalogScript.is_weapon_unlock(StringName(id)),
@@ -2774,9 +2857,9 @@ func _verify_weapon_cards() -> void:
 
 	var state: RunUpgradeState = RunUpgradeStateScript.new()
 	root.add_child(state)
-	_fail_unless(not state.has_rifle and not state.has_laser and not state.has_tesla, "No weapons until grant_starter")
+	_fail_unless(not state.has_rifle and not state.has_laser and not state.has_tesla and not state.has_rocket, "No weapons until grant_starter")
 	state.grant_starter(UpgradeCatalogScript.FAMILY_LASER)
-	_fail_unless(state.has_laser and not state.has_rifle and not state.has_tesla, "Starter Laser should own only Laser")
+	_fail_unless(state.has_laser and not state.has_rifle and not state.has_tesla and not state.has_rocket, "Starter Laser should own only Laser")
 	_fail_unless(
 		state.owned_weapon_ids() == PackedStringArray(["laser"]),
 		"HUD order should list the starter first"
@@ -2851,6 +2934,11 @@ func _verify_weapon_cards() -> void:
 	_fail_unless(
 		state.has_tesla and state.owned_weapon_ids() == PackedStringArray(["laser", "rifle", "tesla"]),
 		"HUD order should append Tesla Coil after the other owned weapons"
+	)
+	state.grant_weapon(UpgradeCatalogScript.FAMILY_ROCKET)
+	_fail_unless(
+		state.has_rocket and state.owned_weapon_ids() == PackedStringArray(["laser", "rifle", "tesla", "rocket"]),
+		"HUD order should append Rocket Launcher after the other owned weapons"
 	)
 	_fail_unless(
 		is_equal_approx(
@@ -2952,12 +3040,29 @@ func _verify_weapon_cards() -> void:
 		unlock_state.has_tesla and unlock_state.owned_weapon_ids() == PackedStringArray(["laser", "rifle", "tesla"]),
 		"Picking unlock_tesla should grant Tesla Coil"
 	)
+	_seed_offers(
+		unlock_state,
+		28,
+		PackedStringArray([
+			String(UpgradeCatalogScript.ID_UNLOCK_ROCKET),
+			leftover,
+			leftover,
+			leftover,
+			leftover
+		])
+	)
+	unlock_state.pick_offer(28, 0)
+	_fail_unless(
+		unlock_state.has_rocket
+		and unlock_state.owned_weapon_ids() == PackedStringArray(["laser", "rifle", "tesla", "rocket"]),
+		"Picking unlock_rocket should grant Rocket Launcher"
+	)
 
 	var tesla_start: RunUpgradeState = RunUpgradeStateScript.new()
 	root.add_child(tesla_start)
 	tesla_start.grant_starter(UpgradeCatalogScript.FAMILY_TESLA)
 	_fail_unless(
-		tesla_start.has_tesla and not tesla_start.has_rifle and not tesla_start.has_laser,
+		tesla_start.has_tesla and not tesla_start.has_rifle and not tesla_start.has_laser and not tesla_start.has_rocket,
 		"Starter Tesla Coil should own only Tesla"
 	)
 	_fail_unless(
@@ -3017,6 +3122,54 @@ func _verify_weapon_cards() -> void:
 		"Tesla Coil bundle stats should not enter the shared shop totals"
 	)
 
+	var rocket_start: RunUpgradeState = RunUpgradeStateScript.new()
+	root.add_child(rocket_start)
+	rocket_start.grant_starter(UpgradeCatalogScript.FAMILY_ROCKET)
+	_fail_unless(
+		rocket_start.has_rocket and not rocket_start.has_rifle and not rocket_start.has_laser and not rocket_start.has_tesla,
+		"Starter Rocket Launcher should own only Rocket"
+	)
+	_fail_unless(
+		rocket_start.owned_weapon_ids() == PackedStringArray(["rocket"]),
+		"HUD order should list Rocket Launcher first when it is the starter"
+	)
+	var rocket_bundle := UpgradeCatalogScript.encode_weapon_offer(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_ROCKET,
+			UpgradeCatalogScript.RARITY_COMMON
+		),
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_DAMAGE,
+			UpgradeCatalogScript.RARITY_COMMON
+		),
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_PROJECTILE_SPEED,
+			UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	_seed_offers(
+		rocket_start,
+		29,
+		PackedStringArray([rocket_bundle, leftover, leftover, leftover, leftover])
+	)
+	rocket_start.pick_offer(29, 0)
+	_fail_unless(
+		is_equal_approx(
+			rocket_start.damage_bonus_for(UpgradeCatalogScript.FAMILY_ROCKET),
+			0.04
+		)
+		and is_equal_approx(
+			rocket_start.projectile_speed_bonus_for(UpgradeCatalogScript.FAMILY_ROCKET),
+			0.04
+		),
+		"Rocket Launcher bundle stats should apply to Rocket"
+	)
+	_fail_unless(
+		is_equal_approx(rocket_start.damage_bonus_for(UpgradeCatalogScript.FAMILY_RIFLE), 0.0)
+		and is_equal_approx(rocket_start.damage_bonus, 0.0),
+		"Rocket Launcher bundle stats should not enter the shared shop totals"
+	)
+
 	var leftover_laser := UpgradeCatalogScript.encode_weapon_offer(
 		UpgradeCatalogScript.make_id(
 			UpgradeCatalogScript.FAMILY_LASER,
@@ -3059,7 +3212,7 @@ func _verify_weapon_cards() -> void:
 		"Taken normal slot should be Empty"
 	)
 	state.reset_run()
-	_fail_unless(not state.has_rifle and not state.has_laser and not state.has_tesla, "Try Again should clear weapons")
+	_fail_unless(not state.has_rifle and not state.has_laser and not state.has_tesla and not state.has_rocket, "Try Again should clear weapons")
 	var after := state.get_offers(21)
 	_fail_unless(
 		UpgradeCatalogScript.is_empty_offer(StringName(after[0])),
@@ -3190,6 +3343,27 @@ func _verify_weapon_hud_levels() -> void:
 		== legendary_tesla,
 		"Tesla HUD icons should climb common to legendary"
 	)
+	var common_rocket := UpgradeCatalogScript.icon_for(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_ROCKET, UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	var legendary_rocket := UpgradeCatalogScript.icon_for(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_ROCKET, UpgradeCatalogScript.RARITY_LEGENDARY
+		)
+	)
+	_fail_unless(
+		common_rocket != null and legendary_rocket != null,
+		"Rocket rarity icons should exist"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.icon_for_weapon_level(UpgradeCatalogScript.FAMILY_ROCKET, 1)
+		== common_rocket
+		and UpgradeCatalogScript.icon_for_weapon_level(UpgradeCatalogScript.FAMILY_ROCKET, 5)
+		== legendary_rocket,
+		"Rocket HUD icons should climb common to legendary"
+	)
 
 	var root := get_root()
 	var leftover := String(UpgradeCatalogScript.ID_EXTRA_PROJECTILE)
@@ -3219,8 +3393,9 @@ func _verify_weapon_hud_levels() -> void:
 	)
 	_fail_unless(
 		state.weapon_level(UpgradeCatalogScript.FAMILY_LASER) == 0
-		and state.weapon_level(UpgradeCatalogScript.FAMILY_TESLA) == 0,
-		"An unowned Laser or Tesla should have no level"
+		and state.weapon_level(UpgradeCatalogScript.FAMILY_TESLA) == 0
+		and state.weapon_level(UpgradeCatalogScript.FAMILY_ROCKET) == 0,
+		"An unowned Laser, Tesla, or Rocket should have no level"
 	)
 	_seed_offers(
 		state,
