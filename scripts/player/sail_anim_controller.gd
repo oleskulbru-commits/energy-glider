@@ -22,6 +22,7 @@ var _sail_playback: AnimationNodeStateMachinePlayback
 var _sail_state := &""
 var _was_sail_deployed := false
 var _deploy_reverse_started_at := -1.0
+var _forced_death_retract := false
 
 
 func _ready() -> void:
@@ -47,9 +48,34 @@ func reset_animation_state() -> void:
 	_tree.set(PARAM_DEPLOY_FWD_SCALE, 1.0)
 	_tree.set(PARAM_DEPLOY_REV_SEEK, 0.0)
 	_tree.set(PARAM_DEPLOY_REV_SCALE, 1.0)
+	_forced_death_retract = false
 	_enter_stowed()
 	_was_sail_deployed = _is_sail_deployed()
 	_deploy_reverse_started_at = -1.0
+	_forced_death_retract = false
+
+
+func force_retract_for_death() -> void:
+	if _tree == null or _sail_playback == null:
+		return
+	_forced_death_retract = true
+	_was_sail_deployed = true
+	if _sail_state == &"sail_down":
+		return
+	var seek := _deploy_seek_for_reverse()
+	_tree.set(PARAM_DEPLOY_REV_SEEK, seek)
+	_tree.set(PARAM_DEPLOY_REV_SCALE, -1.0)
+	_deploy_reverse_started_at = Time.get_ticks_msec() / 1000.0
+	if _sail_state == &"":
+		_sail_playback.start("deploy_reverse")
+	else:
+		_sail_playback.travel("deploy_reverse")
+	_sail_state = &"deploy_reverse"
+	_tree.advance(0.0)
+
+
+func get_sail_state() -> StringName:
+	return _sail_state
 
 
 func _bootstrap_sail_state() -> void:
@@ -70,6 +96,15 @@ func _process(_delta: float) -> void:
 		_glider = _find_glider()
 		if _glider == null:
 			return
+
+	if _forced_death_retract:
+		_sail_state = _sail_playback.get_current_node()
+		if _sail_state == &"deploy_reverse" and _is_deploy_reverse_finished():
+			_deploy_reverse_started_at = -1.0
+			_tree.set(PARAM_DEPLOY_REV_SEEK, 0.0)
+			_tree.set(PARAM_DEPLOY_REV_SCALE, 1.0)
+			_enter_stowed()
+		return
 
 	var sail_deployed := _is_sail_deployed()
 	if sail_deployed != _was_sail_deployed:

@@ -10,7 +10,7 @@ const FREE_BUFFER_SEC := 0.2
 static func spawn(tree: SceneTree, origin: Vector3) -> void:
 	if tree == null:
 		return
-	var parent := tree.current_scene
+	var parent := SceneUtil.world_parent(tree)
 	if parent == null:
 		return
 	var burst := KillSparks.new()

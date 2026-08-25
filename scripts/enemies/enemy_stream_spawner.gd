@@ -133,7 +133,7 @@ func _spawn_one(track: Node3D, ahead: Vector2, spread: float, speed: float, leve
 	var world_z := track.global_position.z + offset.y
 	var world_y := track.global_position.y
 	if _terrain != null:
-		world_y = _terrain.sample_height(world_x, world_z) + SwarmPillScript.HOVER_OFFSET_M
+		world_y = _terrain.sample_height(world_x, world_z)
 
 	var scene: PackedScene = SwarmPillScene
 	if level >= CHARGER_MIN_LEVEL and _rng.randf() < CHARGER_SPAWN_CHANCE:

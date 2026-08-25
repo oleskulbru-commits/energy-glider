@@ -170,16 +170,17 @@ func get_follow_camera() -> GliderCamera:
 func _update_glider_camera(delta: float) -> void:
 	if _glider == null or _camera == null:
 		return
-	var steering := _input != null and _input.is_steering()
+	var steering := _input != null and _input.is_steering() and not _glider.is_run_ended()
+	var boosting := _glider.is_boost_active() and not _glider.is_run_ended()
 	_camera.follow(
-		_glider,
-		_glider.get_yaw(),
-		_glider.velocity,
+		_glider.get_camera_follow_target(),
+		_glider.get_camera_follow_yaw(),
+		_glider.get_camera_follow_velocity(),
 		delta,
-		_glider.is_grounded(),
+		_glider.get_camera_follow_grounded(),
 		_terrain_manager,
 		steering,
-		_glider.is_boost_active()
+		boosting
 	)
 
 

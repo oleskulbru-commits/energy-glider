@@ -5,6 +5,7 @@ const GliderCameraScript = preload("res://scripts/player/glider_camera.gd")
 const GliderPhysicsScript = preload("res://scripts/player/glider_physics.gd")
 const GliderInputScript = preload("res://scripts/input/glider_input.gd")
 const TerrainProbesScript = preload("res://scripts/player/terrain_probes.gd")
+const PlayerDeathSequenceScript = preload("res://scripts/player/player_death_sequence.gd")
 
 enum State { GROUNDED, GLIDING }
 
@@ -166,6 +167,8 @@ var _air_hold_horizontal_speed := 0.0
 var _saved_collision_layer := 2
 var _physics_ctx: GliderPhysicsScript.Context = null
 var _last_physics_delta := 1.0 / 60.0
+var _death_physics_active := false
+var _death_sequence: Node
 
 
 var velocity: Vector3:
@@ -204,6 +207,11 @@ func _ready() -> void:
 	if _input != null:
 		_input.set_boost_input_enabled(_boost_unlocked)
 	_day_night = get_tree().get_first_node_in_group("day_night_cycle") as DayNightCycle
+	_death_sequence = get_node_or_null("PlayerDeathSequence")
+	if _death_sequence == null:
+		_death_sequence = PlayerDeathSequenceScript.new()
+		_death_sequence.name = "PlayerDeathSequence"
+		add_child(_death_sequence)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -260,6 +268,9 @@ func _physics_process(delta: float) -> void:
 
 
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
+	if _run_ended and _death_physics_active:
+		_apply_pending_knockback(state)
+		return
 	if _physics_ctx == null or _input == null or not _piloted or _run_ended:
 		return
 
@@ -1423,13 +1434,20 @@ func _update_contact_dust() -> void:
 
 
 func _update_camera(delta: float) -> void:
-	if _camera == null:
+	var camera := _resolve_follow_camera()
+	if camera == null:
 		return
-	_camera.follow(
-		self, _yaw, velocity, delta,
-		is_grounded(), _terrain_manager,
-		_input != null and _input.is_steering(),
-		_is_boost_active()
+	var steering := _input != null and _input.is_steering() and not _run_ended
+	var boosting := _is_boost_active() and not _run_ended
+	camera.follow(
+		get_camera_follow_target(),
+		get_camera_follow_yaw(),
+		get_camera_follow_velocity(),
+		delta,
+		get_camera_follow_grounded(),
+		_terrain_manager,
+		steering,
+		boosting
 	)
 
 
@@ -1570,14 +1588,29 @@ func end_run(reason: String = "") -> void:
 		return
 	_end_reason = reason
 	_run_ended = true
-	linear_velocity = Vector3.ZERO
+	if reason == "death":
+		if _death_sequence != null and _death_sequence.has_method("begin"):
+			_death_sequence.begin(reason)
+	else:
+		linear_velocity = Vector3.ZERO
+		angular_velocity = Vector3.ZERO
 	_yaw_velocity = 0.0
 	_turn_rate = 0.0
-	angular_velocity = Vector3.ZERO
 	run_ended.emit()
 
 
+func set_death_physics_active(active: bool) -> void:
+	_death_physics_active = active
+
+
+func is_death_physics_active() -> bool:
+	return _death_physics_active
+
+
 func reset_for_respawn() -> void:
+	if _death_sequence != null and _death_sequence.has_method("cleanup"):
+		_death_sequence.cleanup()
+	_death_physics_active = false
 	_run_ended = false
 	_end_reason = ""
 	_state = State.GROUNDED
@@ -1683,6 +1716,36 @@ func get_smoothed_clearance() -> float:
 
 func get_yaw() -> float:
 	return _yaw
+
+
+func get_camera_follow_target() -> Node3D:
+	if _is_death_camera_active() and _death_sequence != null and _death_sequence.has_method("get_camera_target"):
+		var target: Node3D = _death_sequence.get_camera_target() as Node3D
+		if target != null:
+			return target
+	return self
+
+
+func get_camera_follow_velocity() -> Vector3:
+	if _is_death_camera_active() and _death_sequence != null and _death_sequence.has_method("get_camera_velocity"):
+		return _death_sequence.get_camera_velocity()
+	return velocity
+
+
+func get_camera_follow_yaw() -> float:
+	if _is_death_camera_active() and _death_sequence != null and _death_sequence.has_method("get_camera_body_yaw"):
+		return _death_sequence.get_camera_body_yaw()
+	return get_yaw()
+
+
+func get_camera_follow_grounded() -> bool:
+	if _is_death_camera_active() and _death_sequence != null and _death_sequence.has_method("is_camera_grounded"):
+		return _death_sequence.is_camera_grounded()
+	return is_grounded()
+
+
+func _is_death_camera_active() -> bool:
+	return _run_ended and _end_reason == "death" and _death_sequence != null and _death_sequence.has_method("is_active") and _death_sequence.is_active()
 
 
 func get_yaw_velocity() -> float:

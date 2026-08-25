@@ -3,8 +3,8 @@ extends SwarmPill
 
 ## Larger green pill: ramps to 2x speed within 15 m and hits harder.
 
+const CRAWLER_VISUAL_SCALE_MULT := 3.0
 const CHARGER_CONTACT_DAMAGE := 12
-const CHARGER_CONTACT_RADIUS_M := 1.6
 const CHARGER_MAX_HEALTH := 25
 const AGGRO_RANGE_M := 15.0
 const AGGRO_SPEED_MULT := 2.0
@@ -21,8 +21,11 @@ func _ready() -> void:
 	super._ready()
 	add_to_group("charger_pill")
 	contact_damage = CHARGER_CONTACT_DAMAGE
-	contact_radius_m = CHARGER_CONTACT_RADIUS_M
 	_hp = get_max_health()
+
+
+func _get_crawler_visual_scale_mult() -> float:
+	return CRAWLER_VISUAL_SCALE_MULT
 
 
 func _update_chase(delta: float) -> void:

@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" path="res://scenes/player/player_health_bar.tscn" id="13_hp_bar"]
 [ext_resource type="PackedScene" uid="uid://cc4m2a3lbllwj" path="res://scenes/player/the_glider_skin.tscn" id="13_skin"]
 [ext_resource type="Script" uid="uid://dcybugjnwyvfp" path="res://scripts/player/glider_camera.gd" id="14_camera"]
+[ext_resource type="Script" uid="uid://c0biw70j6y763" path="res://scripts/player/player_death_sequence.gd" id="15_death"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_glider"]
 size = Vector3(0.8, 0.15, 2)
@@ -75,3 +76,6 @@ color = Color(0.82, 0.66, 0.42, 0.75)
 
 [node name="PlayerHealthBar" parent="." unique_id=112739311 instance=ExtResource("13_hp_bar")]
 player_health_path = NodePath("../../PlayerHealth")
+
+[node name="PlayerDeathSequence" type="Node" parent="." unique_id=1256556050]
+script = ExtResource("15_death")
