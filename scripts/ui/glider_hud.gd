@@ -245,10 +245,16 @@ func _process(delta: float) -> void:
 	if show_death_overlay:
 		_stopped_overlay.visible = true
 		_update_death_overlay()
-	elif _player.is_run_ended():
+	elif _player.is_run_ended() and _player.get_end_reason() != "death":
 		_hide_fail_fade()
 		_stopped_overlay.visible = true
 		_update_stopped_overlay()
+	elif _player.is_run_ended() and _player.get_end_reason() == "death":
+		if _director != null and _director.death_fade_active:
+			_start_fail_fade()
+		else:
+			_hide_fail_fade()
+		_stopped_overlay.visible = false
 	else:
 		_hide_fail_fade()
 		_stopped_overlay.visible = false

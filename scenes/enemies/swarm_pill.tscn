@@ -1,29 +1,18 @@
-[gd_scene load_steps=4 format=3 uid="uid://cswarm_pill01"]
+[gd_scene format=3 uid="uid://bl8piqivuffqx"]
 
-[ext_resource type="Script" path="res://scripts/enemies/swarm_pill.gd" id="1_pill"]
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_red"]
-shading_mode = 0
-albedo_color = Color(0.92, 0.12, 0.14, 1)
+[ext_resource type="Script" uid="uid://bftq7m2gapulr" path="res://scripts/enemies/swarm_pill.gd" id="1_pill"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/crawler_skin.tscn" id="2_skin"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
-radius = 0.4
-height = 1.4
+radius = 0.3
+height = 0.6
 
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
-radius = 0.4
-height = 1.4
-
-[node name="SwarmPill" type="CharacterBody3D"]
+[node name="SwarmPill" type="CharacterBody3D" unique_id=1124160718]
 collision_layer = 8
-collision_mask = 1
 script = ExtResource("1_pill")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 0)
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=158467615]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.32, 0)
 shape = SubResource("CapsuleShape3D_body")
 
-[node name="Visual" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 0)
-mesh = SubResource("CapsuleMesh_body")
-surface_material_override/0 = SubResource("StandardMaterial3D_red")
+[node name="Visual" parent="." unique_id=541726104 instance=ExtResource("2_skin")]

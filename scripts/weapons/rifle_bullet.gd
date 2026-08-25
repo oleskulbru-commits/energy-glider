@@ -3,8 +3,6 @@ extends Area3D
 
 ## Visible tracer; no gun mesh. Homes lightly on the locked pill.
 
-const KillSparksScript := preload("res://scripts/weapons/kill_sparks.gd")
-
 const SPEED_MPS := 60.0
 const LIFETIME_SEC := 2.4
 const HOMING := 0.35

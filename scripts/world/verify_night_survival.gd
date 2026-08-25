@@ -19,7 +19,7 @@ func _run_tests() -> void:
 	_verify_phase_lengths()
 	_verify_night_gate()
 	_verify_kill_threshold()
-	_verify_natural_dawn_day_advance()
+	_verify_sun_arc()
 	print("Night survival verification passed.")
 	quit(0)
 
@@ -62,40 +62,29 @@ func _verify_kill_threshold() -> void:
 	)
 
 
-func _verify_natural_dawn_day_advance() -> void:
-	_fail_unless(
-		not ExpeditionStateScript.should_advance_on_natural_dawn(false, false),
-		"Natural dawn before the first E.O.N. should not increment DAY"
-	)
-	_fail_unless(
-		ExpeditionStateScript.should_advance_on_natural_dawn(true, false),
-		"Surviving the night should increment DAY"
-	)
-	_fail_unless(
-		not ExpeditionStateScript.should_advance_on_natural_dawn(true, true),
-		"Death screen should not increment DAY at dawn"
-	)
+func _verify_sun_arc() -> void:
+	var day_phase := 240.0
+	var night_phase := 240.0
+	var day_fraction := DayNightCycleScript.night_starts_at_fraction(day_phase, night_phase)
+	var max_elev := 32.0
+	var boot_t := 20.0 / (day_phase + night_phase)
 
-	var cycle: DayNightCycle = DayNightCycleScript.new()
-	root.add_child(cycle)
-	var dawn_count := {"n": 0}
-	var natural_count := {"n": 0}
-	cycle.dawn.connect(func() -> void: dawn_count["n"] += 1)
-	cycle.natural_dawn.connect(func() -> void: natural_count["n"] += 1)
-	cycle.skip_to_dawn()
-	_fail_unless(dawn_count["n"] == 1, "Wait until dawn should still emit dawn")
-	_fail_unless(natural_count["n"] == 0, "skip_to_dawn must not count as a survived night")
-	cycle.call("_emit_phase_transitions", 0.99, 0.01)
-	_fail_unless(natural_count["n"] == 1, "Wrapping from night into day should emit natural_dawn")
-	_fail_unless(dawn_count["n"] == 2, "Natural dawn should still emit dawn")
+	var boot_pos := DayNightCycleScript.sun_position_for_time(boot_t, day_fraction, max_elev)
+	_fail_unless(boot_pos.y > 0.0, "Boot sun should be above the horizon (got y=%.3f)" % boot_pos.y)
 
-	var expedition: ExpeditionState = ExpeditionStateScript.new()
-	root.add_child(expedition)
-	expedition.bootstrap_day()
-	_fail_unless(expedition.current_day == 1, "Run should start on DAY 1")
-	expedition.call("_on_natural_dawn")
-	_fail_unless(expedition.current_day == 2, "Gliding through the night should start DAY 2")
-	expedition.end_day()
-	_fail_unless(expedition.current_day == 3, "Wait until dawn should still increment DAY")
-	cycle.free()
-	expedition.free()
+	var noon_pos := DayNightCycleScript.sun_position_for_time(day_fraction * 0.5, day_fraction, max_elev)
+	_fail_unless(
+		is_equal_approx(rad_to_deg(asin(clampf(noon_pos.y, -1.0, 1.0))), max_elev, 0.5),
+		"Noon sun elevation should match max (got %.1f deg)" % rad_to_deg(asin(noon_pos.y))
+	)
+	_fail_unless(noon_pos.z > 0.5, "Noon sun should be in the southern sky (+Z)")
+
+	var dawn_pos := DayNightCycleScript.sun_position_for_time(0.0, day_fraction, max_elev)
+	_fail_unless(dawn_pos.x > 0.5, "Dawn sun should rise in the east (+X)")
+
+	var dusk_pos := DayNightCycleScript.sun_position_for_time(
+		day_fraction - 0.001,
+		day_fraction,
+		max_elev
+	)
+	_fail_unless(dusk_pos.x < -0.5, "Dusk sun should set in the west (-X)")

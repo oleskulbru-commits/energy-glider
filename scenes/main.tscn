@@ -23,7 +23,9 @@ pixel_scale = 1
 [node name="SubViewport" type="SubViewport" parent="." unique_id=167199366]
 process_mode = 3
 handle_input_locally = false
-gui_disable_input = false
+msaa_2d = 1
+msaa_3d = 1
+screen_space_aa = 1
 use_taa = true
 use_occlusion_culling = true
 anisotropic_filtering_level = 1

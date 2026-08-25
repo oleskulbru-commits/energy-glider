@@ -14,8 +14,12 @@ signal time_changed(normalized: float)
 @export var animate_fog := true
 ## Seconds into the full day+night cycle when the scene loads (skips the darkest dawn).
 @export var start_offset_sec := 20.0
+## Peak sun elevation at solar noon (low southern arc, ~Norway latitude).
+@export var sun_max_elevation_deg := 32.0
 
 const TRANSITION_BLEND := 0.04
+const SUN_NIGHT_ELEVATION_DEG := -25.0
+const SUN_NIGHT_AZIMUTH := -PI * 0.5
 const SKY_DAY_TOP := Color(0.35, 0.55, 0.85)
 const SKY_DAY_HORIZON := Color(0.85, 0.72, 0.55)
 const SKY_NIGHT_TOP := Color(0.04, 0.06, 0.14)
@@ -141,8 +145,7 @@ func _emit_phase_transitions(prev: float, next: float) -> void:
 func _apply_time_visuals() -> void:
 	var day_blend := _daylight_blend()
 	if _sun != null:
-		var sun_angle := lerpf(-PI * 0.15, PI * 1.15, time_normalized)
-		_sun.rotation = Vector3(sun_angle, deg_to_rad(35.0), 0.0)
+		_sun.basis = _sun_basis_for_time(time_normalized)
 		_sun.light_energy = lerpf(0.25, 1.35, day_blend)
 		_sun.light_color = Color(1.0, 0.88, 0.72).lerp(Color(0.55, 0.65, 0.95), 1.0 - day_blend)
 
@@ -165,3 +168,38 @@ func _daylight_blend() -> float:
 	if time_normalized < day_end:
 		return lerpf(1.0, 0.0, (time_normalized - (day_end - blend)) / maxf(blend, 0.001))
 	return 0.0
+
+
+func _sun_basis_for_time(t: float) -> Basis:
+	return sun_basis_for_time(t, get_day_fraction(), sun_max_elevation_deg)
+
+
+## Direction from ground toward the sun in the sky (unit vector).
+static func sun_position_for_time(
+	time_normalized: float,
+	day_fraction: float,
+	max_elevation_deg: float
+) -> Vector3:
+	if time_normalized >= day_fraction:
+		return _sun_pos_from_angles(SUN_NIGHT_AZIMUTH, deg_to_rad(SUN_NIGHT_ELEVATION_DEG))
+	var day_t := time_normalized / maxf(day_fraction, 0.001)
+	var azimuth := lerpf(PI * 0.5, -PI * 0.5, day_t)
+	var elevation := sin(day_t * PI) * deg_to_rad(max_elevation_deg)
+	return _sun_pos_from_angles(azimuth, elevation)
+
+
+static func sun_basis_for_time(
+	time_normalized: float,
+	day_fraction: float,
+	max_elevation_deg: float
+) -> Basis:
+	var sun_pos := sun_position_for_time(time_normalized, day_fraction, max_elevation_deg)
+	return Basis.looking_at(-sun_pos, Vector3.UP)
+
+
+static func _sun_pos_from_angles(azimuth: float, elevation: float) -> Vector3:
+	return Vector3(
+		cos(elevation) * sin(azimuth),
+		sin(elevation),
+		cos(elevation) * cos(azimuth)
+	).normalized()

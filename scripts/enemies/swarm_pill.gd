@@ -1,18 +1,31 @@
 class_name SwarmPill
 extends CharacterBody3D
 
-## Simple westbound stream enemy: red capsule that crawls toward the player.
+signal died
 
-const HOVER_OFFSET_M := 1.1
+## Stream enemy: animated crawler that chases the player and deals contact damage.
+
+const CrawlerDeathBurstScript := preload("res://scripts/enemies/crawler_death_burst.gd")
+
+## Fine-tune below 1.0 if the Blender-sized import still reads large in-game.
+const CRAWLER_SIZE_MULT := 0.85
+const CRAWLER_LIVING_SCALE := CRAWLER_SIZE_MULT * 0.5
+const CRAWLER_FRACTURED_BURST_MULT := 1.0
+const GROUND_CLEARANCE_M := 0.02
+const TERRAIN_NORMAL_EPSILON := 2.0
+const TERRAIN_ALIGN_BLEND := 0.25
 const BEHIND_MARGIN_M := 50.0
 const KNOCKBACK_SPEED := 10.0
 const KNOCKBACK_UP_SPEED := 1.5
 const DAMAGE_INTERVAL_SEC := 0.5
 const CONTACT_DAMAGE := 5
 const CONTACT_RADIUS_M := 1.35
+const COLLISION_RADIUS := 0.3
+const COLLISION_HEIGHT := 0.6
+const COLLISION_CENTER_Y := 0.32
 ## Ignore hits when the player is clearly jumping/flying over the pill.
 const CONTACT_MAX_ABOVE_M := 1.2
-const DEFAULT_SPEED := 3.5
+const DEFAULT_SPEED := 10.0
 const MAX_HEALTH := 20
 const HIT_KNOCKBACK_SPEED := 12.0
 const HIT_KNOCKBACK_DECAY_SEC := 0.3
@@ -32,14 +45,22 @@ var _last_seek_dir := Vector3.ZERO
 var chase_speed_mult := 1.0
 var _hp := MAX_HEALTH
 var _hit_velocity := Vector3.ZERO
+var _anim: CrawlerAnimController
+var _collision_bottom_y := 0.0
 var _rng := RandomNumberGenerator.new()
 var _stun_left := 0.0
 
 
 func _ready() -> void:
 	add_to_group("swarm_pill")
-	motion_mode = MOTION_MODE_FLOATING
+	motion_mode = MOTION_MODE_GROUNDED
 	_hp = get_max_health()
+	_apply_visual_scale()
+	_apply_hitbox_scale()
+	_collision_bottom_y = _compute_collision_bottom_y()
+	_anim = _find_anim_controller()
+	if _anim != null and not _anim.spawn_finished.is_connected(_on_spawn_finished):
+		_anim.spawn_finished.connect(_on_spawn_finished)
 	_rng.randomize()
 
 
@@ -83,7 +104,7 @@ func take_damage(
 	_hp = maxi(_hp - amount, 0)
 	_spawn_damage_float(dealt, is_crit)
 	if _hp <= 0:
-		queue_free()
+		_die(from_pos)
 		return true
 	if hit_dir.length_squared() > 0.0001:
 		_hit_velocity = hit_knockback_velocity_for(hit_dir, knockback_speed)
@@ -118,6 +139,18 @@ func _physics_process(delta: float) -> void:
 
 	_update_chase(delta)
 
+	if _is_spawn_active():
+		velocity = Vector3.ZERO
+		velocity += _hit_velocity
+		_hit_velocity = _hit_velocity.move_toward(
+			Vector3.ZERO,
+			HIT_KNOCKBACK_SPEED / maxf(HIT_KNOCKBACK_DECAY_SEC, 0.001) * delta
+		)
+		move_and_slide()
+		_snap_to_terrain()
+		_align_to_terrain(_flat_seek_to_target())
+		return
+
 	_stun_left = maxf(_stun_left - delta, 0.0)
 	if _stun_left > 0.0:
 		velocity = Vector3.ZERO
@@ -144,8 +177,147 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 	_snap_to_terrain()
-	_orient_to_velocity()
+	_align_to_terrain(_flat_velocity_dir())
+	_sync_anim_speed()
 	_update_contact(delta)
+
+
+func _is_spawn_active() -> bool:
+	return _anim != null and _anim.is_spawn_active()
+
+
+func _get_crawler_visual_scale_mult() -> float:
+	return 1.0
+
+
+func _apply_visual_scale() -> void:
+	var model := _get_crawler_model()
+	if model != null:
+		var base := CrawlerScaleUtil.animated_model_scale(CRAWLER_LIVING_SCALE)
+		model.scale = Vector3.ONE * base * _get_crawler_visual_scale_mult()
+
+
+func _apply_hitbox_scale() -> void:
+	var mult := _get_crawler_visual_scale_mult()
+	contact_radius_m = CONTACT_RADIUS_M * mult
+	var col := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col == null or not col.shape is CapsuleShape3D:
+		return
+	var capsule := (col.shape as CapsuleShape3D).duplicate() as CapsuleShape3D
+	capsule.radius = COLLISION_RADIUS * mult
+	capsule.height = COLLISION_HEIGHT * mult
+	col.shape = capsule
+	col.position.y = COLLISION_CENTER_Y * mult
+
+
+func _get_crawler_model() -> Node3D:
+	var visual := get_node_or_null("Visual") as Node3D
+	if visual == null:
+		return null
+	return visual.get_node_or_null("Model") as Node3D
+
+
+func _get_death_burst_transform() -> Transform3D:
+	var model := _get_crawler_model()
+	if model != null:
+		return CrawlerScaleUtil.death_burst_transform(model)
+	return global_transform
+
+
+func _find_anim_controller() -> CrawlerAnimController:
+	var skin := get_node_or_null("Visual")
+	if skin == null:
+		return null
+	return skin.find_child("CrawlerAnimController", true, false) as CrawlerAnimController
+
+
+func _on_spawn_finished() -> void:
+	_sync_anim_speed()
+
+
+func _sync_anim_speed() -> void:
+	if _anim == null or _is_spawn_active():
+		return
+	_anim.set_move_speed(_get_move_speed())
+
+
+func _orient_toward_target() -> void:
+	_align_to_terrain(_flat_seek_to_target())
+
+
+func _orient_to_velocity() -> void:
+	_align_to_terrain(_flat_velocity_dir())
+
+
+func _flat_seek_to_target() -> Vector3:
+	if _target == null or not is_instance_valid(_target):
+		return Vector3.ZERO
+	var to_target := _target.global_position - global_position
+	to_target.y = 0.0
+	return to_target
+
+
+func _flat_velocity_dir() -> Vector3:
+	return Vector3(velocity.x, 0.0, velocity.z)
+
+
+func _compute_collision_bottom_y() -> float:
+	var col := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col == null or col.shape == null:
+		return 0.0
+	if col.shape is CapsuleShape3D:
+		var capsule := col.shape as CapsuleShape3D
+		return col.position.y - capsule.height * 0.5
+	if col.shape is BoxShape3D:
+		var box := col.shape as BoxShape3D
+		return col.position.y - box.size.y * 0.5
+	return col.position.y
+
+
+func _snap_to_terrain() -> void:
+	if _terrain == null:
+		return
+	var ground_y := _terrain.sample_height(global_position.x, global_position.z)
+	global_position.y = ground_y - _collision_bottom_y + GROUND_CLEARANCE_M
+
+
+func _align_to_terrain(flat_forward: Vector3) -> void:
+	if _terrain == null:
+		return
+	var normal := _terrain.sample_normal(
+		global_position.x,
+		global_position.z,
+		TERRAIN_NORMAL_EPSILON
+	)
+	var forward := flat_forward
+	if forward.length_squared() < 0.0001:
+		forward = -global_transform.basis.z
+	forward.y = 0.0
+	if forward.length_squared() > 0.0001:
+		forward = forward.normalized()
+	forward = forward.slide(normal)
+	if forward.length_squared() < 0.0001:
+		return
+	var target_basis := Basis.looking_at(forward, normal).orthonormalized()
+	global_transform.basis = global_transform.basis.slerp(target_basis, TERRAIN_ALIGN_BLEND)
+
+
+func _die(from_pos: Vector3) -> void:
+	set_physics_process(false)
+	var collision := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if collision != null:
+		collision.disabled = true
+	var burst_xf := _get_death_burst_transform()
+	var burst_scale := (
+		CrawlerScaleUtil.death_burst_scale(CRAWLER_LIVING_SCALE, CRAWLER_FRACTURED_BURST_MULT)
+		* _get_crawler_visual_scale_mult()
+	)
+	var visual := get_node_or_null("Visual")
+	if visual != null:
+		visual.visible = false
+	CrawlerDeathBurstScript.spawn(get_tree(), burst_xf, from_pos, burst_scale)
+	died.emit()
+	queue_free()
 
 
 ## Subclasses adjust chase behavior (e.g. aggro speed ramp).
@@ -155,20 +327,6 @@ func _update_chase(_delta: float) -> void:
 
 func _get_move_speed() -> float:
 	return move_speed * chase_speed_mult
-
-
-func _snap_to_terrain() -> void:
-	if _terrain == null:
-		return
-	var ground_y := _terrain.sample_height(global_position.x, global_position.z)
-	global_position.y = ground_y + HOVER_OFFSET_M
-
-
-func _orient_to_velocity() -> void:
-	var flat := Vector3(velocity.x, 0.0, velocity.z)
-	if flat.length_squared() < 0.04:
-		return
-	rotation.y = lerp_angle(rotation.y, atan2(flat.x, flat.z), 0.2)
 
 
 ## XZ proximity with a height gate so airborne flyovers don't clip/damage.
@@ -284,9 +442,8 @@ static func active_cap_for_level(level: int, min_cap: int = 8, max_cap: int = 60
 	return int(roundf(lerpf(float(min_cap), float(max_cap), t)))
 
 
-static func move_speed_for_level(level: int) -> float:
-	var t := clampf(float(level - 1) / 39.0, 0.0, 1.0)
-	return lerpf(3.0, 5.0, t)
+static func move_speed_for_level(_level: int) -> float:
+	return DEFAULT_SPEED
 
 
 static func ahead_range_for_level(level: int) -> Vector2:

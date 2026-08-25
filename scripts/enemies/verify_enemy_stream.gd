@@ -1,7 +1,9 @@
 extends SceneTree
 
 const SwarmPillScript = preload("res://scripts/enemies/swarm_pill.gd")
+const SwarmPillScene = preload("res://scenes/enemies/swarm_pill.tscn")
 const ChargerPillScript = preload("res://scripts/enemies/charger_pill.gd")
+const ChargerPillScene = preload("res://scenes/enemies/charger_pill.tscn")
 const EnemyStreamSpawnerScript = preload("res://scripts/enemies/enemy_stream_spawner.gd")
 const AutoRifleScript = preload("res://scripts/weapons/auto_rifle.gd")
 const DamageFloatScript = preload("res://scripts/ui/damage_float.gd")
@@ -20,6 +22,7 @@ func _run() -> void:
 	_verify_pill_health()
 	_verify_damage_floats()
 	_verify_hit_knockback()
+	_verify_crawler_death()
 	_verify_rifle_targeting()
 	_verify_rifle_burst()
 	_verify_spawn_after_try_again()
@@ -129,6 +132,26 @@ func _verify_charger() -> void:
 		is_equal_approx(cooled, 1.0),
 		"Leaving aggro should ramp back to 1x (got %s)" % cooled
 	)
+
+	var green: ChargerPill = ChargerPillScene.instantiate() as ChargerPill
+	root.add_child(green)
+	var green_scale := ChargerPillScript.CRAWLER_VISUAL_SCALE_MULT
+	_fail_unless(
+		is_equal_approx(green.contact_radius_m, SwarmPillScript.CONTACT_RADIUS_M * green_scale),
+		"Green contact radius should be red x %.1f (got %s)" % [green_scale, green.contact_radius_m]
+	)
+	var col := green.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	_fail_unless(col != null and col.shape is CapsuleShape3D, "Green should have a capsule collision")
+	var capsule := col.shape as CapsuleShape3D
+	_fail_unless(
+		is_equal_approx(capsule.radius, SwarmPillScript.COLLISION_RADIUS * green_scale),
+		"Green capsule radius should be red x %.1f (got %s)" % [green_scale, capsule.radius]
+	)
+	_fail_unless(
+		is_equal_approx(capsule.height, SwarmPillScript.COLLISION_HEIGHT * green_scale),
+		"Green capsule height should be red x %.1f (got %s)" % [green_scale, capsule.height]
+	)
+	green.free()
 
 
 func _verify_pill_health() -> void:
@@ -244,6 +267,14 @@ func _verify_hit_knockback() -> void:
 	_fail_unless(hit_vel.x < 0.0, "Non-lethal hit should shove along the bullet")
 	_fail_unless(hit_vel.z > 0.0, "Non-lethal hit should keep the bullet's sideways component")
 	wounded.free()
+
+
+func _verify_crawler_death() -> void:
+	var red: SwarmPill = SwarmPillScene.instantiate() as SwarmPill
+	root.add_child(red)
+	_fail_unless(red.take_damage(20, Vector3(-3.0, 1.0, 0.0)), "Lethal hit should report death")
+	_fail_unless(red.is_queued_for_deletion(), "Lethal hit should queue_free the enemy")
+	red.free()
 
 
 func _verify_rifle_targeting() -> void:

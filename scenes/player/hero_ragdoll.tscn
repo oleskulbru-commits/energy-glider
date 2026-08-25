@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://bhero_ragdoll001"]
+
+[ext_resource type="Script" path="res://scripts/player/hero_ragdoll.gd" id="1_ragdoll"]
+
+[node name="HeroRagdoll" type="Node3D"]
+script = ExtResource("1_ragdoll")

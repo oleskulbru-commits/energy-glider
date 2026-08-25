@@ -1,0 +1,37 @@
+[gd_scene format=3 uid="uid://crawler_test_arena"]
+
+[ext_resource type="Script" uid="uid://ceqhf3n5dule0" path="res://scripts/terrain/terrain_manager.gd" id="1_terrain"]
+[ext_resource type="Material" uid="uid://suwp2571pfe0" path="res://assets/materials/sand.tres" id="2_sand"]
+[ext_resource type="PackedScene" uid="uid://cplayerrig001" path="res://scenes/player/player_rig.tscn" id="3_player_rig"]
+[ext_resource type="Environment" uid="uid://c16k12ob5acay" path="res://assets/environment/game_world_env.tres" id="4_env"]
+[ext_resource type="Script" path="res://scripts/enemies/crawler_test_spawner.gd" id="5_spawner"]
+
+[node name="CrawlerTestArena" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = ExtResource("4_env")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.05233616, -0.27525946, 0.95994455, 0, 0.96126115, 0.27563742, -0.99862975, -0.01442579, 0.050308745, 0, 80, 0)
+light_color = Color(0.86, 0.8, 0.78, 1)
+light_energy = 1.01
+shadow_enabled = true
+shadow_opacity = 0.85
+
+[node name="TerrainManager" type="Node3D" parent="."]
+script = ExtResource("1_terrain")
+sand_material = ExtResource("2_sand")
+track_node_path = NodePath("../PlayerRig/Glider")
+
+[node name="CrawlerTestSpawner" type="Node3D" parent="."]
+script = ExtResource("5_spawner")
+player_rig_path = NodePath("../PlayerRig")
+terrain_manager_path = NodePath("../TerrainManager")
+
+[node name="PlayerRig" parent="." instance=ExtResource("3_player_rig")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 20, 0)
+terrain_manager_path = NodePath("../TerrainManager")
+
+[node name="Glider" parent="PlayerRig" index="0"]
+collision_mask = 0
+terrain_manager_path = NodePath("../../TerrainManager")
