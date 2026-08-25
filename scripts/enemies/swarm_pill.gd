@@ -292,7 +292,7 @@ static func move_speed_for_level(level: int) -> float:
 static func ahead_range_for_level(level: int) -> Vector2:
 	var t := clampf(float(level - 1) / 39.0, 0.0, 1.0)
 	var min_ahead := lerpf(40.0, 30.0, t)
-	var max_ahead := lerpf(90.0, 70.0, t)
+	var max_ahead := 110.0
 	return Vector2(min_ahead, max_ahead)
 
 

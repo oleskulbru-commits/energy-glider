@@ -3,9 +3,10 @@ extends Area3D
 
 ## Lofted homing capsule. Boosts up, then dives at the locked pill.
 
-const SPEED_MPS := 20.0
+const SPEED_MPS := 35.0
 const LIFETIME_SEC := 8.0
-const BOOST_SEC := 0.3
+const LOFT_M := 6.0
+const BOOST_SEC := LOFT_M / SPEED_MPS
 const HOMING := 0.85
 const DAMAGE := 20
 const KNOCKBACK_SPEED := 20.0

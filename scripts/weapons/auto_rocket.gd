@@ -6,7 +6,7 @@ extends Node
 const RocketMissileScene := preload("res://scenes/weapons/rocket_missile.tscn")
 
 const DAMAGE := 20
-const RANGE_M := 50.0
+const RANGE_M := 75.0
 const FIRE_INTERVAL_SEC := 4.0
 const BURST_GAP_SEC := 0.12
 const KNOCKBACK_SPEED := 20.0

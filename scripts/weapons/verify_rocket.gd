@@ -24,12 +24,15 @@ func _run() -> void:
 
 func _verify_stats() -> void:
 	_fail_unless(AutoRocketScript.DAMAGE == 20, "Rocket damage should be 20")
-	_fail_unless(is_equal_approx(AutoRocketScript.RANGE_M, 50.0), "Rocket acquire range should be 50 m")
+	_fail_unless(is_equal_approx(AutoRocketScript.RANGE_M, 75.0), "Rocket acquire range should be 75 m")
 	_fail_unless(is_equal_approx(AutoRocketScript.FIRE_INTERVAL_SEC, 4.0), "Rocket interval should be 4 s")
 	_fail_unless(is_equal_approx(AutoRocketScript.BURST_GAP_SEC, 0.12), "Rocket burst gap should be 0.12 s")
 	_fail_unless(is_equal_approx(AutoRocketScript.KNOCKBACK_SPEED, 20.0), "Rocket base knockback should be 20")
-	_fail_unless(is_equal_approx(RocketMissileScript.SPEED_MPS, 20.0), "Rocket cruise should be 20 m/s")
-	_fail_unless(is_equal_approx(RocketMissileScript.BOOST_SEC, 0.3), "Rocket should loft for 0.3 s")
+	_fail_unless(is_equal_approx(RocketMissileScript.SPEED_MPS, 35.0), "Rocket cruise should be 35 m/s")
+	_fail_unless(
+		is_equal_approx(RocketMissileScript.SPEED_MPS * RocketMissileScript.BOOST_SEC, 6.0),
+		"Rocket loft should stay 6 m"
+	)
 	_fail_unless(AutoRocketScript.damage_for(0.0) == 20, "Base rocket should deal 20")
 	_fail_unless(
 		AutoRocketScript.damage_for(0.04) == 21,
@@ -52,23 +55,23 @@ func _verify_stats() -> void:
 		"Over-cap CDR should still wait 0.80 s"
 	)
 	_fail_unless(
-		is_equal_approx(AutoRifleScript.range_for(AutoRocketScript.RANGE_M, 0.0), 50.0),
-		"Rocket with no Range bonus should stay 50 m"
+		is_equal_approx(AutoRifleScript.range_for(AutoRocketScript.RANGE_M, 0.0), 75.0),
+		"Rocket with no Range bonus should stay 75 m"
 	)
 	_fail_unless(
-		is_equal_approx(AutoRifleScript.range_for(50.0, 10.0), 200.0),
+		is_equal_approx(AutoRifleScript.range_for(AutoRocketScript.RANGE_M, 10.0), 200.0),
 		"Rocket Range bonus should clamp to 200 m"
 	)
 	_fail_unless(
-		is_equal_approx(AutoRocketScript.speed_for(0.0), 20.0),
-		"Rocket with no Projectile Speed should stay 20 m/s"
+		is_equal_approx(AutoRocketScript.speed_for(0.0), 35.0),
+		"Rocket with no Projectile Speed should stay 35 m/s"
 	)
 	_fail_unless(
-		is_equal_approx(AutoRocketScript.speed_for(0.15), 20.0 * 1.15),
-		"15% Projectile Speed should cruise at 20 × 1.15"
+		is_equal_approx(AutoRocketScript.speed_for(0.15), 35.0 * 1.15),
+		"15% Projectile Speed should cruise at 35 × 1.15"
 	)
 	_fail_unless(
-		is_equal_approx(AutoRocketScript.speed_for(0.95), 20.0 * 1.80),
+		is_equal_approx(AutoRocketScript.speed_for(0.95), 35.0 * 1.80),
 		"Over-cap Projectile Speed should still cap at 80%"
 	)
 	_fail_unless(
@@ -92,12 +95,12 @@ func _verify_stats() -> void:
 func _verify_aim() -> void:
 	var origin := Vector3.ZERO
 	var facing := Vector3(-1.0, 0.0, 0.0)
-	var range_m := 50.0
-	var ahead_far := _marker_at(Vector3(-45.0, 0.0, 0.0))
+	var range_m := AutoRocketScript.RANGE_M
+	var ahead_far := _marker_at(Vector3(-60.0, 0.0, 0.0))
 	var ahead_close := _marker_at(Vector3(-10.0, 0.0, 0.0))
 	var fringe := _marker_at(Vector3(-8.0, 0.0, 40.0))
 	var behind := _marker_at(Vector3(12.0, 0.0, 0.0))
-	var too_far := _marker_at(Vector3(-80.0, 0.0, 0.0))
+	var too_far := _marker_at(Vector3(-90.0, 0.0, 0.0))
 	var best := AutoRocketScript.rank_targets(
 		[ahead_close, fringe, ahead_far, behind, too_far], origin, facing, range_m, 1
 	)

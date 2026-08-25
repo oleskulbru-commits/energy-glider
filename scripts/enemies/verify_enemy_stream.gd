@@ -49,6 +49,12 @@ func _verify_spawn_offset() -> void:
 		_fail_unless(world_x < player_x, "Spawn world X must be west of player")
 		_fail_unless(absf(offset.y) <= 55.0 + 0.001, "Z offset outside spread: %s" % offset.y)
 		_fail_unless(offset.x >= -90.0 - 0.001 and offset.x <= -30.0 + 0.001, "Ahead distance out of range: %s" % offset.x)
+	var early := SwarmPillScript.ahead_range_for_level(1)
+	_fail_unless(is_equal_approx(early.x, 40.0), "Level 1 spawn min should stay 40 m")
+	_fail_unless(is_equal_approx(early.y, 110.0), "Level 1 spawn max should be 110 m")
+	var late := SwarmPillScript.ahead_range_for_level(40)
+	_fail_unless(is_equal_approx(late.x, 30.0), "Level 40 spawn min should stay 30 m")
+	_fail_unless(is_equal_approx(late.y, 110.0), "Spawn max should stay 110 m at every level")
 
 
 func _verify_knockback() -> void:

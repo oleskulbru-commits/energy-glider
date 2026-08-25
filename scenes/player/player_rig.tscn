@@ -9,6 +9,7 @@
 [ext_resource type="Script" path="res://scripts/weapons/auto_laser.gd" id="13_laser"]
 [ext_resource type="Script" path="res://scripts/weapons/auto_tesla.gd" id="14_tesla"]
 [ext_resource type="Script" path="res://scripts/weapons/auto_rocket.gd" id="15_rocket"]
+[ext_resource type="Script" path="res://scripts/weapons/auto_shotgun.gd" id="16_shotgun"]
 
 [node name="PlayerRig" type="Node3D" unique_id=1639311098]
 script = ExtResource("3_rig")
@@ -36,3 +37,6 @@ script = ExtResource("14_tesla")
 
 [node name="AutoRocket" type="Node" parent="."]
 script = ExtResource("15_rocket")
+
+[node name="AutoShotgun" type="Node" parent="."]
+script = ExtResource("16_shotgun")
