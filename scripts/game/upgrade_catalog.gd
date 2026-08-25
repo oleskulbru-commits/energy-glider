@@ -161,6 +161,7 @@ const ID_UNLOCK_LASER := &"unlock_laser"
 const ID_UNLOCK_TESLA := &"unlock_tesla"
 const ID_UNLOCK_ROCKET := &"unlock_rocket"
 const ID_UNLOCK_SHOTGUN := &"unlock_shotgun"
+## +12% unlock chance per tower left without taking a new weapon. Caps at 100% until one is chosen.
 const UNLOCK_PITY := 0.12
 
 
@@ -943,10 +944,10 @@ static func eligible_shop_families(
 	return families
 
 
-static func unlock_chance(tower_index: int, family_count: int) -> float:
+static func unlock_chance(pity_steps: int, family_count: int) -> float:
 	if family_count <= 0:
 		return 0.0
-	return minf(1.0, 1.0 / float(family_count) + UNLOCK_PITY * float(maxi(tower_index - 1, 0)))
+	return minf(1.0, 1.0 / float(family_count) + UNLOCK_PITY * float(maxi(pity_steps, 0)))
 
 
 static func roll_shop(
@@ -957,7 +958,8 @@ static func roll_shop(
 	has_laser: bool = false,
 	has_tesla: bool = false,
 	has_rocket: bool = false,
-	has_shotgun: bool = false
+	has_shotgun: bool = false,
+	unlock_pity_steps: int = 0
 ) -> PackedStringArray:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = world_seed * SHOP_SEED_WORLD + tower_index * SHOP_SEED_TOWER
@@ -969,7 +971,7 @@ static func roll_shop(
 		used[String(weapon_base_id(StringName(id)))] = true
 		slots.append(id)
 	var unlock := missing_unlock_id(has_rifle, has_laser, has_tesla, has_rocket, has_shotgun, rng)
-	if unlock != &"" and rng.randf() < unlock_chance(tower_index, families.size()):
+	if unlock != &"" and rng.randf() < unlock_chance(unlock_pity_steps, families.size()):
 		var slot := rng.randi_range(0, SLOTS_PER_TOWER - 1)
 		slots[slot] = String(unlock)
 	return slots

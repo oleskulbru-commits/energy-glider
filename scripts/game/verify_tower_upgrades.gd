@@ -2843,22 +2843,26 @@ func _verify_weapon_cards() -> void:
 		"Laser-only shops should not roll Pushback or Projectile Speed"
 	)
 	_fail_unless(
-		is_equal_approx(UpgradeCatalogScript.unlock_chance(1, rifle_n), 1.0 / float(rifle_n)),
-		"Tower 1 unlock chance should be 1/N"
+		is_equal_approx(UpgradeCatalogScript.unlock_chance(0, rifle_n), 1.0 / float(rifle_n)),
+		"First tower unlock chance should be 1/N"
 	)
 	_fail_unless(
 		is_equal_approx(
-			UpgradeCatalogScript.unlock_chance(2, rifle_n),
+			UpgradeCatalogScript.unlock_chance(1, rifle_n),
 			1.0 / float(rifle_n) + 0.12
 		),
-		"Tower 2 unlock chance should be 1/N + 12%"
+		"One skipped tower should add 12% unlock chance"
 	)
 	_fail_unless(
 		is_equal_approx(
-			UpgradeCatalogScript.unlock_chance(7, rifle_n),
+			UpgradeCatalogScript.unlock_chance(6, rifle_n),
 			1.0 / float(rifle_n) + 0.72
 		),
-		"Tower 7 unlock chance should be 1/N + 72%"
+		"Six skipped towers should add 72% unlock chance"
+	)
+	_fail_unless(
+		is_equal_approx(UpgradeCatalogScript.unlock_chance(20, rifle_n), 1.0),
+		"Unlock chance should cap at 100%"
 	)
 	_fail_unless(laser_n > 0, "Laser-only shops should still have families")
 	_fail_unless(
@@ -2947,6 +2951,26 @@ func _verify_weapon_cards() -> void:
 				not UpgradeCatalogScript.is_weapon_unlock(StringName(id)),
 				"Owned all weapons should never roll an unlock"
 			)
+
+	var pity_state: RunUpgradeState = RunUpgradeStateScript.new()
+	root.add_child(pity_state)
+	_fail_unless(pity_state.unlock_pity_steps == 0, "Unlock pity should start at 0")
+	pity_state.note_tower_without_unlock()
+	pity_state.note_tower_without_unlock()
+	_fail_unless(pity_state.unlock_pity_steps == 2, "Skipping a weapon should raise unlock pity")
+	pity_state._on_player_died(Vector3.ZERO)
+	_fail_unless(pity_state.unlock_pity_steps == 2, "Death should keep unlock pity")
+	pity_state.grant_weapon(UpgradeCatalogScript.FAMILY_LASER)
+	_fail_unless(pity_state.unlock_pity_steps == 0, "Taking a weapon should reset unlock pity")
+	pity_state.note_tower_without_unlock()
+	pity_state.grant_weapon(UpgradeCatalogScript.FAMILY_LASER)
+	_fail_unless(
+		pity_state.unlock_pity_steps == 1,
+		"Granting an already-owned weapon should not reset unlock pity"
+	)
+	pity_state.reset_run()
+	_fail_unless(pity_state.unlock_pity_steps == 0, "Try Again should reset unlock pity")
+	pity_state.free()
 
 	var state: RunUpgradeState = RunUpgradeStateScript.new()
 	root.add_child(state)

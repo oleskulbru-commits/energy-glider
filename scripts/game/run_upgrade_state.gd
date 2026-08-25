@@ -27,6 +27,7 @@ var has_laser := false
 var has_tesla := false
 var has_rocket := false
 var has_shotgun := false
+var unlock_pity_steps := 0
 var _offers: Dictionary = {}
 var _visited_this_life: Dictionary = {}
 var _weapon_holes: Dictionary = {}
@@ -117,6 +118,7 @@ func reset_run() -> void:
 	has_tesla = false
 	has_rocket = false
 	has_shotgun = false
+	unlock_pity_steps = 0
 	_owned_order = PackedStringArray()
 	_rifle_level = 0
 	_laser_level = 0
@@ -178,6 +180,7 @@ func grant_weapon(family: StringName) -> void:
 		_shotgun_level = 1
 	else:
 		return
+	unlock_pity_steps = 0
 	weapons_changed.emit()
 
 
@@ -258,7 +261,7 @@ func ensure_tower(tower_index: int) -> void:
 	if seed < 0:
 		seed = 42
 	_offers[tower_index] = UpgradeCatalog.roll_shop(
-		seed, tower_index, luck_bonus, has_rifle, has_laser, has_tesla, has_rocket, has_shotgun
+		seed, tower_index, luck_bonus, has_rifle, has_laser, has_tesla, has_rocket, has_shotgun, unlock_pity_steps
 	)
 
 
@@ -274,6 +277,10 @@ func remaining_count(tower_index: int) -> int:
 		if not UpgradeCatalog.is_empty_offer(StringName(id)):
 			n += 1
 	return n
+
+
+func note_tower_without_unlock() -> void:
+	unlock_pity_steps += 1
 
 
 func pick_offer(tower_index: int, slot: int) -> StringName:

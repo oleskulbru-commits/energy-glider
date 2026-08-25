@@ -209,7 +209,9 @@ func _confirm_and_close(wait_until_dawn: bool) -> void:
 	if _state != null and _tower != null and _state.remaining_count(_tower.tower_index) > 0:
 		if _selected_slot < 0:
 			return
-		_state.pick_offer(_tower.tower_index, _selected_slot)
+		var picked := _state.pick_offer(_tower.tower_index, _selected_slot)
+		if not UpgradeCatalog.is_weapon_unlock(picked):
+			_state.note_tower_without_unlock()
 	if wait_until_dawn:
 		_wait_until_dawn()
 	_close()
