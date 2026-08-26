@@ -25,7 +25,7 @@ const COLLISION_HEIGHT := 0.6
 const COLLISION_CENTER_Y := 0.32
 ## Ignore hits when the player is clearly jumping/flying over the pill.
 const CONTACT_MAX_ABOVE_M := 1.2
-const DEFAULT_SPEED := 8.0
+const DEFAULT_SPEED := 6.0
 const MAX_HEALTH := 20
 const HIT_KNOCKBACK_SPEED := 12.0
 const HIT_KNOCKBACK_DECAY_SEC := 0.3

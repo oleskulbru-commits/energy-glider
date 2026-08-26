@@ -1,7 +1,7 @@
 class_name EnemyStreamSpawner
 extends Node3D
 
-## Spawns red/green stream enemies ahead of the glider after the run has started.
+## Spawns crawlers and chargers ahead of the glider after the run has started.
 ## New game waits for the first E.O.N. pickup. Try Again keeps spawning even
 ## before the E.O.N. is collected again.
 
@@ -12,9 +12,9 @@ const EonDirectorScript := preload("res://scripts/game/eon_director.gd")
 
 const SPAWN_GRACE_SEC := 3.0
 const DAWN_SPAWN_GRACE_SEC := 2.0
-## 1 green per 5 red → one sixth of spawns.
+## 1 charger per 5 crawlers → one sixth of spawns.
 const CHARGER_SPAWN_CHANCE := 1.0 / 6.0
-## Greens unlock after crossing tower 1 (level 2+).
+## Chargers unlock after crossing tower 1 (level 2+).
 const CHARGER_MIN_LEVEL := 2
 
 @export var player_rig_path: NodePath

@@ -93,14 +93,14 @@ func _verify_spawn_grace() -> void:
 	)
 	_fail_unless(
 		SwarmPillScript.CONTACT_DAMAGE == 5,
-		"Red swarm contact damage should be 5"
+		"Crawler contact damage should be 5"
 	)
 
 
 func _verify_charger() -> void:
 	_fail_unless(
 		is_equal_approx(EnemyStreamSpawnerScript.CHARGER_SPAWN_CHANCE, 1.0 / 6.0),
-		"Charger spawn chance should be 1/6 (1:5 vs red)"
+		"Charger spawn chance should be 1/6 (1:5 vs crawlers)"
 	)
 	_fail_unless(
 		EnemyStreamSpawnerScript.CHARGER_MIN_LEVEL == 2,
@@ -138,25 +138,25 @@ func _verify_charger() -> void:
 	var green_scale := ChargerPillScript.CRAWLER_VISUAL_SCALE_MULT
 	_fail_unless(
 		is_equal_approx(green.contact_radius_m, SwarmPillScript.CONTACT_RADIUS_M * green_scale),
-		"Green contact radius should be red x %.1f (got %s)" % [green_scale, green.contact_radius_m]
+		"Charger contact radius should be crawler x %.1f (got %s)" % [green_scale, green.contact_radius_m]
 	)
 	var col := green.get_node_or_null("CollisionShape3D") as CollisionShape3D
 	_fail_unless(col != null and col.shape is CapsuleShape3D, "Green should have a capsule collision")
 	var capsule := col.shape as CapsuleShape3D
 	_fail_unless(
 		is_equal_approx(capsule.radius, SwarmPillScript.COLLISION_RADIUS * green_scale),
-		"Green capsule radius should be red x %.1f (got %s)" % [green_scale, capsule.radius]
+		"Charger capsule radius should be crawler x %.1f (got %s)" % [green_scale, capsule.radius]
 	)
 	_fail_unless(
 		is_equal_approx(capsule.height, SwarmPillScript.COLLISION_HEIGHT * green_scale),
-		"Green capsule height should be red x %.1f (got %s)" % [green_scale, capsule.height]
+		"Charger capsule height should be crawler x %.1f (got %s)" % [green_scale, capsule.height]
 	)
 	green.free()
 
 
 func _verify_pill_health() -> void:
-	_fail_unless(SwarmPillScript.MAX_HEALTH == 20, "Red pill HP should be 20")
-	_fail_unless(ChargerPillScript.CHARGER_MAX_HEALTH == 25, "Green pill HP should be 25")
+	_fail_unless(SwarmPillScript.MAX_HEALTH == 20, "Crawler HP should be 20")
+	_fail_unless(ChargerPillScript.CHARGER_MAX_HEALTH == 25, "Charger HP should be 25")
 	_fail_unless(AutoRifleScript.DAMAGE == 10, "Rifle damage should be 10")
 	_fail_unless(AutoRifleScript.damage_for(0.0) == 10, "Base rifle damage should stay 10")
 	_fail_unless(AutoRifleScript.damage_for(0.04) == 10, "4% more damage should round 10.4 down to 10")
@@ -166,32 +166,32 @@ func _verify_pill_health() -> void:
 
 	var red: SwarmPill = SwarmPillScript.new()
 	root.add_child(red)
-	_fail_unless(red.get_max_health() == 20, "Red max HP after ready should be 20")
-	_fail_unless(red.get_health() == 20, "Red should spawn at full HP")
-	_fail_unless(not red.take_damage(10, Vector3(-2.0, 0.0, 0.0)), "First 10 dmg should not kill red")
-	_fail_unless(red.get_health() == 10, "Red should have 10 HP after one shot")
-	_fail_unless(red.take_damage(10, Vector3(-2.0, 0.0, 0.0)), "Second 10 dmg should kill red")
-	_fail_unless(red.is_queued_for_deletion(), "Dead red should queue_free")
+	_fail_unless(red.get_max_health() == 20, "Crawler max HP after ready should be 20")
+	_fail_unless(red.get_health() == 20, "Crawler should spawn at full HP")
+	_fail_unless(not red.take_damage(10, Vector3(-2.0, 0.0, 0.0)), "First 10 dmg should not kill crawler")
+	_fail_unless(red.get_health() == 10, "Crawler should have 10 HP after one shot")
+	_fail_unless(red.take_damage(10, Vector3(-2.0, 0.0, 0.0)), "Second 10 dmg should kill crawler")
+	_fail_unless(red.is_queued_for_deletion(), "Dead crawler should queue_free")
 	red.free()
 
 	var green: ChargerPill = ChargerPillScript.new()
 	root.add_child(green)
-	_fail_unless(green.get_max_health() == 25, "Green max HP after ready should be 25")
-	_fail_unless(not green.take_damage(10), "First shot should not kill green")
-	_fail_unless(not green.take_damage(10), "Second shot should not kill green")
-	_fail_unless(green.get_health() == 5, "Green should have 5 HP after two shots")
-	_fail_unless(green.take_damage(10), "Third shot should kill green")
+	_fail_unless(green.get_max_health() == 25, "Charger max HP after ready should be 25")
+	_fail_unless(not green.take_damage(10), "First shot should not kill charger")
+	_fail_unless(not green.take_damage(10), "Second shot should not kill charger")
+	_fail_unless(green.get_health() == 5, "Charger should have 5 HP after two shots")
+	_fail_unless(green.take_damage(10), "Third shot should kill charger")
 	green.free()
 
 	var scaled_red: SwarmPill = SwarmPillScript.new()
 	root.add_child(scaled_red)
 	scaled_red.configure(null, null, SwarmPillScript.DEFAULT_SPEED)
 	scaled_red.apply_difficulty(0.10)
-	_fail_unless(scaled_red.get_max_health() == 22, "10% difficulty should floor red HP to 22")
-	_fail_unless(scaled_red.get_health() == 22, "Scaled red should spawn at full scaled HP")
+	_fail_unless(scaled_red.get_max_health() == 22, "10% difficulty should floor crawler HP to 22")
+	_fail_unless(scaled_red.get_health() == 22, "Scaled crawler should spawn at full scaled HP")
 	_fail_unless(
-		is_equal_approx(scaled_red.move_speed, 8.0),
-		"10% of 8 speed should floor to 8"
+		is_equal_approx(scaled_red.move_speed, 6.0),
+		"10% of 6 speed should floor to 6"
 	)
 	_fail_unless(scaled_red.contact_damage == 5, "10% of 5 damage should floor to 5")
 	scaled_red.free()
@@ -203,8 +203,8 @@ func _verify_pill_health() -> void:
 	_fail_unless(scaled_green.get_max_health() == 28, "15% of 25 HP should floor to 28")
 	_fail_unless(scaled_green.contact_damage == 13, "15% of 12 damage should floor to 13")
 	_fail_unless(
-		is_equal_approx(scaled_green.move_speed, 9.0),
-		"15% of 8 speed should floor to 9"
+		is_equal_approx(scaled_green.move_speed, 6.0),
+		"15% of 6 speed should floor to 6"
 	)
 	scaled_green.free()
 
@@ -229,7 +229,7 @@ func _verify_damage_floats() -> void:
 	red.take_damage(10, Vector3(-2.0, 0.0, 0.0))
 	labels = _damage_float_labels()
 	_fail_unless(labels.size() == 2, "Killing blow should still spawn a damage float")
-	_fail_unless(red.is_queued_for_deletion(), "Second 10 dmg should kill red")
+	_fail_unless(red.is_queued_for_deletion(), "Second 10 dmg should kill crawler")
 	var saw_kill_text := false
 	for label in labels:
 		if label.text == "-10":
@@ -277,7 +277,7 @@ func _verify_hit_knockback() -> void:
 	var red: SwarmPill = SwarmPillScript.new()
 	root.add_child(red)
 	var died := red.take_damage(20, Vector3(-1.0, 0.0, 0.0))
-	_fail_unless(died, "20 damage should kill a full red pill")
+	_fail_unless(died, "20 damage should kill a full crawler")
 	var leftover: Vector3 = red.get("_hit_velocity")
 	_fail_unless(
 		leftover.length_squared() < 0.0001,

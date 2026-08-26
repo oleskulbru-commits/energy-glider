@@ -1,12 +1,13 @@
 class_name ChargerPill
 extends SwarmPill
 
-## Larger green pill: ramps to 2x speed within 15 m and hits harder.
+## Larger charger: ramps to 2x speed (12 m/s) within 15 m and hits harder.
 
 const CRAWLER_VISUAL_SCALE_MULT := 3.0
 const CHARGER_CONTACT_DAMAGE := 12
 const CHARGER_MAX_HEALTH := 25
 const AGGRO_RANGE_M := 15.0
+## 2x base (6 → 12 m/s) while aggro'd.
 const AGGRO_SPEED_MULT := 2.0
 const AGGRO_RAMP_SEC := 0.45
 ## Keep 2x after the player leaves aggro range (not player-speed matching).
