@@ -3403,7 +3403,7 @@ func _verify_weapon_cards() -> void:
 	var after := state.get_offers(21)
 	_fail_unless(
 		UpgradeCatalogScript.is_empty_offer(StringName(after[0])),
-		"Taken weapon-bundle slots should not refill after weapons are cleared"
+		"Taken weapon-bundle slots should stay Empty until a starter is granted"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.is_empty_offer(StringName(after[1])),
@@ -3419,6 +3419,22 @@ func _verify_weapon_cards() -> void:
 		and is_equal_approx(state.damage_bonus_for(UpgradeCatalogScript.FAMILY_RIFLE), 0.0),
 		"Try Again should still zero stacked weapon stats"
 	)
+	state.grant_starter(UpgradeCatalogScript.FAMILY_LASER)
+	var refilled := state.get_offers(21)
+	_fail_unless(
+		UpgradeCatalogScript.is_weapon_offer(StringName(refilled[0]))
+		and UpgradeCatalogScript.family_of(StringName(refilled[0]))
+		== UpgradeCatalogScript.FAMILY_LASER,
+		"Taken weapon-bundle slots should refill after the starter is granted"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.is_empty_offer(StringName(refilled[1])),
+		"A normal Empty slot should stay Empty after the starter is granted"
+	)
+	_fail_unless(refilled[2] == leftover_damage, "Untaken cards should stay after refill")
+	_fail_unless(refilled[3] == leftover_laser, "Untaken weapon cards should stay after refill")
+	_fail_unless(refilled[4] == leftover_luck, "Untaken luck cards should stay after refill")
+	_fail_unless(state.remaining_count(21) == 4, "Refill should restore the taken weapon slot")
 	state.free()
 	generic_only.free()
 	bundle_only.free()

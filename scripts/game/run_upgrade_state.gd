@@ -1,7 +1,8 @@
 class_name RunUpgradeState
 extends Node
 
-## Stacks and weapons reset on Try Again. Taken weapon-bundle slots refill if still owned.
+## Stacks and weapons reset on Try Again. Taken weapon-bundle slots refill after
+## grant_starter if that life owns a matching gun; normal Empty slots stay Empty.
 
 signal extra_projectiles_changed(count: int)
 signal weapons_changed
@@ -126,7 +127,6 @@ func reset_run() -> void:
 	_rocket_level = 0
 	_shotgun_level = 0
 	_life_index += 1
-	_refill_weapon_holes()
 	clear_visited_this_life()
 	extra_projectiles_changed.emit(extra_projectiles)
 	weapons_changed.emit()
@@ -145,6 +145,7 @@ func grant_starter(family: StringName) -> void:
 	_rocket_level = 0
 	_shotgun_level = 0
 	grant_weapon(family)
+	_refill_weapon_holes()
 
 
 func grant_weapon(family: StringName) -> void:
@@ -480,11 +481,15 @@ func _remember_weapon_hole(tower_index: int, slot: int) -> void:
 func _refill_weapon_holes() -> void:
 	if _weapon_holes.is_empty():
 		return
+	if not has_rifle and not has_laser and not has_tesla and not has_rocket and not has_shotgun:
+		return
 	var seed := LevelRun.world_seed()
 	if seed < 0:
 		seed = 42
+	var remaining: Dictionary = {}
 	for tower_index in _weapon_holes.keys():
 		if not _offers.has(tower_index):
+			remaining[tower_index] = PackedInt32Array(_weapon_holes[tower_index])
 			continue
 		var holes := PackedInt32Array(_weapon_holes[tower_index])
 		var offers: PackedStringArray = _offers[tower_index] as PackedStringArray
@@ -494,6 +499,7 @@ func _refill_weapon_holes() -> void:
 			if UpgradeCatalog.is_empty_offer(named):
 				continue
 			used[String(UpgradeCatalog.weapon_base_id(named))] = true
+		var leftover_holes := PackedInt32Array()
 		for slot in holes:
 			if slot < 0 or slot >= offers.size():
 				continue
@@ -513,8 +519,11 @@ func _refill_weapon_holes() -> void:
 				has_shotgun
 			)
 			if fresh.is_empty():
+				leftover_holes.append(slot)
 				continue
 			offers[slot] = fresh
 			used[String(UpgradeCatalog.weapon_base_id(StringName(fresh)))] = true
 		_offers[tower_index] = offers
-	_weapon_holes.clear()
+		if not leftover_holes.is_empty():
+			remaining[tower_index] = leftover_holes
+	_weapon_holes = remaining
