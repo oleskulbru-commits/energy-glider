@@ -2968,6 +2968,18 @@ func _verify_weapon_cards() -> void:
 		pity_state.unlock_pity_steps == 1,
 		"Granting an already-owned weapon should not reset unlock pity"
 	)
+	pity_state.note_visit_outcome(false)
+	_fail_unless(
+		pity_state.unlock_pity_steps == 2,
+		"Leaving an empty shop without an unlock should raise pity"
+	)
+	pity_state.grant_weapon(UpgradeCatalogScript.FAMILY_RIFLE)
+	_fail_unless(pity_state.unlock_pity_steps == 0, "A new unlock should clear pity before visit outcome")
+	pity_state.note_visit_outcome(true)
+	_fail_unless(
+		pity_state.unlock_pity_steps == 0,
+		"Confirming after taking an unlock should not bump pity"
+	)
 	pity_state.reset_run()
 	_fail_unless(pity_state.unlock_pity_steps == 0, "Try Again should reset unlock pity")
 	pity_state.free()

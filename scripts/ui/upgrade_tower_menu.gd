@@ -206,12 +206,14 @@ func _on_keep_pressed() -> void:
 
 
 func _confirm_and_close(wait_until_dawn: bool) -> void:
-	if _state != null and _tower != null and _state.remaining_count(_tower.tower_index) > 0:
-		if _selected_slot < 0:
-			return
-		var picked := _state.pick_offer(_tower.tower_index, _selected_slot)
-		if not UpgradeCatalog.is_weapon_unlock(picked):
-			_state.note_tower_without_unlock()
+	var took_unlock := false
+	if _state != null and _tower != null:
+		if _state.remaining_count(_tower.tower_index) > 0:
+			if _selected_slot < 0:
+				return
+			var picked := _state.pick_offer(_tower.tower_index, _selected_slot)
+			took_unlock = UpgradeCatalog.is_weapon_unlock(picked)
+		_state.note_visit_outcome(took_unlock)
 	if wait_until_dawn:
 		_wait_until_dawn()
 	_close()

@@ -284,6 +284,14 @@ func note_tower_without_unlock() -> void:
 	unlock_pity_steps += 1
 
 
+## Call once when leaving a tower. Empty shops and non-unlock picks bump pity;
+## taking an unlock leaves pity cleared by grant_weapon.
+func note_visit_outcome(took_unlock: bool) -> void:
+	if took_unlock:
+		return
+	note_tower_without_unlock()
+
+
 func pick_offer(tower_index: int, slot: int) -> StringName:
 	var offers := get_offers(tower_index)
 	if slot < 0 or slot >= offers.size():

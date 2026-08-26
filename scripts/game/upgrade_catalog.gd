@@ -161,7 +161,8 @@ const ID_UNLOCK_LASER := &"unlock_laser"
 const ID_UNLOCK_TESLA := &"unlock_tesla"
 const ID_UNLOCK_ROCKET := &"unlock_rocket"
 const ID_UNLOCK_SHOTGUN := &"unlock_shotgun"
-## +12% unlock chance per tower left without taking a new weapon. Caps at 100% until one is chosen.
+## +12% unlock chance per tower visit without taking a new weapon (including empty shops).
+## Caps at 100% until one is chosen.
 const UNLOCK_PITY := 0.12
 
 
