@@ -16,6 +16,10 @@ const CONE_HALF_DEG := 22.0
 const PELLET_COUNT := 16
 const PELLET_SPEED_MPS := 50.0
 const PELLET_TRAVEL_M := 32.0
+## Aim at torso so crest jumps pitch the cone down at sand-level enemies.
+const AIM_UP_M := 0.7
+## XZ radius treated as "directly below" for acquire (still needs 3D range).
+const BELOW_XZ_EPS_M := 0.05
 
 
 var _rig: PlayerRig
@@ -153,17 +157,10 @@ func _fire_volley() -> bool:
 	var facing := _facing_xz()
 	var range_m := _current_range()
 	var pills := get_tree().get_nodes_in_group("swarm_pill")
-	var target := AutoRifle.pick_target(pills, origin, facing, range_m, _rng)
+	var target := pick_target(pills, origin, facing, range_m, _rng)
 	if target == null:
 		return false
-	var aim := Vector3(
-		target.global_position.x - origin.x,
-		0.0,
-		target.global_position.z - origin.z
-	)
-	if aim.length_squared() < 0.0001:
-		aim = facing
-	aim = aim.normalized()
+	var aim := aim_vector(origin, target.global_position, facing)
 	var amount := damage_for(_damage_bonus())
 	var knock := knockback_speed_for(_pushback_bonus())
 	var crit := _crit_chance()
@@ -213,10 +210,69 @@ func _spawn_visuals(origin: Vector3, aim: Vector3, range_m: float) -> void:
 func _pellet_dir(aim: Vector3) -> Vector3:
 	var yaw := deg_to_rad(_rng.randf_range(-CONE_HALF_DEG, CONE_HALF_DEG))
 	var pitch := deg_to_rad(_rng.randf_range(-6.0, 8.0))
-	var basis := Basis.looking_at(aim, Vector3.UP)
+	var fwd := aim
+	if fwd.length_squared() < 0.0001:
+		fwd = Vector3.FORWARD
+	else:
+		fwd = fwd.normalized()
+	var up := Vector3.UP
+	if absf(fwd.dot(up)) > 0.98:
+		up = Vector3.FORWARD
+	var basis := Basis.looking_at(fwd, up)
 	return (basis * Vector3(sin(yaw), sin(pitch), -cos(yaw))).normalized()
 
 
+## 3D aim at the target (includes downward pitch when airborne above sand).
+static func aim_vector(origin: Vector3, target_pos: Vector3, facing_fallback: Vector3) -> Vector3:
+	var aim := target_pos + Vector3(0.0, AIM_UP_M, 0.0) - origin
+	if aim.length_squared() >= 0.0001:
+		return aim.normalized()
+	var flat := Vector3(facing_fallback.x, 0.0, facing_fallback.z)
+	if flat.length_squared() >= 0.0001:
+		return flat.normalized()
+	return Vector3.FORWARD
+
+
+## Acquire by true 3D range. Front hemisphere stays XZ; directly-below still counts.
+static func collect_candidates(
+	pills: Array,
+	origin: Vector3,
+	facing: Vector3,
+	range_m: float
+) -> Array[Node3D]:
+	var found: Array[Node3D] = []
+	for node in pills:
+		var pill := node as Node3D
+		if pill == null or not is_instance_valid(pill):
+			continue
+		if pill is SwarmPill and not (pill as SwarmPill).is_alive():
+			continue
+		var pos := pill.global_position
+		if origin.distance_to(pos) > range_m:
+			continue
+		var xz := AutoRifle.xz_distance(origin, pos)
+		if xz > BELOW_XZ_EPS_M and not AutoRifle.is_in_front(origin, facing, pos):
+			continue
+		found.append(pill)
+	return found
+
+
+static func pick_target(
+	pills: Array,
+	origin: Vector3,
+	facing: Vector3,
+	range_m: float,
+	rng: RandomNumberGenerator
+) -> Node3D:
+	var candidates := collect_candidates(pills, origin, facing, range_m)
+	if candidates.is_empty():
+		return null
+	if rng == null:
+		return candidates[0]
+	return candidates[rng.randi_range(0, candidates.size() - 1)]
+
+
+## Cone + range in full 3D so a pitched-down blast still catches sand-level pills.
 static func pills_in_cone(
 	origin: Vector3,
 	aim: Vector3,
@@ -225,10 +281,9 @@ static func pills_in_cone(
 	pills: Array
 ) -> Array[Node3D]:
 	var hit: Array[Node3D] = []
-	var fwd := Vector3(aim.x, 0.0, aim.z)
-	if fwd.length_squared() < 0.0001:
+	if aim.length_squared() < 0.0001:
 		return hit
-	fwd = fwd.normalized()
+	var fwd := aim.normalized()
 	var min_dot := cos(maxf(half_angle_rad, 0.0))
 	for node in pills:
 		var pill := node as Node3D
@@ -236,7 +291,7 @@ static func pills_in_cone(
 			continue
 		if pill is SwarmPill and not (pill as SwarmPill).is_alive():
 			continue
-		var to := Vector3(pill.global_position.x - origin.x, 0.0, pill.global_position.z - origin.z)
+		var to := pill.global_position + Vector3(0.0, AIM_UP_M, 0.0) - origin
 		var dist := to.length()
 		if dist > range_m:
 			continue

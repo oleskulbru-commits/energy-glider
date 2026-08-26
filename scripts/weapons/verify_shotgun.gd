@@ -17,6 +17,9 @@ func _run() -> void:
 	_verify_cone()
 	if _failed:
 		return
+	_verify_airborne_aim()
+	if _failed:
+		return
 	print("Shotgun verification passed.")
 	quit(0)
 
@@ -116,6 +119,47 @@ func _verify_cone() -> void:
 	out_fringe.free()
 	behind.free()
 	too_far.free()
+
+
+func _verify_airborne_aim() -> void:
+	var facing := Vector3(-1.0, 0.0, 0.0)
+	var range_m := AutoShotgunScript.RANGE_M
+	var half := deg_to_rad(AutoShotgunScript.CONE_HALF_DEG)
+	var high := Vector3(0.0, 12.0, 0.0)
+	var below := _marker_at(Vector3(-8.0, 0.0, 0.0))
+	var aim := AutoShotgunScript.aim_vector(high, below.global_position, facing)
+	_fail_unless(aim.y < -0.01, "Airborne shotgun should pitch down at sand-level enemies")
+	_fail_unless(aim.x < -0.01, "Airborne shotgun should still aim forward at ahead enemies")
+	var in_range := AutoShotgunScript.collect_candidates([below], high, facing, range_m)
+	_fail_unless(
+		below in in_range,
+		"3D range should allow a crest jump shot when the slant distance is within 15 m"
+	)
+	var blasted := AutoShotgunScript.pills_in_cone(high, aim, range_m, half, [below])
+	_fail_unless(below in blasted, "A downward cone should hit the enemy below")
+
+	var too_high := Vector3(0.0, 20.0, 0.0)
+	var out_of_reach := AutoShotgunScript.collect_candidates([below], too_high, facing, range_m)
+	_fail_unless(
+		out_of_reach.is_empty(),
+		"Shotgun must not fire while 3D distance is still past range"
+	)
+	var flat_aim := Vector3(-1.0, 0.0, 0.0)
+	var miss_flat := AutoShotgunScript.pills_in_cone(high, flat_aim, range_m, half, [below])
+	_fail_unless(
+		below not in miss_flat,
+		"A level cone from crest height should not falsely hit sand-level pills"
+	)
+
+	var under := _marker_at(Vector3(0.0, 0.0, 0.0))
+	var from_above := Vector3(0.0, 10.0, 0.0)
+	var under_cands := AutoShotgunScript.collect_candidates([under], from_above, facing, range_m)
+	_fail_unless(
+		under in under_cands,
+		"An enemy almost directly below should still acquire once inside 3D range"
+	)
+	below.free()
+	under.free()
 
 
 func _marker_at(pos: Vector3) -> Node3D:

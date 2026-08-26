@@ -25,6 +25,7 @@ func _run_tests() -> void:
 	_verify_integrity_loss_requires_pickup()
 	_verify_sticky_integrity_after_first_collect()
 	_verify_eon_tracker_always_while_awaiting()
+	_verify_retry_pickup_heal()
 	print("E.O.N verification passed.")
 	quit(0)
 
@@ -208,4 +209,19 @@ func _verify_eon_tracker_always_while_awaiting() -> void:
 	_fail_unless(
 		not EonDirectorScript.should_show_eon_tracker_for(false, true),
 		"Tracker should hide after E.O.N is collected (run active)"
+	)
+
+
+func _verify_retry_pickup_heal() -> void:
+	_fail_unless(
+		EonDirectorScript.RETRY_PICKUP_HEAL == 50,
+		"Re-collecting the E.O.N after death should restore 50 HP"
+	)
+	_fail_unless(
+		not EonDirectorScript.should_heal_on_eon_pickup(false),
+		"First E.O.N pickup of a run should not apply the retry heal"
+	)
+	_fail_unless(
+		EonDirectorScript.should_heal_on_eon_pickup(true),
+		"E.O.N re-pickup after Try Again should apply the retry heal"
 	)

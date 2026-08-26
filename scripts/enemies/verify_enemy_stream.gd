@@ -48,10 +48,38 @@ func _verify_spawn_offset() -> void:
 	for _i in 40:
 		var offset: Vector2 = SwarmPillScript.spawn_offset_xz(30.0, 90.0, 55.0, rng)
 		var world_x := player_x + offset.x
-		_fail_unless(offset.x < 0.0, "Spawn ahead offset X must be negative (west), got %s" % offset.x)
-		_fail_unless(world_x < player_x, "Spawn world X must be west of player")
+		_fail_unless(offset.x < 0.0, "Default spawn ahead offset X must be west (−X), got %s" % offset.x)
+		_fail_unless(world_x < player_x, "Default spawn world X must be west of player")
 		_fail_unless(absf(offset.y) <= 55.0 + 0.001, "Z offset outside spread: %s" % offset.y)
 		_fail_unless(offset.x >= -90.0 - 0.001 and offset.x <= -30.0 + 0.001, "Ahead distance out of range: %s" % offset.x)
+
+	rng.seed = 7
+	var south := Vector3(0.0, 0.0, 1.0)
+	for _i in 40:
+		var offset_s: Vector2 = SwarmPillScript.spawn_offset_xz(30.0, 90.0, 55.0, rng, south)
+		_fail_unless(offset_s.y > 0.0, "South-facing spawn must be ahead (+Z), got %s" % offset_s.y)
+		_fail_unless(absf(offset_s.x) <= 55.0 + 0.001, "South-facing lateral X outside spread: %s" % offset_s.x)
+		_fail_unless(offset_s.y >= 30.0 - 0.001 and offset_s.y <= 90.0 + 0.001, "South ahead distance out of range: %s" % offset_s.y)
+
+	var origin := Vector3.ZERO
+	var west := Vector3(-1.0, 0.0, 0.0)
+	_fail_unless(
+		SwarmPillScript.is_behind_facing(origin, west, Vector3(60.0, 0.0, 0.0)),
+		"East of a westbound player past margin should count as behind"
+	)
+	_fail_unless(
+		not SwarmPillScript.is_behind_facing(origin, west, Vector3(-20.0, 0.0, 0.0)),
+		"West of a westbound player should not count as behind"
+	)
+	_fail_unless(
+		SwarmPillScript.is_behind_facing(origin, south, Vector3(0.0, 0.0, -60.0)),
+		"North of a southbound player past margin should count as behind"
+	)
+	_fail_unless(
+		not SwarmPillScript.is_behind_facing(origin, south, Vector3(0.0, 0.0, 20.0)),
+		"South of a southbound player should not count as behind"
+	)
+
 	var early := SwarmPillScript.ahead_range_for_level(1)
 	_fail_unless(is_equal_approx(early.x, 40.0), "Level 1 spawn min should stay 40 m")
 	_fail_unless(is_equal_approx(early.y, 110.0), "Level 1 spawn max should be 110 m")
@@ -103,8 +131,8 @@ func _verify_charger() -> void:
 		"Charger spawn chance should be 1/6 (1:5 vs crawlers)"
 	)
 	_fail_unless(
-		EnemyStreamSpawnerScript.CHARGER_MIN_LEVEL == 2,
-		"Chargers should unlock at level 2 (after tower 1)"
+		EnemyStreamSpawnerScript.CHARGER_MIN_LEVEL == 4,
+		"Chargers should unlock at level 4 (after tower 3)"
 	)
 	_fail_unless(
 		is_equal_approx(ChargerPillScript.AGGRO_RANGE_M, 15.0),
@@ -234,7 +262,7 @@ func _verify_damage_floats() -> void:
 	for label in labels:
 		if label.text == "-10":
 			saw_kill_text = true
-	_fail_unless(saw_kill_text, "Killing blow should show the HP actually lost")
+	_fail_unless(saw_kill_text, "Killing blow should show the rolled hit amount")
 	red.free()
 	_clear_damage_floats()
 
@@ -248,9 +276,23 @@ func _verify_damage_floats() -> void:
 	var texts: Array[String] = []
 	for label in labels:
 		texts.append(label.text)
-	_fail_unless(texts.has("-10"), "First charger shots should show -10")
-	_fail_unless(texts.has("-5"), "Overkill on remaining HP should show -5")
+	_fail_unless(texts.has("-10"), "Charger hits should show rolled damage, not HP left")
+	_fail_unless(not texts.has("-5"), "Overkill should not clamp the float to remaining HP")
 	green.free()
+	_clear_damage_floats()
+
+	# Crits must stay readable when damage exceeds enemy HP (rocket vs crawler).
+	var crit_target: SwarmPill = SwarmPillScript.new()
+	root.add_child(crit_target)
+	crit_target.take_damage(46, Vector3(-1.0, 0.0, 0.0), true)
+	labels = _damage_float_labels()
+	_fail_unless(labels.size() == 1, "Crit overkill should spawn one float")
+	_fail_unless(labels[0].text == "-46", "Crit float should show doubled damage, not remaining HP")
+	_fail_unless(
+		labels[0].modulate.is_equal_approx(DamageFloatScript.CRIT_COLOR),
+		"Crit float should use the yellow crit color"
+	)
+	crit_target.free()
 	_clear_damage_floats()
 
 

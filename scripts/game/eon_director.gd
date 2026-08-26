@@ -21,6 +21,8 @@ const EON_RIDGE_SAMPLE_RADIUS_M := 80.0
 const EON_RIDGE_SAMPLE_STEPS := 8
 const OBJECTIVE_RETRIEVE := "Retrieve the E.O.N"
 const HEAD_WEST_DELAY_SEC := 4.0
+## Heal applied when re-collecting the E.O.N after a death / Try Again.
+const RETRY_PICKUP_HEAL := 50
 const HeadWestVoice := preload("res://assets/audio/ui/head_west.mp3")
 
 const EonPickupScene := preload("res://scenes/game/eon_pickup.tscn")
@@ -258,11 +260,24 @@ func _on_eon_collected() -> void:
 	_despawn_eon()
 	phase = Phase.RUNNING
 	eon_collected.emit()
+	var retry_pickup := _run_bootstrapped
 	_bootstrap_run()
+	if should_heal_on_eon_pickup(retry_pickup):
+		_heal_player(RETRY_PICKUP_HEAL)
 	_sync_next_tower_label()
 	run_started.emit()
 	objective_changed.emit(get_objective_text())
 	_schedule_head_west_voice()
+
+
+func _heal_player(amount: int) -> void:
+	if amount <= 0 or _rig == null:
+		return
+	var health := _rig.get_node_or_null("PlayerHealth") as PlayerHealth
+	if health == null:
+		health = get_tree().get_first_node_in_group("player_health") as PlayerHealth
+	if health != null:
+		health.heal(amount)
 
 
 func _schedule_head_west_voice() -> void:
@@ -485,3 +500,8 @@ static func should_show_eon_tracker_for(phase_awaiting: bool, eon_exists: bool) 
 
 static func can_collect_eon_while(awaiting_death: bool, run_ended: bool) -> bool:
 	return not awaiting_death and not run_ended
+
+
+## True for re-pickup after the run was already bootstrapped (post-death continue).
+static func should_heal_on_eon_pickup(run_already_bootstrapped: bool) -> bool:
+	return run_already_bootstrapped

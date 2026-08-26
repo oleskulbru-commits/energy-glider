@@ -118,9 +118,9 @@ func take_damage(
 ) -> bool:
 	if amount <= 0 or _hp <= 0:
 		return false
-	var dealt := mini(amount, _hp)
 	_hp = maxi(_hp - amount, 0)
-	_spawn_damage_float(dealt, is_crit)
+	# Show rolled hit damage (incl. crit / overkill), not HP remaining.
+	_spawn_damage_float(amount, is_crit)
 	if _hp <= 0:
 		var from_pos := global_position
 		if hit_dir.length_squared() > 0.0001:
@@ -153,8 +153,8 @@ func _physics_process(delta: float) -> void:
 
 	var to_target := _target.global_position - global_position
 	to_target.y = 0.0
-	# Fallen behind (east of player past margin) — despawn.
-	if global_position.x > _target.global_position.x + BEHIND_MARGIN_M:
+	# Fallen behind the player's facing past margin — despawn.
+	if is_behind_facing(_target.global_position, _target_facing_xz(), global_position):
 		queue_free()
 		return
 
@@ -276,6 +276,14 @@ func _flat_seek_to_target() -> Vector3:
 	var to_target := _target.global_position - global_position
 	to_target.y = 0.0
 	return to_target
+
+
+func _target_facing_xz() -> Vector3:
+	if _target != null and is_instance_valid(_target) and _target is GliderPlayer:
+		var fwd := MathUtil.yaw_forward((_target as GliderPlayer).get_yaw())
+		if fwd.length_squared() >= 0.0001:
+			return fwd.normalized()
+	return Vector3(-1.0, 0.0, 0.0)
 
 
 func _flat_velocity_dir() -> Vector3:
@@ -446,16 +454,41 @@ static func knockback_impulse_for(
 	return vel * maxf(body_mass, 0.01)
 
 
-## Westbound spawn X (more negative = ahead) and lateral Z offset.
+## Local ahead + lateral → world XZ offset. Defaults to westbound (−X) for tests.
 static func spawn_offset_xz(
 	ahead_min_m: float,
 	ahead_max_m: float,
 	spread_m: float,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	facing_xz: Vector3 = Vector3(-1.0, 0.0, 0.0)
 ) -> Vector2:
+	var fwd := Vector3(facing_xz.x, 0.0, facing_xz.z)
+	if fwd.length_squared() < 0.0001:
+		fwd = Vector3(-1.0, 0.0, 0.0)
+	else:
+		fwd = fwd.normalized()
+	## Right-handed lateral on XZ (perp to forward).
+	var right := Vector3(-fwd.z, 0.0, fwd.x)
 	var ahead := rng.randf_range(ahead_min_m, ahead_max_m)
-	var z_off := rng.randf_range(-spread_m, spread_m)
-	return Vector2(-ahead, z_off)
+	var lat := rng.randf_range(-spread_m, spread_m)
+	var world := fwd * ahead + right * lat
+	return Vector2(world.x, world.z)
+
+
+## True when `pos` is more than `margin_m` behind `origin` along facing.
+static func is_behind_facing(
+	origin: Vector3,
+	facing_xz: Vector3,
+	pos: Vector3,
+	margin_m: float = BEHIND_MARGIN_M
+) -> bool:
+	var fwd := Vector3(facing_xz.x, 0.0, facing_xz.z)
+	if fwd.length_squared() < 0.0001:
+		fwd = Vector3(-1.0, 0.0, 0.0)
+	else:
+		fwd = fwd.normalized()
+	var to := Vector3(pos.x - origin.x, 0.0, pos.z - origin.z)
+	return to.dot(fwd) < -maxf(margin_m, 0.0)
 
 
 static func active_cap_for_level(level: int, min_cap: int = 8, max_cap: int = 60) -> int:
