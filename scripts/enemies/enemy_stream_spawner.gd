@@ -1,7 +1,9 @@
 class_name EnemyStreamSpawner
 extends Node3D
 
-## Spawns red/green stream enemies ahead of the glider while the E.O.N. run is active.
+## Spawns red/green stream enemies ahead of the glider after the run has started.
+## New game waits for the first E.O.N. pickup. Try Again keeps spawning even
+## before the E.O.N. is collected again.
 
 const SwarmPillScene := preload("res://scenes/enemies/swarm_pill.tscn")
 const ChargerPillScene := preload("res://scenes/enemies/charger_pill.tscn")
@@ -9,6 +11,7 @@ const SwarmPillScript := preload("res://scripts/enemies/swarm_pill.gd")
 const EonDirectorScript := preload("res://scripts/game/eon_director.gd")
 
 const SPAWN_GRACE_SEC := 3.0
+const DAWN_SPAWN_GRACE_SEC := 2.0
 ## 1 green per 5 red → one sixth of spawns.
 const CHARGER_SPAWN_CHANCE := 1.0 / 6.0
 ## Greens unlock after crossing tower 1 (level 2+).
@@ -49,6 +52,9 @@ func _connect_signals() -> void:
 	if _director != null and _director.has_signal("run_started"):
 		if not _director.run_started.is_connected(_on_run_started):
 			_director.run_started.connect(_on_run_started)
+	if _director != null and _director.has_signal("attempt_started"):
+		if not _director.attempt_started.is_connected(_on_run_started):
+			_director.attempt_started.connect(_on_run_started)
 
 
 func _on_run_started() -> void:
@@ -97,15 +103,28 @@ func clear_stream() -> void:
 	_active.clear()
 
 
+func reset_after_dawn() -> void:
+	clear_stream()
+	_grace_left = DAWN_SPAWN_GRACE_SEC
+	_spawn_cooldown = 0.0
+
+
 func _should_spawn() -> bool:
-	if _director == null or not _director.is_run_active():
+	var glider := _get_glider()
+	var run_ended := glider == null or glider.is_run_ended()
+	var run_active := _director != null and _director.is_run_active()
+	var bootstrapped := _director != null and _director.has_collected_eon()
+	if not should_spawn_stream(run_active, bootstrapped, run_ended):
 		return false
 	if _grace_left > 0.0:
 		return false
-	var glider := _get_glider()
-	if glider == null or glider.is_run_ended():
-		return false
 	return true
+
+
+static func should_spawn_stream(run_active: bool, run_bootstrapped: bool, run_ended: bool) -> bool:
+	if run_ended:
+		return false
+	return run_active or run_bootstrapped
 
 
 func _current_level() -> int:

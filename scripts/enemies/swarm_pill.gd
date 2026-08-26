@@ -25,10 +25,11 @@ const COLLISION_HEIGHT := 0.6
 const COLLISION_CENTER_Y := 0.32
 ## Ignore hits when the player is clearly jumping/flying over the pill.
 const CONTACT_MAX_ABOVE_M := 1.2
-const DEFAULT_SPEED := 10.0
+const DEFAULT_SPEED := 8.0
 const MAX_HEALTH := 20
 const HIT_KNOCKBACK_SPEED := 12.0
 const HIT_KNOCKBACK_DECAY_SEC := 0.3
+const DAMAGE_FLOAT_HEIGHT_M := 1.55
 
 var move_speed := DEFAULT_SPEED
 var contact_damage := CONTACT_DAMAGE
@@ -46,6 +47,8 @@ var _hp := MAX_HEALTH
 var _hit_velocity := Vector3.ZERO
 var _anim: CrawlerAnimController
 var _collision_bottom_y := 0.0
+var _rng := RandomNumberGenerator.new()
+var _stun_left := 0.0
 
 
 func _ready() -> void:
@@ -58,6 +61,7 @@ func _ready() -> void:
 	_anim = _find_anim_controller()
 	if _anim != null and not _anim.spawn_finished.is_connected(_on_spawn_finished):
 		_anim.spawn_finished.connect(_on_spawn_finished)
+	_rng.randomize()
 
 
 func configure(terrain: TerrainManager, target: Node3D, speed: float = DEFAULT_SPEED) -> void:
@@ -88,15 +92,40 @@ func is_alive() -> bool:
 
 
 ## Returns true if the pill died from this hit. Lethal hits skip knockback.
-func take_damage(amount: int, from_pos: Vector3 = Vector3.ZERO) -> bool:
+func take_damage(
+	amount: int,
+	hit_dir: Vector3 = Vector3.ZERO,
+	is_crit: bool = false,
+	knockback_speed: float = HIT_KNOCKBACK_SPEED
+) -> bool:
 	if amount <= 0 or _hp <= 0:
 		return false
+	var dealt := mini(amount, _hp)
 	_hp = maxi(_hp - amount, 0)
+	_spawn_damage_float(dealt, is_crit)
 	if _hp <= 0:
+		var from_pos := global_position
+		if hit_dir.length_squared() > 0.0001:
+			from_pos = global_position - hit_dir.normalized()
 		_die(from_pos)
 		return true
-	_hit_velocity = hit_knockback_velocity_for(from_pos, global_position)
+	if hit_dir.length_squared() > 0.0001:
+		_hit_velocity = hit_knockback_velocity_for(hit_dir, knockback_speed)
 	return false
+
+
+func apply_stun(duration_sec: float) -> void:
+	if _hp <= 0:
+		return
+	_stun_left = maxf(_stun_left, maxf(duration_sec, 0.0))
+
+
+func is_stunned() -> bool:
+	return _stun_left > 0.0
+
+
+func _spawn_damage_float(amount: int, is_crit: bool = false) -> void:
+	DamageFloat.spawn_world(self, amount, _rng, DAMAGE_FLOAT_HEIGHT_M, is_crit)
 
 
 func _physics_process(delta: float) -> void:
@@ -123,6 +152,15 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		_snap_to_terrain()
 		_align_to_terrain(_flat_seek_to_target())
+		return
+
+	_stun_left = maxf(_stun_left - delta, 0.0)
+	if _stun_left > 0.0:
+		velocity = Vector3.ZERO
+		_hit_velocity = Vector3.ZERO
+		move_and_slide()
+		_snap_to_terrain()
+		_update_contact(delta)
 		return
 
 	var seek := Vector3(to_target.x, 0.0, to_target.z)
@@ -365,19 +403,17 @@ static func knockback_velocity_for(
 	return Vector3(away.x * speed, up, away.z * speed)
 
 
-## Horizontal shove away from the shot origin. Lethal hits should not call this.
+## Horizontal shove along the bullet's travel direction. Lethal hits should not call this.
 static func hit_knockback_velocity_for(
-	from_pos: Vector3,
-	pill_pos: Vector3,
+	hit_dir: Vector3,
 	speed: float = HIT_KNOCKBACK_SPEED
 ) -> Vector3:
-	var away := pill_pos - from_pos
-	away.y = 0.0
-	if away.length_squared() < 0.0001:
-		away = Vector3(1.0, 0.0, 0.0)
+	var along := Vector3(hit_dir.x, 0.0, hit_dir.z)
+	if along.length_squared() < 0.0001:
+		along = Vector3(-1.0, 0.0, 0.0)
 	else:
-		away = away.normalized()
-	return Vector3(away.x * speed, 0.0, away.z * speed)
+		along = along.normalized()
+	return Vector3(along.x * speed, 0.0, along.z * speed)
 
 
 ## Legacy impulse helper (mass-scaled); prefer knockback_velocity_for + queue_knockback.
@@ -416,7 +452,7 @@ static func move_speed_for_level(_level: int) -> float:
 static func ahead_range_for_level(level: int) -> Vector2:
 	var t := clampf(float(level - 1) / 39.0, 0.0, 1.0)
 	var min_ahead := lerpf(40.0, 30.0, t)
-	var max_ahead := lerpf(90.0, 70.0, t)
+	var max_ahead := 110.0
 	return Vector2(min_ahead, max_ahead)
 
 

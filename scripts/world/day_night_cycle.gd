@@ -3,6 +3,7 @@ extends Node
 
 signal dawn
 signal dusk
+signal natural_dawn
 signal time_changed(normalized: float)
 
 @export var sun_path: NodePath
@@ -138,6 +139,7 @@ func _emit_phase_transitions(prev: float, next: float) -> void:
 	elif crossed_dawn:
 		_was_night = false
 		dawn.emit()
+		natural_dawn.emit()
 
 
 func _apply_time_visuals() -> void:

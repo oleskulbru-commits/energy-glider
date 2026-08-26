@@ -9,28 +9,27 @@ const PlayerDeathSequenceScript = preload("res://scripts/player/player_death_seq
 
 enum State { GROUNDED, GLIDING }
 
-# Steering — boost stays responsive; sail carries momentum through turns.
-const SAIL_TURN_RATE := 1.25
-const SAIL_TURN_RESPONSE := 3.0
-const SAIL_STEER_GRIP_RATE := 2.2
-const SAIL_YAW_ALIGN_RATE := 4.0
-const SAIL_CRUISE_DRIFT_ALIGN_RATE := 2.4
-const SAIL_GRIP_SPEED_REF := 10.0
-const BOOST_TURN_RATE := 2.1
-const BOOST_TURN_RESPONSE := 5.5
-const BOOST_STEER_GRIP_RATE := 9.0
-const BOOST_YAW_ALIGN_RATE := 9.0
-const BOOST_CRUISE_DRIFT_ALIGN_RATE := 4.0
+# Steering — A/D yaw the nose; boost turns a little slower. Q/E strafe.
+# Air yaw, grip, and strafe are AIR_STEER_SCALE of the ground rates.
+const SAIL_TURN_RATE := 1.05
+const BOOST_TURN_RATE := 0.79
+const TURN_RESPONSE := 3.0
+const SAIL_STEER_GRIP_RATE := 1.85
+const BOOST_STEER_GRIP_RATE := 1.35
+const AIR_STEER_SCALE := 0.50
 const MIN_STEER_SPEED := 0.5
 const YAW_DAMPING := 3.2
 const MAX_YAW_VELOCITY := 1.8
-const MIN_YAW_ALIGN_SPEED := 1.0
-const YAW_ALIGN_COOLDOWN := 0.12
-const CRUISE_DRIFT_MIN_MISALIGN_DEG := 10.0
+const STRAFE_ACCEL := 14.0
+
+
+static func steering_mul(bonus: float) -> float:
+	return 1.0 + clampf(bonus, 0.0, UpgradeCatalog.STEERING_CAP)
 
 # Visual / terrain
 const BANK_ANGLE := 15.0
 const SLIDE_BANK_ANGLE := 8.0
+const SLIDE_BANK_MIN_MISALIGN_DEG := 10.0
 const BOARD_BOTTOM_OFFSET := 0.005
 const BOARD_HALF_LENGTH := 1.0
 const BOARD_HALF_EXTENTS := Vector3(0.4, 0.075, 1.0)
@@ -76,7 +75,6 @@ const CREST_LIP_MIN_SPEED := 3.5
 const LANDING_STABILIZE_DURATION := 0.3
 const LANDING_FEEDBACK_DURATION := 0.6
 const GROUNDED_LOCK_DURATION := 0.4
-const LANDING_YAW_MAX_MISALIGN_DEG := 50.0
 
 # Hover clearance smoothing — physics reads eased clearance, state machine stays raw.
 const CLEARANCE_SMOOTH_RATE_UP := 8.0
@@ -124,7 +122,6 @@ var _state: State = State.GROUNDED
 var _yaw: float = 0.0
 var _yaw_velocity: float = 0.0
 var _turn_rate: float = 0.0
-var _yaw_align_cooldown := 0.0
 var _ground_normal := Vector3.UP
 var _predictive_surface: TerrainProbesScript.SurfaceResult = null
 var _predictive_normal := Vector3.UP
@@ -232,8 +229,6 @@ func _physics_process(delta: float) -> void:
 
 	_sample_terrain(delta)
 	_apply_steering(delta)
-	_align_yaw_to_velocity(delta)
-	_align_yaw_after_landing(delta)
 	if _jump_cooldown > 0.0:
 		_jump_cooldown = maxf(_jump_cooldown - delta, 0.0)
 	_try_jump()
@@ -311,7 +306,35 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	_apply_pending_knockback(state)
 	if _state == State.GLIDING:
 		_preserve_air_horizontal_speed(state, air_hold_speed)
+	_apply_strafe(state, delta)
 	state.angular_velocity = Vector3(0.0, _yaw_velocity, 0.0)
+
+
+func _apply_strafe(state: PhysicsDirectBodyState3D, delta: float) -> void:
+	if _input == null:
+		return
+	var strafe := _input.get_strafe()
+	if absf(strafe) <= 0.01:
+		return
+	var air := _state == State.GLIDING
+	var axis := Vector3.UP if air else _ground_normal
+	var nose := _flat_yaw_forward()
+	if not air:
+		var slid := nose.slide(axis)
+		if slid.length_squared() > 0.0001:
+			nose = slid.normalized()
+	var right := axis.cross(nose)
+	if right.length_squared() < 0.0001:
+		return
+	var scale := AIR_STEER_SCALE if air else 1.0
+	var slip := right.normalized() * strafe * STRAFE_ACCEL * scale * delta
+	var vel := state.linear_velocity
+	if air:
+		vel.x += slip.x
+		vel.z += slip.z
+	else:
+		vel += slip.slide(axis)
+	state.linear_velocity = vel
 
 
 func _preserve_air_horizontal_speed(state: PhysicsDirectBodyState3D, speed_before: float) -> void:
@@ -327,7 +350,7 @@ func _preserve_air_horizontal_speed(state: PhysicsDirectBodyState3D, speed_befor
 	if not _input.is_forward_held():
 		_air_hold_horizontal_speed = 0.0
 		return
-	var cap := GliderPhysicsScript.hard_speed_cap()
+	var cap := GliderPhysicsScript.hard_speed_cap(_glider_speed_bonus())
 	if _air_hold_horizontal_speed < 0.1:
 		_air_hold_horizontal_speed = minf(maxf(speed_before, 0.0), cap)
 	if _air_hold_horizontal_speed < 0.1:
@@ -1056,81 +1079,48 @@ func _apply_steering(delta: float) -> void:
 	var axis := Vector3.UP if air else _ground_normal
 	var steer := _input.get_steer()
 	var boost := _is_boost_active()
-	var turn_rate_max := BOOST_TURN_RATE if boost else SAIL_TURN_RATE
-	var turn_response := BOOST_TURN_RESPONSE if boost else SAIL_TURN_RESPONSE
-	var grip_rate := BOOST_STEER_GRIP_RATE if boost else SAIL_STEER_GRIP_RATE
-	var allow_steer_grip := boost or _landing_stabilize_timer <= 0.0
+	var air_scale := AIR_STEER_SCALE if air else 1.0
+	var mul := steering_mul(_steering_bonus())
+	var turn_rate_max := (BOOST_TURN_RATE if boost else SAIL_TURN_RATE) * mul * air_scale
+	var grip_rate := (BOOST_STEER_GRIP_RATE if boost else SAIL_STEER_GRIP_RATE) * mul * air_scale
 
 	var target_turn_rate := -steer * turn_rate_max if absf(steer) > 0.01 else 0.0
-	_turn_rate = lerpf(_turn_rate, target_turn_rate, turn_response * delta)
+	_turn_rate = lerpf(_turn_rate, target_turn_rate, TURN_RESPONSE * delta)
 	var turn := _turn_rate * delta
 
 	if absf(turn) > 0.0001:
 		_yaw += turn
 		_yaw_velocity = lerpf(_yaw_velocity, _turn_rate, 4.5 * delta)
-
-		var planar_vel := _horizontal_velocity() if air else velocity.slide(_ground_normal)
-		var speed := planar_vel.length()
-		if speed > MIN_STEER_SPEED and allow_steer_grip:
-			var forward := _flat_yaw_forward()
-			if not air:
-				forward = forward.slide(_ground_normal).normalized()
-			var inertia_scale := 1.0
-			if not boost:
-				inertia_scale = clampf(speed / SAIL_GRIP_SPEED_REF, 0.55, 1.45)
-			var grip := clampf(grip_rate * delta / inertia_scale, 0.0, 1.0)
-			planar_vel = planar_vel.lerp(forward * speed, grip)
-			if air:
-				velocity.x = planar_vel.x
-				velocity.z = planar_vel.z
-			else:
-				velocity = planar_vel + axis * velocity.dot(axis)
 	else:
 		_yaw_velocity = lerpf(_yaw_velocity, 0.0, YAW_DAMPING * delta)
-
 	_yaw_velocity = clampf(_yaw_velocity, -MAX_YAW_VELOCITY, MAX_YAW_VELOCITY)
+
+	var planar_vel := _horizontal_velocity() if air else velocity.slide(_ground_normal)
+	var nose := _flat_yaw_forward()
+	if not air:
+		var slid := nose.slide(_ground_normal)
+		if slid.length_squared() > 0.0001:
+			nose = slid.normalized()
+
+	var speed := planar_vel.length()
+	var planar_changed := false
+	if absf(turn) > 0.0001 and speed > MIN_STEER_SPEED:
+		var grip := clampf(grip_rate * delta, 0.0, 1.0)
+		planar_vel = planar_vel.lerp(nose * speed, grip)
+		planar_changed = true
+
+	if planar_changed:
+		if air:
+			velocity.x = planar_vel.x
+			velocity.z = planar_vel.z
+		else:
+			velocity = planar_vel + axis * velocity.dot(axis)
 
 
 func _travel_direction() -> Vector3:
 	if _state == State.GLIDING:
 		return _horizontal_velocity()
 	return velocity.slide(_ground_normal)
-
-
-func _align_yaw_to_velocity(delta: float) -> void:
-	if _input.is_steering():
-		_yaw_align_cooldown = YAW_ALIGN_COOLDOWN
-		return
-	if _yaw_align_cooldown > 0.0:
-		_yaw_align_cooldown = maxf(_yaw_align_cooldown - delta, 0.0)
-		return
-	if _state == State.GLIDING:
-		return
-
-	var travel := _travel_direction()
-	if travel.length_squared() < MIN_YAW_ALIGN_SPEED * MIN_YAW_ALIGN_SPEED:
-		return
-
-	var flat := Vector3(travel.x, 0.0, travel.z)
-	if flat.length_squared() < 0.01:
-		return
-
-	var target_yaw := _yaw_from_horizontal(flat)
-	var misalign := absf(wrapf(target_yaw - _yaw, -PI, PI))
-	var forward_cruise := _input.is_forward_held() or _is_boost_active()
-
-	if forward_cruise and misalign < deg_to_rad(CRUISE_DRIFT_MIN_MISALIGN_DEG):
-		return
-
-	var align_rate: float
-	if forward_cruise:
-		align_rate = (
-			BOOST_CRUISE_DRIFT_ALIGN_RATE if _is_boost_active() else SAIL_CRUISE_DRIFT_ALIGN_RATE
-		)
-	else:
-		align_rate = BOOST_YAW_ALIGN_RATE if _is_boost_active() else SAIL_YAW_ALIGN_RATE
-
-	_align_yaw_to_travel_direction(clampf(align_rate * delta, 0.0, 1.0))
 
 
 func _align_yaw_to_travel_direction(blend: float) -> void:
@@ -1141,23 +1131,6 @@ func _align_yaw_to_travel_direction(blend: float) -> void:
 	if flat.length_squared() < 0.01:
 		return
 	_yaw = lerp_angle(_yaw, _yaw_from_horizontal(flat), blend)
-
-
-func _align_yaw_after_landing(delta: float) -> void:
-	if _landing_stabilize_timer <= 0.0:
-		return
-
-	var travel := _travel_direction()
-	var flat := Vector3(travel.x, 0.0, travel.z)
-	if flat.length_squared() < 0.01:
-		return
-
-	var target_yaw := _yaw_from_horizontal(flat)
-	var misalign := absf(wrapf(target_yaw - _yaw, -PI, PI))
-	if misalign > deg_to_rad(LANDING_YAW_MAX_MISALIGN_DEG):
-		return
-
-	_align_yaw_to_travel_direction(clampf(SAIL_YAW_ALIGN_RATE * delta, 0.0, 1.0))
 
 
 func _update_orientation(delta: float) -> void:
@@ -1231,7 +1204,7 @@ func _update_visual_tilt(delta: float) -> void:
 			travel_flat = travel_flat.normalized()
 			var signed_misalign := forward_flat.cross(travel_flat).y
 			var misalign_angle := atan2(signed_misalign, forward_flat.dot(travel_flat))
-			if absf(misalign_angle) >= deg_to_rad(CRUISE_DRIFT_MIN_MISALIGN_DEG):
+			if absf(misalign_angle) >= deg_to_rad(SLIDE_BANK_MIN_MISALIGN_DEG):
 				bank += clampf(misalign_angle / PI, -1.0, 1.0) * deg_to_rad(SLIDE_BANK_ANGLE)
 
 	var target_world := _build_deck_world_basis(_deck_world_up(), bank)
@@ -1296,15 +1269,13 @@ func _build_physics_context() -> GliderPhysicsScript.Context:
 	ctx.forward_held = _input.is_forward_held()
 	ctx.sail_deployed = is_sail_deployed()
 	ctx.boost_active = _is_boost_active()
-	if ctx.forward_held or ctx.boost_active:
-		ctx.thrust_forward = _camera_forward_on_ground()
-	else:
-		ctx.thrust_forward = ctx.board_forward
+	ctx.thrust_forward = ctx.board_forward
 	ctx.braking = is_braking()
 	ctx.brake_strength = _brake_strength()
 	ctx.coast_blend = _coast_blend()
 	ctx.hover_at_rest = _is_hover_at_rest()
 	ctx.steering = _input != null and _input.is_steering()
+	ctx.strafe = _input.get_strafe() if _input != null else 0.0
 	if _state == State.GLIDING:
 		ctx.air_gravity_scale = smoothstep(
 			0.0,
@@ -1315,7 +1286,38 @@ func _build_physics_context() -> GliderPhysicsScript.Context:
 		ctx.air_gravity_scale = 1.0
 	ctx.thruster_accel = _thruster_accel(ctx.forward_held)
 	ctx.air_thruster_accel = ctx.thruster_accel * GliderPhysicsScript.AIR_BOOST_EXTRA_SCALE
+	ctx.speed_bonus = _glider_speed_bonus()
+	ctx.momentum_retention = _momentum_retention()
+	ctx.glide_bonus = _glide_bonus()
 	return ctx
+
+
+func _glider_speed_bonus() -> float:
+	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
+	if state == null:
+		return 0.0
+	return state.glider_speed_bonus
+
+
+func _momentum_retention() -> float:
+	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
+	if state == null:
+		return 0.0
+	return clampf(state.momentum_retention, 0.0, UpgradeCatalog.MOMENTUM_RETENTION_CAP)
+
+
+func _glide_bonus() -> float:
+	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
+	if state == null:
+		return 0.0
+	return clampf(state.glide_bonus, 0.0, UpgradeCatalog.GLIDE_CAP)
+
+
+func _steering_bonus() -> float:
+	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
+	if state == null:
+		return 0.0
+	return clampf(state.steering_bonus, 0.0, UpgradeCatalog.STEERING_CAP)
 
 
 func _build_touchdown_context() -> GliderPhysicsScript.Context:
@@ -1329,22 +1331,6 @@ func _board_forward_on_ground() -> Vector3:
 	if forward.length_squared() < 0.01:
 		return _travel_direction().slide(_ground_normal).normalized()
 	return forward.normalized()
-
-
-func _resolve_follow_camera() -> GliderCameraScript:
-	var parent := get_parent()
-	if parent is PlayerRig:
-		return (parent as PlayerRig).get_follow_camera()
-	return _camera
-
-
-func _camera_forward_on_ground() -> Vector3:
-	var camera := _resolve_follow_camera()
-	if camera != null:
-		var forward := camera.get_forward_flat().slide(_ground_normal)
-		if forward.length_squared() > 0.01:
-			return forward.normalized()
-	return _board_forward_on_ground()
 
 
 func _downhill_dir() -> Vector3:
@@ -1434,12 +1420,11 @@ func _update_contact_dust() -> void:
 
 
 func _update_camera(delta: float) -> void:
-	var camera := _resolve_follow_camera()
-	if camera == null:
+	if _camera == null:
 		return
 	var steering := _input != null and _input.is_steering() and not _run_ended
 	var boosting := _is_boost_active() and not _run_ended
-	camera.follow(
+	_camera.follow(
 		get_camera_follow_target(),
 		get_camera_follow_yaw(),
 		get_camera_follow_velocity(),
@@ -1504,7 +1489,8 @@ func _resolve_input() -> GliderInputScript:
 
 
 func _uses_external_camera() -> bool:
-	return get_parent() is PlayerRig
+	var parent := get_parent()
+	return parent != null and parent.has_method("get_follow_camera")
 
 
 # --- Public API ---

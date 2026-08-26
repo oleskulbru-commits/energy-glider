@@ -3,6 +3,8 @@ extends Node3D
 
 ## East of home tower so the tower sits behind when facing west (−X).
 const SPAWN_EAST_OFFSET_M := 40.0
+## West of a visited tower so Wait until dawn continues the run, not behind it.
+const SPAWN_WEST_OFFSET_M := 40.0
 const SPAWN_YAW_WEST := -PI / 2.0
 
 @export var terrain_manager_path: NodePath
@@ -122,6 +124,8 @@ func _physics_process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if get_tree().paused:
+		return
 	if event.is_action_pressed("ui_cancel"):
 		_release_mouse()
 		return
@@ -182,6 +186,38 @@ func _update_glider_camera(delta: float) -> void:
 		steering,
 		boosting
 	)
+
+
+func capture_look_mouse() -> void:
+	_capture_mouse()
+
+
+func release_look_mouse() -> void:
+	_release_mouse()
+
+
+func teleport_in_front_of(tower_pos: Vector3) -> void:
+	if _glider == null:
+		return
+	var spawn_xz := in_front_xz(tower_pos)
+	var spawn_y := _glider.global_position.y
+	if _terrain_manager != null:
+		spawn_y = (
+			_terrain_manager.sample_height(spawn_xz.x, spawn_xz.y)
+			+ GliderPhysicsScript.BASE_HEIGHT
+			+ 0.05
+		)
+		_terrain_manager.ensure_loaded_at(Vector3(spawn_xz.x, spawn_y, spawn_xz.y))
+	_glider.teleport_to(Vector3(spawn_xz.x, spawn_y, spawn_xz.y), SPAWN_YAW_WEST)
+	_glider.velocity = Vector3.ZERO
+	if _camera != null:
+		_camera.reset_follow_state()
+		_camera.snap_follow_yaw(SPAWN_YAW_WEST)
+		snap_camera_now()
+
+
+static func in_front_xz(tower_pos: Vector3) -> Vector2:
+	return Vector2(tower_pos.x - SPAWN_WEST_OFFSET_M, tower_pos.z)
 
 
 func _capture_mouse() -> void:

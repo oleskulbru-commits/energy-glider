@@ -15,6 +15,10 @@
 [ext_resource type="Script" uid="uid://bdtr5aefc5k10" path="res://scripts/world/night_survival.gd" id="16_night"]
 [ext_resource type="Script" uid="uid://d304h7bfwf23y" path="res://scripts/game/level_progress.gd" id="17_level"]
 [ext_resource type="Script" uid="uid://cmltivlks2lph" path="res://scripts/enemies/enemy_stream_spawner.gd" id="18_stream"]
+[ext_resource type="Script" uid="uid://dmcb4pm1f6xqy" path="res://scripts/game/run_upgrade_state.gd" id="19_upgrades"]
+[ext_resource type="Script" uid="uid://dtkgjkuvsrhd8" path="res://scripts/game/tower_visit_controller.gd" id="20_visit"]
+[ext_resource type="PackedScene" path="res://scenes/ui/upgrade_tower_menu.tscn" id="21_upgrade_menu"]
+[ext_resource type="PackedScene" path="res://scenes/ui/weapon_select_menu.tscn" id="22_weapon_select"]
 
 [node name="GameWorld" type="Node3D"]
 
@@ -82,6 +86,19 @@ track_node_path = NodePath("../PlayerRig/Glider")
 [node name="OutpostSpawner" type="Node3D" parent="."]
 script = ExtResource("8_outpost_spawner")
 terrain_manager_path = NodePath("../TerrainManager")
+
+[node name="RunUpgradeState" type="Node" parent="."]
+script = ExtResource("19_upgrades")
+
+[node name="UpgradeTowerMenu" parent="." instance=ExtResource("21_upgrade_menu")]
+
+[node name="WeaponSelectMenu" parent="." instance=ExtResource("22_weapon_select")]
+
+[node name="TowerVisitController" type="Node" parent="."]
+script = ExtResource("20_visit")
+player_rig_path = NodePath("../PlayerRig")
+run_upgrade_state_path = NodePath("../RunUpgradeState")
+menu_path = NodePath("../UpgradeTowerMenu")
 
 [node name="EnemyStreamSpawner" type="Node3D" parent="."]
 script = ExtResource("18_stream")

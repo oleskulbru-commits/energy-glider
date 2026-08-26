@@ -42,15 +42,30 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _day_label: Label = %DayLabel
 @onready var _compass_bar: CompassBar = %CompassBar
 @onready var _stopped_summary: Label = %StoppedSummary
-@onready var _day_summary_panel: PanelContainer = %DaySummaryPanel
-@onready var _day_summary_label: Label = %DaySummaryLabel
 @onready var _night_warning_panel: PanelContainer = %NightWarningPanel
 @onready var _night_warning_label: Label = %NightWarningLabel
 @onready var _safe_chip: PanelContainer = %SafeChip
 @onready var _safe_label: Label = %SafeLabel
 @onready var _outpost_board: PanelContainer = %OutpostBoard
 @onready var _outpost_board_label: Label = %OutpostBoardLabel
+@onready var _rifle_debug_panel: PanelContainer = %RifleDebugPanel
+@onready var _rifle_cooldown_label: Label = %RifleCooldownLabel
+@onready var _rifle_projectiles_label: Label = %RifleProjectilesLabel
+@onready var _rifle_damage_label: Label = %RifleDamageLabel
+@onready var _rifle_projectile_speed_label: Label = %RifleProjectileSpeedLabel
+@onready var _glider_speed_label: Label = %GliderSpeedLabel
+@onready var _glide_label: Label = %GlideLabel
+@onready var _steering_label: Label = %SteeringLabel
+@onready var _hp_regen_label: Label = %HpRegenLabel
+@onready var _health_label: Label = %HealthLabel
+@onready var _luck_label: Label = %LuckLabel
+@onready var _momentum_retention_label: Label = %MomentumRetentionLabel
+@onready var _crit_label: Label = %CritLabel
+@onready var _duration_label: Label = %DurationLabel
+@onready var _pushback_label: Label = %PushbackLabel
+@onready var _range_label: Label = %RangeLabel
 @onready var _speed_label: Label = %SpeedLabel
+@onready var _weapon_tray: HBoxContainer = %WeaponTray
 
 var _rig: PlayerRig
 var _player: GliderPlayer
@@ -90,7 +105,6 @@ func _ready() -> void:
 	_night_survival = get_tree().get_first_node_in_group("night_survival") as NightSurvival
 	if _expedition != null:
 		_expedition.day_started.connect(_on_day_started)
-		_expedition.day_ended.connect(_on_day_ended)
 	if _director != null:
 		_director.integrity_changed.connect(_on_integrity_changed)
 		_director.objective_changed.connect(_on_objective_changed)
@@ -127,6 +141,7 @@ func _ready() -> void:
 		_fail_fade.color = Color(0, 0, 0, 0)
 		_fail_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_fail_fade.z_index = 100
+	call_deferred("_connect_weapon_tray")
 	if _stopped_overlay != null:
 		_stopped_overlay.z_index = 101
 	_fail_overlay_style = StyleBoxEmpty.new()
@@ -141,6 +156,52 @@ func _ready() -> void:
 	if _sail_chip != null:
 		_sail_chip.visible = false
 	_lock_eon_tracker_layout()
+
+
+func _connect_weapon_tray() -> void:
+	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
+	if state != null and not state.weapons_changed.is_connected(_refresh_weapon_tray):
+		state.weapons_changed.connect(_refresh_weapon_tray)
+	_refresh_weapon_tray()
+
+
+func _refresh_weapon_tray() -> void:
+	if _weapon_tray == null:
+		return
+	var owned := PackedStringArray()
+	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
+	if state != null:
+		owned = state.owned_weapon_ids()
+	var slots := _weapon_tray.get_children()
+	for i in slots.size():
+		var slot := slots[i] as Control
+		if slot == null:
+			continue
+		var icon := slot.get_node_or_null("Frame/Icon") as TextureRect
+		var name_label := slot.get_node_or_null("Name") as Label
+		if i >= owned.size():
+			if icon != null:
+				icon.texture = null
+			if name_label != null:
+				name_label.text = ""
+			var empty_level := slot.get_node_or_null("Level") as Label
+			if empty_level != null:
+				empty_level.text = ""
+			continue
+		var family := StringName(owned[i])
+		var unlock := UpgradeCatalog.unlock_id_for(family)
+		var level := 1
+		if state != null:
+			level = maxi(state.weapon_level(family), 1)
+		if icon != null:
+			icon.texture = UpgradeCatalog.icon_for_weapon_level(family, level)
+		if name_label != null:
+			name_label.text = UpgradeCatalog.display_name(unlock)
+		var level_label := slot.get_node_or_null("Level") as Label
+		if level_label != null:
+			level_label.text = "Level %d" % level
+
+
 func _lock_eon_tracker_layout() -> void:
 	if _eon_tracker == null:
 		return
@@ -173,12 +234,12 @@ func _process(delta: float) -> void:
 	_update_stop_chip()
 	_update_compass()
 	_update_outpost_board()
-	_update_day_summary(delta)
 	_update_night_warning(delta)
 	_update_safe_chip(delta)
 	_update_integrity_bar()
 	_update_eon_tracker()
 	_update_speedometer()
+	_update_rifle_debug()
 
 	var show_death_overlay := _is_death_overlay_active()
 	if show_death_overlay:
@@ -392,30 +453,6 @@ func _on_day_started(day: int) -> void:
 	if _day_label != null:
 		_day_label.text = "DAY %d" % day
 		_day_label.visible = true
-
-
-func _on_day_ended(summary: Dictionary) -> void:
-	if _day_summary_panel == null or _day_summary_label == null:
-		return
-	var distance_m := float(summary.get("distance_m", 0.0))
-	var score := int(summary.get("score", 0))
-	_day_summary_label.text = "DAY %d COMPLETE\n%s  +%d pts" % [
-		int(summary.get("day", 1)),
-		MathUtil.format_distance_m(distance_m),
-		score,
-	]
-	_day_summary_panel.visible = true
-	_day_summary_timer = 3.5
-
-
-func _update_day_summary(delta: float) -> void:
-	if _day_summary_timer <= 0.0:
-		if _day_summary_panel != null:
-			_day_summary_panel.visible = false
-		return
-	_day_summary_timer = maxf(_day_summary_timer - delta, 0.0)
-	if _day_summary_timer <= 0.0 and _day_summary_panel != null:
-		_day_summary_panel.visible = false
 
 
 func _on_night_warning() -> void:
@@ -636,15 +673,134 @@ func _update_speedometer() -> void:
 	_speed_label.text = "%d m/s" % int(roundf(speed))
 
 
-func _on_stop_chip_gui_input(event: InputEvent) -> void:
-	if _input == null:
+func _update_rifle_debug() -> void:
+	if _rifle_debug_panel == null:
 		return
+	var extras := 0
+	var reduction := 0.0
+	var bonus := 0.0
+	var speed_bonus := 0.0
+	var glider_bonus := 0.0
+	var glide_bonus := 0.0
+	var steering_bonus := 0.0
+	var regen := 0.0
+	var health_bonus := 0
+	var luck := 0
+	var retention := 0.0
+	var crit := 0.0
+	var duration := 0.0
+	var pushback := 0.0
+	var range_bonus := 0.0
+	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
+	if state != null:
+		extras = state.hud_extra_projectiles()
+		reduction = state.hud_attack_speed_reduction()
+		bonus = state.hud_damage_bonus()
+		speed_bonus = state.hud_projectile_speed_bonus()
+		glider_bonus = state.glider_speed_bonus
+		glide_bonus = clampf(state.glide_bonus, 0.0, UpgradeCatalog.GLIDE_CAP)
+		steering_bonus = clampf(state.steering_bonus, 0.0, UpgradeCatalog.STEERING_CAP)
+		regen = state.health_regen_per_sec
+		health_bonus = state.max_health_bonus
+		luck = state.luck_bonus
+		retention = clampf(state.momentum_retention, 0.0, UpgradeCatalog.MOMENTUM_RETENTION_CAP)
+		crit = clampf(state.hud_crit_chance(), 0.0, UpgradeCatalog.CRIT_CAP)
+		duration = state.hud_duration_bonus()
+		pushback = state.hud_pushback_bonus()
+		range_bonus = state.hud_range_bonus()
+	var any := false
+	any = _show_upgrade_line(
+		_rifle_cooldown_label,
+		"Attack Speed %d%%" % int(roundf(reduction * 100.0)),
+		reduction > 0.0
+	) or any
+	any = _show_upgrade_line(
+		_rifle_projectiles_label,
+		"Projectiles %d" % AutoRifle.projectile_count_for(extras),
+		extras > 0
+	) or any
+	any = _show_upgrade_line(
+		_rifle_damage_label,
+		"Damage %d%%" % int(roundf(bonus * 100.0)),
+		bonus > 0.0
+	) or any
+	any = _show_upgrade_line(
+		_rifle_projectile_speed_label,
+		"Projectile Speed %d%%" % int(roundf(speed_bonus * 100.0)),
+		speed_bonus > 0.0
+	) or any
+	any = _show_upgrade_line(
+		_glider_speed_label,
+		"Glider Speed %d%%" % int(roundf(glider_bonus * 100.0)),
+		glider_bonus > 0.0
+	) or any
+	any = _show_upgrade_line(
+		_glide_label,
+		"Glide %d%%" % int(roundf(glide_bonus * 100.0)),
+		glide_bonus > 0.0
+	) or any
+	any = _show_upgrade_line(
+		_steering_label,
+		"Steering %d%%" % int(roundf(steering_bonus * 100.0)),
+		steering_bonus > 0.0
+	) or any
+	any = _show_upgrade_line(
+		_hp_regen_label,
+		"HP Regen %s" % UpgradeCatalog.hp_regen_period_text(
+			regen * UpgradeCatalog.HP_REGEN_PERIOD_SEC
+		),
+		regen > 0.0
+	) or any
+	any = _show_upgrade_line(
+		_health_label,
+		"Health %d" % (PlayerHealth.BASE_HEALTH + health_bonus),
+		health_bonus > 0
+	) or any
+	any = _show_upgrade_line(_luck_label, "Luck +%d" % luck, luck > 0) or any
+	any = _show_upgrade_line(
+		_momentum_retention_label,
+		"Momentum Retention %d%%" % int(roundf(retention * 100.0)),
+		retention > 0.0
+	) or any
+	any = _show_upgrade_line(
+		_crit_label,
+		"Crit %d%%" % int(roundf(crit * 100.0)),
+		crit > 0.0
+	) or any
+	any = _show_upgrade_line(
+		_duration_label,
+		"Duration %d%%" % int(roundf(duration * 100.0)),
+		duration > 0.0
+	) or any
+	any = _show_upgrade_line(
+		_pushback_label,
+		"Pushback %d%%" % int(roundf(pushback * 100.0)),
+		pushback > 0.0
+	) or any
+	any = _show_upgrade_line(
+		_range_label,
+		"Range %d%%" % int(roundf(range_bonus * 100.0)),
+		range_bonus > 0.0
+	) or any
+	_rifle_debug_panel.visible = any
+	if any:
+		_rifle_debug_panel.reset_size()
 
-	if event is InputEventMouseButton:
-		if event is InputEvent:
-			(event as InputEvent).set_handled()
 
-	if event is InputEventMouseButton:
-		var mouse := event as InputEventMouseButton
-		if mouse.button_index == MOUSE_BUTTON_LEFT:
-			_input.set_brake_ui_hold(mouse.pressed)
+func _show_upgrade_line(label: Label, text: String, active: bool) -> bool:
+	if label == null:
+		return false
+	label.visible = active
+	if active:
+		label.text = text
+	return active
+
+
+func _on_stop_chip_gui_input(event: InputEvent) -> void:
+	if _input == null or _stop_chip == null or not _stop_chip.is_inside_tree():
+		return
+	var mouse := event as InputEventMouseButton
+	if mouse == null or mouse.button_index != MOUSE_BUTTON_LEFT:
+		return
+	_input.set_brake_ui_hold(mouse.pressed)
+	_stop_chip.accept_event()

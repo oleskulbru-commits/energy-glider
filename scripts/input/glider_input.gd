@@ -59,6 +59,16 @@ func is_steering() -> bool:
 	return absf(get_steer()) > 0.01
 
 
+func get_strafe() -> float:
+	if not _locomotion_enabled:
+		return 0.0
+	return Input.get_action_strength("strafe_right") - Input.get_action_strength("strafe_left")
+
+
+func is_strafing() -> bool:
+	return absf(get_strafe()) > 0.01
+
+
 func is_jump_just_pressed() -> bool:
 	if not _locomotion_enabled:
 		return false

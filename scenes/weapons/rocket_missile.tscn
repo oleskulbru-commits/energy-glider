@@ -1,0 +1,71 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/rocket_missile.gd" id="1_missile"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_body"]
+shading_mode = 0
+albedo_color = Color(1, 0.38, 0.14, 1)
+emission_enabled = true
+emission = Color(1, 0.28, 0.06, 1)
+emission_energy_multiplier = 3.2
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_streak"]
+shading_mode = 0
+albedo_color = Color(1, 0.52, 0.18, 0.82)
+emission_enabled = true
+emission = Color(1, 0.4, 0.08, 1)
+emission_energy_multiplier = 2.2
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
+radius = 0.12
+height = 0.55
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_streak"]
+radius = 0.08
+height = 1.6
+
+[sub_resource type="SphereMesh" id="SphereMesh_spark"]
+radius = 0.08
+height = 0.16
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_hit"]
+radius = 0.36
+
+[node name="RocketMissile" type="Area3D"]
+collision_layer = 0
+collision_mask = 8
+monitorable = false
+script = ExtResource("1_missile")
+
+[node name="Visual" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+mesh = SubResource("CapsuleMesh_body")
+surface_material_override/0 = SubResource("StandardMaterial3D_body")
+cast_shadow = 0
+
+[node name="Streak" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0.85)
+mesh = SubResource("CapsuleMesh_streak")
+surface_material_override/0 = SubResource("StandardMaterial3D_streak")
+cast_shadow = 0
+
+[node name="Trail" type="CPUParticles3D" parent="."]
+material_override = SubResource("StandardMaterial3D_body")
+cast_shadow = 0
+amount = 40
+lifetime = 0.4
+local_coords = false
+emission_shape = 1
+emission_sphere_radius = 0.07
+direction = Vector3(0, 0, 1)
+spread = 18.0
+gravity = Vector3(0, 0, 0)
+initial_velocity_min = 1.2
+initial_velocity_max = 3.5
+scale_amount_min = 0.7
+scale_amount_max = 1.5
+color = Color(1, 0.45, 0.14, 1)
+mesh = SubResource("SphereMesh_spark")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("SphereShape3D_hit")

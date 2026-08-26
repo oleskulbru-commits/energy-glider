@@ -22,22 +22,26 @@ func _spawn_outposts() -> void:
 
 	var planned: Array[Dictionary] = []
 	if include_home:
-		planned.append({ "pos": origin, "is_home": true })
+		planned.append({ "pos": origin, "is_home": true, "tower_index": 0 })
 
+	var west_index := 1
 	for offset_x in LevelLayout.tower_x_offsets_from_origin():
 		var west := origin + Vector3(offset_x, 0.0, 0.0)
-		planned.append({ "pos": west, "is_home": false })
+		planned.append({ "pos": west, "is_home": false, "tower_index": west_index })
+		west_index += 1
 
 	for entry in planned:
-		_spawn_one(entry.pos as Vector3, terrain, bool(entry.is_home))
+		_spawn_one(entry.pos as Vector3, terrain, bool(entry.is_home), int(entry.tower_index))
 
 
-func _spawn_one(approx: Vector3, terrain: TerrainManager, is_home: bool) -> void:
+func _spawn_one(approx: Vector3, terrain: TerrainManager, is_home: bool, tower_index: int) -> void:
 	var placed_xz := Vector2(approx.x, approx.z)
 	if not is_home:
 		placed_xz = _pick_ridge_xz(approx, terrain)
 	var tower: UpgradeTower = UPGRADE_TOWER_SCENE.instantiate() as UpgradeTower
 	add_child(tower)
+	tower.is_home = is_home
+	tower.tower_index = tower_index
 	if terrain != null:
 		tower.terrain_manager_path = tower.get_path_to(terrain)
 	tower.global_position = Vector3(placed_xz.x, 0.0, placed_xz.y)

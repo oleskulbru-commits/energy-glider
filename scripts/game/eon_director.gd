@@ -7,6 +7,7 @@ signal integrity_changed(integrity: int)
 signal run_started
 signal player_died(position: Vector3)
 signal objective_changed(text: String)
+signal attempt_started
 
 enum Phase { AWAITING_EON, RUNNING }
 
@@ -17,6 +18,8 @@ const EON_FIRST_SPAWN_MAX_M := 150.0
 const EON_RIDGE_SAMPLE_RADIUS_M := 80.0
 const EON_RIDGE_SAMPLE_STEPS := 8
 const OBJECTIVE_RETRIEVE := "Retrieve the E.O.N"
+const HEAD_WEST_DELAY_SEC := 4.0
+const HeadWestVoice := preload("res://assets/audio/ui/head_west.mp3")
 
 const EonPickupScene := preload("res://scenes/game/eon_pickup.tscn")
 const EonPickupScript := preload("res://scripts/game/eon_pickup.gd")
@@ -52,6 +55,8 @@ var _respawn_eon_at_death := false
 var _death_overlay_timer: SceneTreeTimer = null
 var _death_fade_timer: SceneTreeTimer = null
 var _rng := RandomNumberGenerator.new()
+var _head_west_voice: AudioStreamPlayer
+var _head_west_token := 0
 
 
 func _ready() -> void:
@@ -69,6 +74,10 @@ func _ready() -> void:
 		_day_night = get_node_or_null(day_night_path) as DayNightCycle
 	if _day_night == null:
 		_day_night = get_tree().get_first_node_in_group("day_night_cycle") as DayNightCycle
+	_head_west_voice = AudioStreamPlayer.new()
+	_head_west_voice.stream = HeadWestVoice
+	_head_west_voice.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(_head_west_voice)
 	call_deferred("_boot")
 
 
@@ -225,6 +234,28 @@ func _on_eon_collected() -> void:
 	_sync_next_tower_label()
 	run_started.emit()
 	objective_changed.emit(get_objective_text())
+	_schedule_head_west_voice()
+
+
+func _schedule_head_west_voice() -> void:
+	_head_west_token += 1
+	var token := _head_west_token
+	_play_head_west_later(token)
+
+
+func _cancel_head_west_voice() -> void:
+	_head_west_token += 1
+	if _head_west_voice != null and _head_west_voice.playing:
+		_head_west_voice.stop()
+
+
+func _play_head_west_later(token: int) -> void:
+	await get_tree().create_timer(HEAD_WEST_DELAY_SEC, true).timeout
+	if token != _head_west_token or phase != Phase.RUNNING:
+		return
+	if _head_west_voice == null:
+		return
+	_head_west_voice.play()
 
 
 func _bootstrap_run() -> void:
@@ -297,6 +328,7 @@ func _show_death_overlay() -> void:
 	awaiting_death_choice = true
 	player_died.emit(death_position)
 	objective_changed.emit(get_objective_text())
+	_cancel_head_west_voice()
 
 
 func _cancel_death_timers() -> void:
@@ -338,6 +370,7 @@ func _soft_retry() -> void:
 		_day_night.skip_to_dawn()
 	phase = Phase.AWAITING_EON
 	objective_changed.emit(get_objective_text())
+	attempt_started.emit()
 
 
 func _spawn_eon_near_start() -> void:

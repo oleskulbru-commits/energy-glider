@@ -1,0 +1,22 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/shotgun_pellet.gd" id="1_pellet"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pellet"]
+shading_mode = 0
+albedo_color = Color(1, 0.92, 0.62, 1)
+emission_enabled = true
+emission = Color(1, 0.82, 0.38, 1)
+emission_energy_multiplier = 3.4
+
+[sub_resource type="SphereMesh" id="SphereMesh_pellet"]
+radius = 0.11
+height = 0.22
+
+[node name="ShotgunPellet" type="Node3D"]
+script = ExtResource("1_pellet")
+
+[node name="Visual" type="MeshInstance3D" parent="."]
+mesh = SubResource("SphereMesh_pellet")
+surface_material_override/0 = SubResource("StandardMaterial3D_pellet")
+cast_shadow = 0

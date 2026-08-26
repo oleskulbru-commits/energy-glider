@@ -2,6 +2,7 @@ extends SceneTree
 
 const DayNightCycleScript = preload("res://scripts/world/day_night_cycle.gd")
 const NightSurvivalScript = preload("res://scripts/world/night_survival.gd")
+const ExpeditionStateScript = preload("res://scripts/game/expedition_state.gd")
 
 
 func _init() -> void:
