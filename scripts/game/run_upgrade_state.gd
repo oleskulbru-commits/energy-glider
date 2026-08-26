@@ -258,11 +258,11 @@ func ensure_tower(tower_index: int) -> void:
 		return
 	if _offers.has(tower_index):
 		return
-	var seed := LevelRun.world_seed()
-	if seed < 0:
-		seed = 42
+	var world_seed := LevelRun.world_seed()
+	if world_seed < 0:
+		world_seed = 42
 	_offers[tower_index] = UpgradeCatalog.roll_shop(
-		seed, tower_index, luck_bonus, has_rifle, has_laser, has_tesla, has_rocket, has_shotgun, unlock_pity_steps
+		world_seed, tower_index, luck_bonus, has_rifle, has_laser, has_tesla, has_rocket, has_shotgun, unlock_pity_steps
 	)
 
 
@@ -491,9 +491,9 @@ func _refill_weapon_holes() -> void:
 		return
 	if not has_rifle and not has_laser and not has_tesla and not has_rocket and not has_shotgun:
 		return
-	var seed := LevelRun.world_seed()
-	if seed < 0:
-		seed = 42
+	var world_seed := LevelRun.world_seed()
+	if world_seed < 0:
+		world_seed = 42
 	var remaining: Dictionary = {}
 	for tower_index in _weapon_holes.keys():
 		if not _offers.has(tower_index):
@@ -514,7 +514,7 @@ func _refill_weapon_holes() -> void:
 			if not UpgradeCatalog.is_empty_offer(StringName(offers[slot])):
 				continue
 			var fresh := UpgradeCatalog.roll_weapon_refill(
-				seed,
+				world_seed,
 				int(tower_index),
 				_life_index,
 				int(slot),
