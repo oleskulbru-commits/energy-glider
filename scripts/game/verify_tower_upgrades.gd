@@ -1647,8 +1647,8 @@ func _verify_attack_speed_stacking() -> void:
 		"Common + rare Attack Speed should sum to 13%"
 	)
 	_fail_unless(
-		is_equal_approx(AutoRifleScript.fire_interval_for(state.attack_speed_reduction), 3.0 * 0.87),
-		"Additive CDR should be 3.0 × 0.87"
+		is_equal_approx(AutoRifleScript.fire_interval_for(state.attack_speed_reduction), 2.3 * 0.87),
+		"Additive CDR should be 2.3 × 0.87"
 	)
 	_fail_unless(state.remaining_count(4) == 3, "Leftover cards should stay in the shop")
 	_fail_unless(state.extra_projectiles == 0, "Attack Speed picks should not add projectiles")
@@ -1664,8 +1664,8 @@ func _verify_attack_speed_stacking() -> void:
 		"Picks past the rifle cap should still add their percent"
 	)
 	_fail_unless(
-		is_equal_approx(AutoRifleScript.fire_interval_for(state.attack_speed_reduction), 0.60),
-		"Rifle wait should cap at 0.60 s"
+		is_equal_approx(AutoRifleScript.fire_interval_for(state.attack_speed_reduction), 2.3 * 0.20),
+		"Rifle wait should cap at 0.46 s"
 	)
 	_fail_unless(state.remaining_count(5) == 0, "Over-cap pick should still remove the card")
 	state.free()

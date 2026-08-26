@@ -147,7 +147,7 @@ func _get_glider() -> GliderPlayer:
 
 
 func _spawn_one(track: Node3D, ahead: Vector2, spread: float, speed: float, level: int) -> void:
-	var offset := SwarmPillScript.spawn_offset_xz(ahead.x, ahead.y, spread, _rng, _facing_xz())
+	var offset := spawn_offset_along_facing(ahead.x, ahead.y, spread, _rng, _facing_xz())
 	var world_x := track.global_position.x + offset.x
 	var world_z := track.global_position.z + offset.y
 	var world_y := track.global_position.y
@@ -176,6 +176,27 @@ func _facing_xz() -> Vector3:
 	if fwd.length_squared() < 0.0001:
 		return Vector3(-1.0, 0.0, 0.0)
 	return fwd.normalized()
+
+
+## Ahead + lateral in the player's facing frame → world XZ offset.
+static func spawn_offset_along_facing(
+	ahead_min_m: float,
+	ahead_max_m: float,
+	spread_m: float,
+	rng: RandomNumberGenerator,
+	facing_xz: Vector3
+) -> Vector2:
+	var fwd := Vector3(facing_xz.x, 0.0, facing_xz.z)
+	if fwd.length_squared() < 0.0001:
+		fwd = Vector3(-1.0, 0.0, 0.0)
+	else:
+		fwd = fwd.normalized()
+	## +lateral matches westbound +Z when facing −X.
+	var right := Vector3(fwd.z, 0.0, -fwd.x)
+	var ahead_m := rng.randf_range(ahead_min_m, ahead_max_m)
+	var lat := rng.randf_range(-spread_m, spread_m)
+	var world := fwd * ahead_m + right * lat
+	return Vector2(world.x, world.z)
 
 
 func _cull_active() -> void:

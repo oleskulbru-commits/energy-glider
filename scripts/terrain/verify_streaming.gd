@@ -7,6 +7,7 @@ const SandMaterial = preload("res://assets/materials/sand.tres")
 
 const EXPECTED_INITIAL_CHUNKS := 25
 const HEIGHT_TOLERANCE := 2.0
+const ASYNC_LOAD_TIMEOUT_MS := 8000
 
 
 func _init() -> void:
@@ -24,11 +25,10 @@ func _run_test() -> void:
 	root.add_child(player)
 	terrain.set_track_node(player)
 
-	await create_timer(0.1).timeout
-	assert(terrain.get_child_count() >= EXPECTED_INITIAL_CHUNKS, "Expected 5x5 sync chunks at start")
+	await _await_chunks_ready(terrain, EXPECTED_INITIAL_CHUNKS)
 
 	_verify_trimesh_collision(terrain)
-	await create_timer(0.1).timeout
+	await _await_all_collisions(terrain)
 	await physics_frame
 	await physics_frame
 	_verify_raycast_height(terrain, Vector3(64.0, 0.0, 64.0))
@@ -36,11 +36,60 @@ func _run_test() -> void:
 	var checkpoints := [0.0, -256.0, -512.0, -768.0]
 	for x in checkpoints:
 		player.position = Vector3(x, 0.0, 0.0)
-		await create_timer(0.15).timeout
-		_verify_west_chunks_loaded(terrain, player.position)
+		await _await_west_ahead_chunk(terrain, player.position)
+
+	await _verify_far_west_coarse_collision(terrain, player)
 
 	print("Collision and streaming verification passed with %d chunk nodes." % terrain.get_child_count())
 	quit(0)
+
+
+func _await_chunks_ready(terrain: Node3D, expected_count: int) -> void:
+	var deadline := Time.get_ticks_msec() + ASYNC_LOAD_TIMEOUT_MS
+	while Time.get_ticks_msec() < deadline:
+		if terrain.get_child_count() >= expected_count:
+			return
+		await process_frame
+	assert(false, "Timed out waiting for %d async terrain chunks (got %d)" % [
+		expected_count, terrain.get_child_count()
+	])
+
+
+func _await_all_collisions(terrain: Node3D) -> void:
+	var deadline := Time.get_ticks_msec() + ASYNC_LOAD_TIMEOUT_MS
+	while Time.get_ticks_msec() < deadline:
+		if _all_chunks_have_collision(terrain):
+			return
+		await process_frame
+	assert(false, "Timed out waiting for terrain collision finalize")
+
+
+func _all_chunks_have_collision(terrain: Node3D) -> bool:
+	if terrain.get_child_count() == 0:
+		return false
+	for chunk in terrain.get_children():
+		var static_body := chunk.get_node_or_null("TerrainCollision") as StaticBody3D
+		if static_body == null or static_body.get_child_count() == 0:
+			return false
+	return true
+
+
+func _await_west_ahead_chunk(terrain: Node3D, track_pos: Vector3) -> void:
+	var center_x := int(floor(track_pos.x / 256.0))
+	var ahead_key := "Chunk_%d_0" % (center_x - 1)
+	var deadline := Time.get_ticks_msec() + ASYNC_LOAD_TIMEOUT_MS
+	while Time.get_ticks_msec() < deadline:
+		for child in terrain.get_children():
+			if child.name == ahead_key:
+				var body := child.get_node_or_null("TerrainCollision") as StaticBody3D
+				if body != null and body.get_child_count() > 0:
+					return
+		await process_frame
+	if center_x <= 0:
+		assert(
+			terrain.get_child_count() >= EXPECTED_INITIAL_CHUNKS,
+			"Westbound ahead chunk should load asynchronously"
+		)
 
 
 func _verify_trimesh_collision(terrain: Node3D) -> void:
@@ -49,6 +98,43 @@ func _verify_trimesh_collision(terrain: Node3D) -> void:
 	var collision_shape: CollisionShape3D = static_body.get_child(0) as CollisionShape3D
 	assert(collision_shape.shape is ConcavePolygonShape3D, "Terrain should use trimesh collision")
 	assert(not (collision_shape.shape is HeightMapShape3D), "HeightMapShape3D should be removed")
+
+
+func _verify_far_west_coarse_collision(terrain: TerrainManager, player: Node3D) -> void:
+	var far_chunk_x := int(floor(-(ChunkBuilderScript.DENSE_FAR_WEST_M + 500.0) / ChunkBuilderScript.CHUNK_SIZE))
+	var chunk_center_x := (float(far_chunk_x) + 0.5) * ChunkBuilderScript.CHUNK_SIZE
+	player.position = Vector3(chunk_center_x, 0.0, 0.0)
+
+	var chunk_name := "Chunk_%d_0" % far_chunk_x
+	var deadline := Time.get_ticks_msec() + ASYNC_LOAD_TIMEOUT_MS
+	var found_chunk: Node3D = null
+	while Time.get_ticks_msec() < deadline:
+		for child in terrain.get_children():
+			if child.name == chunk_name:
+				found_chunk = child
+				var body := child.get_node_or_null("TerrainCollision") as StaticBody3D
+				if body != null and body.get_child_count() > 0:
+					break
+		if found_chunk != null:
+			var body := found_chunk.get_node_or_null("TerrainCollision") as StaticBody3D
+			if body != null and body.get_child_count() > 0:
+				break
+		await process_frame
+
+	assert(found_chunk != null, "Far-west chunk should stream in asynchronously")
+
+	var render_verts: int = ChunkBuilderScript.verts_per_side_for_chunk(far_chunk_x)
+	assert(
+		render_verts > ChunkBuilderScript.COLLISION_VERTS_PER_SIDE,
+		"Far-west render mesh should be denser than collision grid"
+	)
+
+	var sampler: RefCounted = DuneHeightScript.new(terrain.world_seed)
+	sampler.set_run_origin(terrain.run_origin)
+	var collision_build: Dictionary = ChunkBuilderScript.build_collision(sampler, far_chunk_x, 0)
+	assert(int(collision_build.verts_per_side) == ChunkBuilderScript.COLLISION_VERTS_PER_SIDE)
+	var collision_vertices: PackedVector3Array = collision_build.mesh_arrays[Mesh.ARRAY_VERTEX]
+	assert(collision_vertices.size() == ChunkBuilderScript.COLLISION_VERTS_PER_SIDE ** 2)
 
 
 func _find_terrain_body(terrain: Node3D) -> StaticBody3D:
@@ -87,18 +173,3 @@ func _verify_raycast_height(terrain: TerrainManager, world_pos: Vector3) -> void
 		assert(absf(mesh_y - expected) < HEIGHT_TOLERANCE, "Mesh height should match sampled height")
 		return
 	assert(absf(hit.position.y - expected) < HEIGHT_TOLERANCE, "Collision height should match sampled height")
-
-
-func _verify_west_chunks_loaded(terrain: Node3D, track_pos: Vector3) -> void:
-	var center_x := int(floor(track_pos.x / 256.0))
-	var ahead_key := "Chunk_%d_0" % (center_x - 1)
-	var has_ahead := false
-	for child in terrain.get_children():
-		if child.name == ahead_key:
-			has_ahead = true
-			break
-	if center_x <= 0:
-		assert(
-			has_ahead or terrain.get_child_count() >= EXPECTED_INITIAL_CHUNKS,
-			"Westbound ahead chunk should be loaded"
-		)

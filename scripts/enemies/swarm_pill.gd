@@ -454,25 +454,16 @@ static func knockback_impulse_for(
 	return vel * maxf(body_mass, 0.01)
 
 
-## Local ahead + lateral → world XZ offset. Defaults to westbound (−X) for tests.
+## Westbound spawn X (more negative = ahead) and lateral Z offset.
 static func spawn_offset_xz(
 	ahead_min_m: float,
 	ahead_max_m: float,
 	spread_m: float,
-	rng: RandomNumberGenerator,
-	facing_xz: Vector3 = Vector3(-1.0, 0.0, 0.0)
+	rng: RandomNumberGenerator
 ) -> Vector2:
-	var fwd := Vector3(facing_xz.x, 0.0, facing_xz.z)
-	if fwd.length_squared() < 0.0001:
-		fwd = Vector3(-1.0, 0.0, 0.0)
-	else:
-		fwd = fwd.normalized()
-	## Right-handed lateral on XZ (perp to forward).
-	var right := Vector3(-fwd.z, 0.0, fwd.x)
 	var ahead := rng.randf_range(ahead_min_m, ahead_max_m)
-	var lat := rng.randf_range(-spread_m, spread_m)
-	var world := fwd * ahead + right * lat
-	return Vector2(world.x, world.z)
+	var z_off := rng.randf_range(-spread_m, spread_m)
+	return Vector2(-ahead, z_off)
 
 
 ## True when `pos` is more than `margin_m` behind `origin` along facing.

@@ -56,7 +56,9 @@ func _verify_spawn_offset() -> void:
 	rng.seed = 7
 	var south := Vector3(0.0, 0.0, 1.0)
 	for _i in 40:
-		var offset_s: Vector2 = SwarmPillScript.spawn_offset_xz(30.0, 90.0, 55.0, rng, south)
+		var offset_s: Vector2 = EnemyStreamSpawnerScript.spawn_offset_along_facing(
+			30.0, 90.0, 55.0, rng, south
+		)
 		_fail_unless(offset_s.y > 0.0, "South-facing spawn must be ahead (+Z), got %s" % offset_s.y)
 		_fail_unless(absf(offset_s.x) <= 55.0 + 0.001, "South-facing lateral X outside spread: %s" % offset_s.x)
 		_fail_unless(offset_s.y >= 30.0 - 0.001 and offset_s.y <= 90.0 + 0.001, "South ahead distance out of range: %s" % offset_s.y)
@@ -346,24 +348,24 @@ func _verify_crawler_death() -> void:
 
 func _verify_rifle_targeting() -> void:
 	_fail_unless(is_equal_approx(AutoRifleScript.RANGE_M, 75.0), "Rifle range should be 75 m")
-	_fail_unless(is_equal_approx(AutoRifleScript.FIRE_INTERVAL_SEC, 3.0), "Rifle interval should be 3 s")
+	_fail_unless(is_equal_approx(AutoRifleScript.FIRE_INTERVAL_SEC, 2.3), "Rifle interval should be 2.3 s")
 	_fail_unless(is_equal_approx(AutoRifleScript.CDR_CAP, 0.80), "Attack Speed should cap at 80% CDR")
 	_fail_unless(is_equal_approx(AutoRifleScript.SPEED_CAP, 0.80), "Projectile Speed should cap at 80%")
 	_fail_unless(
-		is_equal_approx(AutoRifleScript.fire_interval_for(0.0), 3.0),
-		"Base volley wait should stay 3 s"
+		is_equal_approx(AutoRifleScript.fire_interval_for(0.0), 2.3),
+		"Base volley wait should stay 2.3 s"
 	)
 	_fail_unless(
-		is_equal_approx(AutoRifleScript.fire_interval_for(0.13), 3.0 * 0.87),
-		"4% + 9% Attack Speed should wait 3.0 × 0.87"
+		is_equal_approx(AutoRifleScript.fire_interval_for(0.13), 2.3 * 0.87),
+		"4% + 9% Attack Speed should wait 2.3 × 0.87"
 	)
 	_fail_unless(
-		is_equal_approx(AutoRifleScript.fire_interval_for(0.80), 0.60),
-		"80% CDR should wait 0.60 s"
+		is_equal_approx(AutoRifleScript.fire_interval_for(0.80), 2.3 * 0.20),
+		"80% CDR should wait 0.46 s"
 	)
 	_fail_unless(
-		is_equal_approx(AutoRifleScript.fire_interval_for(0.95), 0.60),
-		"Over-cap CDR should still wait 0.60 s"
+		is_equal_approx(AutoRifleScript.fire_interval_for(0.95), 2.3 * 0.20),
+		"Over-cap CDR should still wait 0.46 s"
 	)
 	_fail_unless(
 		is_equal_approx(AutoRifleScript.speed_for(0.0), 60.0),
