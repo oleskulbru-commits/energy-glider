@@ -21,6 +21,7 @@ func _ready() -> void:
 	super._ready()
 	add_to_group("charger_pill")
 	contact_damage = CHARGER_CONTACT_DAMAGE
+	_max_health = CHARGER_MAX_HEALTH
 	_hp = get_max_health()
 
 
@@ -52,10 +53,6 @@ func _update_chase(delta: float) -> void:
 
 func _get_move_speed() -> float:
 	return move_speed * chase_speed_mult
-
-
-func get_max_health() -> int:
-	return CHARGER_MAX_HEALTH
 
 
 ## Ramp speed multiplier toward 2x when aggro, else back to 1x.

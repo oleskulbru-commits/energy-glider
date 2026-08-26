@@ -161,6 +161,10 @@ func _spawn_one(track: Node3D, ahead: Vector2, spread: float, speed: float, leve
 	add_child(pill)
 	pill.global_position = Vector3(world_x, world_y, world_z)
 	pill.configure(_terrain, track, speed)
+	var bonus := 0.0
+	if _director != null:
+		bonus = _director.difficulty_bonus()
+	pill.apply_difficulty(bonus)
 	_active.append(pill)
 
 

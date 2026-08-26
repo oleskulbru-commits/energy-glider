@@ -43,6 +43,7 @@ var _damage_timer := 0.0
 var _last_seek_dir := Vector3.ZERO
 ## Subclasses (charger) multiply base move_speed while aggro'd.
 var chase_speed_mult := 1.0
+var _max_health := MAX_HEALTH
 var _hp := MAX_HEALTH
 var _hit_velocity := Vector3.ZERO
 var _anim: CrawlerAnimController
@@ -84,7 +85,24 @@ func get_health() -> int:
 
 
 func get_max_health() -> int:
-	return MAX_HEALTH
+	return _max_health
+
+
+## Scale speed / contact damage / HP by retry difficulty (floor). No-op at 0%.
+func apply_difficulty(bonus: float) -> void:
+	if bonus <= 0.0:
+		return
+	move_speed = float(_scaled_stat(move_speed, bonus))
+	contact_damage = _scaled_stat(float(contact_damage), bonus)
+	_max_health = _scaled_stat(float(_max_health), bonus)
+	_hp = _max_health
+
+
+static func _scaled_stat(base: float, bonus: float) -> int:
+	var scaled := floorf(base * (1.0 + maxf(bonus, 0.0)))
+	if base > 0.0:
+		return maxi(int(scaled), 1)
+	return 0
 
 
 func is_alive() -> bool:

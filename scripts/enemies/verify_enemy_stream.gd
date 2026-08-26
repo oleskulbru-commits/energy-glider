@@ -183,6 +183,31 @@ func _verify_pill_health() -> void:
 	_fail_unless(green.take_damage(10), "Third shot should kill green")
 	green.free()
 
+	var scaled_red: SwarmPill = SwarmPillScript.new()
+	root.add_child(scaled_red)
+	scaled_red.configure(null, null, SwarmPillScript.DEFAULT_SPEED)
+	scaled_red.apply_difficulty(0.10)
+	_fail_unless(scaled_red.get_max_health() == 22, "10% difficulty should floor red HP to 22")
+	_fail_unless(scaled_red.get_health() == 22, "Scaled red should spawn at full scaled HP")
+	_fail_unless(
+		is_equal_approx(scaled_red.move_speed, 8.0),
+		"10% of 8 speed should floor to 8"
+	)
+	_fail_unless(scaled_red.contact_damage == 5, "10% of 5 damage should floor to 5")
+	scaled_red.free()
+
+	var scaled_green: ChargerPill = ChargerPillScript.new()
+	root.add_child(scaled_green)
+	scaled_green.configure(null, null, SwarmPillScript.DEFAULT_SPEED)
+	scaled_green.apply_difficulty(0.15)
+	_fail_unless(scaled_green.get_max_health() == 28, "15% of 25 HP should floor to 28")
+	_fail_unless(scaled_green.contact_damage == 13, "15% of 12 damage should floor to 13")
+	_fail_unless(
+		is_equal_approx(scaled_green.move_speed, 9.0),
+		"15% of 8 speed should floor to 9"
+	)
+	scaled_green.free()
+
 
 func _verify_damage_floats() -> void:
 	_fail_unless(
