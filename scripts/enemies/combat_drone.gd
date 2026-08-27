@@ -7,7 +7,7 @@ const AutoRifleScript = preload("res://scripts/weapons/auto_rifle.gd")
 
 const DRONE_MAX_HEALTH := 25
 const WEAPON_RANGE_M := 40.0
-const SPAWN_AHEAD_M := 70.0
+const SPAWN_AHEAD_M := 400.0
 const CRUISE_HEIGHT_M := 8.0
 const HEIGHT_FOLLOW_RATE := 4.0
 const KITE_HOLD_M := 40.0
@@ -223,7 +223,9 @@ func _is_spawn_active() -> bool:
 
 
 static func drone_cap_for_level(level: int) -> int:
-	return maxi(0, level - 4)
+	if level < DRONE_MIN_LEVEL:
+		return 0
+	return int(ceil(float(level) / 2.0))
 
 
 static func move_speed_for_drone_level(level: int) -> float:

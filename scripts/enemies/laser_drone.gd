@@ -10,6 +10,7 @@ const RELOAD_SEC := 5.0
 
 var _reload_left := 0.0
 var _beam
+var _used_first_beam := false
 
 
 func _ready() -> void:
@@ -46,12 +47,14 @@ func _update_weapons(delta: float) -> void:
 
 
 func _start_beam() -> void:
+	var zigzag_first := not _used_first_beam
+	_used_first_beam = true
 	_beam = DroneLaserBeamScript.new()
 	var parent := get_tree().current_scene
 	if parent == null:
 		parent = self
 	parent.add_child(_beam)
-	_beam.begin(global_position, _target, _target_facing_xz(), _terrain)
+	_beam.begin(global_position, _target, _target_facing_xz(), _terrain, zigzag_first)
 
 
 func _die(from_pos: Vector3) -> void:

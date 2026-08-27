@@ -4,6 +4,7 @@ extends Node3D
 ## Ground-aimed enemy laser. Sweeps toward the player at cruise speed.
 
 const GliderPhysicsScript = preload("res://scripts/player/glider_physics.gd")
+const AutoRifleScript = preload("res://scripts/weapons/auto_rifle.gd")
 
 const FIRE_SEC := 5.0
 const RELOAD_SEC := 5.0
@@ -14,9 +15,14 @@ const HIT_RADIUS_M := 1.8
 const HIT_MAX_ABOVE_M := 3.5
 const RADIUS_CORE := 0.12
 const RADIUS_GLOW := 0.2
+const ZIGZAG_SEC := 2.25
+const ZIGZAG_LOCK_DIST_M := 55.0
+const ZIGZAG_AMPLITUDE_M := 12.0
+const ZIGZAG_HZ := 0.55
 
 var active := false
 var finished := false
+var zigzagging := false
 
 var _fire_left := 0.0
 var _next_tick := 0.0
@@ -27,15 +33,32 @@ var _glow: MeshInstance3D
 var _core_mesh: CylinderMesh
 var _glow_mesh: CylinderMesh
 var _spot: MeshInstance3D
+var _zigzag_left := 0.0
+var _zigzag_t := 0.0
+var _facing := Vector3(-1.0, 0.0, 0.0)
 
 
-func begin(origin: Vector3, player: Node3D, facing: Vector3, terrain: TerrainManager) -> void:
+func begin(
+	origin: Vector3,
+	player: Node3D,
+	facing: Vector3,
+	terrain: TerrainManager,
+	zigzag_first: bool = false
+) -> void:
 	_terrain = terrain
-	_aim = _open_aim(player, facing)
+	_facing = Vector3(facing.x, 0.0, facing.z)
+	if _facing.length_squared() < 0.0001:
+		_facing = Vector3(-1.0, 0.0, 0.0)
+	else:
+		_facing = _facing.normalized()
+	_aim = _open_aim(player, _facing)
 	_fire_left = FIRE_SEC
 	_next_tick = TICK_SEC
 	active = true
 	finished = false
+	zigzagging = zigzag_first
+	_zigzag_left = ZIGZAG_SEC if zigzag_first else 0.0
+	_zigzag_t = 0.0
 	_ensure_visuals()
 	_show(origin)
 	_deal_tick(player)
@@ -47,11 +70,17 @@ func advance(delta: float, origin: Vector3, player: Node3D, facing: Vector3, all
 	if not allow_fire:
 		cancel()
 		return
+	_facing = Vector3(facing.x, 0.0, facing.z)
+	if _facing.length_squared() > 0.0001:
+		_facing = _facing.normalized()
 	_fire_left -= delta
 	if _fire_left <= 0.0:
 		_finish()
 		return
-	_chase_aim(delta, player)
+	if zigzagging:
+		_zigzag_aim(delta, origin, player)
+	else:
+		_chase_aim(delta, player)
 	_show(origin)
 	_next_tick -= delta
 	while _next_tick <= 0.0 and active and not finished:
@@ -66,17 +95,34 @@ func cancel() -> void:
 func _finish() -> void:
 	active = false
 	finished = true
+	zigzagging = false
 	_hide()
 
 
 func _open_aim(player: Node3D, facing: Vector3) -> Vector3:
-	var fwd := Vector3(facing.x, 0.0, facing.z)
-	if fwd.length_squared() < 0.0001:
-		fwd = Vector3(-1.0, 0.0, 0.0)
-	else:
-		fwd = fwd.normalized()
-	var xz := player.global_position + fwd * OPEN_AHEAD_M
+	var xz := player.global_position + facing * OPEN_AHEAD_M
 	return _ground_at(xz.x, xz.z)
+
+
+func _zigzag_aim(delta: float, origin: Vector3, player: Node3D) -> void:
+	_zigzag_left = maxf(_zigzag_left - delta, 0.0)
+	_zigzag_t += delta
+	var dist := AutoRifleScript.xz_distance(origin, player.global_position)
+	if _zigzag_left <= 0.0 or dist <= ZIGZAG_LOCK_DIST_M:
+		zigzagging = false
+		_chase_aim(delta, player)
+		return
+	var right := Vector3(_facing.z, 0.0, -_facing.x)
+	var lateral := sin(_zigzag_t * TAU * ZIGZAG_HZ) * ZIGZAG_AMPLITUDE_M
+	var goal := player.global_position + _facing * OPEN_AHEAD_M + right * lateral
+	goal = _ground_at(goal.x, goal.z)
+	var flat := Vector3(goal.x - _aim.x, 0.0, goal.z - _aim.z)
+	var step := GliderPhysicsScript.CRUISE_MAX_GROUND_SPEED * delta
+	if flat.length() <= step:
+		_aim = goal
+	else:
+		_aim += flat.normalized() * step
+		_aim = _ground_at(_aim.x, _aim.z)
 
 
 func _chase_aim(delta: float, player: Node3D) -> void:

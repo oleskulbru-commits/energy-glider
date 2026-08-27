@@ -12,6 +12,7 @@ const MissileDroneScene := preload("res://scenes/enemies/missile_drone.tscn")
 const SwarmPillScript := preload("res://scripts/enemies/swarm_pill.gd")
 const CombatDroneScript := preload("res://scripts/enemies/combat_drone.gd")
 const EonDirectorScript := preload("res://scripts/game/eon_director.gd")
+const LevelRunScript := preload("res://scripts/game/level_run.gd")
 
 const SPAWN_GRACE_SEC := 3.0
 const DAWN_SPAWN_GRACE_SEC := 2.0
@@ -38,6 +39,8 @@ var _grace_left := 0.0
 var _active: Array[Node] = []
 var _active_drones: Array[Node] = []
 var _next_drone_is_laser := true
+var _drone_level := 0
+var _drones_spawned_in_level := 0
 
 
 func _ready() -> void:
@@ -114,6 +117,8 @@ func clear_stream() -> void:
 		if node != null and is_instance_valid(node):
 			node.queue_free()
 	_active_drones.clear()
+	_drone_level = 0
+	_drones_spawned_in_level = 0
 
 
 func reset_after_dawn() -> void:
@@ -184,13 +189,39 @@ func _spawn_one(track: Node3D, ahead: Vector2, spread: float, speed: float, leve
 func _try_spawn_drones(level: int) -> void:
 	if level < DRONE_MIN_LEVEL:
 		return
-	var cap := CombatDroneScript.drone_cap_for_level(level)
-	if _active_drones.size() >= cap:
+	if level != _drone_level:
+		_drone_level = level
+		_drones_spawned_in_level = 0
+	var budget := CombatDroneScript.drone_cap_for_level(level)
+	if budget <= 0 or _drones_spawned_in_level >= budget:
 		return
 	var track := _track_body()
 	if track == null:
 		return
+	if not _drone_spawn_progress_allows(track.global_position.x, level, _drones_spawned_in_level, budget):
+		return
 	_spawn_drone(track, level)
+	_drones_spawned_in_level += 1
+
+
+## Westbound progress midpoints: spawn i when progress >= (i + 0.5) / budget.
+static func _drone_spawn_progress_allows(
+	player_x: float,
+	level: int,
+	spawned: int,
+	budget: int
+) -> bool:
+	if budget <= 0 or spawned >= budget:
+		return false
+	var bounds := LevelRunScript.segment_east_west_x(level)
+	var east_x := bounds.x
+	var west_x := bounds.y
+	var span := east_x - west_x
+	if span <= 0.001:
+		return spawned == 0
+	var progress := clampf((east_x - player_x) / span, 0.0, 1.0)
+	var threshold := (float(spawned) + 0.5) / float(budget)
+	return progress >= threshold
 
 
 func _spawn_drone(track: Node3D, level: int) -> void:

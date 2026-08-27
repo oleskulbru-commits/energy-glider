@@ -10,6 +10,7 @@ const EnemyStreamSpawnerScript = preload("res://scripts/enemies/enemy_stream_spa
 const AutoRifleScript = preload("res://scripts/weapons/auto_rifle.gd")
 const GliderPhysicsScript = preload("res://scripts/player/glider_physics.gd")
 const PlayerHealthScript = preload("res://scripts/player/player_health.gd")
+const LevelRunScript = preload("res://scripts/game/level_run.gd")
 
 var _failed := false
 
@@ -19,7 +20,11 @@ func _init() -> void:
 
 
 func _run() -> void:
+	LevelRunScript.ensure(42)
 	_verify_cap_and_speed()
+	if _failed:
+		return
+	_verify_spawn_spacing()
 	if _failed:
 		return
 	_verify_laser_timings()
@@ -42,9 +47,10 @@ func _verify_cap_and_speed() -> void:
 	_fail_unless(CombatDroneScript.DRONE_MIN_LEVEL == 5, "Drones unlock at level 5")
 	_fail_unless(EnemyStreamSpawnerScript.DRONE_MIN_LEVEL == 5, "Spawner drone min level should be 5")
 	_fail_unless(CombatDroneScript.drone_cap_for_level(4) == 0, "Level 4 should have 0 drones")
-	_fail_unless(CombatDroneScript.drone_cap_for_level(5) == 1, "Level 5 should have 1 drone")
-	_fail_unless(CombatDroneScript.drone_cap_for_level(6) == 2, "Level 6 should have 2 drones")
-	_fail_unless(CombatDroneScript.drone_cap_for_level(10) == 6, "Level 10 should have 6 drones")
+	_fail_unless(CombatDroneScript.drone_cap_for_level(5) == 3, "Level 5 should have ceil(5/2)=3 drones")
+	_fail_unless(CombatDroneScript.drone_cap_for_level(6) == 3, "Level 6 should have ceil(6/2)=3 drones")
+	_fail_unless(CombatDroneScript.drone_cap_for_level(7) == 4, "Level 7 should have ceil(7/2)=4 drones")
+	_fail_unless(CombatDroneScript.drone_cap_for_level(10) == 5, "Level 10 should have ceil(10/2)=5 drones")
 	_fail_unless(
 		is_equal_approx(CombatDroneScript.move_speed_for_drone_level(5), 15.0),
 		"Level 5 drone speed should be 15 m/s"
@@ -58,6 +64,32 @@ func _verify_cap_and_speed() -> void:
 		is_equal_approx(CombatDroneScript.WEAPON_RANGE_M, 40.0),
 		"Drone weapon range should be 40 m"
 	)
+	_fail_unless(
+		is_equal_approx(CombatDroneScript.SPAWN_AHEAD_M, 400.0),
+		"Drones should spawn 400 m ahead"
+	)
+
+
+func _verify_spawn_spacing() -> void:
+	var bounds := LevelRunScript.segment_east_west_x(5)
+	var east_x := bounds.x
+	var west_x := bounds.y
+	var span := east_x - west_x
+	_fail_unless(span > 1.0, "Level 5 should have a positive westbound span")
+	# First midpoint at 0.5/3 ≈ 0.167 — not allowed at level entry.
+	_fail_unless(
+		not EnemyStreamSpawnerScript._drone_spawn_progress_allows(east_x, 5, 0, 3),
+		"Should not spawn first drone at east tower"
+	)
+	var first_x := east_x - span * (0.5 / 3.0) - 1.0
+	_fail_unless(
+		EnemyStreamSpawnerScript._drone_spawn_progress_allows(first_x, 5, 0, 3),
+		"Should spawn first drone near first midpoint"
+	)
+	_fail_unless(
+		not EnemyStreamSpawnerScript._drone_spawn_progress_allows(first_x, 5, 1, 3),
+		"Second drone should wait for later progress"
+	)
 
 
 func _verify_laser_timings() -> void:
@@ -70,16 +102,37 @@ func _verify_laser_timings() -> void:
 		is_equal_approx(GliderPhysicsScript.CRUISE_MAX_GROUND_SPEED, 22.0 * 0.95),
 		"Laser sweep should track cruise ground speed"
 	)
+	var player := Node3D.new()
+	root.add_child(player)
+	player.global_position = Vector3.ZERO
+	var beam = DroneLaserBeamScript.new()
+	root.add_child(beam)
+	beam.begin(Vector3(-80.0, 8.0, 0.0), player, Vector3(-1.0, 0.0, 0.0), null, true)
+	_fail_unless(beam.zigzagging, "First approach beam should start in zigzag mode")
+	beam.queue_free()
+	var beam2 = DroneLaserBeamScript.new()
+	root.add_child(beam2)
+	beam2.begin(Vector3(-80.0, 8.0, 0.0), player, Vector3(-1.0, 0.0, 0.0), null, false)
+	_fail_unless(not beam2.zigzagging, "Later beams should skip zigzag")
+	beam2.queue_free()
+	player.queue_free()
 
 
 func _verify_missile_hail() -> void:
-	_fail_unless(MissileDroneScript.ROCKET_COUNT == 20, "Hail should fire 20 rockets")
+	_fail_unless(MissileDroneScript.ROCKET_COUNT_MIN == 30, "Hail min should be 30")
+	_fail_unless(MissileDroneScript.ROCKET_COUNT_MAX == 40, "Hail max should be 40")
+	_fail_unless(
+		is_equal_approx(MissileDroneScript.STAGGER_SEC, 0.1),
+		"Rocket stagger should be 0.1 s"
+	)
 	_fail_unless(DroneRocketScript.DAMAGE == 10, "Drone rocket should deal 10")
 	_fail_unless(MissileDroneScript.ROCKET_DAMAGE == 10, "Missile drone damage alias should be 10")
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 11
-	var points := MissileDroneScript.impact_points_around(Vector3.ZERO, 20, 22.0, rng)
-	_fail_unless(points.size() == 20, "Should generate 20 impact points")
+	var count := rng.randi_range(MissileDroneScript.ROCKET_COUNT_MIN, MissileDroneScript.ROCKET_COUNT_MAX)
+	_fail_unless(count >= 30 and count <= 40, "Random hail count should stay in 30-40")
+	var points := MissileDroneScript.impact_points_around(Vector3.ZERO, 35, 22.0, rng)
+	_fail_unless(points.size() == 35, "Should generate requested impact points")
 	var max_r := 0.0
 	for p in points:
 		max_r = maxf(max_r, Vector2(p.x, p.z).length())
@@ -142,6 +195,7 @@ func _verify_smoke_ai() -> void:
 	missile.set("_cooldown_left", 0.0)
 	missile._update_weapons(0.016)
 	_fail_unless(missile.is_alive(), "Missile drone should stay alive after hail attempt")
+	_fail_unless(bool(missile.get("_firing_hail")), "Hail should start staggered firing")
 
 	laser.queue_free()
 	missile.queue_free()
