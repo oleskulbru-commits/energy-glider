@@ -1,6 +1,8 @@
 class_name RunUpgradeState
 extends Node
 
+const UpgradeCatalogScript = preload("res://scripts/game/upgrade_catalog.gd")
+
 ## Stacks and weapons persist across Try Again. New Game reloads the scene.
 ## Taken tower slots (including weapon bundles) stay Empty for the world seed.
 
@@ -193,7 +195,7 @@ func owned_weapon_count() -> int:
 
 
 func at_weapon_cap() -> bool:
-	return owned_weapon_count() >= UpgradeCatalog.MAX_OWNED_WEAPONS
+	return owned_weapon_count() >= UpgradeCatalogScript.MAX_OWNED_WEAPONS
 
 
 func weapon_level(family: StringName) -> int:

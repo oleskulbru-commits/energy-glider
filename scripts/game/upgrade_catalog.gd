@@ -256,7 +256,7 @@ static func missing_unlock_id(
 	has_shotgun: bool = false,
 	rng: RandomNumberGenerator = null
 ) -> StringName:
-	if owned_weapon_count(has_rifle, has_laser, has_tesla, has_rocket, has_shotgun) >= MAX_OWNED_WEAPONS:
+	if owned_weapon_count(has_rifle, has_laser, has_tesla, has_rocket, has_shotgun) >= max_owned_weapons():
 		return &""
 	var missing := missing_unlock_ids(has_rifle, has_laser, has_tesla, has_rocket, has_shotgun)
 	if missing.is_empty():
@@ -264,6 +264,10 @@ static func missing_unlock_id(
 	if rng == null:
 		return missing[0]
 	return missing[rng.randi_range(0, missing.size() - 1)]
+
+
+static func max_owned_weapons() -> int:
+	return MAX_OWNED_WEAPONS
 
 
 static func owned_weapon_count(

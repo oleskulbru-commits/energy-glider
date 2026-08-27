@@ -173,12 +173,7 @@ func _layout_weapon_tray_slots() -> void:
 		var icon := slot.get_node_or_null("Frame/Icon") as TextureRect
 		if icon == null:
 			continue
-		icon.layout_mode = Control.LAYOUT_MODE_ANCHORS
-		icon.set_anchors_preset(Control.PRESET_FULL_RECT)
-		icon.offset_left = 2.0
-		icon.offset_top = 2.0
-		icon.offset_right = -2.0
-		icon.offset_bottom = -2.0
+		icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, 2)
 		icon.custom_minimum_size = Vector2.ZERO
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
