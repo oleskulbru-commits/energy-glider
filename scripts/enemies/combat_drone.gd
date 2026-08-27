@@ -179,10 +179,7 @@ func can_fire_weapons() -> bool:
 		return false
 	if _stun_left > 0.0:
 		return false
-	# Catch-up: player passed us — chase only, no fire.
-	if fly_state == FlyState.CATCH_UP:
-		return false
-	return AutoRifleScript.is_in_front(_target.global_position, _target_facing_xz(), global_position)
+	return xz_distance_to_target() <= WEAPON_RANGE_M
 
 
 func xz_distance_to_target() -> float:

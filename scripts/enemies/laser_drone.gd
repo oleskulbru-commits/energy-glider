@@ -1,7 +1,7 @@
 class_name LaserDrone
 extends "res://scripts/enemies/combat_drone.gd"
 
-## Red cube. Ground-sweep laser that can open before weapon range.
+## Red cube. Ground-sweep laser once within weapon range.
 
 const DroneLaserBeamScript = preload("res://scripts/enemies/drone_laser_beam.gd")
 
@@ -38,7 +38,7 @@ func _update_weapons(delta: float) -> void:
 		_beam.queue_free()
 		_beam = null
 
-	# Laser may open during approach (before 40 m), while still in front.
+	# Only fire within weapon range (including after the player passes).
 	if not can_fire_weapons():
 		return
 	if _reload_left > 0.0:

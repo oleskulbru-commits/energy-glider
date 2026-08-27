@@ -24,6 +24,8 @@ var _track_node: Node3D
 
 func _ready() -> void:
 	add_to_group("terrain_manager")
+	# Keep streaming/finalize alive while weapon select pauses the tree.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_apply_session_seed()
 	LevelRunScript.ensure(world_seed)
 	_height_sampler = DuneHeight.new(world_seed)

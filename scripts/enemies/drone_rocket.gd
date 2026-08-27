@@ -1,20 +1,22 @@
 class_name DroneRocket
 extends Area3D
 
-## Lofted hail rocket using player rocket visuals. Dives to a marked impact.
+## Lofted hail rocket using player rocket visuals. Reaches its mark in FLIGHT_SEC.
 
-const RocketMissileScript = preload("res://scripts/weapons/rocket_missile.gd")
 const RocketMissileScene = preload("res://scenes/weapons/rocket_missile.tscn")
 
 const DAMAGE := 10
 const BLAST_RADIUS_M := 2.2
 const BLAST_MAX_ABOVE_M := 4.0
-const DIVE_HOMING := 0.9
+const FLIGHT_SEC := 1.5
+const LOFT_PEAK_M := 8.0
+const TRAIL_COLOR := Color(0.25, 0.55, 1.0, 1.0)
+const TRAIL_EMISSION := Color(0.15, 0.45, 1.0, 1.0)
 
+var _origin := Vector3.ZERO
 var _impact := Vector3.ZERO
+var _flight_t := 0.0
 var _dir := Vector3.UP
-var _boost_left := RocketMissileScript.BOOST_SEC
-var _speed := RocketMissileScript.SPEED_MPS
 var _spent := false
 var _terrain: TerrainManager
 
@@ -28,12 +30,12 @@ func launch_from_drone(
 	var ground_y := impact.y
 	if terrain != null:
 		ground_y = terrain.sample_height(impact.x, impact.z)
+	_origin = origin
 	_impact = Vector3(impact.x, ground_y, impact.z)
-	global_position = origin
-	_dir = Vector3.UP
-	_boost_left = RocketMissileScript.BOOST_SEC
-	_speed = RocketMissileScript.SPEED_MPS
+	_flight_t = 0.0
 	_spent = false
+	global_position = _origin
+	_dir = arc_velocity(_origin, _impact, 0.0)
 	_steal_player_visuals()
 	_orient()
 
@@ -48,22 +50,53 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if _spent:
 		return
-	_boost_left = maxf(_boost_left - delta, 0.0)
-	if _boost_left > 0.0:
-		_dir = Vector3.UP
-	else:
-		var aim := _impact - global_position
-		if aim.length_squared() > 0.0001:
-			_dir = _dir.lerp(aim.normalized(), DIVE_HOMING).normalized()
-	global_position += _dir * _speed * delta
-	_orient()
-	# Detonate near the marked impact (XZ + height).
-	var flat := Vector2(global_position.x - _impact.x, global_position.z - _impact.z)
-	if flat.length() <= BLAST_RADIUS_M and global_position.y <= _impact.y + 1.5:
+	_flight_t += delta / FLIGHT_SEC
+	if _flight_t >= 1.0:
+		global_position = _impact
 		_detonate()
 		return
-	if global_position.y < _impact.y - 2.0:
-		_detonate()
+	global_position = arc_position(_origin, _impact, _flight_t)
+	_dir = arc_velocity(_origin, _impact, _flight_t)
+	_orient()
+
+
+static func arc_position(
+	origin: Vector3,
+	impact: Vector3,
+	t: float,
+	loft_m: float = LOFT_PEAK_M
+) -> Vector3:
+	var u := clampf(t, 0.0, 1.0)
+	if u <= 0.0:
+		return origin
+	if u >= 1.0:
+		return impact
+	var control := Vector3(
+		(origin.x + impact.x) * 0.5,
+		maxf(origin.y, impact.y) + loft_m,
+		(origin.z + impact.z) * 0.5
+	)
+	var inv := 1.0 - u
+	return (
+		inv * inv * origin
+		+ 2.0 * inv * u * control
+		+ u * u * impact
+	)
+
+
+static func arc_velocity(
+	origin: Vector3,
+	impact: Vector3,
+	t: float,
+	loft_m: float = LOFT_PEAK_M
+) -> Vector3:
+	var eps := 0.01
+	var ahead := clampf(t + eps, 0.0, 1.0)
+	var behind := clampf(t - eps, 0.0, 1.0)
+	var delta := arc_position(origin, impact, ahead, loft_m) - arc_position(origin, impact, behind, loft_m)
+	if delta.length_squared() < 0.0001:
+		return Vector3.DOWN
+	return delta.normalized()
 
 
 func _detonate() -> void:
@@ -105,8 +138,19 @@ func _steal_player_visuals() -> void:
 		if src == null:
 			continue
 		var copy := src.duplicate()
+		if child_name == "Trail" and copy is CPUParticles3D:
+			_tint_trail_blue(copy as CPUParticles3D)
 		add_child(copy)
 	template.queue_free()
+
+
+func _tint_trail_blue(trail: CPUParticles3D) -> void:
+	trail.color = TRAIL_COLOR
+	if trail.material_override is StandardMaterial3D:
+		var mat := (trail.material_override as StandardMaterial3D).duplicate()
+		mat.albedo_color = TRAIL_COLOR
+		mat.emission = TRAIL_EMISSION
+		trail.material_override = mat
 
 
 func _orient() -> void:

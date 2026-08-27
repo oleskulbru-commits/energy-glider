@@ -49,7 +49,7 @@ func reset_full() -> void:
 	_death_triggered = false
 	_regen_lockout = 0.0
 	_regen_accum = 0.0
-	current = BASE_HEALTH
+	current = get_max()
 	health_changed.emit(current, get_max())
 
 

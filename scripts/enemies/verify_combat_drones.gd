@@ -127,12 +127,59 @@ func _verify_missile_hail() -> void:
 	)
 	_fail_unless(DroneRocketScript.DAMAGE == 10, "Drone rocket should deal 10")
 	_fail_unless(MissileDroneScript.ROCKET_DAMAGE == 10, "Missile drone damage alias should be 10")
+	_fail_unless(
+		is_equal_approx(MissileDroneScript.FALL_TELEGRAPH_SEC, DroneRocketScript.FLIGHT_SEC),
+		"Reticle lifetime should match rocket flight time"
+	)
+	_fail_unless(
+		is_equal_approx(MissileDroneScript.LEAD_SEC, DroneRocketScript.FLIGHT_SEC),
+		"Lead time should match rocket flight time"
+	)
+	var origin := Vector3(-40.0, 8.0, 0.0)
+	var impact := Vector3(0.0, 2.0, 5.0)
+	_fail_unless(
+		DroneRocketScript.arc_position(origin, impact, 0.0).is_equal_approx(origin),
+		"Arc should start at origin"
+	)
+	_fail_unless(
+		DroneRocketScript.arc_position(origin, impact, 1.0).is_equal_approx(impact),
+		"Arc should end at impact"
+	)
+	var rocket: DroneRocket = DroneRocketScript.new()
+	root.add_child(rocket)
+	rocket.launch_from_drone(origin, impact)
+	var elapsed := 0.0
+	var step := 1.0 / 60.0
+	while elapsed < DroneRocketScript.FLIGHT_SEC + step and not bool(rocket.get("_spent")):
+		rocket._physics_process(step)
+		elapsed += step
+	_fail_unless(
+		absf(elapsed - DroneRocketScript.FLIGHT_SEC) <= step * 2.0,
+		"Rocket should detonate after one flight duration"
+	)
+	_fail_unless(bool(rocket.get("_spent")), "Rocket should detonate at end of flight")
+	rocket.queue_free()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 11
 	var count := rng.randi_range(MissileDroneScript.ROCKET_COUNT_MIN, MissileDroneScript.ROCKET_COUNT_MAX)
 	_fail_unless(count >= 30 and count <= 40, "Random hail count should stay in 30-40")
 	var points := MissileDroneScript.impact_points_around(Vector3.ZERO, 35, 22.0, rng)
 	_fail_unless(points.size() == 35, "Should generate requested impact points")
+	var offsets := MissileDroneScript.impact_offsets_around(35, 22.0, rng)
+	_fail_unless(offsets.size() == 35, "Should generate spread offsets")
+	var player_track := CharacterBody3D.new()
+	root.add_child(player_track)
+	player_track.velocity = Vector3(18.0, 0.0, 0.0)
+	var track_drone: MissileDrone = MissileDroneScript.new()
+	root.add_child(track_drone)
+	track_drone.configure(null, player_track, 15.0)
+	player_track.global_position = Vector3.ZERO
+	var lead_a: Vector3 = track_drone._lead_point()
+	player_track.global_position = Vector3(40.0, 0.0, 0.0)
+	var lead_b: Vector3 = track_drone._lead_point()
+	_fail_unless(lead_b.x > lead_a.x + 30.0, "Each rocket should use a fresh lead on the moving player")
+	track_drone.queue_free()
+	player_track.queue_free()
 	var max_r := 0.0
 	for p in points:
 		max_r = maxf(max_r, Vector2(p.x, p.z).length())
@@ -161,11 +208,17 @@ func _verify_fire_gate() -> void:
 	var drone: CombatDrone = CombatDroneScript.new()
 	root.add_child(drone)
 	drone.configure(null, player, 15.0)
-	drone.global_position = Vector3(-30.0, 8.0, 0.0)
+	drone.global_position = Vector3(-80.0, 8.0, 0.0)
 	drone.fly_state = CombatDroneScript.FlyState.APPROACH
-	_fail_unless(drone.can_fire_weapons(), "Approach + in front should allow fire (laser pre-range)")
+	_fail_unless(not drone.can_fire_weapons(), "Should not fire beyond 40 m weapon range")
+	drone.global_position = Vector3(-30.0, 8.0, 0.0)
+	drone.fly_state = CombatDroneScript.FlyState.KITE
+	_fail_unless(drone.can_fire_weapons(), "In range + in front should allow fire")
+	drone.global_position = Vector3(30.0, 8.0, 0.0)
 	drone.fly_state = CombatDroneScript.FlyState.CATCH_UP
-	_fail_unless(not drone.can_fire_weapons(), "Catch-up should disable fire")
+	_fail_unless(drone.can_fire_weapons(), "Should still fire within 40 m after player passes")
+	drone.global_position = Vector3(45.0, 8.0, 0.0)
+	_fail_unless(not drone.can_fire_weapons(), "Should not fire beyond 40 m weapon range")
 	drone.queue_free()
 	player.queue_free()
 

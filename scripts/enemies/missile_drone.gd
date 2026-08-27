@@ -9,15 +9,15 @@ const DroneRocketScript = preload("res://scripts/enemies/drone_rocket.gd")
 const ROCKET_COUNT_MIN := 30
 const ROCKET_COUNT_MAX := 40
 const ROCKET_DAMAGE := 10
-const LEAD_SEC := 1.4
+const LEAD_SEC := DroneRocketScript.FLIGHT_SEC
 const SPREAD_RADIUS_M := 22.0
 const HAIL_COOLDOWN_SEC := 7.0
-const FALL_TELEGRAPH_SEC := 1.6
+const FALL_TELEGRAPH_SEC := DroneRocketScript.FLIGHT_SEC
 const STAGGER_SEC := 0.1
 
 var _cooldown_left := 1.5
 var _rng_hail := RandomNumberGenerator.new()
-var _pending_impacts: Array[Vector3] = []
+var _pending_offsets: Array[Vector3] = []
 var _stagger_left := 0.0
 var _firing_hail := false
 
@@ -36,12 +36,8 @@ func _update_weapons(delta: float) -> void:
 	_cooldown_left = maxf(_cooldown_left - delta, 0.0)
 	if _cooldown_left > 0.0:
 		return
-	# Hail only while kiting inside weapon range and still in front.
-	if fly_state != FlyState.KITE:
-		return
+	# Hail while within weapon range (including after the player passes).
 	if not can_fire_weapons():
-		return
-	if xz_distance_to_target() > WEAPON_RANGE_M + 1.0:
 		return
 	_begin_hail()
 	_cooldown_left = HAIL_COOLDOWN_SEC
@@ -49,15 +45,14 @@ func _update_weapons(delta: float) -> void:
 
 func _begin_hail() -> void:
 	var count := _rng_hail.randi_range(ROCKET_COUNT_MIN, ROCKET_COUNT_MAX)
-	var lead := _lead_point()
-	_pending_impacts = impact_points_around(lead, count, SPREAD_RADIUS_M, _rng_hail)
+	_pending_offsets = impact_offsets_around(count, SPREAD_RADIUS_M, _rng_hail)
 	_firing_hail = true
 	_stagger_left = 0.0
 	_fire_next_rocket()
 
 
 func _tick_stagger(delta: float) -> void:
-	if _pending_impacts.is_empty():
+	if _pending_offsets.is_empty():
 		_firing_hail = false
 		return
 	_stagger_left = maxf(_stagger_left - delta, 0.0)
@@ -67,10 +62,12 @@ func _tick_stagger(delta: float) -> void:
 
 
 func _fire_next_rocket() -> void:
-	if _pending_impacts.is_empty():
+	if _pending_offsets.is_empty():
 		_firing_hail = false
 		return
-	var impact: Vector3 = _pending_impacts.pop_front()
+	var offset: Vector3 = _pending_offsets.pop_front()
+	var lead := _lead_point()
+	var impact := lead + offset
 	var ground := impact
 	if _terrain != null:
 		ground.y = _terrain.sample_height(impact.x, impact.z)
@@ -84,7 +81,7 @@ func _fire_next_rocket() -> void:
 	parent.add_child(rocket)
 	rocket.launch_from_drone(global_position, ground, _terrain)
 	_stagger_left = STAGGER_SEC
-	if _pending_impacts.is_empty():
+	if _pending_offsets.is_empty():
 		_firing_hail = false
 
 
@@ -111,14 +108,13 @@ func _lead_point() -> Vector3:
 	return lead
 
 
-## Wide ring/ellipse samples with jitter so the player can slip between hits.
-static func impact_points_around(
-	center: Vector3,
+## Wide ring/ellipse offsets with jitter so the player can slip between hits.
+static func impact_offsets_around(
 	count: int,
 	radius_m: float,
 	rng: RandomNumberGenerator
 ) -> Array[Vector3]:
-	var points: Array[Vector3] = []
+	var offsets: Array[Vector3] = []
 	var n := maxi(count, 1)
 	for i in n:
 		var angle := TAU * float(i) / float(n) + rng.randf_range(-0.08, 0.08)
@@ -126,5 +122,17 @@ static func impact_points_around(
 		# Elliptical stretch along Z so the pattern is wide but not a solid disc.
 		var x := cos(angle) * radial
 		var z := sin(angle) * radial * 0.75
-		points.append(center + Vector3(x, 0.0, z))
+		offsets.append(Vector3(x, 0.0, z))
+	return offsets
+
+
+static func impact_points_around(
+	center: Vector3,
+	count: int,
+	radius_m: float,
+	rng: RandomNumberGenerator
+) -> Array[Vector3]:
+	var points: Array[Vector3] = []
+	for offset in impact_offsets_around(count, radius_m, rng):
+		points.append(center + offset)
 	return points

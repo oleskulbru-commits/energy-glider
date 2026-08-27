@@ -16,7 +16,6 @@ const HIT_MAX_ABOVE_M := 3.5
 const RADIUS_CORE := 0.12
 const RADIUS_GLOW := 0.2
 const ZIGZAG_SEC := 2.25
-const ZIGZAG_LOCK_DIST_M := 55.0
 const ZIGZAG_AMPLITUDE_M := 12.0
 const ZIGZAG_HZ := 0.55
 
@@ -32,7 +31,6 @@ var _core: MeshInstance3D
 var _glow: MeshInstance3D
 var _core_mesh: CylinderMesh
 var _glow_mesh: CylinderMesh
-var _spot: MeshInstance3D
 var _zigzag_left := 0.0
 var _zigzag_t := 0.0
 var _facing := Vector3(-1.0, 0.0, 0.0)
@@ -104,11 +102,10 @@ func _open_aim(player: Node3D, facing: Vector3) -> Vector3:
 	return _ground_at(xz.x, xz.z)
 
 
-func _zigzag_aim(delta: float, origin: Vector3, player: Node3D) -> void:
+func _zigzag_aim(delta: float, _origin: Vector3, player: Node3D) -> void:
 	_zigzag_left = maxf(_zigzag_left - delta, 0.0)
 	_zigzag_t += delta
-	var dist := AutoRifleScript.xz_distance(origin, player.global_position)
-	if _zigzag_left <= 0.0 or dist <= ZIGZAG_LOCK_DIST_M:
+	if _zigzag_left <= 0.0:
 		zigzagging = false
 		_chase_aim(delta, player)
 		return
@@ -192,20 +189,6 @@ func _ensure_visuals() -> void:
 	_glow.material_override = glow_mat
 	add_child(_glow)
 
-	_spot = MeshInstance3D.new()
-	var disc := TorusMesh.new()
-	disc.inner_radius = 0.55
-	disc.outer_radius = 1.1
-	_spot.mesh = disc
-	var spot_mat := StandardMaterial3D.new()
-	spot_mat.albedo_color = Color(1.0, 0.25, 0.15, 0.85)
-	spot_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	spot_mat.emission_enabled = true
-	spot_mat.emission = Color(1.0, 0.2, 0.1)
-	spot_mat.emission_energy_multiplier = 1.5
-	_spot.material_override = spot_mat
-	add_child(_spot)
-
 
 func _show(origin: Vector3) -> void:
 	var to := _aim
@@ -226,10 +209,6 @@ func _show(origin: Vector3) -> void:
 	_glow.position = mid
 	_core.visible = true
 	_glow.visible = true
-	_spot.visible = true
-	_spot.top_level = true
-	_spot.global_position = _aim + Vector3(0.0, 0.1, 0.0)
-	_spot.global_basis = Basis.IDENTITY
 
 
 func _hide() -> void:
@@ -237,5 +216,3 @@ func _hide() -> void:
 		_core.visible = false
 	if _glow != null:
 		_glow.visible = false
-	if _spot != null:
-		_spot.visible = false
