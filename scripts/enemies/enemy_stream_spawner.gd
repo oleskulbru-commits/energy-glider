@@ -1,13 +1,16 @@
 class_name EnemyStreamSpawner
 extends Node3D
 
-## Spawns crawlers and chargers ahead of the glider after the run has started.
+## Spawns crawlers, chargers, and (from level 5) flying combat drones ahead of the glider.
 ## New game waits for the first E.O.N. pickup. Try Again keeps spawning even
 ## before the E.O.N. is collected again.
 
 const SwarmPillScene := preload("res://scenes/enemies/swarm_pill.tscn")
 const ChargerPillScene := preload("res://scenes/enemies/charger_pill.tscn")
+const LaserDroneScene := preload("res://scenes/enemies/laser_drone.tscn")
+const MissileDroneScene := preload("res://scenes/enemies/missile_drone.tscn")
 const SwarmPillScript := preload("res://scripts/enemies/swarm_pill.gd")
+const CombatDroneScript := preload("res://scripts/enemies/combat_drone.gd")
 const EonDirectorScript := preload("res://scripts/game/eon_director.gd")
 
 const SPAWN_GRACE_SEC := 3.0
@@ -16,6 +19,8 @@ const DAWN_SPAWN_GRACE_SEC := 2.0
 const CHARGER_SPAWN_CHANCE := 1.0 / 6.0
 ## Chargers unlock after crossing tower 3 (level 4+).
 const CHARGER_MIN_LEVEL := 4
+## Drones unlock after crossing tower 4 (level 5+).
+const DRONE_MIN_LEVEL := CombatDroneScript.DRONE_MIN_LEVEL
 
 @export var player_rig_path: NodePath
 @export var terrain_manager_path: NodePath
@@ -31,6 +36,8 @@ var _rng := RandomNumberGenerator.new()
 var _spawn_cooldown := 0.0
 var _grace_left := 0.0
 var _active: Array[Node] = []
+var _active_drones: Array[Node] = []
+var _next_drone_is_laser := true
 
 
 func _ready() -> void:
@@ -76,6 +83,8 @@ func _physics_process(delta: float) -> void:
 		return
 
 	var level := _current_level()
+	_try_spawn_drones(level)
+
 	var cap := SwarmPillScript.active_cap_for_level(level)
 	if _active.size() >= cap:
 		return
@@ -101,6 +110,10 @@ func clear_stream() -> void:
 		if node != null and is_instance_valid(node):
 			node.queue_free()
 	_active.clear()
+	for node in _active_drones:
+		if node != null and is_instance_valid(node):
+			node.queue_free()
+	_active_drones.clear()
 
 
 func reset_after_dawn() -> void:
@@ -168,6 +181,41 @@ func _spawn_one(track: Node3D, ahead: Vector2, spread: float, speed: float, leve
 	_active.append(pill)
 
 
+func _try_spawn_drones(level: int) -> void:
+	if level < DRONE_MIN_LEVEL:
+		return
+	var cap := CombatDroneScript.drone_cap_for_level(level)
+	if _active_drones.size() >= cap:
+		return
+	var track := _track_body()
+	if track == null:
+		return
+	_spawn_drone(track, level)
+
+
+func _spawn_drone(track: Node3D, level: int) -> void:
+	var facing := _facing_xz()
+	var ahead_m := CombatDroneScript.spawn_ahead_m()
+	var lateral := _rng.randf_range(-12.0, 12.0)
+	var right := Vector3(facing.z, 0.0, -facing.x)
+	var world := track.global_position + facing * ahead_m + right * lateral
+	var world_y := track.global_position.y + CombatDroneScript.CRUISE_HEIGHT_M
+	if _terrain != null:
+		world_y = _terrain.sample_height(world.x, world.z) + CombatDroneScript.CRUISE_HEIGHT_M
+
+	var scene: PackedScene = LaserDroneScene if _next_drone_is_laser else MissileDroneScene
+	_next_drone_is_laser = not _next_drone_is_laser
+	var drone: CombatDroneScript = scene.instantiate() as CombatDroneScript
+	add_child(drone)
+	drone.global_position = Vector3(world.x, world_y, world.z)
+	drone.configure(_terrain, track, CombatDroneScript.move_speed_for_drone_level(level))
+	var bonus := 0.0
+	if _director != null:
+		bonus = _director.difficulty_bonus()
+	drone.apply_difficulty(bonus)
+	_active_drones.append(drone)
+
+
 func _facing_xz() -> Vector3:
 	var glider := _get_glider()
 	if glider == null:
@@ -205,3 +253,8 @@ func _cull_active() -> void:
 		if node != null and is_instance_valid(node) and not node.is_queued_for_deletion():
 			alive.append(node)
 	_active = alive
+	var drones: Array[Node] = []
+	for node in _active_drones:
+		if node != null and is_instance_valid(node) and not node.is_queued_for_deletion():
+			drones.append(node)
+	_active_drones = drones
