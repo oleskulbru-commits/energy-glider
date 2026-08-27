@@ -144,6 +144,10 @@ func grant_starter(family: StringName) -> void:
 
 
 func grant_weapon(family: StringName) -> void:
+	if owns_weapon(family):
+		return
+	if at_weapon_cap():
+		return
 	if family == UpgradeCatalog.FAMILY_RIFLE:
 		if has_rifle:
 			return
@@ -182,6 +186,14 @@ func grant_weapon(family: StringName) -> void:
 
 func owned_weapon_ids() -> PackedStringArray:
 	return _owned_order
+
+
+func owned_weapon_count() -> int:
+	return _owned_order.size()
+
+
+func at_weapon_cap() -> bool:
+	return owned_weapon_count() >= UpgradeCatalog.MAX_OWNED_WEAPONS
 
 
 func weapon_level(family: StringName) -> int:
@@ -294,6 +306,8 @@ func pick_offer(tower_index: int, slot: int) -> StringName:
 	var id := StringName(offers[slot])
 	if UpgradeCatalog.is_empty_offer(id):
 		return &""
+	if UpgradeCatalog.is_weapon_unlock(id) and at_weapon_cap():
+		return &""
 	if UpgradeCatalog.is_weapon_offer(id):
 		_remember_weapon_hole(tower_index, slot)
 	offers[slot] = String(UpgradeCatalog.EMPTY_OFFER)
@@ -304,6 +318,8 @@ func pick_offer(tower_index: int, slot: int) -> StringName:
 
 func _apply_upgrade(id: StringName, weapon_family: StringName = &"") -> void:
 	if UpgradeCatalog.is_weapon_unlock(id):
+		if at_weapon_cap():
+			return
 		grant_weapon(UpgradeCatalog.unlock_weapon_family(id))
 		return
 	if UpgradeCatalog.is_weapon_offer(id):

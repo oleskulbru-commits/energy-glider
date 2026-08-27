@@ -159,10 +159,29 @@ func _ready() -> void:
 
 
 func _connect_weapon_tray() -> void:
+	_layout_weapon_tray_slots()
 	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
 	if state != null and not state.weapons_changed.is_connected(_refresh_weapon_tray):
 		state.weapons_changed.connect(_refresh_weapon_tray)
 	_refresh_weapon_tray()
+
+
+func _layout_weapon_tray_slots() -> void:
+	if _weapon_tray == null:
+		return
+	for slot in _weapon_tray.get_children():
+		var icon := slot.get_node_or_null("Frame/Icon") as TextureRect
+		if icon == null:
+			continue
+		icon.layout_mode = Control.LAYOUT_MODE_ANCHORS
+		icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+		icon.offset_left = 2.0
+		icon.offset_top = 2.0
+		icon.offset_right = -2.0
+		icon.offset_bottom = -2.0
+		icon.custom_minimum_size = Vector2.ZERO
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 
 
 func _refresh_weapon_tray() -> void:

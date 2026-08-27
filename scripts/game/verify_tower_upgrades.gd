@@ -2924,8 +2924,12 @@ func _verify_weapon_cards() -> void:
 		"Shotgun-only shops should roll Pushback, not Projectile Speed, Duration, or Bounce"
 	)
 	_fail_unless(
-		UpgradeCatalogScript.missing_unlock_id(true, true, true, true, true) == &"",
-		"All five weapons owned should skip the unlock card"
+		UpgradeCatalogScript.missing_unlock_id(true, true, true, true, false) == &"",
+		"Four weapons owned should skip the unlock card"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.MAX_OWNED_WEAPONS == 4,
+		"Players should own at most four weapons"
 	)
 	var missing := UpgradeCatalogScript.missing_unlock_ids(true, false, false, false)
 	_fail_unless(
@@ -2957,11 +2961,11 @@ func _verify_weapon_cards() -> void:
 		"Rifle-only unlock card should randomly pick Laser, Tesla, Rocket, or Shotgun"
 	)
 	for tower_index in range(1, 41):
-		var all_owned := UpgradeCatalogScript.roll_shop(3, tower_index, 0, true, true, true, true, true)
-		for id in all_owned:
+		var capped := UpgradeCatalogScript.roll_shop(3, tower_index, 0, true, true, true, true, false)
+		for id in capped:
 			_fail_unless(
 				not UpgradeCatalogScript.is_weapon_unlock(StringName(id)),
-				"Owned all weapons should never roll an unlock"
+				"Four owned weapons should never roll an unlock"
 			)
 
 	var pity_state: RunUpgradeState = RunUpgradeStateScript.new()
@@ -3083,8 +3087,12 @@ func _verify_weapon_cards() -> void:
 	)
 	state.grant_weapon(UpgradeCatalogScript.FAMILY_SHOTGUN)
 	_fail_unless(
-		state.has_shotgun and state.owned_weapon_ids() == PackedStringArray(["laser", "rifle", "tesla", "rocket", "shotgun"]),
-		"HUD order should append Shotgun after the other owned weapons"
+		not state.has_shotgun,
+		"A fifth weapon should not be granted after reaching the cap"
+	)
+	_fail_unless(
+		state.owned_weapon_ids() == PackedStringArray(["laser", "rifle", "tesla", "rocket"]),
+		"HUD order should stop at four owned weapons"
 	)
 	_fail_unless(
 		is_equal_approx(
@@ -3216,9 +3224,12 @@ func _verify_weapon_cards() -> void:
 	)
 	unlock_state.pick_offer(32, 0)
 	_fail_unless(
-		unlock_state.has_shotgun
-		and unlock_state.owned_weapon_ids() == PackedStringArray(["laser", "rifle", "tesla", "rocket", "shotgun"]),
-		"Picking unlock_shotgun should grant Shotgun"
+		not unlock_state.has_shotgun,
+		"A fifth unlock should not be granted after reaching the cap"
+	)
+	_fail_unless(
+		unlock_state.owned_weapon_ids() == PackedStringArray(["laser", "rifle", "tesla", "rocket"]),
+		"Unlock flow should stop at four owned weapons"
 	)
 
 	var tesla_start: RunUpgradeState = RunUpgradeStateScript.new()
