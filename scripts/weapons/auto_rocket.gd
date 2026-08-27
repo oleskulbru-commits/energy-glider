@@ -1,7 +1,7 @@
 class_name AutoRocket
 extends Node
 
-## Lofted homing missiles. Chamber clock matches the shotgun.
+## Lofted homing missiles. Burst clock matches the rifle.
 
 const RocketMissileScene := preload("res://scenes/weapons/rocket_missile.tscn")
 
@@ -17,7 +17,7 @@ const AIM_FAR_BIAS := 0.65
 var _rig: PlayerRig
 var _cooldown := 0.0
 var _burst_gap := 0.0
-var _burst_remaining := 0
+var _burst_queue: Array[Node3D] = []
 
 
 func _ready() -> void:
@@ -28,12 +28,12 @@ func _physics_process(delta: float) -> void:
 	_cooldown = maxf(_cooldown - delta, 0.0)
 	_burst_gap = maxf(_burst_gap - delta, 0.0)
 	if not _can_fire():
-		_burst_remaining = 0
+		_burst_queue.clear()
 		_burst_gap = 0.0
 		return
-	if _burst_remaining > 0:
-		if _burst_gap > 0.0:
-			return
+	if _burst_gap > 0.0:
+		return
+	if not _burst_queue.is_empty():
 		_tick_burst()
 		return
 	if _cooldown > 0.0:
@@ -104,10 +104,22 @@ func _upgrade_state() -> RunUpgradeState:
 
 
 func _try_start_burst() -> bool:
-	if not _fire_one():
+	var origin := _muzzle_origin()
+	var facing := _facing_xz()
+	var ranked := rank_targets(
+		get_tree().get_nodes_in_group("swarm_pill"),
+		origin,
+		facing,
+		_current_range(),
+		get_projectile_count()
+	)
+	if ranked.is_empty():
 		return false
-	_burst_remaining = get_projectile_count() - 1
-	if _burst_remaining <= 0:
+	_fire(origin, ranked[0])
+	_burst_queue.clear()
+	for i in range(1, ranked.size()):
+		_burst_queue.append(ranked[i])
+	if _burst_queue.is_empty():
 		_cooldown = fire_interval_for(_attack_speed_reduction())
 	else:
 		_burst_gap = BURST_GAP_SEC
@@ -115,29 +127,16 @@ func _try_start_burst() -> bool:
 
 
 func _tick_burst() -> void:
-	# Keep leftover missiles chambered until they fire. Cooldown starts only when empty.
-	if not _fire_one():
-		return
-	_burst_remaining -= 1
-	if _burst_remaining <= 0:
+	var origin := _muzzle_origin()
+	while not _burst_queue.is_empty():
+		var next: Node3D = _burst_queue.pop_front()
+		if next != null and is_instance_valid(next):
+			_fire(origin, next)
+			break
+	if _burst_queue.is_empty():
 		_cooldown = fire_interval_for(_attack_speed_reduction())
 	else:
 		_burst_gap = BURST_GAP_SEC
-
-
-func _fire_one() -> bool:
-	var origin := _muzzle_origin()
-	var facing := _facing_xz()
-	var target := pick_best_target(
-		get_tree().get_nodes_in_group("swarm_pill"),
-		origin,
-		facing,
-		_current_range()
-	)
-	if target == null:
-		return false
-	_fire(origin, target)
-	return true
 
 
 func _can_fire() -> bool:
@@ -193,19 +192,6 @@ static func aim_score(origin: Vector3, facing: Vector3, pos: Vector3, range_m: f
 	if range_m > 0.0001:
 		dist_norm = clampf(dist / range_m, 0.0, 1.0)
 	return forward_dot * forward_dot * (AIM_AHEAD_BIAS + AIM_FAR_BIAS * dist_norm)
-
-
-## Best living lock by aim score. Multiple rockets may share the same target.
-static func pick_best_target(
-	pills: Array,
-	origin: Vector3,
-	facing: Vector3,
-	range_m: float
-) -> Node3D:
-	var ranked := rank_targets(pills, origin, facing, range_m, 1)
-	if ranked.is_empty():
-		return null
-	return ranked[0]
 
 
 static func rank_targets(

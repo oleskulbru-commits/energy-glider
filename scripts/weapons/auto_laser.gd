@@ -3,7 +3,7 @@ extends Node
 
 ## Always-on second weapon. Independent clock from the rifle.
 
-const DAMAGE := 5
+const DAMAGE := 3
 const RANGE_M := 45.0
 const FIRE_SEC := 2.0
 const CHARGE_SEC := 2.0

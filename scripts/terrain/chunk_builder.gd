@@ -9,8 +9,6 @@ const RENDER_VERTS_NEAR := 65
 const RENDER_VERTS_MID := 97
 const RENDER_VERTS_FAR := 129
 const RENDER_VERTS_PER_SIDE := RENDER_VERTS_NEAR
-## Fixed physics grid — independent of render LOD.
-const COLLISION_VERTS_PER_SIDE := 33
 const SUN_DIRECTION := Vector3(0.485, 0.824, 0.291)
 
 ## Absolute west distance for density (not % of full run — MEDIUM profiles arrive early).
@@ -44,54 +42,6 @@ static func build(
 		"min_height": render_data.min_height,
 		"verts_per_side": verts,
 	}
-
-
-## Coarse height grid for trimesh collision (cheaper than render mesh).
-static func build_collision(
-	height_sampler: DuneHeight,
-	chunk_x: int,
-	chunk_z: int
-) -> Dictionary:
-	var verts := COLLISION_VERTS_PER_SIDE
-	var collision_data := _build_collision_surface(height_sampler, chunk_x, chunk_z, verts)
-	return {
-		"mesh_arrays": collision_data.mesh_arrays,
-		"verts_per_side": verts,
-	}
-
-
-static func _build_collision_surface(
-	height_sampler: DuneHeight,
-	chunk_x: int,
-	chunk_z: int,
-	verts_per_side: int
-) -> Dictionary:
-	var x0 := float(chunk_x) * CHUNK_SIZE
-	var z0 := float(chunk_z) * CHUNK_SIZE
-	var step := CHUNK_SIZE / float(verts_per_side - 1)
-
-	var vertex_count := verts_per_side * verts_per_side
-	var vertices := PackedVector3Array()
-	vertices.resize(vertex_count)
-
-	for iz in verts_per_side:
-		for ix in verts_per_side:
-			var index := iz * verts_per_side + ix
-			var world_x := x0 + float(ix) * step
-			var world_z := z0 + float(iz) * step
-			var height := height_sampler.sample_height(world_x, world_z)
-			vertices[index] = Vector3(world_x, height, world_z)
-
-	var indices := _build_indices(verts_per_side)
-	var normals := _compute_normals_from_indices(vertices, indices)
-
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = vertices
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	arrays[Mesh.ARRAY_INDEX] = indices
-
-	return {"mesh_arrays": arrays}
 
 
 static func _build_mesh(

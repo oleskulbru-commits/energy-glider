@@ -1,8 +1,8 @@
 class_name RunUpgradeState
 extends Node
 
-## Stacks and weapons persist across Try Again. New Game reloads the scene.
-## Taken tower slots (including weapon bundles) stay Empty for the world seed.
+## Stacks and weapons reset on Try Again. Taken weapon-bundle slots refill after
+## grant_starter if that life owns a matching gun; normal Empty slots stay Empty.
 
 signal extra_projectiles_changed(count: int)
 signal weapons_changed
@@ -80,10 +80,16 @@ func _connect_director() -> void:
 		return
 	if not director.player_died.is_connected(_on_player_died):
 		director.player_died.connect(_on_player_died)
+	if director.has_signal("attempt_started") and not director.attempt_started.is_connected(_on_attempt_started):
+		director.attempt_started.connect(_on_attempt_started)
 
 
 func _on_player_died(_position: Vector3) -> void:
 	clear_visited_this_life()
+
+
+func _on_attempt_started() -> void:
+	reset_run()
 
 
 func reset_run() -> void:
@@ -139,7 +145,6 @@ func grant_starter(family: StringName) -> void:
 	_rocket_level = 0
 	_shotgun_level = 0
 	grant_weapon(family)
-	# New Game / first boot only — Try Again never calls grant_starter.
 	_refill_weapon_holes()
 
 

@@ -1529,66 +1529,54 @@ func _verify_offers_and_visit_lock() -> void:
 	state.clear_visited_this_life()
 	_fail_unless(not state.has_visited_this_life(1), "Death should clear visit locks")
 	_fail_unless(state.remaining_count(1) == 4, "Death should not refill offers")
-	_fail_unless(state.extra_projectiles == 1, "Death should keep projectile stacks")
-	# Soft retry clears visits only — loadout and empty shop slots stay.
-	_fail_unless(state.extra_projectiles == 1, "Try Again should keep projectile stacks")
+	_fail_unless(state.extra_projectiles == 1, "Death should keep projectile stacks until Try Again")
+	state.reset_run()
+	_fail_unless(state.extra_projectiles == 0, "Try Again should clear projectile stacks")
+	_fail_unless(is_equal_approx(state.attack_speed_reduction, 0.0), "Try Again should clear Attack Speed")
+	_fail_unless(is_equal_approx(state.damage_bonus, 0.0), "Try Again should clear Damage")
+	_fail_unless(
+		is_equal_approx(state.projectile_speed_bonus, 0.0),
+		"Try Again should clear Projectile Speed"
+	)
+	_fail_unless(
+		is_equal_approx(state.glider_speed_bonus, 0.0),
+		"Try Again should clear Glider Speed"
+	)
+	_fail_unless(
+		is_equal_approx(state.glide_bonus, 0.0),
+		"Try Again should clear Glide"
+	)
+	_fail_unless(
+		is_equal_approx(state.health_regen_per_sec, 0.0),
+		"Try Again should clear HP Regen"
+	)
+	_fail_unless(state.luck_bonus == 0, "Try Again should clear Luck")
+	_fail_unless(
+		is_equal_approx(state.momentum_retention, 0.0),
+		"Try Again should clear Momentum Retention"
+	)
+	_fail_unless(
+		is_equal_approx(state.crit_chance, 0.0),
+		"Try Again should clear Crit"
+	)
+	_fail_unless(state.max_health_bonus == 0, "Try Again should clear Health")
+	_fail_unless(
+		is_equal_approx(state.duration_bonus, 0.0),
+		"Try Again should clear Duration"
+	)
+	_fail_unless(
+		is_equal_approx(state.pushback_bonus, 0.0),
+		"Try Again should clear Pushback"
+	)
+	_fail_unless(state.bounce_count == 0, "Try Again should clear Bounce")
+	_fail_unless(
+		is_equal_approx(state.range_bonus, 0.0),
+		"Try Again should clear Range"
+	)
 	_fail_unless(state.remaining_count(1) == 4, "Try Again should not restore taken cards")
 	_fail_unless(
 		state.get_offers(1).size() == 5,
 		"Try Again should keep the empty slot in the shop"
-	)
-	_fail_unless(
-		UpgradeCatalogScript.is_empty_offer(StringName(state.get_offers(1)[0])),
-		"Try Again should leave taken slots Empty"
-	)
-	# New Game (scene reload) wipes stacks via reset_run.
-	state.reset_run()
-	_fail_unless(state.extra_projectiles == 0, "New Game should clear projectile stacks")
-	_fail_unless(is_equal_approx(state.attack_speed_reduction, 0.0), "New Game should clear Attack Speed")
-	_fail_unless(is_equal_approx(state.damage_bonus, 0.0), "New Game should clear Damage")
-	_fail_unless(
-		is_equal_approx(state.projectile_speed_bonus, 0.0),
-		"New Game should clear Projectile Speed"
-	)
-	_fail_unless(
-		is_equal_approx(state.glider_speed_bonus, 0.0),
-		"New Game should clear Glider Speed"
-	)
-	_fail_unless(
-		is_equal_approx(state.glide_bonus, 0.0),
-		"New Game should clear Glide"
-	)
-	_fail_unless(
-		is_equal_approx(state.health_regen_per_sec, 0.0),
-		"New Game should clear HP Regen"
-	)
-	_fail_unless(state.luck_bonus == 0, "New Game should clear Luck")
-	_fail_unless(
-		is_equal_approx(state.momentum_retention, 0.0),
-		"New Game should clear Momentum Retention"
-	)
-	_fail_unless(
-		is_equal_approx(state.crit_chance, 0.0),
-		"New Game should clear Crit"
-	)
-	_fail_unless(state.max_health_bonus == 0, "New Game should clear Health")
-	_fail_unless(
-		is_equal_approx(state.duration_bonus, 0.0),
-		"New Game should clear Duration"
-	)
-	_fail_unless(
-		is_equal_approx(state.pushback_bonus, 0.0),
-		"New Game should clear Pushback"
-	)
-	_fail_unless(state.bounce_count == 0, "New Game should clear Bounce")
-	_fail_unless(
-		is_equal_approx(state.range_bonus, 0.0),
-		"New Game should clear Range"
-	)
-	_fail_unless(state.remaining_count(1) == 4, "New Game should not restore taken cards")
-	_fail_unless(
-		state.get_offers(1).size() == 5,
-		"New Game should keep the empty slot in the shop"
 	)
 	state.free()
 
@@ -1647,8 +1635,8 @@ func _verify_attack_speed_stacking() -> void:
 		"Common + rare Attack Speed should sum to 13%"
 	)
 	_fail_unless(
-		is_equal_approx(AutoRifleScript.fire_interval_for(state.attack_speed_reduction), 2.3 * 0.87),
-		"Additive CDR should be 2.3 × 0.87"
+		is_equal_approx(AutoRifleScript.fire_interval_for(state.attack_speed_reduction), 3.0 * 0.87),
+		"Additive CDR should be 3.0 × 0.87"
 	)
 	_fail_unless(state.remaining_count(4) == 3, "Leftover cards should stay in the shop")
 	_fail_unless(state.extra_projectiles == 0, "Attack Speed picks should not add projectiles")
@@ -1664,8 +1652,8 @@ func _verify_attack_speed_stacking() -> void:
 		"Picks past the rifle cap should still add their percent"
 	)
 	_fail_unless(
-		is_equal_approx(AutoRifleScript.fire_interval_for(state.attack_speed_reduction), 2.3 * 0.20),
-		"Rifle wait should cap at 0.46 s"
+		is_equal_approx(AutoRifleScript.fire_interval_for(state.attack_speed_reduction), 0.60),
+		"Rifle wait should cap at 0.60 s"
 	)
 	_fail_unless(state.remaining_count(5) == 0, "Over-cap pick should still remove the card")
 	state.free()
@@ -1779,7 +1767,7 @@ func _verify_projectile_speed_stacking() -> void:
 	state.reset_run()
 	_fail_unless(
 		is_equal_approx(state.projectile_speed_bonus, 0.0),
-		"New Game should clear Projectile Speed"
+		"Try Again should clear Projectile Speed"
 	)
 	state.free()
 
@@ -1868,7 +1856,7 @@ func _verify_glider_speed_stacking() -> void:
 	state.reset_run()
 	_fail_unless(
 		is_equal_approx(state.glider_speed_bonus, 0.0),
-		"New Game should clear Glider Speed"
+		"Try Again should clear Glider Speed"
 	)
 	state.free()
 
@@ -1913,7 +1901,7 @@ func _verify_glide_stacking() -> void:
 	state.reset_run()
 	_fail_unless(
 		is_equal_approx(state.glide_bonus, 0.0),
-		"New Game should clear Glide"
+		"Try Again should clear Glide"
 	)
 	state.free()
 
@@ -1975,7 +1963,7 @@ func _verify_steering_stacking() -> void:
 	state.reset_run()
 	_fail_unless(
 		is_equal_approx(state.steering_bonus, 0.0),
-		"New Game should clear Steering"
+		"Try Again should clear Steering"
 	)
 	state.free()
 
@@ -2012,7 +2000,7 @@ func _verify_hp_regen_stacking() -> void:
 	state.reset_run()
 	_fail_unless(
 		is_equal_approx(state.health_regen_per_sec, 0.0),
-		"New Game should clear HP Regen"
+		"Try Again should clear HP Regen"
 	)
 	state.free()
 
@@ -2044,7 +2032,7 @@ func _verify_luck_stacking() -> void:
 	_fail_unless(state.remaining_count(14) == 3, "Leftover cards should stay in the shop")
 	_fail_unless(state.extra_projectiles == 0, "Luck picks should not add projectiles")
 	state.reset_run()
-	_fail_unless(state.luck_bonus == 0, "New Game should clear Luck")
+	_fail_unless(state.luck_bonus == 0, "Try Again should clear Luck")
 	state.free()
 
 
@@ -2152,7 +2140,7 @@ func _verify_momentum_retention_stacking() -> void:
 	state.reset_run()
 	_fail_unless(
 		is_equal_approx(state.momentum_retention, 0.0),
-		"New Game should clear Momentum Retention"
+		"Try Again should clear Momentum Retention"
 	)
 	state.free()
 
@@ -2209,7 +2197,7 @@ func _verify_crit_stacking() -> void:
 	state.reset_run()
 	_fail_unless(
 		is_equal_approx(state.crit_chance, 0.0),
-		"New Game should clear Crit"
+		"Try Again should clear Crit"
 	)
 	state.free()
 
@@ -2241,7 +2229,7 @@ func _verify_health_stacking() -> void:
 	_fail_unless(state.remaining_count(17) == 3, "Leftover cards should stay in the shop")
 	_fail_unless(state.extra_projectiles == 0, "Health picks should not add projectiles")
 	state.reset_run()
-	_fail_unless(state.max_health_bonus == 0, "New Game should clear Health")
+	_fail_unless(state.max_health_bonus == 0, "Try Again should clear Health")
 	state.free()
 
 
@@ -2281,7 +2269,7 @@ func _verify_duration_stacking() -> void:
 	state.reset_run()
 	_fail_unless(
 		is_equal_approx(state.duration_bonus, 0.0),
-		"New Game should clear Duration"
+		"Try Again should clear Duration"
 	)
 	state.free()
 
@@ -2326,7 +2314,7 @@ func _verify_pushback_stacking() -> void:
 	state.reset_run()
 	_fail_unless(
 		is_equal_approx(state.pushback_bonus, 0.0),
-		"New Game should clear Pushback"
+		"Try Again should clear Pushback"
 	)
 	state.free()
 
@@ -2364,7 +2352,7 @@ func _verify_bounce_stacking() -> void:
 		"Shop Bounce should apply to every owned projectile weapon"
 	)
 	state.reset_run()
-	_fail_unless(state.bounce_count == 0, "New Game should clear Bounce")
+	_fail_unless(state.bounce_count == 0, "Try Again should clear Bounce")
 	state.grant_starter(UpgradeCatalogScript.FAMILY_RIFLE)
 	var rifle_bounce := UpgradeCatalogScript.encode_weapon_offer(
 		UpgradeCatalogScript.make_id(
@@ -2433,7 +2421,7 @@ func _verify_range_stacking() -> void:
 		"Shop Range should apply to every owned projectile weapon"
 	)
 	state.reset_run()
-	_fail_unless(is_equal_approx(state.range_bonus, 0.0), "New Game should clear Range")
+	_fail_unless(is_equal_approx(state.range_bonus, 0.0), "Try Again should clear Range")
 	state.grant_starter(UpgradeCatalogScript.FAMILY_RIFLE)
 	var rifle_range := UpgradeCatalogScript.encode_weapon_offer(
 		UpgradeCatalogScript.make_id(
@@ -2993,7 +2981,7 @@ func _verify_weapon_cards() -> void:
 		"Confirming after taking an unlock should not bump pity"
 	)
 	pity_state.reset_run()
-	_fail_unless(pity_state.unlock_pity_steps == 0, "New Game should reset unlock pity")
+	_fail_unless(pity_state.unlock_pity_steps == 0, "Try Again should reset unlock pity")
 	pity_state.free()
 
 	var state: RunUpgradeState = RunUpgradeStateScript.new()
@@ -3416,22 +3404,14 @@ func _verify_weapon_cards() -> void:
 	state.pick_offer(21, 1)
 	_fail_unless(
 		UpgradeCatalogScript.is_empty_offer(StringName(state.get_offers(21)[0])),
-		"Taken weapon slot should be Empty until refill"
+		"Taken weapon slot should be Empty until Try Again"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.is_empty_offer(StringName(state.get_offers(21)[1])),
 		"Taken normal slot should be Empty"
 	)
-	# Soft retry does not reset_run — weapons and empty holes remain.
-	state.clear_visited_this_life()
-	_fail_unless(
-		UpgradeCatalogScript.is_empty_offer(StringName(state.get_offers(21)[0])),
-		"Try Again should leave taken weapon slots Empty"
-	)
-	_fail_unless(state.has_laser, "Try Again should keep owned weapons")
-	# New Game wipe.
 	state.reset_run()
-	_fail_unless(not state.has_rifle and not state.has_laser and not state.has_tesla and not state.has_rocket and not state.has_shotgun, "New Game should clear weapons")
+	_fail_unless(not state.has_rifle and not state.has_laser and not state.has_tesla and not state.has_rocket and not state.has_shotgun, "Try Again should clear weapons")
 	var after := state.get_offers(21)
 	_fail_unless(
 		UpgradeCatalogScript.is_empty_offer(StringName(after[0])),
@@ -3439,7 +3419,7 @@ func _verify_weapon_cards() -> void:
 	)
 	_fail_unless(
 		UpgradeCatalogScript.is_empty_offer(StringName(after[1])),
-		"A normal Empty slot should stay Empty after New Game"
+		"A normal Empty slot should stay Empty after Try Again"
 	)
 	_fail_unless(after[2] == leftover_damage, "Untaken cards should stay in the shop")
 	_fail_unless(after[3] == leftover_laser, "Untaken weapon cards should stay")
@@ -3449,7 +3429,7 @@ func _verify_weapon_cards() -> void:
 		is_equal_approx(state.damage_bonus, 0.0)
 		and is_equal_approx(state.attack_speed_reduction, 0.0)
 		and is_equal_approx(state.damage_bonus_for(UpgradeCatalogScript.FAMILY_RIFLE), 0.0),
-		"New Game should still zero stacked weapon stats"
+		"Try Again should still zero stacked weapon stats"
 	)
 	state.grant_starter(UpgradeCatalogScript.FAMILY_LASER)
 	var refilled := state.get_offers(21)
@@ -3696,7 +3676,7 @@ func _verify_weapon_hud_levels() -> void:
 	state.reset_run()
 	_fail_unless(
 		state.weapon_level(UpgradeCatalogScript.FAMILY_RIFLE) == 0,
-		"New Game should clear weapon levels"
+		"Try Again should clear weapon levels"
 	)
 	state.queue_free()
 

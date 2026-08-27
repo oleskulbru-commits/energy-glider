@@ -120,32 +120,6 @@ func _verify_chunk_builder(sampler: RefCounted) -> void:
 		max_err = maxf(max_err, absf(v.y - expected))
 	assert(max_err < 0.05, "Mesh vertices should match sampler (err %.3f)" % max_err)
 
-	_verify_collision_builder(sampler, far_chunk_x)
-
-
-func _verify_collision_builder(sampler: RefCounted, chunk_x: int) -> void:
-	var collision: Dictionary = ChunkBuilderScript.build_collision(sampler, chunk_x, 0)
-	assert(collision.has("mesh_arrays"))
-	assert(int(collision.verts_per_side) == ChunkBuilderScript.COLLISION_VERTS_PER_SIDE)
-	var collision_vertices: PackedVector3Array = collision.mesh_arrays[Mesh.ARRAY_VERTEX]
-	assert(collision_vertices.size() == ChunkBuilderScript.COLLISION_VERTS_PER_SIDE ** 2)
-
-	var render: Dictionary = ChunkBuilderScript.build(sampler, chunk_x, 0)
-	assert(int(render.verts_per_side) > int(collision.verts_per_side))
-
-	var max_err := 0.0
-	var step := maxi(collision_vertices.size() / 100, 1)
-	for i in range(0, collision_vertices.size(), step):
-		var v: Vector3 = collision_vertices[i]
-		var expected: float = sampler.sample_height(v.x, v.z)
-		max_err = maxf(max_err, absf(v.y - expected))
-	assert(max_err < 0.05, "Collision vertices should match sampler (err %.3f)" % max_err)
-
-	var collision_mesh := ArrayMesh.new()
-	collision_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, collision.mesh_arrays)
-	var shape: Shape3D = collision_mesh.create_trimesh_shape()
-	assert(shape is ConcavePolygonShape3D)
-
 
 func _verify_level_progression(sampler: RefCounted) -> void:
 	# Outside start-peak radius; far sample deep into the long run.

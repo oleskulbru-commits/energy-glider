@@ -1,9 +1,7 @@
 class_name RocketMissile
 extends Area3D
 
-## Lofted homing capsule. Boosts up, then dives at the locked enemy.
-
-const AutoRocketScript := preload("res://scripts/weapons/auto_rocket.gd")
+## Lofted homing capsule. Boosts up, then dives at the locked pill.
 
 const SPEED_MPS := 35.0
 const LIFETIME_SEC := 8.0
@@ -73,43 +71,10 @@ func _physics_process(delta: float) -> void:
 
 
 func _aim_vector() -> Vector3:
-	if not _is_lock_alive():
-		_retarget()
 	if _target == null or not is_instance_valid(_target):
 		_target = null
 		return Vector3.ZERO
 	return _target.global_position + Vector3(0.0, AIM_UP_M, 0.0) - global_position
-
-
-func _is_lock_alive() -> bool:
-	if _target == null or not is_instance_valid(_target):
-		return false
-	if _target is SwarmPill:
-		return (_target as SwarmPill).is_alive()
-	return true
-
-
-func _retarget() -> void:
-	_target = null
-	var tree := get_tree()
-	if tree == null:
-		return
-	var facing := Vector3(_dir.x, 0.0, _dir.z)
-	if facing.length_squared() < 0.0001:
-		facing = Vector3.FORWARD
-	_target = AutoRocketScript.pick_best_target(
-		tree.get_nodes_in_group("swarm_pill"),
-		global_position,
-		facing,
-		AutoRocketScript.RANGE_M
-	)
-
-
-## Test/helper: clear a dead lock and pick a new living candidate.
-func retarget_if_needed() -> Node3D:
-	if not _is_lock_alive():
-		_retarget()
-	return _target
 
 
 func _orient() -> void:

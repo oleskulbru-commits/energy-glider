@@ -12,17 +12,13 @@ signal attempt_started
 enum Phase { AWAITING_EON, RUNNING }
 
 const INTEGRITY_START := 100
-const INTEGRITY_LOSS_PER_DEATH := 34
-const DIFFICULTY_FIRST_BONUS := 0.10
-const DIFFICULTY_STEP := 0.05
+const INTEGRITY_LOSS_PER_DEATH := 20
 const EON_FIRST_SPAWN_MIN_M := 80.0
 const EON_FIRST_SPAWN_MAX_M := 150.0
 const EON_RIDGE_SAMPLE_RADIUS_M := 80.0
 const EON_RIDGE_SAMPLE_STEPS := 8
 const OBJECTIVE_RETRIEVE := "Retrieve the E.O.N"
 const HEAD_WEST_DELAY_SEC := 4.0
-## Heal applied when re-collecting the E.O.N after a death / Try Again.
-const RETRY_PICKUP_HEAL := 50
 const HeadWestVoice := preload("res://assets/audio/ui/head_west.mp3")
 
 const EonPickupScene := preload("res://scenes/game/eon_pickup.tscn")
@@ -45,8 +41,6 @@ var integrity: int = INTEGRITY_START
 var death_position := Vector3.ZERO
 var awaiting_death_choice := false
 var death_fade_active := false
-## Soft retries committed this world (New Game reloads and clears).
-var retry_count := 0
 
 var _rig: PlayerRig
 var _terrain: TerrainManager
@@ -171,30 +165,6 @@ func can_try_again() -> bool:
 	return integrity > 0
 
 
-## Bonus already in effect after `retry_count` soft retries (0 before the first).
-func difficulty_bonus() -> float:
-	return difficulty_bonus_for_retry_count(retry_count)
-
-
-## Bonus that will apply if the player presses Try Again now.
-func next_try_again_bonus() -> float:
-	return difficulty_bonus_for_retry_count(retry_count + 1)
-
-
-static func difficulty_bonus_for_retry_count(count: int) -> float:
-	if count <= 0:
-		return 0.0
-	return DIFFICULTY_FIRST_BONUS + float(count - 1) * DIFFICULTY_STEP
-
-
-## Floor-scaled combat stat. Keeps at least 1 when the base is positive.
-static func scaled_stat(base: float, bonus: float) -> int:
-	var scaled := floorf(base * (1.0 + maxf(bonus, 0.0)))
-	if base > 0.0:
-		return maxi(int(scaled), 1)
-	return 0
-
-
 func has_collected_eon() -> bool:
 	return _run_bootstrapped
 
@@ -260,24 +230,11 @@ func _on_eon_collected() -> void:
 	_despawn_eon()
 	phase = Phase.RUNNING
 	eon_collected.emit()
-	var retry_pickup := _run_bootstrapped
 	_bootstrap_run()
-	if should_heal_on_eon_pickup(retry_pickup):
-		_heal_player(RETRY_PICKUP_HEAL)
 	_sync_next_tower_label()
 	run_started.emit()
 	objective_changed.emit(get_objective_text())
 	_schedule_head_west_voice()
-
-
-func _heal_player(amount: int) -> void:
-	if amount <= 0 or _rig == null:
-		return
-	var health := _rig.get_node_or_null("PlayerHealth") as PlayerHealth
-	if health == null:
-		health = get_tree().get_first_node_in_group("player_health") as PlayerHealth
-	if health != null:
-		health.heal(amount)
 
 
 func _schedule_head_west_voice() -> void:
@@ -392,7 +349,6 @@ func _cancel_death_overlay_timer() -> void:
 
 func _soft_retry() -> void:
 	_cancel_death_overlay_timer()
-	retry_count += 1
 	# Teleport first while the run is still ended so proximity pickup cannot fire
 	# against a death-spot E.O.N before the player is back at start.
 	if _rig != null:
@@ -411,7 +367,6 @@ func _soft_retry() -> void:
 		# Snap again after respawn height correction so the camera does not lerp.
 		_rig.snap_camera_now()
 	if _day_night != null:
-		_day_night.apply_difficulty_bonus(difficulty_bonus())
 		_day_night.skip_to_dawn()
 	phase = Phase.AWAITING_EON
 	objective_changed.emit(get_objective_text())
@@ -500,8 +455,3 @@ static func should_show_eon_tracker_for(phase_awaiting: bool, eon_exists: bool) 
 
 static func can_collect_eon_while(awaiting_death: bool, run_ended: bool) -> bool:
 	return not awaiting_death and not run_ended
-
-
-## True for re-pickup after the run was already bootstrapped (post-death continue).
-static func should_heal_on_eon_pickup(run_already_bootstrapped: bool) -> bool:
-	return run_already_bootstrapped

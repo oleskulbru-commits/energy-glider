@@ -1,7 +1,6 @@
 extends SceneTree
 
 const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
-const DayNightCycleScript = preload("res://scripts/world/day_night_cycle.gd")
 
 
 func _init() -> void:
@@ -17,31 +16,23 @@ func _fail_unless(condition: bool, message: String) -> void:
 func _run_tests() -> void:
 	_verify_integrity_loss()
 	_verify_try_again_gate()
-	_verify_difficulty_bonus()
-	_verify_scaled_stat()
-	_verify_day_night_difficulty()
 	_verify_objective_text()
 	_verify_pickup_blocked_while_dead()
 	_verify_integrity_loss_requires_pickup()
 	_verify_sticky_integrity_after_first_collect()
 	_verify_eon_tracker_always_while_awaiting()
-	_verify_retry_pickup_heal()
 	print("E.O.N verification passed.")
 	quit(0)
 
 
 func _verify_integrity_loss() -> void:
 	_fail_unless(
-		EonDirectorScript.apply_death_integrity_loss(100) == 66,
-		"First death should reduce integrity to 66"
+		EonDirectorScript.apply_death_integrity_loss(100) == 80,
+		"First death should reduce integrity to 80"
 	)
 	_fail_unless(
-		EonDirectorScript.apply_death_integrity_loss(66) == 32,
-		"Second death should reduce integrity to 32"
-	)
-	_fail_unless(
-		EonDirectorScript.apply_death_integrity_loss(32) == 0,
-		"Third death should clamp integrity at 0"
+		EonDirectorScript.apply_death_integrity_loss(20) == 0,
+		"Integrity should clamp at 0"
 	)
 	_fail_unless(
 		EonDirectorScript.apply_death_integrity_loss(0) == 0,
@@ -55,79 +46,13 @@ func _verify_try_again_gate() -> void:
 		"Try again should be allowed at 100 integrity"
 	)
 	_fail_unless(
-		EonDirectorScript.can_try_again_with_integrity(32),
-		"Try again should be allowed at 32 integrity"
+		EonDirectorScript.can_try_again_with_integrity(20),
+		"Try again should be allowed at 20 integrity"
 	)
 	_fail_unless(
 		not EonDirectorScript.can_try_again_with_integrity(0),
 		"Try again should be blocked at 0 integrity"
 	)
-
-
-func _verify_difficulty_bonus() -> void:
-	_fail_unless(
-		is_equal_approx(EonDirectorScript.difficulty_bonus_for_retry_count(0), 0.0),
-		"No retries should be 0% difficulty"
-	)
-	_fail_unless(
-		is_equal_approx(EonDirectorScript.difficulty_bonus_for_retry_count(1), 0.10),
-		"First Try Again should be +10%"
-	)
-	_fail_unless(
-		is_equal_approx(EonDirectorScript.difficulty_bonus_for_retry_count(2), 0.15),
-		"Second Try Again should be +15%"
-	)
-	_fail_unless(
-		is_equal_approx(EonDirectorScript.difficulty_bonus_for_retry_count(3), 0.20),
-		"Third Try Again should be +20%"
-	)
-	var director: EonDirector = EonDirectorScript.new()
-	root.add_child(director)
-	_fail_unless(is_equal_approx(director.difficulty_bonus(), 0.0), "Fresh director bonus is 0")
-	_fail_unless(
-		is_equal_approx(director.next_try_again_bonus(), 0.10),
-		"Next Try Again preview should be +10%"
-	)
-	director.retry_count = 1
-	_fail_unless(is_equal_approx(director.difficulty_bonus(), 0.10), "After 1 retry bonus is 10%")
-	_fail_unless(
-		is_equal_approx(director.next_try_again_bonus(), 0.15),
-		"Next Try Again preview should be +15%"
-	)
-	director.free()
-
-
-func _verify_scaled_stat() -> void:
-	_fail_unless(EonDirectorScript.scaled_stat(20.0, 0.0) == 20, "0% should leave HP unchanged")
-	_fail_unless(EonDirectorScript.scaled_stat(20.0, 0.10) == 22, "10% of 20 HP should floor to 22")
-	_fail_unless(EonDirectorScript.scaled_stat(8.0, 0.10) == 8, "10% of 8 speed should floor to 8")
-	_fail_unless(EonDirectorScript.scaled_stat(8.0, 0.15) == 9, "15% of 8 speed should floor to 9")
-	_fail_unless(EonDirectorScript.scaled_stat(5.0, 0.10) == 5, "10% of 5 damage should floor to 5")
-	_fail_unless(EonDirectorScript.scaled_stat(5.0, 0.20) == 6, "20% of 5 damage should floor to 6")
-	_fail_unless(EonDirectorScript.scaled_stat(25.0, 0.10) == 27, "10% of 25 HP should floor to 27")
-	_fail_unless(EonDirectorScript.scaled_stat(12.0, 0.15) == 13, "15% of 12 damage should floor to 13")
-
-
-func _verify_day_night_difficulty() -> void:
-	var cycle: DayNightCycle = DayNightCycleScript.new()
-	root.add_child(cycle)
-	cycle.day_phase_sec = 240.0
-	cycle.night_phase_sec = 240.0
-	cycle.apply_difficulty_bonus(0.10)
-	_fail_unless(
-		is_equal_approx(cycle.day_phase_sec, 216.0),
-		"10% difficulty should shorten day to 216s"
-	)
-	_fail_unless(
-		is_equal_approx(cycle.night_phase_sec, 216.0),
-		"10% difficulty should shorten night to 216s"
-	)
-	cycle.apply_difficulty_bonus(0.15)
-	_fail_unless(
-		is_equal_approx(cycle.day_phase_sec, 204.0),
-		"15% difficulty should shorten day to 204s from base"
-	)
-	cycle.free()
 
 
 func _verify_objective_text() -> void:
@@ -189,11 +114,11 @@ func _verify_sticky_integrity_after_first_collect() -> void:
 	)
 	var integrity := 100
 	integrity = EonDirectorScript.apply_death_integrity_loss(integrity)
-	_fail_unless(integrity == 66, "First post-collect death should leave 66 integrity")
+	_fail_unless(integrity == 80, "First post-collect death should leave 80 integrity")
 	integrity = EonDirectorScript.apply_death_integrity_loss(integrity)
 	_fail_unless(
-		integrity == 32,
-		"Second death while awaiting re-pickup should still deteriorate to 32"
+		integrity == 60,
+		"Second death while awaiting re-pickup should still deteriorate to 60"
 	)
 
 
@@ -209,19 +134,4 @@ func _verify_eon_tracker_always_while_awaiting() -> void:
 	_fail_unless(
 		not EonDirectorScript.should_show_eon_tracker_for(false, true),
 		"Tracker should hide after E.O.N is collected (run active)"
-	)
-
-
-func _verify_retry_pickup_heal() -> void:
-	_fail_unless(
-		EonDirectorScript.RETRY_PICKUP_HEAL == 50,
-		"Re-collecting the E.O.N after death should restore 50 HP"
-	)
-	_fail_unless(
-		not EonDirectorScript.should_heal_on_eon_pickup(false),
-		"First E.O.N pickup of a run should not apply the retry heal"
-	)
-	_fail_unless(
-		EonDirectorScript.should_heal_on_eon_pickup(true),
-		"E.O.N re-pickup after Try Again should apply the retry heal"
 	)
