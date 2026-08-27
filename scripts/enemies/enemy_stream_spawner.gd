@@ -1,7 +1,7 @@
 class_name EnemyStreamSpawner
 extends Node3D
 
-## Spawns red/green stream enemies ahead of the glider after the run has started.
+## Spawns crawlers and chargers ahead of the glider after the run has started.
 ## New game waits for the first E.O.N. pickup. Try Again keeps spawning even
 ## before the E.O.N. is collected again.
 
@@ -12,10 +12,10 @@ const EonDirectorScript := preload("res://scripts/game/eon_director.gd")
 
 const SPAWN_GRACE_SEC := 3.0
 const DAWN_SPAWN_GRACE_SEC := 2.0
-## 1 green per 5 red → one sixth of spawns.
+## 1 charger per 5 crawlers → one sixth of spawns.
 const CHARGER_SPAWN_CHANCE := 1.0 / 6.0
-## Greens unlock after crossing tower 1 (level 2+).
-const CHARGER_MIN_LEVEL := 2
+## Chargers unlock after crossing tower 3 (level 4+).
+const CHARGER_MIN_LEVEL := 4
 
 @export var player_rig_path: NodePath
 @export var terrain_manager_path: NodePath
@@ -147,7 +147,7 @@ func _get_glider() -> GliderPlayer:
 
 
 func _spawn_one(track: Node3D, ahead: Vector2, spread: float, speed: float, level: int) -> void:
-	var offset := SwarmPillScript.spawn_offset_xz(ahead.x, ahead.y, spread, _rng)
+	var offset := spawn_offset_along_facing(ahead.x, ahead.y, spread, _rng, _facing_xz())
 	var world_x := track.global_position.x + offset.x
 	var world_z := track.global_position.z + offset.y
 	var world_y := track.global_position.y
@@ -161,7 +161,42 @@ func _spawn_one(track: Node3D, ahead: Vector2, spread: float, speed: float, leve
 	add_child(pill)
 	pill.global_position = Vector3(world_x, world_y, world_z)
 	pill.configure(_terrain, track, speed)
+	var bonus := 0.0
+	if _director != null:
+		bonus = _director.difficulty_bonus()
+	pill.apply_difficulty(bonus)
 	_active.append(pill)
+
+
+func _facing_xz() -> Vector3:
+	var glider := _get_glider()
+	if glider == null:
+		return Vector3(-1.0, 0.0, 0.0)
+	var fwd := MathUtil.yaw_forward(glider.get_yaw())
+	if fwd.length_squared() < 0.0001:
+		return Vector3(-1.0, 0.0, 0.0)
+	return fwd.normalized()
+
+
+## Ahead + lateral in the player's facing frame → world XZ offset.
+static func spawn_offset_along_facing(
+	ahead_min_m: float,
+	ahead_max_m: float,
+	spread_m: float,
+	rng: RandomNumberGenerator,
+	facing_xz: Vector3
+) -> Vector2:
+	var fwd := Vector3(facing_xz.x, 0.0, facing_xz.z)
+	if fwd.length_squared() < 0.0001:
+		fwd = Vector3(-1.0, 0.0, 0.0)
+	else:
+		fwd = fwd.normalized()
+	## +lateral matches westbound +Z when facing −X.
+	var right := Vector3(fwd.z, 0.0, -fwd.x)
+	var ahead_m := rng.randf_range(ahead_min_m, ahead_max_m)
+	var lat := rng.randf_range(-spread_m, spread_m)
+	var world := fwd * ahead_m + right * lat
+	return Vector2(world.x, world.z)
 
 
 func _cull_active() -> void:

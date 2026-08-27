@@ -33,10 +33,14 @@ var _sun: DirectionalLight3D
 var _environment: WorldEnvironment
 var _sky_material: ProceduralSkyMaterial
 var _was_night := false
+var _base_day_phase_sec := -1.0
+var _base_night_phase_sec := -1.0
 
 
 func _ready() -> void:
 	add_to_group("day_night_cycle")
+	_base_day_phase_sec = day_phase_sec
+	_base_night_phase_sec = night_phase_sec
 	time_normalized = _boot_time_normalized()
 	_was_night = is_night()
 	if sun_path != NodePath():
@@ -64,6 +68,17 @@ func _process(delta: float) -> void:
 
 func get_full_cycle_sec() -> float:
 	return maxf(day_phase_sec, 0.0) + maxf(night_phase_sec, 0.0)
+
+
+## Shorten day and night by `bonus` (e.g. 0.10 → 90% of authored lengths).
+func apply_difficulty_bonus(bonus: float) -> void:
+	if _base_day_phase_sec < 0.0:
+		_base_day_phase_sec = day_phase_sec
+	if _base_night_phase_sec < 0.0:
+		_base_night_phase_sec = night_phase_sec
+	var keep := clampf(1.0 - maxf(bonus, 0.0), 0.05, 1.0)
+	day_phase_sec = maxf(_base_day_phase_sec * keep, 1.0)
+	night_phase_sec = maxf(_base_night_phase_sec * keep, 1.0)
 
 
 func get_day_fraction() -> float:

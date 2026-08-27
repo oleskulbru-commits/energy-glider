@@ -25,7 +25,7 @@ const COLLISION_HEIGHT := 0.6
 const COLLISION_CENTER_Y := 0.32
 ## Ignore hits when the player is clearly jumping/flying over the pill.
 const CONTACT_MAX_ABOVE_M := 1.2
-const DEFAULT_SPEED := 8.0
+const DEFAULT_SPEED := 6.0
 const MAX_HEALTH := 20
 const HIT_KNOCKBACK_SPEED := 12.0
 const HIT_KNOCKBACK_DECAY_SEC := 0.3
@@ -43,6 +43,7 @@ var _damage_timer := 0.0
 var _last_seek_dir := Vector3.ZERO
 ## Subclasses (charger) multiply base move_speed while aggro'd.
 var chase_speed_mult := 1.0
+var _max_health := MAX_HEALTH
 var _hp := MAX_HEALTH
 var _hit_velocity := Vector3.ZERO
 var _anim: CrawlerAnimController
@@ -84,7 +85,24 @@ func get_health() -> int:
 
 
 func get_max_health() -> int:
-	return MAX_HEALTH
+	return _max_health
+
+
+## Scale speed / contact damage / HP by retry difficulty (floor). No-op at 0%.
+func apply_difficulty(bonus: float) -> void:
+	if bonus <= 0.0:
+		return
+	move_speed = float(_scaled_stat(move_speed, bonus))
+	contact_damage = _scaled_stat(float(contact_damage), bonus)
+	_max_health = _scaled_stat(float(_max_health), bonus)
+	_hp = _max_health
+
+
+static func _scaled_stat(base: float, bonus: float) -> int:
+	var scaled := floorf(base * (1.0 + maxf(bonus, 0.0)))
+	if base > 0.0:
+		return maxi(int(scaled), 1)
+	return 0
 
 
 func is_alive() -> bool:
@@ -100,9 +118,9 @@ func take_damage(
 ) -> bool:
 	if amount <= 0 or _hp <= 0:
 		return false
-	var dealt := mini(amount, _hp)
 	_hp = maxi(_hp - amount, 0)
-	_spawn_damage_float(dealt, is_crit)
+	# Show rolled hit damage (incl. crit / overkill), not HP remaining.
+	_spawn_damage_float(amount, is_crit)
 	if _hp <= 0:
 		var from_pos := global_position
 		if hit_dir.length_squared() > 0.0001:
@@ -135,8 +153,8 @@ func _physics_process(delta: float) -> void:
 
 	var to_target := _target.global_position - global_position
 	to_target.y = 0.0
-	# Fallen behind (east of player past margin) — despawn.
-	if global_position.x > _target.global_position.x + BEHIND_MARGIN_M:
+	# Fallen behind the player's facing past margin — despawn.
+	if is_behind_facing(_target.global_position, _target_facing_xz(), global_position):
 		queue_free()
 		return
 
@@ -258,6 +276,14 @@ func _flat_seek_to_target() -> Vector3:
 	var to_target := _target.global_position - global_position
 	to_target.y = 0.0
 	return to_target
+
+
+func _target_facing_xz() -> Vector3:
+	if _target != null and is_instance_valid(_target) and _target is GliderPlayer:
+		var fwd := MathUtil.yaw_forward((_target as GliderPlayer).get_yaw())
+		if fwd.length_squared() >= 0.0001:
+			return fwd.normalized()
+	return Vector3(-1.0, 0.0, 0.0)
 
 
 func _flat_velocity_dir() -> Vector3:
@@ -438,6 +464,22 @@ static func spawn_offset_xz(
 	var ahead := rng.randf_range(ahead_min_m, ahead_max_m)
 	var z_off := rng.randf_range(-spread_m, spread_m)
 	return Vector2(-ahead, z_off)
+
+
+## True when `pos` is more than `margin_m` behind `origin` along facing.
+static func is_behind_facing(
+	origin: Vector3,
+	facing_xz: Vector3,
+	pos: Vector3,
+	margin_m: float = BEHIND_MARGIN_M
+) -> bool:
+	var fwd := Vector3(facing_xz.x, 0.0, facing_xz.z)
+	if fwd.length_squared() < 0.0001:
+		fwd = Vector3(-1.0, 0.0, 0.0)
+	else:
+		fwd = fwd.normalized()
+	var to := Vector3(pos.x - origin.x, 0.0, pos.z - origin.z)
+	return to.dot(fwd) < -maxf(margin_m, 0.0)
 
 
 static func active_cap_for_level(level: int, min_cap: int = 8, max_cap: int = 60) -> int:

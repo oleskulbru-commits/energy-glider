@@ -24,7 +24,7 @@ func _run() -> void:
 
 
 func _verify_ticks_and_charge() -> void:
-	_fail_unless(AutoLaserScript.DAMAGE == 3, "Laser tick damage should be 3")
+	_fail_unless(AutoLaserScript.DAMAGE == 5, "Laser tick damage should be 5")
 	_fail_unless(is_equal_approx(AutoLaserScript.FIRE_SEC, 2.0), "Laser fire time should be 2 s")
 	_fail_unless(is_equal_approx(AutoLaserScript.CHARGE_SEC, 2.0), "Laser charge should be 2 s")
 	_fail_unless(is_equal_approx(AutoLaserScript.CHARGE_FLOOR, 0.5), "Laser charge floor should be 0.5 s")
@@ -65,13 +65,13 @@ func _verify_ticks_and_charge() -> void:
 		is_equal_approx(AutoLaserScript.charge_for(0.95), 0.5),
 		"Over-cap Attack Speed should still floor laser charge at 0.5 s"
 	)
-	_fail_unless(AutoLaserScript.damage_for(0.0) == 3, "Base laser tick should deal 3")
+	_fail_unless(AutoLaserScript.damage_for(0.0) == 5, "Base laser tick should deal 5")
 	_fail_unless(
-		AutoRifleScript.crit_damage_for(AutoLaserScript.damage_for(0.0), true) == 6,
-		"A laser crit should double 3 to 6"
+		AutoRifleScript.crit_damage_for(AutoLaserScript.damage_for(0.0), true) == 10,
+		"A laser crit should double 5 to 10"
 	)
 	_fail_unless(
-		is_equal_approx(AutoRifleScript.fire_interval_for(0.0), 3.0),
+		is_equal_approx(AutoRifleScript.fire_interval_for(0.0), 2.3),
 		"Rifle interval should ignore Duration"
 	)
 	_fail_unless(

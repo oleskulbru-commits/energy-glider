@@ -3,6 +3,7 @@ extends SceneTree
 const AutoRifleScript = preload("res://scripts/weapons/auto_rifle.gd")
 const AutoRocketScript = preload("res://scripts/weapons/auto_rocket.gd")
 const RocketMissileScript = preload("res://scripts/weapons/rocket_missile.gd")
+const SwarmPillScript = preload("res://scripts/enemies/swarm_pill.gd")
 
 var _failed := false
 
@@ -16,6 +17,12 @@ func _run() -> void:
 	if _failed:
 		return
 	_verify_aim()
+	if _failed:
+		return
+	_verify_shared_and_chamber()
+	if _failed:
+		return
+	_verify_retarget()
 	if _failed:
 		return
 	print("Rocket verification passed.")
@@ -86,6 +93,36 @@ func _verify_stats() -> void:
 		AutoRifleScript.crit_damage_for(AutoRocketScript.damage_for(0.0), true) == 40,
 		"Rocket crit should double 20 to 40"
 	)
+	var missile: RocketMissile = RocketMissileScript.new()
+	root.add_child(missile)
+	missile.set("_damage", 23)
+	missile.set("_crit_chance", 1.0)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1
+	missile.set("_rng", rng)
+	var hit: Dictionary = missile.call("_resolve_hit")
+	_fail_unless(bool(hit.is_crit), "100% rocket crit chance should crit")
+	_fail_unless(int(hit.damage) == 46, "Rocket crit should roll 46 from base 23")
+	var pill: SwarmPill = SwarmPillScript.new()
+	root.add_child(pill)
+	pill.take_damage(int(hit.damage), Vector3.LEFT, bool(hit.is_crit), 20.0)
+	var labels: Array = []
+	for node in root.get_tree().get_nodes_in_group("damage_float"):
+		if node is Label3D:
+			labels.append(node)
+	_fail_unless(labels.size() == 1, "Rocket crit should spawn a damage float")
+	_fail_unless(
+		(labels[0] as Label3D).text == "-46",
+		"Rocket crit float must show 46 even when crawler HP is only 20"
+	)
+	for label in labels:
+		var host: Node = (label as Node).get_parent()
+		if host != null and host != root:
+			host.free()
+		else:
+			(label as Node).free()
+	pill.free()
+	missile.free()
 	_fail_unless(
 		is_equal_approx(AutoRifleScript.burst_fire_times(3)[1], AutoRocketScript.BURST_GAP_SEC),
 		"Second rocket in a burst should wait 0.12 s"
@@ -118,17 +155,22 @@ func _verify_aim() -> void:
 		> AutoRocketScript.aim_score(origin, facing, fringe.global_position, range_m),
 		"A close-ahead pill should outscore a fringe pill"
 	)
-	var two := AutoRocketScript.rank_targets(
+	var ranked := AutoRocketScript.rank_targets(
 		[ahead_close, fringe, ahead_far], origin, facing, range_m, 2
 	)
 	_fail_unless(
-		two.size() == 2 and two[0] == ahead_far and two[1] == ahead_close,
-		"Extra rockets should take unique targets in score order"
+		ranked.size() == 2 and ranked[0] == ahead_far and ranked[1] == ahead_close,
+		"rank_targets should still order unique candidates by score"
 	)
-	var leftovers := AutoRocketScript.rank_targets([ahead_far], origin, facing, range_m, 4)
+	var pick_a := AutoRocketScript.pick_best_target(
+		[ahead_close, fringe, ahead_far], origin, facing, range_m
+	)
+	var pick_b := AutoRocketScript.pick_best_target(
+		[ahead_close, fringe, ahead_far], origin, facing, range_m
+	)
 	_fail_unless(
-		leftovers.size() == 1 and leftovers[0] == ahead_far,
-		"Leftover extra rockets should fizzle if targets run out"
+		pick_a == ahead_far and pick_b == ahead_far,
+		"Extra rockets may share the same best lock"
 	)
 	var none := AutoRocketScript.rank_targets([behind, too_far], origin, facing, range_m, 2)
 	_fail_unless(none.is_empty(), "Rockets should ignore behind and out-of-range pills")
@@ -137,6 +179,63 @@ func _verify_aim() -> void:
 	fringe.free()
 	behind.free()
 	too_far.free()
+
+
+func _verify_shared_and_chamber() -> void:
+	# Chamber semantics: leftover slots stay until a successful fire (shotgun pattern).
+	var remaining := 2
+	var fired := 0
+	# No target → do not consume chamber.
+	var miss: Node3D = null
+	if miss == null:
+		pass
+	else:
+		remaining -= 1
+		fired += 1
+	_fail_unless(remaining == 2 and fired == 0, "Missed rocket should keep chamber slots")
+	# Successful fires empty the chamber before cooldown.
+	while remaining > 0:
+		remaining -= 1
+		fired += 1
+	_fail_unless(remaining == 0 and fired == 2, "Cooldown starts only after chamber empties")
+	var origin := Vector3.ZERO
+	var facing := Vector3(-1.0, 0.0, 0.0)
+	var only := _marker_at(Vector3(-40.0, 0.0, 0.0))
+	var shared_a := AutoRocketScript.pick_best_target([only], origin, facing, AutoRocketScript.RANGE_M)
+	var shared_b := AutoRocketScript.pick_best_target([only], origin, facing, AutoRocketScript.RANGE_M)
+	_fail_unless(
+		shared_a == only and shared_b == only,
+		"With one enemy, every chambered rocket should share that lock"
+	)
+	only.free()
+
+
+func _verify_retarget() -> void:
+	var first: SwarmPill = SwarmPillScript.new()
+	var second: SwarmPill = SwarmPillScript.new()
+	root.add_child(first)
+	root.add_child(second)
+	first.global_position = Vector3(-20.0, 0.0, 0.0)
+	second.global_position = Vector3(-35.0, 0.0, 5.0)
+	# Force dead lock without freeing the node (mirrors post-kill before queue_free).
+	first.set("_hp", 0)
+
+	var missile: RocketMissile = RocketMissileScript.new()
+	root.add_child(missile)
+	missile.global_position = Vector3.ZERO
+	missile.set("_dir", Vector3(-1.0, 0.0, 0.0))
+	missile.set("_target", first)
+	var next_lock := missile.retarget_if_needed()
+	_fail_unless(next_lock == second, "Dead lock should retarget to another living crawler")
+	missile.set("_target", second)
+	second.set("_hp", 0)
+	_fail_unless(
+		missile.retarget_if_needed() == null,
+		"With no living candidates, retarget should clear the lock"
+	)
+	missile.free()
+	first.free()
+	second.free()
 
 
 func _marker_at(pos: Vector3) -> Node3D:

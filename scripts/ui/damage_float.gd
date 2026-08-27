@@ -1,7 +1,7 @@
 class_name DamageFloat
 extends RefCounted
 
-## Shared falling "-N" hit numbers for the player bar and enemy pills.
+## Shared falling "-N" hit numbers for the player bar and enemies.
 
 const GROUP := &"damage_float"
 const DURATION_SEC := 0.75
