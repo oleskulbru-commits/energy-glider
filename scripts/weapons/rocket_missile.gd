@@ -17,6 +17,8 @@ const AIM_UP_M := 0.7
 
 var _target: Node3D
 var _dir := Vector3.UP
+## XZ facing at fire time — used for retarget (loft `_dir` is UP and has no XZ).
+var _launch_facing := Vector3(-1.0, 0.0, 0.0)
 var _life := LIFETIME_SEC
 var _boost_left := BOOST_SEC
 var _spent := false
@@ -39,7 +41,8 @@ func launch(
 	amount: int = DAMAGE,
 	speed_mps: float = SPEED_MPS,
 	crit_chance: float = 0.0,
-	knockback_speed: float = KNOCKBACK_SPEED
+	knockback_speed: float = KNOCKBACK_SPEED,
+	facing_xz: Vector3 = Vector3.ZERO
 ) -> void:
 	global_position = origin
 	_target = target
@@ -51,8 +54,20 @@ func launch(
 	_life = LIFETIME_SEC
 	_boost_left = BOOST_SEC
 	_dir = Vector3.UP
+	_launch_facing = _resolve_launch_facing(origin, target, facing_xz)
 	_rng.randomize()
 	_orient()
+
+
+func _resolve_launch_facing(origin: Vector3, target: Node3D, facing_xz: Vector3) -> Vector3:
+	var facing := Vector3(facing_xz.x, 0.0, facing_xz.z)
+	if facing.length_squared() > 0.0001:
+		return facing.normalized()
+	if target != null and is_instance_valid(target):
+		var to := Vector3(target.global_position.x - origin.x, 0.0, target.global_position.z - origin.z)
+		if to.length_squared() > 0.0001:
+			return to.normalized()
+	return Vector3(-1.0, 0.0, 0.0)
 
 
 func _physics_process(delta: float) -> void:
@@ -94,15 +109,22 @@ func _retarget() -> void:
 	var tree := get_tree()
 	if tree == null:
 		return
-	var facing := Vector3(_dir.x, 0.0, _dir.z)
-	if facing.length_squared() < 0.0001:
-		facing = Vector3.FORWARD
 	_target = AutoRocketScript.pick_best_target(
 		tree.get_nodes_in_group("swarm_pill"),
 		global_position,
-		facing,
+		_retarget_facing(),
 		AutoRocketScript.RANGE_M
 	)
+
+
+func _retarget_facing() -> Vector3:
+	var launch := Vector3(_launch_facing.x, 0.0, _launch_facing.z)
+	if launch.length_squared() > 0.0001:
+		return launch.normalized()
+	var motion := Vector3(_dir.x, 0.0, _dir.z)
+	if motion.length_squared() > 0.0001:
+		return motion.normalized()
+	return Vector3(-1.0, 0.0, 0.0)
 
 
 ## Test/helper: clear a dead lock and pick a new living candidate.

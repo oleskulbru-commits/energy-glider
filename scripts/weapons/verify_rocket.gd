@@ -224,6 +224,7 @@ func _verify_retarget() -> void:
 	root.add_child(missile)
 	missile.global_position = Vector3.ZERO
 	missile.set("_dir", Vector3(-1.0, 0.0, 0.0))
+	missile.set("_launch_facing", Vector3(-1.0, 0.0, 0.0))
 	missile.set("_target", first)
 	var next_lock := missile.retarget_if_needed()
 	_fail_unless(next_lock == second, "Dead lock should retarget to another living crawler")
@@ -236,6 +237,40 @@ func _verify_retarget() -> void:
 	missile.free()
 	first.free()
 	second.free()
+
+	_verify_loft_retarget_uses_launch_facing()
+
+
+func _verify_loft_retarget_uses_launch_facing() -> void:
+	# Shared lock dies during loft: `_dir` is UP so XZ-from-dir used to fall back to −Z.
+	var dead: SwarmPill = SwarmPillScript.new()
+	var west: SwarmPill = SwarmPillScript.new()
+	var north: SwarmPill = SwarmPillScript.new()
+	root.add_child(dead)
+	root.add_child(west)
+	root.add_child(north)
+	dead.global_position = Vector3(-25.0, 0.0, 0.0)
+	west.global_position = Vector3(-40.0, 0.0, 0.0)
+	north.global_position = Vector3(0.0, 0.0, -40.0)
+	dead.set("_hp", 0)
+
+	var lofted: RocketMissile = RocketMissileScript.new()
+	root.add_child(lofted)
+	lofted.global_position = Vector3(0.0, RocketMissileScript.LOFT_M, 0.0)
+	lofted.set("_dir", Vector3.UP)
+	lofted.set("_boost_left", RocketMissileScript.BOOST_SEC)
+	lofted.set("_launch_facing", Vector3(-1.0, 0.0, 0.0))
+	lofted.set("_target", dead)
+
+	var next_lock := lofted.retarget_if_needed()
+	_fail_unless(
+		next_lock == west,
+		"Loft retarget should prefer westbound pack using launch facing, not northern crawlers"
+	)
+	lofted.free()
+	dead.free()
+	west.free()
+	north.free()
 
 
 func _marker_at(pos: Vector3) -> Node3D:

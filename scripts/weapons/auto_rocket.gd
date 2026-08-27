@@ -136,7 +136,7 @@ func _fire_one() -> bool:
 	)
 	if target == null:
 		return false
-	_fire(origin, target)
+	_fire(origin, target, facing)
 	return true
 
 
@@ -164,7 +164,7 @@ func _facing_xz() -> Vector3:
 	return MathUtil.yaw_forward(glider.get_yaw())
 
 
-func _fire(origin: Vector3, target: Node3D) -> void:
+func _fire(origin: Vector3, target: Node3D, facing: Vector3) -> void:
 	var missile: RocketMissile = RocketMissileScene.instantiate() as RocketMissile
 	var parent := get_tree().current_scene
 	if parent == null:
@@ -176,7 +176,8 @@ func _fire(origin: Vector3, target: Node3D) -> void:
 		damage_for(_damage_bonus()),
 		speed_for(_projectile_speed_bonus()),
 		_crit_chance(),
-		knockback_speed_for(_pushback_bonus())
+		knockback_speed_for(_pushback_bonus()),
+		facing
 	)
 
 
