@@ -45,9 +45,8 @@ const PREDICT_NORMAL_RATE := 8.0
 const GROUND_NORMAL_MAX_STEP_DEG := 6.0
 const BOOST_CLIMB_NORMAL_MAX_STEP_DEG := 12.0
 const AHEAD_RISE_NORMAL_MAX_STEP_DEG := 18.0
-const BOOST_CLIMB_CLIP_MAX := -0.02
-const FLOOR_CORRECT_MAX_STEP := 0.06
-const BOOST_CLIMB_FLOOR_CORRECT_MAX_STEP := 0.18
+const PROBE_SPEED_DISTANCE_SCALE := 0.065
+const PROBE_DISTANCE_SCALE_MAX := 2.0
 const VISUAL_ALIGN_MAX_STEP_DEG := 4.5
 const AHEAD_RISE_VISUAL_ALIGN_MAX_STEP_DEG := 7.0
 const BOARD_PITCH_RATE := 6.0
@@ -132,8 +131,6 @@ var _smoothed_predictive_normal := Vector3.UP
 var _smoothed_center_normal := Vector3.UP
 var _smoothed_visual_basis := Basis.IDENTITY
 var _smoothed_clearance := GliderPhysicsScript.BASE_HEIGHT
-var _prev_raw_clearance := GliderPhysicsScript.BASE_HEIGHT
-var _clearance_change_rate := 0.0
 var _board_pitch := 0.0
 var _board_roll := 0.0
 
@@ -199,7 +196,6 @@ func _ready() -> void:
 		_smoothed_predict_blend = 1.0
 		_sync_visual_basis_from_ground()
 		_smoothed_clearance = _get_raw_clearance()
-		_prev_raw_clearance = _smoothed_clearance
 
 	if _input != null:
 		_input.set_boost_input_enabled(_boost_unlocked)
@@ -462,6 +458,8 @@ func _sample_terrain(delta: float) -> void:
 	var normal_turn := _ground_normal.angle_to(target_normal)
 	var rise_lead := _ahead_rise_lead()
 	var max_normal_step_deg := GROUND_NORMAL_MAX_STEP_DEG
+	if _slope_grade() > GliderPhysicsScript.STEEP_CLIMB_GRADE:
+		max_normal_step_deg = maxf(max_normal_step_deg, BOOST_CLIMB_NORMAL_MAX_STEP_DEG)
 	if (
 		_is_boost_active()
 		and _slope_grade() > GliderPhysicsScript.CLIMB_DRAG_MIN_GRADE
@@ -492,13 +490,19 @@ func _update_predictive_probes() -> void:
 		vel_local_x = vel_local.x
 		vel_local_z = vel_local.z
 
+	var speed := horizontal.length()
+	var dist_scale := 1.0 + clampf(
+		speed * PROBE_SPEED_DISTANCE_SCALE,
+		0.0,
+		PROBE_DISTANCE_SCALE_MAX - 1.0
+	)
 	var specs := TerrainProbesScript.build_default_specs(
 		BOARD_HALF_EXTENTS,
 		BOARD_HALF_LENGTH,
 		PackedFloat32Array([
-			PREDICT_PROBE_FORWARD_DISTANCE_NEAR,
-			PREDICT_PROBE_FORWARD_DISTANCE_MID,
-			PREDICT_PROBE_FORWARD_DISTANCE_FAR,
+			PREDICT_PROBE_FORWARD_DISTANCE_NEAR * dist_scale,
+			PREDICT_PROBE_FORWARD_DISTANCE_MID * dist_scale,
+			PREDICT_PROBE_FORWARD_DISTANCE_FAR * dist_scale,
 		]),
 		PREDICT_PROBE_LATERAL,
 		PREDICT_PROBE_VELOCITY_LOOKAHEAD,
@@ -735,56 +739,81 @@ func _live_min_deck_probe_clearance() -> float:
 
 
 func _deck_probe_clearance_at(local_offset: Vector3) -> float:
+	return _deck_probe_clearance_at_origin(global_position, local_offset)
+
+
+func _deck_probe_clearance_at_origin(origin: Vector3, local_offset: Vector3) -> float:
 	var deck := _build_deck_world_basis(_ground_normal, 0.0)
 	var local := Vector3(local_offset.x, _probe_bottom_y_offset(), local_offset.z)
-	var world: Vector3 = global_position + deck * local
+	var world: Vector3 = origin + deck * local
 	var ground_y := _get_ground_y(world.x, world.z)
 	if is_nan(ground_y):
-		return _get_raw_clearance()
+		return _raw_clearance_at(origin)
 	return world.y - ground_y
 
 
+func _raw_clearance_at(origin: Vector3) -> float:
+	var ground_y := _get_ground_y(origin.x, origin.z)
+	if is_nan(ground_y):
+		return 0.0
+	return origin.y - BOARD_BOTTOM_OFFSET - ground_y
+
+
+func _board_floor_probe_locals() -> Array[Vector3]:
+	var hx := BOARD_HALF_EXTENTS.x
+	var hz := BOARD_HALF_EXTENTS.z
+	var nose_z := BOARD_HALF_LENGTH
+	return [
+		Vector3.ZERO,
+		Vector3(-hx, 0.0, -hz),
+		Vector3(hx, 0.0, -hz),
+		Vector3(-hx, 0.0, hz),
+		Vector3(hx, 0.0, hz),
+		Vector3(0.0, 0.0, nose_z),
+		Vector3(0.0, 0.0, -BOARD_HALF_LENGTH),
+		Vector3(-hx, 0.0, nose_z),
+		Vector3(hx, 0.0, nose_z),
+	]
+
+
+func _live_board_min_clearance_at(origin: Vector3, use_deck_tilt: bool) -> float:
+	var min_clearance := _raw_clearance_at(origin)
+	var yaw_basis := Basis.from_euler(Vector3(0.0, _yaw, 0.0))
+	var probe_bottom_y := _probe_bottom_y_offset()
+	for local in _board_floor_probe_locals():
+		var clearance: float
+		if use_deck_tilt:
+			clearance = _deck_probe_clearance_at_origin(origin, local)
+		else:
+			var world_offset: Vector3 = yaw_basis * local
+			var ground_y := _get_ground_y(origin.x + world_offset.x, origin.z + world_offset.z)
+			if is_nan(ground_y):
+				continue
+			clearance = origin.y + probe_bottom_y - ground_y
+		min_clearance = minf(min_clearance, clearance)
+	return min_clearance
+
+
 func _enforce_floor_contact(state: PhysicsDirectBodyState3D) -> void:
-	if _state != State.GROUNDED:
-		return
-	var boost_climb := _is_boost_climb_active()
-	var climbing := _is_climbing(_downhill_dir(), _board_forward_on_ground())
-	## Live-sample from the integrate-forces origin — cached probes lag one frame.
 	var origin := state.transform.origin
-	var min_clearance := _live_min_board_probe_clearance_at(origin)
-	if climbing:
-		min_clearance = minf(min_clearance, _live_min_deck_probe_clearance())
-	var clip_max := (
-		BOOST_CLIMB_CLIP_MAX
-		if boost_climb or climbing
-		else GliderPhysicsScript.GROUND_CLIP_MAX
+	var use_deck := _state == State.GROUNDED
+	var min_clearance := _live_board_min_clearance_at(origin, use_deck)
+	var min_allowed := (
+		GliderPhysicsScript.TOUCH_CLEARANCE
+		if _state == State.GROUNDED
+		else 0.0
 	)
-	var ny := maxf(_ground_normal.y, 0.2)
-	var max_step := (
-		BOOST_CLIMB_FLOOR_CORRECT_MAX_STEP if boost_climb else FLOOR_CORRECT_MAX_STEP
-	)
-	if min_clearance < clip_max:
-		var needed := (clip_max - min_clearance) / ny
-		var correction := minf(needed, max_step)
-		var xf := state.transform
-		xf.origin += _ground_normal * correction
-		state.transform = xf
-		# Climbing: leave normal speed to hover/alignment — zeroing it bleeds crest carry.
-		if not climbing:
-			var vel := state.linear_velocity
-			var inward := vel.dot(_ground_normal)
-			if inward < 0.0:
-				state.linear_velocity = vel - _ground_normal * inward
-		return
-	var min_allowed := GliderPhysicsScript.TOUCH_CLEARANCE
 	if min_clearance >= min_allowed:
 		return
-	var correction := minf((min_allowed - min_clearance) / ny, max_step)
+	var ny := maxf(_ground_normal.y, 0.15)
+	var correction := (min_allowed - min_clearance) / ny
 	var xf := state.transform
 	xf.origin += _ground_normal * correction
 	state.transform = xf
-	# Soft settle: nudge origin only — killing normal speed here tugs crest momentum.
-
+	var vel := state.linear_velocity
+	var inward := vel.dot(_ground_normal)
+	if inward < 0.0:
+		state.linear_velocity = vel - _ground_normal * inward
 
 func _setup_contact_sparks() -> void:
 	_contact_sparks = CPUParticles3D.new()
@@ -908,7 +937,6 @@ func _sample_hover_clearance_target() -> float:
 
 func _update_clearance_smooth(delta: float) -> void:
 	var raw := _get_raw_clearance()
-	_clearance_change_rate = absf(raw - _prev_raw_clearance) / maxf(delta, 0.0001)
 	var target := _sample_hover_clearance_target()
 	var smooth_rate := (
 		CLEARANCE_SMOOTH_RATE_DOWN
@@ -929,7 +957,6 @@ func _update_clearance_smooth(delta: float) -> void:
 		step_target,
 		clampf(blend_rate * delta, 0.0, 1.0)
 	)
-	_prev_raw_clearance = raw
 
 
 func _get_clearance() -> float:
@@ -1050,7 +1077,6 @@ func _land() -> void:
 	_state = State.GROUNDED
 	var raw := _get_raw_clearance()
 	_smoothed_clearance = raw
-	_prev_raw_clearance = raw
 	_landing_stabilize_timer = LANDING_STABILIZE_DURATION
 	_grounded_lock_timer = GROUNDED_LOCK_DURATION
 	var keep: float = result.get("keep", 1.0)
@@ -1262,7 +1288,6 @@ func _build_physics_context() -> GliderPhysicsScript.Context:
 			or raw_clearance - board_min <= CLEARANCE_PROBE_TRIGGER
 		):
 			ctx.hover_clearance = minf(ctx.hover_clearance, board_min)
-	ctx.clearance_change_rate = _clearance_change_rate
 	ctx.downhill = _downhill_dir()
 	ctx.slope_grade = _slope_grade()
 	ctx.climbing = _is_climbing(ctx.downhill, ctx.board_forward)
@@ -1636,7 +1661,6 @@ func reset_for_respawn() -> void:
 		_smoothed_center_normal = _ground_normal
 		_smoothed_pitch_normal = _ground_normal
 		_smoothed_clearance = _get_raw_clearance()
-		_prev_raw_clearance = _smoothed_clearance
 		_sync_visual_basis_from_ground()
 	_reset_animation_controllers()
 
