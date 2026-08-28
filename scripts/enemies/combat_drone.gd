@@ -5,7 +5,7 @@ extends SwarmPill
 
 const AutoRifleScript = preload("res://scripts/weapons/auto_rifle.gd")
 
-const DRONE_MAX_HEALTH := 25
+const DRONE_MAX_HEALTH := 40
 const WEAPON_RANGE_M := 40.0
 const SPAWN_AHEAD_M := 400.0
 const CRUISE_HEIGHT_M := 8.0
@@ -14,12 +14,17 @@ const KITE_HOLD_M := 40.0
 const CUBE_SIZE_M := 1.4
 const BASE_MOVE_SPEED_MPS := 15.0
 const DRONE_MIN_LEVEL := 5
+const AIR_TARGETING_ENTER_SEC := 1.0
+const AIR_TARGETING_EXIT_SEC := 0.35
 
 enum FlyState { APPROACH, KITE, CATCH_UP }
 
 var fly_state: int = FlyState.APPROACH
 var _cube: MeshInstance3D
 var _cube_color := Color(0.85, 0.15, 0.12)
+var _airborne_time := 0.0
+var _grounded_time := 0.0
+var invulnerable := false
 
 
 func _ready() -> void:
@@ -82,6 +87,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	_stun_left = maxf(_stun_left - delta, 0.0)
+	_tick_air_targeting(delta)
 	if _stun_left > 0.0:
 		velocity = Vector3.ZERO
 		_hit_velocity = Vector3.ZERO
@@ -182,10 +188,45 @@ func can_fire_weapons() -> bool:
 	return xz_distance_to_target() <= WEAPON_RANGE_M
 
 
+func uses_air_targeting() -> bool:
+	return _airborne_time >= AIR_TARGETING_ENTER_SEC
+
+
+func _tick_air_targeting(delta: float) -> void:
+	if _is_target_gliding():
+		_airborne_time += delta
+		_grounded_time = 0.0
+	else:
+		_grounded_time += delta
+		if _grounded_time >= AIR_TARGETING_EXIT_SEC:
+			_airborne_time = 0.0
+
+
+func _is_target_gliding() -> bool:
+	if _target == null or not is_instance_valid(_target):
+		return false
+	if _target is GliderPlayer:
+		return (_target as GliderPlayer).is_gliding()
+	if _target.has_method("is_gliding"):
+		return bool(_target.call("is_gliding"))
+	return false
+
+
 func xz_distance_to_target() -> float:
 	if _target == null or not is_instance_valid(_target):
 		return INF
 	return AutoRifleScript.xz_distance(global_position, _target.global_position)
+
+
+func take_damage(
+	amount: int,
+	hit_dir: Vector3 = Vector3.ZERO,
+	is_crit: bool = false,
+	knockback_speed: float = HIT_KNOCKBACK_SPEED
+) -> bool:
+	if invulnerable:
+		return false
+	return super.take_damage(amount, hit_dir, is_crit, knockback_speed)
 
 
 func _die(from_pos: Vector3) -> void:

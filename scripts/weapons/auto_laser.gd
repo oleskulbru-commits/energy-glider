@@ -16,6 +16,7 @@ var _pending := 0
 var _stagger := 0.0
 var _in_volley := false
 var _beams: Array[LaserBeam] = []
+var _beam_locks: Dictionary = {}
 var _rng := RandomNumberGenerator.new()
 
 
@@ -57,7 +58,9 @@ func _tick_stagger(delta: float) -> void:
 	_stagger = maxf(_stagger - delta, 0.0)
 	if _stagger > 0.0:
 		return
-	_spawn_beam()
+	# Keep leftover beams chambered until they fire. Charge waits until the volley empties.
+	if not _spawn_beam():
+		return
 	_pending -= 1
 	if _pending > 0:
 		_stagger = AutoRifle.BURST_GAP_SEC
@@ -67,17 +70,19 @@ func _spawn_beam() -> bool:
 	var origin := _muzzle_origin()
 	var facing := _facing_xz()
 	var range_m := _current_range()
-	var target := AutoRifle.pick_target(
+	var target := pick_unique_target(
 		_pills(),
 		origin,
 		facing,
 		range_m,
+		_claimed_lock_ids(),
 		_rng
 	)
 	if target == null:
 		return false
 	var beam := LaserBeam.new()
 	add_child(beam)
+	_claim_primary(beam, target)
 	beam.begin(
 		fire_time_for(_duration_bonus()),
 		target,
@@ -91,6 +96,28 @@ func _spawn_beam() -> bool:
 	)
 	_beams.append(beam)
 	return true
+
+
+func _claimed_lock_ids() -> Dictionary:
+	var exclude: Dictionary = {}
+	for id in _beam_locks:
+		exclude[id] = true
+	return exclude
+
+
+func _claim_primary(beam: LaserBeam, target: Node3D) -> void:
+	if target == null:
+		return
+	_beam_locks[target.get_instance_id()] = beam
+
+
+func _release_primary(beam: LaserBeam) -> void:
+	var drop: Array = []
+	for id in _beam_locks:
+		if _beam_locks[id] == beam:
+			drop.append(id)
+	for id in drop:
+		_beam_locks.erase(id)
 
 
 func _tick_beams(delta: float) -> void:
@@ -110,6 +137,8 @@ func _prune_finished() -> void:
 	for beam in _beams:
 		if is_instance_valid(beam) and not beam.finished:
 			keep.append(beam)
+		else:
+			_release_primary(beam)
 	_beams = keep
 
 
@@ -118,6 +147,7 @@ func _abort() -> void:
 		if is_instance_valid(beam):
 			beam.queue_free()
 	_beams.clear()
+	_beam_locks.clear()
 	_pending = 0
 	_stagger = 0.0
 	_in_volley = false
@@ -225,14 +255,22 @@ static func damage_for(bonus: float) -> int:
 	return maxi(1, int(round(float(DAMAGE) * (1.0 + maxf(bonus, 0.0)))))
 
 
-static func closest_in_front(
-	pills: Array, origin: Vector3, facing: Vector3, range_m: float
+## Primary lock only. Bounce hops may still overlap other beams' targets.
+static func pick_unique_target(
+	pills: Array,
+	origin: Vector3,
+	facing: Vector3,
+	range_m: float,
+	exclude: Dictionary,
+	rng: RandomNumberGenerator
 ) -> Node3D:
-	var best: Node3D = null
-	var best_d := INF
+	var candidates: Array[Node3D] = []
 	for pill in AutoRifle.collect_candidates(pills, origin, facing, range_m):
-		var d := AutoRifle.xz_distance(origin, pill.global_position)
-		if d < best_d:
-			best_d = d
-			best = pill
-	return best
+		if exclude.has(pill.get_instance_id()):
+			continue
+		candidates.append(pill)
+	if candidates.is_empty():
+		return null
+	if rng == null:
+		return candidates[0]
+	return candidates[rng.randi_range(0, candidates.size() - 1)]

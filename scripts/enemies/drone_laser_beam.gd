@@ -10,13 +10,17 @@ const FIRE_SEC := 5.0
 const RELOAD_SEC := 5.0
 const TICK_SEC := 0.5
 const DAMAGE := 4
-const OPEN_AHEAD_M := 15.0
+const LEAD_SEC := 1.0
+const AHEAD_MIN_M := 10.0
 const HIT_RADIUS_M := 1.8
 const HIT_MAX_ABOVE_M := 3.5
+const HIT_RADIUS_AIR_M := 2.2
+const MISS_BEAM_RANGE_M := 140.0
 const RADIUS_CORE := 0.12
 const RADIUS_GLOW := 0.2
 const ZIGZAG_SEC := 2.25
-const ZIGZAG_AMPLITUDE_M := 12.0
+const ZIGZAG_AMPLITUDE_GROUND_M := 6.0
+const ZIGZAG_AMPLITUDE_AIR_M := 4.0
 const ZIGZAG_HZ := 0.55
 
 var active := false
@@ -41,15 +45,15 @@ func begin(
 	player: Node3D,
 	facing: Vector3,
 	terrain: TerrainManager,
-	zigzag_first: bool = false
+	zigzag_first: bool = false,
+	air_targeting: bool = false
 ) -> void:
 	_terrain = terrain
-	_facing = Vector3(facing.x, 0.0, facing.z)
-	if _facing.length_squared() < 0.0001:
-		_facing = Vector3(-1.0, 0.0, 0.0)
+	_set_facing(facing)
+	if air_targeting:
+		_aim = _lead_goal_air(player, _facing)
 	else:
-		_facing = _facing.normalized()
-	_aim = _open_aim(player, _facing)
+		_aim = _lead_goal_ground(player, _facing)
 	_fire_left = FIRE_SEC
 	_next_tick = TICK_SEC
 	active = true
@@ -58,31 +62,42 @@ func begin(
 	_zigzag_left = ZIGZAG_SEC if zigzag_first else 0.0
 	_zigzag_t = 0.0
 	_ensure_visuals()
-	_show(origin)
-	_deal_tick(player)
+	_show(origin, player, air_targeting)
+	_deal_tick(player, air_targeting)
 
 
-func advance(delta: float, origin: Vector3, player: Node3D, facing: Vector3, allow_fire: bool) -> void:
+func advance(
+	delta: float,
+	origin: Vector3,
+	player: Node3D,
+	facing: Vector3,
+	allow_fire: bool,
+	air_targeting: bool = false
+) -> void:
 	if finished or not active:
 		return
 	if not allow_fire:
 		cancel()
 		return
-	_facing = Vector3(facing.x, 0.0, facing.z)
-	if _facing.length_squared() > 0.0001:
-		_facing = _facing.normalized()
+	_set_facing(facing)
 	_fire_left -= delta
 	if _fire_left <= 0.0:
 		_finish()
 		return
 	if zigzagging:
-		_zigzag_aim(delta, origin, player)
+		if air_targeting:
+			_zigzag_aim_air(delta, player)
+		else:
+			_zigzag_aim(delta, player)
 	else:
-		_chase_aim(delta, player)
-	_show(origin)
+		if air_targeting:
+			_chase_aim_air(delta, player)
+		else:
+			_chase_aim(delta, player)
+	_show(origin, player, air_targeting)
 	_next_tick -= delta
 	while _next_tick <= 0.0 and active and not finished:
-		_deal_tick(player)
+		_deal_tick(player, air_targeting)
 		_next_tick += TICK_SEC
 
 
@@ -97,12 +112,48 @@ func _finish() -> void:
 	_hide()
 
 
-func _open_aim(player: Node3D, facing: Vector3) -> Vector3:
-	var xz := player.global_position + facing * OPEN_AHEAD_M
-	return _ground_at(xz.x, xz.z)
+func _set_facing(facing: Vector3) -> void:
+	_facing = Vector3(facing.x, 0.0, facing.z)
+	if _facing.length_squared() < 0.0001:
+		_facing = Vector3(-1.0, 0.0, 0.0)
+	else:
+		_facing = _facing.normalized()
 
 
-func _zigzag_aim(delta: float, _origin: Vector3, player: Node3D) -> void:
+func _player_velocity(player: Node3D) -> Vector3:
+	if player is GliderPlayer:
+		return (player as GliderPlayer).linear_velocity
+	if player is CharacterBody3D:
+		return (player as CharacterBody3D).velocity
+	if player is RigidBody3D:
+		return (player as RigidBody3D).linear_velocity
+	return Vector3.ZERO
+
+
+func _lead_goal_ground(player: Node3D, facing: Vector3) -> Vector3:
+	var pos := player.global_position
+	var vel := _player_velocity(player)
+	var horiz := Vector3(vel.x, 0.0, vel.z)
+	var lead := pos + horiz * LEAD_SEC
+	var ahead := Vector3(lead.x - pos.x, 0.0, lead.z - pos.z)
+	if ahead.dot(facing) < 4.0:
+		lead = pos + facing * maxf(horiz.length() * LEAD_SEC, AHEAD_MIN_M)
+	return _ground_at(lead.x, lead.z)
+
+
+func _lead_goal_air(player: Node3D, facing: Vector3) -> Vector3:
+	var pos := player.global_position
+	var vel := _player_velocity(player)
+	var lead := pos + vel * LEAD_SEC
+	var ahead := Vector3(lead.x - pos.x, 0.0, lead.z - pos.z)
+	if ahead.dot(facing) < 4.0:
+		var horiz := Vector3(vel.x, 0.0, vel.z)
+		lead = pos + facing * maxf(horiz.length() * LEAD_SEC, AHEAD_MIN_M)
+		lead.y = pos.y + vel.y * LEAD_SEC
+	return lead
+
+
+func _zigzag_aim(delta: float, player: Node3D) -> void:
 	_zigzag_left = maxf(_zigzag_left - delta, 0.0)
 	_zigzag_t += delta
 	if _zigzag_left <= 0.0:
@@ -110,22 +161,45 @@ func _zigzag_aim(delta: float, _origin: Vector3, player: Node3D) -> void:
 		_chase_aim(delta, player)
 		return
 	var right := Vector3(_facing.z, 0.0, -_facing.x)
-	var lateral := sin(_zigzag_t * TAU * ZIGZAG_HZ) * ZIGZAG_AMPLITUDE_M
-	var goal := player.global_position + _facing * OPEN_AHEAD_M + right * lateral
+	var lateral := sin(_zigzag_t * TAU * ZIGZAG_HZ) * ZIGZAG_AMPLITUDE_GROUND_M
+	var goal := _lead_goal_ground(player, _facing) + right * lateral
 	goal = _ground_at(goal.x, goal.z)
-	var flat := Vector3(goal.x - _aim.x, 0.0, goal.z - _aim.z)
-	var step := GliderPhysicsScript.CRUISE_MAX_GROUND_SPEED * delta
-	if flat.length() <= step:
-		_aim = goal
-	else:
-		_aim += flat.normalized() * step
-		_aim = _ground_at(_aim.x, _aim.z)
+	_move_aim_toward(goal, delta, false)
+
+
+func _zigzag_aim_air(delta: float, player: Node3D) -> void:
+	_zigzag_left = maxf(_zigzag_left - delta, 0.0)
+	_zigzag_t += delta
+	if _zigzag_left <= 0.0:
+		zigzagging = false
+		_chase_aim_air(delta, player)
+		return
+	var right := Vector3(_facing.z, 0.0, -_facing.x)
+	var lateral := sin(_zigzag_t * TAU * ZIGZAG_HZ) * ZIGZAG_AMPLITUDE_AIR_M
+	var goal := _lead_goal_air(player, _facing) + right * lateral
+	_move_aim_toward(goal, delta, true)
 
 
 func _chase_aim(delta: float, player: Node3D) -> void:
-	var goal := _ground_at(player.global_position.x, player.global_position.z)
-	var flat := Vector3(goal.x - _aim.x, 0.0, goal.z - _aim.z)
+	var goal := _lead_goal_ground(player, _facing)
+	_move_aim_toward(goal, delta, false)
+
+
+func _chase_aim_air(delta: float, player: Node3D) -> void:
+	var goal := _lead_goal_air(player, _facing)
+	_move_aim_toward(goal, delta, true)
+
+
+func _move_aim_toward(goal: Vector3, delta: float, air: bool) -> void:
 	var step := GliderPhysicsScript.CRUISE_MAX_GROUND_SPEED * delta
+	if air:
+		var to := goal - _aim
+		if to.length() <= step:
+			_aim = goal
+		else:
+			_aim += to.normalized() * step
+		return
+	var flat := Vector3(goal.x - _aim.x, 0.0, goal.z - _aim.z)
 	if flat.length() <= step:
 		_aim = goal
 	else:
@@ -140,14 +214,28 @@ func _ground_at(x: float, z: float) -> Vector3:
 	return Vector3(x, y, z)
 
 
-func _deal_tick(player: Node3D) -> void:
+func _is_player_in_hit_range(player: Node3D, air_targeting: bool) -> bool:
 	if player == null or not is_instance_valid(player):
-		return
+		return false
 	var delta := player.global_position - _aim
+	if air_targeting:
+		return delta.length() <= HIT_RADIUS_AIR_M
 	if delta.y > HIT_MAX_ABOVE_M:
-		return
-	var flat := Vector2(delta.x, delta.z)
-	if flat.length() > HIT_RADIUS_M:
+		return false
+	return Vector2(delta.x, delta.z).length() <= HIT_RADIUS_M
+
+
+func _visual_beam_end(origin: Vector3, player: Node3D, air_targeting: bool) -> Vector3:
+	if _is_player_in_hit_range(player, air_targeting):
+		return _aim
+	var dir := _aim - origin
+	if dir.length_squared() < 0.0001:
+		return _aim
+	return origin + dir.normalized() * MISS_BEAM_RANGE_M
+
+
+func _deal_tick(player: Node3D, air_targeting: bool = false) -> void:
+	if not _is_player_in_hit_range(player, air_targeting):
 		return
 	var health := get_tree().get_first_node_in_group("player_health")
 	if health != null and health.has_method("take_damage"):
@@ -190,8 +278,8 @@ func _ensure_visuals() -> void:
 	add_child(_glow)
 
 
-func _show(origin: Vector3) -> void:
-	var to := _aim
+func _show(origin: Vector3, player: Node3D, air_targeting: bool) -> void:
+	var to := _visual_beam_end(origin, player, air_targeting)
 	var dir := to - origin
 	var length := dir.length()
 	if length < 0.08:

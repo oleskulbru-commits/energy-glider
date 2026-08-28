@@ -10,7 +10,7 @@ const LIFETIME_SEC := 8.0
 const LOFT_M := 6.0
 const BOOST_SEC := LOFT_M / SPEED_MPS
 const HOMING := 0.85
-const DAMAGE := 20
+const DAMAGE := 18
 const KNOCKBACK_SPEED := 20.0
 const AIM_UP_M := 0.7
 

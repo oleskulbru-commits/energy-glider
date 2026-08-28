@@ -41,6 +41,7 @@ var _active_drones: Array[Node] = []
 var _next_drone_is_laser := true
 var _drone_level := 0
 var _drones_spawned_in_level := 0
+var _drone_spawn_thresholds: Array[float] = []
 
 
 func _ready() -> void:
@@ -119,6 +120,7 @@ func clear_stream() -> void:
 	_active_drones.clear()
 	_drone_level = 0
 	_drones_spawned_in_level = 0
+	_drone_spawn_thresholds.clear()
 
 
 func reset_after_dawn() -> void:
@@ -192,26 +194,62 @@ func _try_spawn_drones(level: int) -> void:
 	if level != _drone_level:
 		_drone_level = level
 		_drones_spawned_in_level = 0
+		var budget := CombatDroneScript.drone_cap_for_level(level)
+		_drone_spawn_thresholds = _roll_drone_spawn_thresholds(budget)
 	var budget := CombatDroneScript.drone_cap_for_level(level)
 	if budget <= 0 or _drones_spawned_in_level >= budget:
 		return
 	var track := _track_body()
 	if track == null:
 		return
-	if not _drone_spawn_progress_allows(track.global_position.x, level, _drones_spawned_in_level, budget):
+	if not drone_spawn_progress_allows(
+		track.global_position.x, level, _drones_spawned_in_level, _drone_spawn_thresholds
+	):
 		return
 	_spawn_drone(track, level)
 	_drones_spawned_in_level += 1
 
 
-## Westbound progress midpoints: spawn i when progress >= (i + 0.5) / budget.
-static func _drone_spawn_progress_allows(
+## spread 0 = all drones near cluster_center; spread 1 = evenly spaced midpoints.
+static func build_drone_spawn_thresholds(
+	budget: int,
+	spread: float,
+	cluster_center: float,
+	rng: RandomNumberGenerator,
+	min_progress: float = 0.08,
+	max_progress: float = 0.95
+) -> Array[float]:
+	var thresholds: Array[float] = []
+	if budget <= 0:
+		return thresholds
+	var t := clampf(spread, 0.0, 1.0)
+	var center := clampf(cluster_center, min_progress, max_progress)
+	for i in budget:
+		var even := (float(i) + 0.5) / float(budget)
+		var cluster := center
+		if t < 0.999:
+			cluster += rng.randf_range(-0.02, 0.02)
+		var threshold := lerpf(cluster, even, t)
+		thresholds.append(clampf(threshold, min_progress, max_progress))
+	thresholds.sort()
+	return thresholds
+
+
+func _roll_drone_spawn_thresholds(budget: int) -> Array[float]:
+	if budget <= 0:
+		return []
+	var spread := _rng.randf()
+	var cluster_center := _rng.randf_range(0.18, 0.82)
+	return build_drone_spawn_thresholds(budget, spread, cluster_center, _rng)
+
+
+static func drone_spawn_progress_allows(
 	player_x: float,
 	level: int,
 	spawned: int,
-	budget: int
+	thresholds: Array[float]
 ) -> bool:
-	if budget <= 0 or spawned >= budget:
+	if spawned >= thresholds.size():
 		return false
 	var bounds := LevelRunScript.segment_east_west_x(level)
 	var east_x := bounds.x
@@ -220,8 +258,7 @@ static func _drone_spawn_progress_allows(
 	if span <= 0.001:
 		return spawned == 0
 	var progress := clampf((east_x - player_x) / span, 0.0, 1.0)
-	var threshold := (float(spawned) + 0.5) / float(budget)
-	return progress >= threshold
+	return progress >= thresholds[spawned]
 
 
 func _spawn_drone(track: Node3D, level: int) -> void:

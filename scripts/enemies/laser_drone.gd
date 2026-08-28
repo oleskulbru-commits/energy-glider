@@ -28,7 +28,8 @@ func _update_weapons(delta: float) -> void:
 				global_position,
 				_target,
 				_target_facing_xz(),
-				can_fire_weapons()
+				can_fire_weapons(),
+				uses_air_targeting()
 			)
 			if _beam.finished:
 				_beam.queue_free()
@@ -54,7 +55,14 @@ func _start_beam() -> void:
 	if parent == null:
 		parent = self
 	parent.add_child(_beam)
-	_beam.begin(global_position, _target, _target_facing_xz(), _terrain, zigzag_first)
+	_beam.begin(
+		global_position,
+		_target,
+		_target_facing_xz(),
+		_terrain,
+		zigzag_first,
+		uses_air_targeting()
+	)
 
 
 func _die(from_pos: Vector3) -> void:

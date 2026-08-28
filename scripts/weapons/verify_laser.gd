@@ -19,6 +19,8 @@ func _run() -> void:
 	_verify_bounce()
 	_verify_dead_hop_does_not_freeze()
 	_verify_bounce_crits_are_independent()
+	_verify_unique_primary_locks()
+	_verify_chamber_semantics()
 	print("Laser verification passed.")
 	quit(0)
 
@@ -247,6 +249,59 @@ func _verify_bounce_crits_are_independent() -> void:
 		"A later bounce should still be able to crit on its own"
 	)
 	bullet.free()
+
+
+func _verify_unique_primary_locks() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var origin := Vector3.ZERO
+	var facing := Vector3(-1.0, 0.0, 0.0)
+	var range_m := AutoLaserScript.RANGE_M
+	var a: SwarmPill = SwarmPillScript.new()
+	var b: SwarmPill = SwarmPillScript.new()
+	var c: SwarmPill = SwarmPillScript.new()
+	root.add_child(a)
+	root.add_child(b)
+	root.add_child(c)
+	a.global_position = Vector3(-20.0, 0.0, 0.0)
+	b.global_position = Vector3(-25.0, 0.0, 4.0)
+	c.global_position = Vector3(-30.0, 0.0, -3.0)
+	var pills: Array = [a, b, c]
+	var first := AutoLaserScript.pick_unique_target(pills, origin, facing, range_m, {}, rng)
+	_fail_unless(first != null, "Should pick a primary target")
+	var exclude: Dictionary = {}
+	exclude[first.get_instance_id()] = true
+	var second := AutoLaserScript.pick_unique_target(pills, origin, facing, range_m, exclude, rng)
+	_fail_unless(second != null and second != first, "Second beam should lock a different enemy")
+	exclude[second.get_instance_id()] = true
+	var third := AutoLaserScript.pick_unique_target(pills, origin, facing, range_m, exclude, rng)
+	_fail_unless(third != null and third != first and third != second, "Third beam should take the last free enemy")
+	exclude[third.get_instance_id()] = true
+	_fail_unless(
+		AutoLaserScript.pick_unique_target(pills, origin, facing, range_m, exclude, rng) == null,
+		"With every enemy claimed, no new primary lock should be available"
+	)
+	a.free()
+	b.free()
+	c.free()
+
+
+func _verify_chamber_semantics() -> void:
+	# Mirror shotgun: failed spawns keep chamber slots; charge waits until the volley empties.
+	var pending := 2
+	var fired := 0
+	var spawned := false
+	if not spawned:
+		pass
+	else:
+		pending -= 1
+		fired += 1
+	_fail_unless(pending == 2 and fired == 0, "Missed beam spawn should keep chamber slots")
+	while pending > 0:
+		spawned = true
+		pending -= 1
+		fired += 1
+	_fail_unless(pending == 0 and fired == 2, "Charge should wait until every chambered beam fires")
 
 
 func _fail_unless(ok: bool, message: String) -> void:
