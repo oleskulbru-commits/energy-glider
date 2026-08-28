@@ -185,6 +185,14 @@ func _daylight_blend() -> float:
 	return 0.0
 
 
+func get_daylight_blend() -> float:
+	return _daylight_blend()
+
+
+func get_night_blend() -> float:
+	return 1.0 - get_daylight_blend()
+
+
 func _sun_basis_for_time(t: float) -> Basis:
 	return sun_basis_for_time(t, get_day_fraction(), sun_max_elevation_deg)
 

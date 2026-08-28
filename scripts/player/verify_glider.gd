@@ -148,6 +148,7 @@ func _run_tests() -> void:
 	await _verify_cruise_momentum_crest()
 	await _verify_crest_air_gravity_ramp()
 	await _verify_inertia_jump()
+	await _verify_flat_jump_airtime()
 	await _verify_jump_preserves_turn_yaw()
 	await _verify_jump_preserves_forward_yaw()
 	await _verify_jump_to_glide_anim()
@@ -157,6 +158,7 @@ func _run_tests() -> void:
 	await _verify_idle_to_forward_enter()
 	await _verify_respawn_animation()
 	await _verify_cruise_drift_align()
+	await _verify_turn_bank_roll()
 	await _verify_strafe_adds_lateral_speed()
 	await _verify_strafe_while_thrusting()
 	await _verify_air_steering_weaker()
@@ -1274,11 +1276,20 @@ func _verify_crest_air_gravity_ramp() -> void:
 
 
 func _verify_inertia_jump() -> void:
+	var flat := GliderPhysicsScript.apply_inertia_jump(
+		Vector3.ZERO, Vector3.UP, 0.0, GliderPhysicsScript.BASE_HEIGHT
+	)
+	var min_up := GliderPhysicsScript.jump_up_speed_for_clearance(GliderPhysicsScript.BASE_HEIGHT)
+	_fail_unless(
+		flat.y >= min_up - 0.01,
+		"Flat jump should meet clearance floor (got %.2f min %.2f)" % [flat.y, min_up]
+	)
+
 	var slow := GliderPhysicsScript.apply_inertia_jump(
-		Vector3(0.0, 0.0, 4.0), Vector3.UP, 4.0
+		Vector3(0.0, 0.0, 4.0), Vector3.UP, 4.0, GliderPhysicsScript.JUMP_MAX_CLEARANCE
 	)
 	var fast := GliderPhysicsScript.apply_inertia_jump(
-		Vector3(0.0, 0.0, 14.0), Vector3.UP, 14.0
+		Vector3(0.0, 0.0, 14.0), Vector3.UP, 14.0, GliderPhysicsScript.JUMP_MAX_CLEARANCE
 	)
 	_fail_unless(
 		fast.y > slow.y + 0.5,
@@ -1315,6 +1326,72 @@ func _verify_inertia_jump() -> void:
 
 	glider.queue_free()
 	terrain.queue_free()
+
+
+func _verify_flat_jump_airtime() -> void:
+	var terrain := _spawn_terrain("flat_jump")
+	await physics_frame
+
+	var glider := _spawn_glider(terrain)
+	_get_input(glider)
+	glider.global_position = Vector3(0.0, _hover_spawn_y(terrain), 0.0)
+	glider.velocity = Vector3.ZERO
+	await physics_frame
+
+	for i in 60:
+		await physics_frame
+
+	var skin: Node3D = glider.get_node("Visual/GliderSkin")
+	var tree: AnimationTree = skin.get_node("AnimationTree") as AnimationTree
+	var root_playback := tree.get("parameters/body/playback") as AnimationNodeStateMachinePlayback
+	var anim_player := tree.get_node(tree.anim_player) as AnimationPlayer
+	var jump_time_scale: float = tree.get("parameters/body/jump/time_scale/scale")
+	var jump_duration := 0.0
+	if anim_player != null and anim_player.has_animation("Eve_Jump") and jump_time_scale > 0.0:
+		jump_duration = anim_player.get_animation("Eve_Jump").length / jump_time_scale
+	var min_jump_frames := int(ceil(jump_duration * 0.85 / (1.0 / 60.0))) if jump_duration > 0.0 else 30
+
+	_fail_unless(glider.is_grounded(), "Flat jump airtime test needs grounded start")
+
+	Input.action_press("jump")
+	await physics_frame
+	Input.action_release("jump")
+	await physics_frame
+
+	_fail_unless(glider.is_gliding(), "Flat jump should enter gliding state")
+
+	var gliding_frames := 0
+	var jump_frames := 0
+	var saw_landing_before_jump_done := false
+	for i in 90:
+		await physics_frame
+		if glider.is_gliding():
+			gliding_frames += 1
+		var root_node := root_playback.get_current_node()
+		if root_node == &"jump":
+			jump_frames += 1
+		elif root_node == &"landing" and jump_frames < min_jump_frames:
+			saw_landing_before_jump_done = true
+			break
+
+	_fail_unless(
+		gliding_frames >= 15,
+		"Flat jump should stay gliding for at least 15 frames (got %d)" % gliding_frames
+	)
+	_fail_unless(
+		not saw_landing_before_jump_done,
+		"Flat jump should not enter landing before jump clip mostly finishes (jump_frames=%d min=%d)"
+		% [jump_frames, min_jump_frames]
+	)
+	_fail_unless(
+		jump_frames >= mini(min_jump_frames, 15),
+		"Flat jump should play jump anim (frames=%d min=%d)"
+		% [jump_frames, mini(min_jump_frames, 15)]
+	)
+
+	glider.queue_free()
+	terrain.queue_free()
+	_release_all_input()
 
 
 func _verify_jump_preserves_turn_yaw() -> void:
@@ -1436,14 +1513,6 @@ func _verify_jump_to_glide_anim() -> void:
 	await physics_frame
 
 	_fail_unless(glider.is_gliding(), "Jump-to-glide test needs gliding after jump")
-
-	# Flat-ground hops land before Eve_Jump finishes; lift into sustained glide so the
-	# clip can complete and hand off to the glide loop (same pattern as air_hold tests).
-	var ground_y := terrain.sample_height(glider.global_position.x, glider.global_position.z)
-	glider.global_position.y = ground_y + 12.0
-	glider.velocity = Vector3(0.0, -0.5, 14.0)
-	glider.set("_state", GliderPlayerScript.State.GLIDING)
-	await physics_frame
 
 	var jump_time_scale: float = tree.get("parameters/body/jump/time_scale/scale")
 	var jump_duration := 0.0
@@ -1914,6 +1983,50 @@ func _verify_cruise_drift_align() -> void:
 	terrain.queue_free()
 
 
+func _verify_turn_bank_roll() -> void:
+	const BANK_MIN_ROLL_DEG := 3.0
+	const STEER_FRAMES := 42
+
+	_release_all_input()
+	var terrain := _spawn_terrain("turn_bank")
+	await physics_frame
+
+	for steer_action: String in ["steer_left", "steer_right"]:
+		var glider := _spawn_glider(terrain)
+		_get_input(glider)
+		glider.global_position = Vector3(0.0, _hover_spawn_y(terrain), 0.0)
+		glider.set("_yaw", 0.0)
+		glider.velocity = Vector3(0.0, 0.0, 8.0)
+		await physics_frame
+
+		_hold_forward()
+		Input.action_press(steer_action)
+		for i in STEER_FRAMES:
+			await physics_frame
+		var roll := glider.get_board_roll()
+		Input.action_release(steer_action)
+		_release_forward()
+
+		if steer_action == "steer_left":
+			_fail_unless(
+				roll >= deg_to_rad(BANK_MIN_ROLL_DEG),
+				"Steer left should bank into turn (roll %.1f deg, want >= %.1f)"
+				% [rad_to_deg(roll), BANK_MIN_ROLL_DEG]
+			)
+		else:
+			_fail_unless(
+				roll <= -deg_to_rad(BANK_MIN_ROLL_DEG),
+				"Steer right should bank into turn (roll %.1f deg, want <= -%.1f)"
+				% [rad_to_deg(roll), BANK_MIN_ROLL_DEG]
+			)
+
+		glider.queue_free()
+		await physics_frame
+
+	_release_all_input()
+	terrain.queue_free()
+
+
 func _verify_strafe_adds_lateral_speed() -> void:
 	_release_all_input()
 	var terrain := _spawn_terrain("strafe")
@@ -1928,14 +2041,14 @@ func _verify_strafe_adds_lateral_speed() -> void:
 
 	var yaw_before := glider.get_yaw()
 	var x_before := glider.velocity.x
-	Input.action_press("strafe_right")
+	Input.action_press("strafe_left")
 	for i in 20:
 		await physics_frame
-	Input.action_release("strafe_right")
+	Input.action_release("strafe_left")
 
 	_fail_unless(
 		glider.velocity.x > x_before + 0.35,
-		"Strafe right at yaw 0 should add +X speed (%.2f -> %.2f)" % [x_before, glider.velocity.x]
+		"Strafe left (Q) at yaw 0 should add +X speed (%.2f -> %.2f)" % [x_before, glider.velocity.x]
 	)
 	var yaw_delta := absf(wrapf(glider.get_yaw() - yaw_before, -PI, PI))
 	_fail_unless(
@@ -1961,11 +2074,11 @@ func _verify_strafe_ground_force() -> void:
 		absf(straight.x) < 0.5,
 		"Thrust with no strafe should not shove sideways (got %s)" % straight
 	)
-	ctx.strafe = 1.0
+	ctx.strafe = -1.0
 	var slipped := GliderPhysicsScript.compute_ground_force(ctx, 90.0, PHYSICS_DT)
 	_fail_unless(
-		slipped.x > 1.0,
-		"Thrust + Q/E should request +X slip (got %s)" % slipped
+		slipped.x < -1.0,
+		"Thrust + strafe right (E) should request -X slip (got %s)" % slipped
 	)
 
 
@@ -1983,15 +2096,15 @@ func _verify_strafe_while_thrusting() -> void:
 
 	var x_before := glider.velocity.x
 	_hold_forward()
-	Input.action_press("strafe_right")
+	Input.action_press("strafe_left")
 	for i in 24:
 		await physics_frame
-	Input.action_release("strafe_right")
+	Input.action_release("strafe_left")
 	_release_forward()
 
 	_fail_unless(
 		glider.velocity.x > x_before + 0.35,
-		"Q/E must slip while holding W (%.2f -> %.2f)" % [x_before, glider.velocity.x]
+		"Q must slip left while holding W (%.2f -> %.2f)" % [x_before, glider.velocity.x]
 	)
 
 	_release_all_input()

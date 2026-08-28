@@ -118,6 +118,8 @@ func _build_locomotion_state_machine(ease: Curve) -> AnimationNodeStateMachine:
 	sm.add_node("forward", _make_timescaled_clip("Eve_Forward"), Vector2(0, 0))
 	sm.add_node("turn_left", _make_clip("Eve_Turn_Left"), Vector2(280, -120))
 	sm.add_node("turn_right", _make_clip("Eve_Turn_Right"), Vector2(280, 120))
+	sm.add_node("strafe_left", _make_timescaled_clip("Eve_Forward"), Vector2(560, -120))
+	sm.add_node("strafe_right", _make_timescaled_clip("Eve_Forward"), Vector2(560, 120))
 
 	sm.add_transition("Start", "enter", _make_transition(XFADE_START, ease))
 	sm.add_transition("enter", "forward", _make_auto_end_transition(AIR_XFADE, ease))
@@ -127,6 +129,12 @@ func _build_locomotion_state_machine(ease: Curve) -> AnimationNodeStateMachine:
 	sm.add_transition("turn_right", "forward", _make_transition(XFADE, ease))
 	sm.add_transition("turn_left", "turn_right", _make_transition(XFADE, ease))
 	sm.add_transition("turn_right", "turn_left", _make_transition(XFADE, ease))
+	sm.add_transition("forward", "strafe_left", _make_transition(XFADE, ease))
+	sm.add_transition("strafe_left", "forward", _make_transition(XFADE, ease))
+	sm.add_transition("forward", "strafe_right", _make_transition(XFADE, ease))
+	sm.add_transition("strafe_right", "forward", _make_transition(XFADE, ease))
+	sm.add_transition("strafe_left", "strafe_right", _make_transition(XFADE, ease))
+	sm.add_transition("strafe_right", "strafe_left", _make_transition(XFADE, ease))
 	return sm
 
 

@@ -297,8 +297,55 @@ func _initialize() -> void:
 		quit(1)
 		return
 
+	root_playback.start("locomotion")
+	locomotion_playback.start("forward")
+	Input.action_release("steer_left")
 	Input.action_release("steer_right")
+	Input.action_press("move_forward")
+	for _i in 24:
+		await process_frame
+
+	Input.action_press("strafe_left")
+	for _i in 36:
+		await process_frame
+
+	if locomotion_playback.get_current_node() != &"strafe_left":
+		push_error(
+			"Locomotion did not enter strafe_left on Q press (state=%s)"
+			% locomotion_playback.get_current_node()
+		)
+		quit(1)
+		return
+
+	Input.action_release("strafe_left")
+	Input.action_press("strafe_right")
+	for _i in 3:
+		await process_frame
+		var mid_strafe_swap := locomotion_playback.get_current_node()
+		if mid_strafe_swap == &"forward":
+			push_error("Locomotion should not pass through forward during strafe_left to strafe_right swap")
+			quit(1)
+			return
+
+	for _i in TURN_SWAP_WAIT_FRAMES:
+		await process_frame
+
+	if locomotion_playback.get_current_node() != &"strafe_right":
+		push_error(
+			"Locomotion should swap strafe_left to strafe_right without forward (state=%s)"
+			% locomotion_playback.get_current_node()
+		)
+		quit(1)
+		return
+
+	if not locomotion_sm.has_transition(&"strafe_left", &"strafe_right"):
+		push_error("Locomotion state machine missing strafe_left to strafe_right transition")
+		quit(1)
+		return
+
+	Input.action_release("strafe_right")
 	Input.action_release("move_forward")
+	Input.action_release("steer_right")
 	for _i in 12:
 		await process_frame
 
@@ -650,7 +697,7 @@ func _initialize() -> void:
 
 	Input.action_release("move_forward")
 
-	print("AnimationTree OK, body+sail layering, retract, turn swap, jump/glide, air boost, boost, brake, brake release, air brake blend, W+S brake, and idle enter verified, clips: ", player.get_animation_list())
+	print("AnimationTree OK, body+sail layering, retract, turn swap, strafe swap, jump/glide, air boost, boost, brake, brake release, air brake blend, W+S brake, and idle enter verified, clips: ", player.get_animation_list())
 	quit(0)
 
 

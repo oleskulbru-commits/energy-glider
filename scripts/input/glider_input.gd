@@ -62,7 +62,7 @@ func is_steering() -> bool:
 func get_strafe() -> float:
 	if not _locomotion_enabled:
 		return 0.0
-	return Input.get_action_strength("strafe_right") - Input.get_action_strength("strafe_left")
+	return Input.get_action_strength("strafe_left") - Input.get_action_strength("strafe_right")
 
 
 func is_strafing() -> bool:

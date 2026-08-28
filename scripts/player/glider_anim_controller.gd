@@ -10,6 +10,8 @@ const BOOST_TIME_SCALE := 1.35
 const JUMP_TIME_SCALE := 0.625
 
 const PARAM_FORWARD_SCALE := "parameters/body/locomotion/forward/time_scale/scale"
+const PARAM_STRAFE_LEFT_SCALE := "parameters/body/locomotion/strafe_left/time_scale/scale"
+const PARAM_STRAFE_RIGHT_SCALE := "parameters/body/locomotion/strafe_right/time_scale/scale"
 const PARAM_BOOST_SCALE := "parameters/body/boost/loop/time_scale/scale"
 const PARAM_BRAKE_SCALE := "parameters/body/brake/loop/time_scale/scale"
 const PARAM_JUMP_SCALE := "parameters/body/jump/time_scale/scale"
@@ -23,6 +25,7 @@ const JUMP_CLIP := &"Eve_Jump"
 const JUMP_FINISH_EPSILON := 0.05
 
 @export var turn_enter: float = 0.05
+@export var strafe_enter: float = 0.05
 @export var turn_forward_frames: int = 4
 @export var speed_scale_min: float = 0.85
 @export var speed_scale_max: float = 1.25
@@ -48,6 +51,7 @@ var _snap_boost_entry := false
 var _snap_boost_loop := false
 var _snap_brake_loop := false
 var _turn_neutral_frames := 0
+var _strafe_neutral_frames := 0
 var _locomotion_travel_target := &"forward"
 var _queued_locomotion := &"forward"
 var _locomotion_travel_cooldown := 0.0
@@ -130,6 +134,7 @@ func _process(_delta: float) -> void:
 
 	var speed := _glider.get_horizontal_speed()
 	var steer := _glider.get_anim_steer()
+	var strafe := _glider.get_strafe_axis()
 
 	_update_forward_time_scale(speed)
 	_update_boost_time_scale()
@@ -172,25 +177,25 @@ func _process(_delta: float) -> void:
 					_start_brake_substate()
 		if entered_locomotion:
 			if prev_root == &"grounded":
-				_start_locomotion_from_idle(steer)
+				_start_locomotion_from_idle(steer, strafe)
 			elif prev_root == &"brake":
-				_warm_locomotion_for_brake_exit(steer)
+				_warm_locomotion_for_brake_exit(steer, strafe)
 			elif prev_root == &"landing":
 				_landing_locomotion_warm = true
-				_warm_locomotion_for_landing_exit(steer)
+				_warm_locomotion_for_landing_exit(steer, strafe)
 			else:
-				_restart_locomotion(steer)
+				_restart_locomotion(steer, strafe)
 
 	if next_root == &"locomotion":
 		_locomotion_travel_cooldown = maxf(0.0, _locomotion_travel_cooldown - _delta)
 		if _is_root_blend_active(&"locomotion"):
 			if _landing_locomotion_warm and _is_locomotion_playback_stale():
-				_warm_locomotion_for_landing_exit(steer)
+				_warm_locomotion_for_landing_exit(steer, strafe)
 		elif _is_locomotion_playback_stale() and _root_state != &"landing":
 			if not _is_any_root_blend_active():
-				_restart_locomotion(steer)
+				_restart_locomotion(steer, strafe)
 		else:
-			_update_locomotion(steer)
+			_update_locomotion(steer, strafe)
 
 	_tick_jump_elapsed(_delta, next_root)
 
@@ -400,6 +405,8 @@ func _pick_root_state(speed: float) -> StringName:
 		if at_end_exit != &"":
 			_discard_pending_boost_triggers()
 			return at_end_exit
+	if current == &"jump" and not _is_jump_clip_finished():
+		return &"jump"
 	if _glider.is_landing() and current != &"locomotion":
 		var brake_exit := _landing_brake_exit_state(speed)
 		if brake_exit != &"":
@@ -615,12 +622,13 @@ func _is_landing_clip_finished() -> bool:
 	return _root_playback.get_current_play_position() >= length - 0.05
 
 
-func _restart_locomotion(steer: float) -> void:
+func _restart_locomotion(steer: float, strafe: float) -> void:
 	_locomotion_travel_cooldown = 0.0
 	_turn_neutral_frames = 0
+	_strafe_neutral_frames = 0
 	if _locomotion_playback == null:
 		return
-	var desired := _pick_locomotion_state(steer, &"forward")
+	var desired := _pick_locomotion_state(steer, strafe, &"forward")
 	_locomotion_state = desired
 	_queued_locomotion = desired
 	_locomotion_travel_target = desired
@@ -628,35 +636,37 @@ func _restart_locomotion(steer: float) -> void:
 	_locomotion_playback.start(desired)
 
 
-func _warm_locomotion_for_landing_exit(steer: float) -> void:
-	_warm_locomotion_substate(steer)
+func _warm_locomotion_for_landing_exit(steer: float, strafe: float) -> void:
+	_warm_locomotion_substate(steer, strafe)
 	if _tree != null:
 		_tree.advance(0.0)
 
 
-func _warm_locomotion_for_brake_exit(steer: float) -> void:
-	_warm_locomotion_substate(steer)
+func _warm_locomotion_for_brake_exit(steer: float, strafe: float) -> void:
+	_warm_locomotion_substate(steer, strafe)
 
 
-func _warm_locomotion_substate(steer: float) -> void:
+func _warm_locomotion_substate(steer: float, strafe: float) -> void:
 	_locomotion_travel_cooldown = 0.0
 	_turn_neutral_frames = 0
+	_strafe_neutral_frames = 0
 	if _locomotion_playback == null:
 		return
 	var playback_state := _get_locomotion_playback_state()
-	var desired := _pick_locomotion_state(steer, playback_state)
+	var desired := _pick_locomotion_state(steer, strafe, playback_state)
 	_locomotion_state = desired
 	_queued_locomotion = desired
 	_locomotion_travel_target = desired
 	_locomotion_playback.start(desired)
 
 
-func _start_locomotion_from_idle(steer: float) -> void:
+func _start_locomotion_from_idle(steer: float, strafe: float) -> void:
 	_locomotion_travel_cooldown = 0.0
 	_turn_neutral_frames = 0
+	_strafe_neutral_frames = 0
 	if _locomotion_playback == null:
 		return
-	var desired := _pick_locomotion_state(steer, &"forward")
+	var desired := _pick_locomotion_state(steer, strafe, &"forward")
 	_locomotion_state = desired
 	_queued_locomotion = desired
 	_locomotion_travel_target = desired
@@ -679,14 +689,14 @@ func _get_locomotion_playback_state() -> StringName:
 	return node
 
 
-func _update_locomotion(steer: float) -> void:
+func _update_locomotion(steer: float, strafe: float) -> void:
 	if _locomotion_playback == null:
 		return
 	if _locomotion_playback.get_current_node() == &"enter":
 		return
 
 	var playback_state := _get_locomotion_playback_state()
-	var next_locomotion := _pick_locomotion_state(steer, playback_state)
+	var next_locomotion := _pick_locomotion_state(steer, strafe, playback_state)
 	_locomotion_state = next_locomotion
 	_queued_locomotion = next_locomotion
 
@@ -715,7 +725,29 @@ func _apply_locomotion_transition(state: StringName) -> void:
 		_locomotion_playback.travel(state)
 
 
-func _pick_locomotion_state(steer: float, current: StringName) -> StringName:
+func _pick_locomotion_state(steer: float, strafe: float, current: StringName) -> StringName:
+	if current == &"strafe_left" and strafe <= -strafe_enter:
+		_strafe_neutral_frames = 0
+		_turn_neutral_frames = 0
+		return &"strafe_right"
+	if current == &"strafe_right" and strafe >= strafe_enter:
+		_strafe_neutral_frames = 0
+		_turn_neutral_frames = 0
+		return &"strafe_left"
+	if strafe >= strafe_enter:
+		_strafe_neutral_frames = 0
+		_turn_neutral_frames = 0
+		return &"strafe_left"
+	if strafe <= -strafe_enter:
+		_strafe_neutral_frames = 0
+		_turn_neutral_frames = 0
+		return &"strafe_right"
+	if current == &"strafe_left" or current == &"strafe_right":
+		_strafe_neutral_frames += 1
+		if _strafe_neutral_frames < turn_forward_frames:
+			return current
+	_strafe_neutral_frames = 0
+
 	if current == &"turn_left" and steer >= turn_enter:
 		_turn_neutral_frames = 0
 		return &"turn_right"
@@ -736,12 +768,18 @@ func _pick_locomotion_state(steer: float, current: StringName) -> StringName:
 	return &"forward"
 
 
+func _is_forward_locomotion_state(state: StringName) -> bool:
+	return state in [&"forward", &"strafe_left", &"strafe_right"]
+
+
 func _update_forward_time_scale(speed: float) -> void:
-	if _get_locomotion_playback_state() != &"forward":
+	if not _is_forward_locomotion_state(_get_locomotion_playback_state()):
 		return
 	var speed_t := clampf(speed / BLEND_SPEED_MAX, 0.0, 1.0)
 	var scale := lerpf(speed_scale_min, speed_scale_max, speed_t)
 	_tree.set(PARAM_FORWARD_SCALE, scale)
+	_tree.set(PARAM_STRAFE_LEFT_SCALE, scale)
+	_tree.set(PARAM_STRAFE_RIGHT_SCALE, scale)
 
 
 func _update_jump_time_scale() -> void:
