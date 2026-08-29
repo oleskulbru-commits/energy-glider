@@ -22,6 +22,8 @@ const CHARGER_SPAWN_CHANCE := 1.0 / 6.0
 const CHARGER_MIN_LEVEL := 4
 ## Drones unlock after crossing tower 4 (level 5+).
 const DRONE_MIN_LEVEL := CombatDroneScript.DRONE_MIN_LEVEL
+## Dev/test: invulnerable laser drone on level 1, 60 m ahead.
+const TEST_DRONE_AHEAD_M := 60.0
 
 @export var player_rig_path: NodePath
 @export var terrain_manager_path: NodePath
@@ -42,6 +44,7 @@ var _next_drone_is_laser := true
 var _drone_level := 0
 var _drones_spawned_in_level := 0
 var _drone_spawn_thresholds: Array[float] = []
+var _test_missile_drone: CombatDroneScript = null
 
 
 func _ready() -> void:
@@ -87,6 +90,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	var level := _current_level()
+	_try_spawn_test_missile_drone(level)
 	_try_spawn_drones(level)
 
 	var cap := SwarmPillScript.active_cap_for_level(level)
@@ -121,6 +125,7 @@ func clear_stream() -> void:
 	_drone_level = 0
 	_drones_spawned_in_level = 0
 	_drone_spawn_thresholds.clear()
+	_test_missile_drone = null
 
 
 func reset_after_dawn() -> void:
@@ -259,6 +264,41 @@ static func drone_spawn_progress_allows(
 		return spawned == 0
 	var progress := clampf((east_x - player_x) / span, 0.0, 1.0)
 	return progress >= thresholds[spawned]
+
+
+func _try_spawn_test_missile_drone(level: int) -> void:
+	if level != 1:
+		return
+	if _test_missile_drone != null and is_instance_valid(_test_missile_drone):
+		return
+	var track := _track_body()
+	if track == null:
+		return
+	_spawn_test_missile_drone(track)
+
+
+func _spawn_test_missile_drone(track: Node3D) -> void:
+	var facing := _facing_xz()
+	var lateral := _rng.randf_range(-12.0, 12.0)
+	var right := Vector3(facing.z, 0.0, -facing.x)
+	var world := track.global_position + facing * TEST_DRONE_AHEAD_M + right * lateral
+	var world_y := track.global_position.y + CombatDroneScript.CRUISE_HEIGHT_M
+	if _terrain != null:
+		world_y = _terrain.sample_height(world.x, world.z) + CombatDroneScript.CRUISE_HEIGHT_M
+
+	var drone: LaserDrone = LaserDroneScene.instantiate() as LaserDrone
+	add_child(drone)
+	drone.global_position = Vector3(world.x, world_y, world.z)
+	drone.invulnerable = true
+	drone.never_despawn = true
+	drone.uniform_laser_patterns = true
+	drone.configure(_terrain, track, CombatDroneScript.move_speed_for_drone_level(DRONE_MIN_LEVEL))
+	var bonus := 0.0
+	if _director != null:
+		bonus = _director.difficulty_bonus()
+	drone.apply_difficulty(bonus)
+	_test_missile_drone = drone
+	_active_drones.append(drone)
 
 
 func _spawn_drone(track: Node3D, level: int) -> void:

@@ -4,12 +4,14 @@ const CombatDroneScript = preload("res://scripts/enemies/combat_drone.gd")
 const LaserDroneScript = preload("res://scripts/enemies/laser_drone.gd")
 const MissileDroneScript = preload("res://scripts/enemies/missile_drone.gd")
 const DroneLaserBeamScript = preload("res://scripts/enemies/drone_laser_beam.gd")
+const DroneLaserPatternsScript = preload("res://scripts/enemies/drone_laser_patterns.gd")
 const DroneRocketScript = preload("res://scripts/enemies/drone_rocket.gd")
 const GroundReticleScript = preload("res://scripts/enemies/ground_reticle.gd")
 const EnemyStreamSpawnerScript = preload("res://scripts/enemies/enemy_stream_spawner.gd")
 const AutoRifleScript = preload("res://scripts/weapons/auto_rifle.gd")
 const GliderPhysicsScript = preload("res://scripts/player/glider_physics.gd")
 const PlayerHealthScript = preload("res://scripts/player/player_health.gd")
+const LaserArcTrailSegmentScript = preload("res://scripts/enemies/laser_arc_trail_segment.gd")
 const LevelRunScript = preload("res://scripts/game/level_run.gd")
 
 var _failed := false
@@ -28,6 +30,12 @@ func _run() -> void:
 	if _failed:
 		return
 	_verify_laser_timings()
+	if _failed:
+		return
+	_verify_laser_patterns()
+	if _failed:
+		return
+	_verify_arc_trail()
 	if _failed:
 		return
 	_verify_missile_hail()
@@ -131,23 +139,265 @@ func _verify_laser_timings() -> void:
 	_fail_unless(DroneLaserBeamScript.DAMAGE == 4, "Laser tick damage should be 4")
 	_fail_unless(is_equal_approx(LaserDroneScript.FIRE_SEC, 5.0), "LaserDrone fire alias should be 5 s")
 	_fail_unless(
-		is_equal_approx(GliderPhysicsScript.CRUISE_MAX_GROUND_SPEED, 22.0 * 0.95),
-		"Laser sweep should track cruise ground speed"
+		is_equal_approx(DroneLaserBeamScript.CLOSING_SPEED_MPS, 30.0),
+		"Closing sweep should outrun cruise speed"
 	)
 	var player := Node3D.new()
 	root.add_child(player)
 	player.global_position = Vector3.ZERO
 	var beam = DroneLaserBeamScript.new()
 	root.add_child(beam)
-	beam.begin(Vector3(-80.0, 8.0, 0.0), player, Vector3(-1.0, 0.0, 0.0), null, true)
-	_fail_unless(beam.zigzagging, "First approach beam should start in zigzag mode")
+	beam.begin(
+		Vector3(-80.0, 8.0, 0.0),
+		player,
+		Vector3(-1.0, 0.0, 0.0),
+		null,
+		false,
+		DroneLaserPatternsScript.Pattern.CLOSING_SWEEP
+	)
+	_fail_unless(beam.active, "Laser beam should start active")
 	beam.queue_free()
-	var beam2 = DroneLaserBeamScript.new()
-	root.add_child(beam2)
-	beam2.begin(Vector3(-80.0, 8.0, 0.0), player, Vector3(-1.0, 0.0, 0.0), null, false)
-	_fail_unless(not beam2.zigzagging, "Later beams should skip zigzag")
-	beam2.queue_free()
 	player.queue_free()
+
+
+func _verify_laser_patterns() -> void:
+	var early := DroneLaserPatternsScript.band_weights(5, false)
+	_fail_unless(early[DroneLaserPatternsScript.Pattern.ARC_BARRIER] == 0, "Arc should be 0% at level 5")
+	_fail_unless(early[DroneLaserPatternsScript.Pattern.FIXED_SWEEP] == 55, "Level 5 sweep weight should be 55")
+
+	var air := DroneLaserPatternsScript.band_weights(5, true)
+	_fail_unless(air[DroneLaserPatternsScript.Pattern.FIXED_SWEEP] == 0, "Air should drop fixed sweep")
+	var air_total := 0
+	for w in air:
+		air_total += w
+	_fail_unless(air_total == 100, "Air weights should renormalize to 100")
+
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 99
+	for _i in 100:
+		var pick := DroneLaserPatternsScript.pick_pattern(5, true, rng)
+		_fail_unless(
+			pick != DroneLaserPatternsScript.Pattern.FIXED_SWEEP,
+			"Air pick should never choose fixed sweep"
+		)
+
+	var still := Node3D.new()
+	root.add_child(still)
+	still.global_position = Vector3.ZERO
+	var closing := DroneLaserBeamScript.new()
+	root.add_child(closing)
+	closing.begin(
+		Vector3(-30.0, 8.0, 0.0),
+		still,
+		Vector3(-1.0, 0.0, 0.0),
+		null,
+		false,
+		DroneLaserPatternsScript.Pattern.CLOSING_SWEEP
+	)
+	_fail_unless(
+		is_equal_approx(closing.get("_aim").x, -10.0),
+		"Closing sweep should open 10 m ahead"
+	)
+	var hit := false
+	var elapsed := 0.0
+	var step := 0.05
+	while elapsed < DroneLaserBeamScript.FIRE_SEC and not hit:
+		closing.advance(step, Vector3(-30.0, 8.0, 0.0), still, Vector3(-1.0, 0.0, 0.0), true, false)
+		hit = closing._is_player_in_hit_range(still, false)
+		elapsed += step
+	_fail_unless(hit, "Closing sweep should reach a still player before fire ends")
+	closing.queue_free()
+	still.free()
+
+	var moving := CharacterBody3D.new()
+	root.add_child(moving)
+	moving.global_position = Vector3.ZERO
+	moving.velocity = Vector3(-27.0, 0.0, 0.0)
+	var closing_moving := DroneLaserBeamScript.new()
+	root.add_child(closing_moving)
+	closing_moving.begin(
+		Vector3(-30.0, 8.0, 0.0),
+		moving,
+		Vector3(-1.0, 0.0, 0.0),
+		null,
+		false,
+		DroneLaserPatternsScript.Pattern.CLOSING_SWEEP
+	)
+	var hit_moving := false
+	elapsed = 0.0
+	while elapsed < DroneLaserBeamScript.FIRE_SEC and not hit_moving:
+		moving.global_position += moving.velocity * step
+		closing_moving.advance(
+			step, Vector3(-30.0, 8.0, 0.0), moving, Vector3(-1.0, 0.0, 0.0), true, false
+		)
+		hit_moving = closing_moving._is_player_in_hit_range(moving, false)
+		elapsed += step
+	_fail_unless(
+		hit_moving,
+		"Closing sweep should reach a moving cruise-speed player before fire ends"
+	)
+	closing_moving.queue_free()
+	moving.free()
+
+	var sweep_player := Node3D.new()
+	root.add_child(sweep_player)
+	sweep_player.global_position = Vector3.ZERO
+	var sweep := DroneLaserBeamScript.new()
+	root.add_child(sweep)
+	sweep.begin(
+		Vector3(-40.0, 8.0, 0.0),
+		sweep_player,
+		Vector3(-1.0, 0.0, 0.0),
+		null,
+		false,
+		DroneLaserPatternsScript.Pattern.FIXED_SWEEP
+	)
+	var sweep_start: Vector3 = sweep.get("_sweep_start")
+	var sweep_end: Vector3 = sweep.get("_sweep_end")
+	for _j in 40:
+		sweep.advance(0.1, Vector3(-40.0, 8.0, 0.0), sweep_player, Vector3(-1.0, 0.0, 0.0), true, false)
+		var aim: Vector3 = sweep.get("_aim")
+		var along := sweep_end - sweep_start
+		along.y = 0.0
+		var len := along.length()
+		if len > 0.01:
+			var t := Vector3(aim.x - sweep_start.x, 0.0, aim.z - sweep_start.z).dot(along.normalized()) / len
+			_fail_unless(t >= -0.05 and t <= 1.05, "Fixed sweep aim should stay on the lane segment")
+	sweep.queue_free()
+	sweep_player.free()
+
+	var dot_player := Node3D.new()
+	root.add_child(dot_player)
+	dot_player.global_position = Vector3(4.0, 0.0, 3.0)
+	var dot := DroneLaserBeamScript.new()
+	root.add_child(dot)
+	dot.begin(
+		Vector3(-20.0, 8.0, 0.0),
+		dot_player,
+		Vector3(-1.0, 0.0, 0.0),
+		null,
+		false,
+		DroneLaserPatternsScript.Pattern.WARNING_DOT
+	)
+	for _k in 25:
+		dot.advance(0.05, Vector3(-20.0, 8.0, 0.0), dot_player, Vector3(-1.0, 0.0, 0.0), true, false)
+	var locked_aim: Vector3 = dot.get("_aim")
+	for _m in 10:
+		dot_player.global_position += Vector3(1.0, 0.0, 0.0)
+		dot.advance(0.05, Vector3(-20.0, 8.0, 0.0), dot_player, Vector3(-1.0, 0.0, 0.0), true, false)
+	_fail_unless(
+		dot.get("_aim").is_equal_approx(locked_aim),
+		"Warning dot should lock aim after the warn phase"
+	)
+	dot.queue_free()
+	dot_player.free()
+
+
+func _verify_arc_trail() -> void:
+	var burn_step := PlayerHealthScript.tick_burn(
+		PlayerHealthScript.LASER_BURN_DURATION_SEC,
+		PlayerHealthScript.LASER_BURN_TICK_SEC * 0.49,
+		PlayerHealthScript.LASER_BURN_TICK_SEC
+	)
+	_fail_unless(int(burn_step["damage"]) == PlayerHealthScript.LASER_BURN_DAMAGE, "Burn should tick once per interval")
+	_fail_unless(
+		LaserArcTrailSegmentScript.chord_hits_segment(
+			Vector3(5.0, 0.0, 5.0),
+			Vector3(5.0, 0.0, -5.0),
+			Vector3.ZERO,
+			Vector3(10.0, 0.0, 0.0),
+			1.2,
+			false
+		),
+		"Ground chord should cross a horizontal trail segment"
+	)
+
+	var arc_player := Node3D.new()
+	root.add_child(arc_player)
+	arc_player.global_position = Vector3.ZERO
+	var arc := DroneLaserBeamScript.new()
+	root.add_child(arc)
+	arc.begin(
+		Vector3(-40.0, 8.0, 0.0),
+		arc_player,
+		Vector3(-1.0, 0.0, 0.0),
+		null,
+		false,
+		DroneLaserPatternsScript.Pattern.ARC_BARRIER
+	)
+	var frozen_center: Vector3 = arc.get("_arc_frozen_center")
+	arc_player.global_position = Vector3(80.0, 0.0, 40.0)
+	arc.advance(1.0, Vector3(-40.0, 8.0, 0.0), arc_player, Vector3(-1.0, 0.0, 0.0), true, false)
+	_fail_unless(
+		(arc.get("_arc_frozen_center") as Vector3).is_equal_approx(frozen_center),
+		"Arc center should stay frozen while the player moves"
+	)
+
+	var seg_before := _count_arc_trail_segments()
+	for _i in 50:
+		arc.advance(0.1, Vector3(-40.0, 8.0, 0.0), arc_player, Vector3(-1.0, 0.0, 0.0), true, false)
+	var seg_after := _count_arc_trail_segments()
+	_fail_unless(seg_after > seg_before, "Arc sweep should stamp burn trail segments")
+
+	var air_arc_player := Node3D.new()
+	root.add_child(air_arc_player)
+	air_arc_player.global_position = Vector3.ZERO
+	var air_arc := DroneLaserBeamScript.new()
+	root.add_child(air_arc)
+	air_arc.begin(
+		Vector3(-40.0, 8.0, 0.0),
+		air_arc_player,
+		Vector3(-1.0, 0.0, 0.0),
+		null,
+		false,
+		DroneLaserPatternsScript.Pattern.ARC_BARRIER
+	)
+	air_arc.advance(1.0, Vector3(-40.0, 8.0, 0.0), air_arc_player, Vector3(-1.0, 0.0, 0.0), true, false)
+	air_arc.advance(0.1, Vector3(-40.0, 8.0, 0.0), air_arc_player, Vector3(-1.0, 0.0, 0.0), true, true)
+	_fail_unless(air_arc.get("_arc_air_switched"), "Arc should latch air mode mid-fire")
+	_fail_unless(air_arc.get("_arc_trail_air_mode"), "Arc trail should switch to air ribbons")
+	air_arc.queue_free()
+	air_arc_player.free()
+	arc.queue_free()
+	arc_player.free()
+
+	var health := PlayerHealthScript.new()
+	root.add_child(health)
+	var glider := Node3D.new()
+	root.add_child(glider)
+	health.set("_glider", glider)
+	health.current = 50
+	health.set("_prev_glider_pos", Vector3(5.0, 0.0, 5.0))
+	glider.global_position = Vector3(5.0, 0.0, -5.0)
+	var segment := LaserArcTrailSegmentScript.spawn(
+		self,
+		Vector3.ZERO,
+		Vector3(10.0, 0.0, 0.0),
+		false,
+		DroneLaserBeamScript.ARC_TRAIL_LINGER_SEC
+	)
+	segment._physics_process(0.05)
+	_fail_unless(health.get_burn_left() > 0.0, "Crossing a trail segment should refresh laser burn")
+	health._physics_process(PlayerHealthScript.LASER_BURN_TICK_SEC + 0.01)
+	_fail_unless(health.current < 50, "Laser burn should tick damage after leaving the trail")
+	segment.free()
+	health.free()
+	glider.free()
+	_cleanup_arc_trail_segments()
+
+
+func _cleanup_arc_trail_segments() -> void:
+	for child in root.get_children():
+		if child.get_script() == LaserArcTrailSegmentScript:
+			child.free()
+
+
+func _count_arc_trail_segments() -> int:
+	var count := 0
+	for child in root.get_children():
+		if child.get_script() == LaserArcTrailSegmentScript:
+			count += 1
+	return count
 
 
 func _verify_missile_hail() -> void:
@@ -370,10 +620,21 @@ func get_glider() -> Node3D:
 	var laser_player := Node3D.new()
 	root.add_child(laser_player)
 	laser_player.global_position = Vector3(0.0, 10.0, 0.0)
-	beam.begin(Vector3(-20.0, 8.0, 0.0), laser_player, Vector3(-1.0, 0.0, 0.0), null, false, true)
+	beam.begin(
+		Vector3(-20.0, 8.0, 0.0),
+		laser_player,
+		Vector3(-1.0, 0.0, 0.0),
+		null,
+		true,
+		DroneLaserPatternsScript.Pattern.CLOSING_SWEEP
+	)
 	_fail_unless(
 		is_equal_approx(beam.get("_aim").y, 10.0),
 		"Air laser should open at player height"
+	)
+	_fail_unless(
+		is_equal_approx(beam.get("_aim").x, -10.0),
+		"Air laser should open 10 m ahead of the player"
 	)
 	beam.queue_free()
 	laser_player.queue_free()

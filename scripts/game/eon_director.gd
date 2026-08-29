@@ -298,7 +298,7 @@ func _play_head_west_later(token: int) -> void:
 		return
 	if _head_west_voice == null:
 		return
-	_head_west_voice.play()
+	# Muted for filming — restore _head_west_voice.play() when done.
 
 
 func _bootstrap_run() -> void:

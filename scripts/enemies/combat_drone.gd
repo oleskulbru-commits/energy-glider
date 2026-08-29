@@ -25,6 +25,7 @@ var _cube_color := Color(0.85, 0.15, 0.12)
 var _airborne_time := 0.0
 var _grounded_time := 0.0
 var invulnerable := false
+var never_despawn := false
 
 
 func _ready() -> void:
@@ -82,7 +83,7 @@ func _physics_process(delta: float) -> void:
 	if _target == null or not is_instance_valid(_target):
 		queue_free()
 		return
-	if is_behind_facing(_target.global_position, _target_facing_xz(), global_position):
+	if not never_despawn and is_behind_facing(_target.global_position, _target_facing_xz(), global_position):
 		queue_free()
 		return
 
