@@ -31,7 +31,9 @@ const SWEEP_SPEED_MPS := 25.0
 const DOT_WARN_SEC := 1.0
 const DOT_FOLLOW_SCALE := 0.75
 
+const CLOSING_TELEGRAPH_SEC := 0.8
 const CLOSING_SPEED_MPS := 30.0
+const CLOSING_ARRIVE_EPS_M := 0.2
 
 const ARC_CENTER_AHEAD_M := 15.0
 const ARC_SPAN_DEG := 50.0
@@ -56,8 +58,9 @@ var _facing := Vector3(-1.0, 0.0, 0.0)
 var _air_targeting := false
 var _sweep_start := Vector3.ZERO
 var _sweep_end := Vector3.ZERO
-var _arc_frozen_center := Vector3.ZERO
-var _arc_frozen_facing := Vector3(-1.0, 0.0, 0.0)
+var _closing_start := Vector3.ZERO
+var _closing_target := Vector3.ZERO
+var _arc_center := Vector3.ZERO
 var _arc_trail_air_mode := false
 var _arc_last_aim := Vector3.ZERO
 var _arc_air_switched := false
@@ -106,16 +109,19 @@ func advance(
 		return
 	_set_facing(facing)
 	_air_targeting = air_targeting
-	_fire_left -= delta
-	if _fire_left <= 0.0:
+	_advance_pattern(delta, player, facing)
+	if pattern == DroneLaserPatternsScript.Pattern.CLOSING_SWEEP and _closing_sweep_complete():
 		_finish()
 		return
-	_advance_pattern(delta, player, facing)
 	_show(origin, player, air_targeting)
 	_next_tick -= delta
 	while _next_tick <= 0.0 and active and not finished:
 		_deal_tick(player, air_targeting)
 		_next_tick += TICK_SEC
+	_fire_left -= delta
+	if _fire_left <= 0.0:
+		_finish()
+		return
 
 
 func cancel() -> void:
@@ -139,6 +145,8 @@ func _can_damage() -> bool:
 			return _elapsed() >= SWEEP_TELEGRAPH_SEC
 		DroneLaserPatternsScript.Pattern.WARNING_DOT:
 			return _elapsed() >= DOT_WARN_SEC
+		DroneLaserPatternsScript.Pattern.CLOSING_SWEEP:
+			return _elapsed() >= CLOSING_TELEGRAPH_SEC
 		DroneLaserPatternsScript.Pattern.ARC_BARRIER:
 			return false
 		_:
@@ -220,24 +228,41 @@ func _advance_warning_dot(delta: float, player: Node3D) -> void:
 
 
 func _init_closing_sweep(player: Node3D, facing: Vector3) -> void:
-	if _air_targeting:
-		_aim = _start_ahead_air(player, facing)
-	else:
-		_aim = _start_ahead_ground(player, facing)
+	_closing_target = _snap_aim_point(player.global_position, _air_targeting)
+	var ahead := player.global_position + facing * BEAM_START_AHEAD_M
+	_closing_start = _snap_aim_point(ahead, _air_targeting)
+	_aim = _closing_start
+	if get_tree() != null:
+		_dot_reticle = LaserDotReticleScript.spawn(
+			get_tree(), _closing_target, CLOSING_TELEGRAPH_SEC
+		)
 
 
 func _advance_closing_sweep(delta: float, player: Node3D) -> void:
-	var goal := _closing_goal(player)
-	_move_aim_toward_speed(goal, delta, _air_targeting, CLOSING_SPEED_MPS)
+	if _elapsed() < CLOSING_TELEGRAPH_SEC:
+		_aim = _closing_start
+		return
+	if _dot_reticle != null and is_instance_valid(_dot_reticle):
+		_dot_reticle.queue_free()
+		_dot_reticle = null
+	_move_aim_toward_speed(_closing_target, delta, _air_targeting, CLOSING_SPEED_MPS)
+
+
+func _closing_sweep_complete() -> bool:
+	if _elapsed() < CLOSING_TELEGRAPH_SEC:
+		return false
+	if _air_targeting:
+		return _aim.distance_to(_closing_target) <= CLOSING_ARRIVE_EPS_M
+	var flat := Vector2(_aim.x - _closing_target.x, _aim.z - _closing_target.z)
+	return flat.length() <= CLOSING_ARRIVE_EPS_M
 
 
 func _init_arc_barrier(player: Node3D, facing: Vector3) -> void:
 	_arc_air_switched = false
 	_arc_trail_air_mode = _air_targeting
-	_freeze_arc_facing(facing)
-	_freeze_arc_center(player, facing)
+	_update_arc_center(player, facing)
 	var half := deg_to_rad(ARC_SPAN_DEG * 0.5)
-	_aim = _arc_point_at_frozen(-half)
+	_aim = _arc_point_at(-half, facing)
 	_arc_last_aim = _aim
 
 
@@ -245,38 +270,33 @@ func _advance_arc_barrier(player: Node3D, facing: Vector3) -> void:
 	if _air_targeting and not _arc_air_switched:
 		_arc_air_switched = true
 		_arc_trail_air_mode = true
-		_freeze_arc_facing(facing)
-		_freeze_arc_center(player, facing)
+	_update_arc_center(player, facing)
 	var half := deg_to_rad(ARC_SPAN_DEG * 0.5)
 	var t := clampf(_elapsed() / FIRE_SEC, 0.0, 1.0)
 	var angle := lerpf(-half, half, t)
-	_aim = _arc_point_at_frozen(angle)
+	_aim = _arc_point_at(angle, facing)
 	if _aim.distance_to(_arc_last_aim) >= ARC_TRAIL_MIN_STEP_M:
 		_stamp_arc_trail_segment(_arc_last_aim, _aim)
 		_arc_last_aim = _aim
 
 
-func _freeze_arc_facing(facing: Vector3) -> void:
-	_arc_frozen_facing = Vector3(facing.x, 0.0, facing.z)
-	if _arc_frozen_facing.length_squared() < 0.0001:
-		_arc_frozen_facing = Vector3(-1.0, 0.0, 0.0)
-	else:
-		_arc_frozen_facing = _arc_frozen_facing.normalized()
-
-
-func _freeze_arc_center(player: Node3D, facing: Vector3) -> void:
+func _update_arc_center(player: Node3D, facing: Vector3) -> void:
 	var center := player.global_position + facing * ARC_CENTER_AHEAD_M
 	if _arc_trail_air_mode:
-		_arc_frozen_center = center
+		_arc_center = center
 	else:
-		_arc_frozen_center = _ground_at(center.x, center.z)
+		_arc_center = _ground_at(center.x, center.z)
 
 
-func _arc_point_at_frozen(angle: float) -> Vector3:
-	var right := Vector3(_arc_frozen_facing.z, 0.0, -_arc_frozen_facing.x)
-	var fwd := Vector3(_arc_frozen_facing.x, 0.0, _arc_frozen_facing.z).normalized()
-	var dir := (fwd * cos(angle) + right * sin(angle)).normalized()
-	var point := _arc_frozen_center + dir * ARC_RADIUS_M
+func _arc_point_at(angle: float, facing: Vector3) -> Vector3:
+	var flat := Vector3(facing.x, 0.0, facing.z)
+	if flat.length_squared() < 0.0001:
+		flat = Vector3(-1.0, 0.0, 0.0)
+	else:
+		flat = flat.normalized()
+	var right := Vector3(flat.z, 0.0, -flat.x)
+	var dir := (flat * cos(angle) + right * sin(angle)).normalized()
+	var point := _arc_center + dir * ARC_RADIUS_M
 	return _snap_aim_point(point, _arc_trail_air_mode)
 
 
@@ -291,10 +311,6 @@ func _stamp_arc_trail_segment(start: Vector3, end: Vector3) -> void:
 		ARC_TRAIL_LINGER_SEC,
 		_terrain
 	)
-
-
-func _closing_goal(player: Node3D) -> Vector3:
-	return _snap_aim_point(player.global_position, _air_targeting)
 
 
 func _snap_aim_point(point: Vector3, air: bool) -> Vector3:
@@ -333,15 +349,6 @@ func _player_velocity(player: Node3D) -> Vector3:
 func _player_horiz_speed(player: Node3D) -> float:
 	var vel := _player_velocity(player)
 	return Vector3(vel.x, 0.0, vel.z).length()
-
-
-func _start_ahead_ground(player: Node3D, facing: Vector3) -> Vector3:
-	var ahead := player.global_position + facing * BEAM_START_AHEAD_M
-	return _ground_at(ahead.x, ahead.z)
-
-
-func _start_ahead_air(player: Node3D, facing: Vector3) -> Vector3:
-	return player.global_position + facing * BEAM_START_AHEAD_M
 
 
 func _lead_goal_ground(player: Node3D, facing: Vector3) -> Vector3:
@@ -448,6 +455,12 @@ func _ensure_visuals() -> void:
 
 
 func _show(origin: Vector3, player: Node3D, air_targeting: bool) -> void:
+	if (
+		pattern == DroneLaserPatternsScript.Pattern.CLOSING_SWEEP
+		and _elapsed() < CLOSING_TELEGRAPH_SEC
+	):
+		_hide()
+		return
 	var to := _visual_beam_end(origin, player, air_targeting)
 	var dir := to - origin
 	var length := dir.length()

@@ -198,46 +198,63 @@ func _verify_laser_patterns() -> void:
 		is_equal_approx(closing.get("_aim").x, -10.0),
 		"Closing sweep should open 10 m ahead"
 	)
+	_fail_unless(
+		is_equal_approx((closing.get("_closing_target") as Vector3).x, 0.0),
+		"Closing sweep should mark the player's start position"
+	)
+	var frozen_target: Vector3 = closing.get("_closing_target")
+	still.global_position = Vector3(40.0, 0.0, 20.0)
+	closing.advance(0.5, Vector3(-30.0, 8.0, 0.0), still, Vector3(-1.0, 0.0, 0.0), true, false)
+	_fail_unless(
+		(closing.get("_closing_target") as Vector3).is_equal_approx(frozen_target),
+		"Closing target should stay frozen after the player moves"
+	)
+	still.global_position = Vector3.ZERO
 	var hit := false
 	var elapsed := 0.0
 	var step := 0.05
-	while elapsed < DroneLaserBeamScript.FIRE_SEC and not hit:
+	while elapsed < DroneLaserBeamScript.FIRE_SEC and not closing.finished:
 		closing.advance(step, Vector3(-30.0, 8.0, 0.0), still, Vector3(-1.0, 0.0, 0.0), true, false)
-		hit = closing._is_player_in_hit_range(still, false)
+		if closing._can_damage():
+			hit = closing._is_player_in_hit_range(still, false) or hit
 		elapsed += step
-	_fail_unless(hit, "Closing sweep should reach a still player before fire ends")
+	_fail_unless(hit, "Closing sweep should burn a player who stays on the marked spot")
+	_fail_unless(closing.finished, "Closing sweep should end once it reaches the marked spot")
+	_fail_unless(
+		elapsed < DroneLaserBeamScript.FIRE_SEC - 0.1,
+		"Closing sweep should finish early instead of holding the full fire window"
+	)
 	closing.queue_free()
 	still.free()
 
-	var moving := CharacterBody3D.new()
-	root.add_child(moving)
-	moving.global_position = Vector3.ZERO
-	moving.velocity = Vector3(-27.0, 0.0, 0.0)
-	var closing_moving := DroneLaserBeamScript.new()
-	root.add_child(closing_moving)
-	closing_moving.begin(
+	var dodger := Node3D.new()
+	root.add_child(dodger)
+	dodger.global_position = Vector3.ZERO
+	var closing_dodge := DroneLaserBeamScript.new()
+	root.add_child(closing_dodge)
+	closing_dodge.begin(
 		Vector3(-30.0, 8.0, 0.0),
-		moving,
+		dodger,
 		Vector3(-1.0, 0.0, 0.0),
 		null,
 		false,
 		DroneLaserPatternsScript.Pattern.CLOSING_SWEEP
 	)
-	var hit_moving := false
 	elapsed = 0.0
-	while elapsed < DroneLaserBeamScript.FIRE_SEC and not hit_moving:
-		moving.global_position += moving.velocity * step
-		closing_moving.advance(
-			step, Vector3(-30.0, 8.0, 0.0), moving, Vector3(-1.0, 0.0, 0.0), true, false
-		)
-		hit_moving = closing_moving._is_player_in_hit_range(moving, false)
+	while elapsed < DroneLaserBeamScript.CLOSING_TELEGRAPH_SEC:
+		closing_dodge.advance(step, Vector3(-30.0, 8.0, 0.0), dodger, Vector3(-1.0, 0.0, 0.0), true, false)
 		elapsed += step
-	_fail_unless(
-		hit_moving,
-		"Closing sweep should reach a moving cruise-speed player before fire ends"
-	)
-	closing_moving.queue_free()
-	moving.free()
+	dodger.global_position = Vector3(30.0, 0.0, 0.0)
+	var dodge_hit := false
+	while elapsed < DroneLaserBeamScript.FIRE_SEC and not closing_dodge.finished:
+		closing_dodge.advance(step, Vector3(-30.0, 8.0, 0.0), dodger, Vector3(-1.0, 0.0, 0.0), true, false)
+		if closing_dodge._can_damage():
+			dodge_hit = closing_dodge._is_player_in_hit_range(dodger, false) or dodge_hit
+		elapsed += step
+	_fail_unless(not dodge_hit, "Closing sweep should miss a player who left the marked spot")
+	_fail_unless(closing_dodge.finished, "Closing sweep should still finish on the frozen mark")
+	closing_dodge.queue_free()
+	dodger.free()
 
 	var sweep_player := Node3D.new()
 	root.add_child(sweep_player)
@@ -325,12 +342,12 @@ func _verify_arc_trail() -> void:
 		false,
 		DroneLaserPatternsScript.Pattern.ARC_BARRIER
 	)
-	var frozen_center: Vector3 = arc.get("_arc_frozen_center")
+	var center_at_start: Vector3 = arc.get("_arc_center")
 	arc_player.global_position = Vector3(80.0, 0.0, 40.0)
 	arc.advance(1.0, Vector3(-40.0, 8.0, 0.0), arc_player, Vector3(-1.0, 0.0, 0.0), true, false)
 	_fail_unless(
-		(arc.get("_arc_frozen_center") as Vector3).is_equal_approx(frozen_center),
-		"Arc center should stay frozen while the player moves"
+		not (arc.get("_arc_center") as Vector3).is_equal_approx(center_at_start),
+		"Arc center should follow the moving player"
 	)
 
 	var seg_before := _count_arc_trail_segments()
@@ -629,12 +646,12 @@ func get_glider() -> Node3D:
 		DroneLaserPatternsScript.Pattern.CLOSING_SWEEP
 	)
 	_fail_unless(
-		is_equal_approx(beam.get("_aim").y, 10.0),
-		"Air laser should open at player height"
+		is_equal_approx(beam.get("_aim").x, -10.0),
+		"Air closing sweep should open 10 m ahead of the player"
 	)
 	_fail_unless(
-		is_equal_approx(beam.get("_aim").x, -10.0),
-		"Air laser should open 10 m ahead of the player"
+		is_equal_approx((beam.get("_closing_target") as Vector3).y, 10.0),
+		"Air closing sweep should mark the player's start height"
 	)
 	beam.queue_free()
 	laser_player.queue_free()

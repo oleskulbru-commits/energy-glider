@@ -439,6 +439,21 @@ func hud_range_bonus() -> float:
 	return range_bonus
 
 
+func hud_bounce_count() -> int:
+	var best := bounce_count
+	if has_rifle:
+		best = maxi(best, bounce_count_for(UpgradeCatalog.FAMILY_RIFLE))
+	if has_laser:
+		best = maxi(best, bounce_count_for(UpgradeCatalog.FAMILY_LASER))
+	if has_tesla:
+		best = maxi(best, bounce_count_for(UpgradeCatalog.FAMILY_TESLA))
+	if has_rocket:
+		best = maxi(best, bounce_count_for(UpgradeCatalog.FAMILY_ROCKET))
+	if has_shotgun:
+		best = maxi(best, bounce_count_for(UpgradeCatalog.FAMILY_SHOTGUN))
+	return best
+
+
 func add_extra_projectile(amount: int = 1) -> void:
 	extra_projectiles += maxi(amount, 0)
 	extra_projectiles_changed.emit(extra_projectiles)

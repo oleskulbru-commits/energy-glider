@@ -13,6 +13,7 @@ func _run() -> void:
 	_verify_stats()
 	_verify_unique_targets()
 	_verify_stun()
+	_verify_bounce_chain()
 	print("Tesla verification passed.")
 	quit(0)
 
@@ -112,6 +113,28 @@ func _verify_stun() -> void:
 	doomed.apply_stun(1.0)
 	_fail_unless(not doomed.is_stunned(), "Lethal Tesla hits should skip stun")
 	doomed.free()
+
+
+func _verify_bounce_chain() -> void:
+	var origin := Vector3.ZERO
+	var a: SwarmPill = SwarmPillScript.new()
+	var b: SwarmPill = SwarmPillScript.new()
+	root.add_child(a)
+	root.add_child(b)
+	a.global_position = Vector3(-10.0, 0.0, 0.0)
+	b.global_position = Vector3(-14.0, 0.0, 3.0)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var chain := AutoRifleScript.build_bounce_chain(
+		a,
+		[a, b],
+		2,
+		AutoRifleScript.bounce_range_for(20.0),
+		rng
+	)
+	_fail_unless(chain.size() == 1, "Tesla bounce range should chain to a nearby second pill")
+	a.free()
+	b.free()
 
 
 func _marker_at(pos: Vector3) -> Node3D:

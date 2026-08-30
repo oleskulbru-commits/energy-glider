@@ -61,6 +61,7 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _luck_label: Label = %LuckLabel
 @onready var _momentum_retention_label: Label = %MomentumRetentionLabel
 @onready var _crit_label: Label = %CritLabel
+@onready var _bounce_label: Label = %BounceLabel
 @onready var _duration_label: Label = %DurationLabel
 @onready var _pushback_label: Label = %PushbackLabel
 @onready var _range_label: Label = %RangeLabel
@@ -710,6 +711,7 @@ func _update_rifle_debug() -> void:
 	var duration := 0.0
 	var pushback := 0.0
 	var range_bonus := 0.0
+	var bounce := 0
 	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
 	if state != null:
 		extras = state.hud_extra_projectiles()
@@ -727,6 +729,7 @@ func _update_rifle_debug() -> void:
 		duration = state.hud_duration_bonus()
 		pushback = state.hud_pushback_bonus()
 		range_bonus = state.hud_range_bonus()
+		bounce = state.hud_bounce_count()
 	var any := false
 	any = _show_upgrade_line(
 		_rifle_cooldown_label,
@@ -785,6 +788,11 @@ func _update_rifle_debug() -> void:
 		_crit_label,
 		"Crit %d%%" % int(roundf(crit * 100.0)),
 		crit > 0.0
+	) or any
+	any = _show_upgrade_line(
+		_bounce_label,
+		"Bounce %d" % bounce,
+		bounce > 0
 	) or any
 	any = _show_upgrade_line(
 		_duration_label,

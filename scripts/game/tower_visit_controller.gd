@@ -2,8 +2,10 @@ class_name TowerVisitController
 extends Node
 
 ## Opens the upgrade menu the first time a west tower is entered within 20 m this life.
+## Also heals once per tower per life: tower N restores N * 5 HP (capped at max).
 
 const VISIT_RADIUS_M := 20.0
+const VISIT_HEAL_PER_TOWER_INDEX := 5
 
 @export var player_rig_path: NodePath
 @export var run_upgrade_state_path: NodePath
@@ -39,7 +41,23 @@ func _process(_delta: float) -> void:
 	if _state.has_visited_this_life(tower.tower_index):
 		return
 	_state.mark_visited_this_life(tower.tower_index)
+	_apply_visit_heal(tower)
 	_menu.open_for(tower, _state, _rig)
+
+
+static func visit_heal_amount(tower_index: int) -> int:
+	return maxi(tower_index, 0) * VISIT_HEAL_PER_TOWER_INDEX
+
+
+func _apply_visit_heal(tower: UpgradeTower) -> void:
+	var amount := visit_heal_amount(tower.tower_index)
+	if amount <= 0:
+		return
+	var health := _rig.get_node_or_null("PlayerHealth") as PlayerHealth
+	if health == null:
+		health = get_tree().get_first_node_in_group("player_health") as PlayerHealth
+	if health != null:
+		health.heal(amount)
 
 
 static func xz_distance(a: Vector3, b: Vector3) -> float:

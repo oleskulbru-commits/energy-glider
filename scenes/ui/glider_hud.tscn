@@ -521,6 +521,12 @@ theme_type_variation = &"HudLabel"
 text = "Crit 0%"
 horizontal_alignment = 2
 
+[node name="BounceLabel" type="Label" parent="RifleDebugPanel/RifleDebugVBox"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "Bounce 0"
+horizontal_alignment = 2
+
 [node name="DurationLabel" type="Label" parent="RifleDebugPanel/RifleDebugVBox"]
 unique_name_in_owner = true
 theme_type_variation = &"HudLabel"
