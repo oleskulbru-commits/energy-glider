@@ -77,6 +77,7 @@ var _cylinder_base_emission_energy := -1.0
 var _cylinder_base_albedo_alpha := -1.0
 var _orb_material: StandardMaterial3D
 var _orb_scene_material: StandardMaterial3D
+var _torus_material: StandardMaterial3D
 var _torus_scene_material: StandardMaterial3D
 var _orb_base_emission_energy := -1.0
 var _torus_base_emission_energy := -1.0
@@ -476,13 +477,21 @@ func _refresh_cylinder_material(texture: Texture2D = null, presentation_override
 	if _cylinder_scene_material == null:
 		push_warning("GliderThrusterVfx: CylinderMesh2 needs a scene material_override")
 		return
-	_cylinder_material = _cylinder_scene_material.duplicate() as StandardMaterial3D
+	var mat := _ensure_runtime_cylinder_material()
+	mat.albedo_color = _cylinder_scene_material.albedo_color
+	mat.emission_energy_multiplier = _cylinder_base_emission_energy
 	GliderVfxFlipbookScript.apply_flipbook_presentation(
-		_cylinder_material,
+		mat,
 		texture,
 		presentation
 	)
-	_cylinder_mesh.material_override = _cylinder_material
+
+
+func _ensure_runtime_cylinder_material() -> StandardMaterial3D:
+	if _cylinder_material == null:
+		_cylinder_material = _cylinder_scene_material.duplicate() as StandardMaterial3D
+		_cylinder_mesh.material_override = _cylinder_material
+	return _cylinder_material
 
 
 func _refresh_orb_material() -> void:
@@ -529,21 +538,33 @@ func _ensure_scene_orb_materials() -> void:
 func _apply_orb_presentation(presentation: float) -> void:
 	_ensure_scene_orb_materials()
 	if _orb_scene_material != null and _orb_mesh != null:
-		_orb_material = _orb_scene_material.duplicate() as StandardMaterial3D
+		var orb_mat := _ensure_runtime_orb_material()
 		GliderVfxFlipbookScript.apply_emission_presentation(
-			_orb_material,
+			orb_mat,
 			_orb_base_emission_energy,
 			presentation
 		)
-		_orb_mesh.material_override = _orb_material
 	if _torus_scene_material != null and _torus != null:
-		var torus_material := _torus_scene_material.duplicate() as StandardMaterial3D
+		var torus_mat := _ensure_runtime_torus_material()
 		GliderVfxFlipbookScript.apply_emission_presentation(
-			torus_material,
+			torus_mat,
 			_torus_base_emission_energy,
 			presentation
 		)
-		_torus.material = torus_material
+
+
+func _ensure_runtime_orb_material() -> StandardMaterial3D:
+	if _orb_material == null:
+		_orb_material = _orb_scene_material.duplicate() as StandardMaterial3D
+		_orb_mesh.material_override = _orb_material
+	return _orb_material
+
+
+func _ensure_runtime_torus_material() -> StandardMaterial3D:
+	if _torus_material == null:
+		_torus_material = _torus_scene_material.duplicate() as StandardMaterial3D
+		_torus.material = _torus_material
+	return _torus_material
 
 
 func _sync_torus_visibility(is_visible: bool) -> void:

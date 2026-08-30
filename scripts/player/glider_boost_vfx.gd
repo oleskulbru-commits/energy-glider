@@ -149,6 +149,7 @@ func _process(delta: float) -> void:
 		return
 
 	_advance_playback(delta)
+	_refresh_orb_material()
 	_apply_light_presentation()
 
 
@@ -294,6 +295,7 @@ func _begin_phase(phase: Phase) -> void:
 	_frame_index = 0
 	_prepare_orb()
 	_update_visibility_from_fade()
+	_refresh_orb_material()
 
 
 func _try_complete_off() -> void:
@@ -465,13 +467,21 @@ func _refresh_cylinder_material(texture: Texture2D = null, presentation_override
 	if _cylinder_scene_material == null:
 		push_warning("GliderBoostVfx: CylinderMesh2 needs a scene material_override")
 		return
-	_cylinder_material = _cylinder_scene_material.duplicate() as StandardMaterial3D
+	var mat := _ensure_runtime_cylinder_material()
+	mat.albedo_color = _cylinder_scene_material.albedo_color
+	mat.emission_energy_multiplier = _cylinder_base_emission_energy
 	GliderVfxFlipbookScript.apply_flipbook_presentation(
-		_cylinder_material,
+		mat,
 		texture,
 		presentation
 	)
-	_cylinder_mesh.material_override = _cylinder_material
+
+
+func _ensure_runtime_cylinder_material() -> StandardMaterial3D:
+	if _cylinder_material == null:
+		_cylinder_material = _cylinder_scene_material.duplicate() as StandardMaterial3D
+		_cylinder_mesh.material_override = _cylinder_material
+	return _cylinder_material
 
 
 func _refresh_orb_material() -> void:

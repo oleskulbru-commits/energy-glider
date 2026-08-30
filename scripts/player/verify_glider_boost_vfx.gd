@@ -75,6 +75,28 @@ func _assert_cylinder_full_presentation(vfx: GliderBoostVfxScript, material: Sta
 		)
 
 
+func _assert_orb_tracks_boost(
+	vfx: GliderBoostVfxScript,
+	thruster_vfx: GliderThrusterVfxScript,
+	context: String
+) -> void:
+	var orb_presentation := thruster_vfx.get_orb_presentation()
+	_fail_unless(
+		orb_presentation > 0.9,
+		"%s: shared orb should track full boost presentation (got %.3f)"
+		% [context, orb_presentation]
+	)
+	var orb_material := thruster_vfx.get_orb_material_override()
+	var orb_base := thruster_vfx.get_orb_base_emission_energy()
+	if orb_material != null and orb_base > 0.0:
+		var emission_presentation := orb_material.emission_energy_multiplier / orb_base
+		_fail_unless(
+			absf(emission_presentation - vfx.get_presentation()) < 0.08,
+			"%s: orb emission should scale to boost presentation (got %.3f, target %.3f)"
+			% [context, emission_presentation, vfx.get_presentation()]
+		)
+
+
 func _assert_idle_orb(thruster_vfx: GliderThrusterVfxScript, orb: MeshInstance3D) -> void:
 	_fail_unless(orb.visible, "Orb should stay visible at idle")
 	var presentation := thruster_vfx.get_orb_presentation()
@@ -237,6 +259,7 @@ func _run_tests() -> void:
 	_fail_unless(orb.visible, "Shared orb should stay visible during boost START")
 
 	await _await_fade_in(vfx)
+	_assert_orb_tracks_boost(vfx, thruster_vfx, "After START fade-in")
 	_assert_boost_lights_active(vfx, thruster_vfx)
 	_assert_torus_matches_orb(thruster_vfx, orb)
 
@@ -267,6 +290,7 @@ func _run_tests() -> void:
 			break
 
 	_fail_unless(vfx.get_phase() == PHASE_LOOP, "Held boost should enter LOOP after START")
+	_assert_orb_tracks_boost(vfx, thruster_vfx, "During LOOP")
 
 	var loop_texture := vfx.get_material_override().albedo_texture
 	for i in 120:
