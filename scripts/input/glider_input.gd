@@ -62,7 +62,7 @@ func is_steering() -> bool:
 func get_strafe() -> float:
 	if not _locomotion_enabled:
 		return 0.0
-	return Input.get_action_strength("strafe_right") - Input.get_action_strength("strafe_left")
+	return Input.get_action_strength("strafe_left") - Input.get_action_strength("strafe_right")
 
 
 func is_strafing() -> bool:
@@ -73,6 +73,18 @@ func is_jump_just_pressed() -> bool:
 	if not _locomotion_enabled:
 		return false
 	return Input.is_action_just_pressed("jump")
+
+
+func is_jump_held() -> bool:
+	if not _locomotion_enabled:
+		return false
+	return Input.is_action_pressed("jump")
+
+
+func is_jump_just_released() -> bool:
+	if not _locomotion_enabled:
+		return false
+	return Input.is_action_just_released("jump")
 
 
 func _process(_delta: float) -> void:

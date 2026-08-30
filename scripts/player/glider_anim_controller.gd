@@ -10,9 +10,17 @@ const BOOST_TIME_SCALE := 1.35
 const JUMP_TIME_SCALE := 0.625
 
 const PARAM_FORWARD_SCALE := "parameters/body/locomotion/forward/time_scale/scale"
+const PARAM_STRAFE_LEFT_SCALE := "parameters/body/locomotion/strafe_left/time_scale/scale"
+const PARAM_STRAFE_RIGHT_SCALE := "parameters/body/locomotion/strafe_right/time_scale/scale"
+const PARAM_STRAFE_LEFT_BLEND := "parameters/body/locomotion/strafe_left/blend/blend_amount"
+const PARAM_STRAFE_RIGHT_BLEND := "parameters/body/locomotion/strafe_right/blend/blend_amount"
+const STRAFE_BLEND_AMOUNT := 0.5
 const PARAM_BOOST_SCALE := "parameters/body/boost/loop/time_scale/scale"
 const PARAM_BRAKE_SCALE := "parameters/body/brake/loop/time_scale/scale"
 const PARAM_JUMP_SCALE := "parameters/body/jump/time_scale/scale"
+const PARAM_JUMP_SEEK := "parameters/body/jump/seek/seek_request"
+const PARAM_JUMP_CHARGE_SCALE := "parameters/body/jump_charge/time_scale/scale"
+const PARAM_JUMP_CHARGE_SEEK := "parameters/body/jump_charge/seek/seek_request"
 const LOCOMOTION_TRAVEL_MIN_INTERVAL := 0.2
 const ROOT_GROUND_XFADE := 0.5
 const LOCO_IDLE_ENTER_XFADE := 0.05
@@ -21,8 +29,10 @@ const LANDING_EXIT_XFADE := ROOT_GROUND_XFADE
 const LANDING_LOCO_XFADE := LANDING_EXIT_XFADE
 const JUMP_CLIP := &"Eve_Jump"
 const JUMP_FINISH_EPSILON := 0.05
+const JUMP_CHARGE_XFADE := 0.5
 
 @export var turn_enter: float = 0.05
+@export var strafe_enter: float = 0.05
 @export var turn_forward_frames: int = 4
 @export var speed_scale_min: float = 0.85
 @export var speed_scale_max: float = 1.25
@@ -44,10 +54,12 @@ var _brake_playback: AnimationNodeStateMachinePlayback
 var _root_state := &""
 var _locomotion_state := &"forward"
 var _snap_jump_entry := false
+var _snap_jump_charge_entry := false
 var _snap_boost_entry := false
 var _snap_boost_loop := false
 var _snap_brake_loop := false
 var _turn_neutral_frames := 0
+var _strafe_neutral_frames := 0
 var _locomotion_travel_target := &"forward"
 var _queued_locomotion := &"forward"
 var _locomotion_travel_cooldown := 0.0
@@ -69,6 +81,8 @@ func _ready() -> void:
 	_tree.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	GliderAnimLayerFiltersScript.apply(_tree)
 	_tree.set("parameters/blend/blend_amount", 1.0)
+	_tree.set(PARAM_STRAFE_LEFT_BLEND, STRAFE_BLEND_AMOUNT)
+	_tree.set(PARAM_STRAFE_RIGHT_BLEND, STRAFE_BLEND_AMOUNT)
 	_anim_player = _tree.get_node(_tree.anim_player) as AnimationPlayer
 	_root_playback = _tree.get("parameters/body/playback") as AnimationNodeStateMachinePlayback
 	_locomotion_playback = _tree.get("parameters/body/locomotion/playback") as AnimationNodeStateMachinePlayback
@@ -80,6 +94,7 @@ func _ready() -> void:
 
 func reset_animation_state() -> void:
 	_snap_jump_entry = false
+	_snap_jump_charge_entry = false
 	_snap_boost_entry = false
 	_snap_boost_loop = false
 	_snap_brake_loop = false
@@ -98,6 +113,21 @@ func reset_animation_state() -> void:
 	_update_forward_time_scale(0.0)
 	_update_boost_time_scale()
 	_update_brake_time_scale()
+	_update_jump_time_scale()
+	_reset_jump_charge_pose()
+
+
+func _reset_jump_charge_pose() -> void:
+	if _tree == null:
+		return
+	_tree.set(PARAM_JUMP_CHARGE_SEEK, 0.0)
+	_tree.set(PARAM_JUMP_CHARGE_SCALE, 0.0)
+
+
+func _prepare_jump_playback() -> void:
+	if _tree == null:
+		return
+	_tree.set(PARAM_JUMP_SEEK, 0.0)
 	_update_jump_time_scale()
 
 
@@ -130,6 +160,7 @@ func _process(_delta: float) -> void:
 
 	var speed := _glider.get_horizontal_speed()
 	var steer := _glider.get_anim_steer()
+	var strafe := _glider.get_strafe_axis()
 
 	_update_forward_time_scale(speed)
 	_update_boost_time_scale()
@@ -137,14 +168,32 @@ func _process(_delta: float) -> void:
 	_update_jump_time_scale()
 
 	var next_root := _pick_root_state(speed)
+	if not _glider.is_boost_active() and _is_root_blend_active(&"boost"):
+		next_root = &"glide"
 	if next_root != _root_state:
 		var prev_root := _root_state
 		var entered_locomotion := next_root == &"locomotion" and prev_root != &"locomotion"
 		_root_state = next_root
 		if _root_playback != null:
 			if _snap_jump_entry:
+				_prepare_jump_playback()
 				_apply_root_start(&"jump")
 				_jump_root_lock = true
+			elif _snap_jump_charge_entry:
+				_apply_jump_charge_root()
+			elif prev_root == &"jump_charge" and next_root in [&"locomotion", &"grounded", &"boost", &"brake"]:
+				if next_root == &"grounded":
+					_enter_grounded_idle(prev_root)
+				elif next_root == &"locomotion":
+					_apply_root_travel(&"locomotion", JUMP_CHARGE_XFADE)
+				elif next_root == &"boost":
+					_apply_root_travel(&"boost", JUMP_CHARGE_XFADE)
+					if _boost_playback != null:
+						_start_boost_substate()
+				elif next_root == &"brake":
+					_apply_root_travel(&"brake", JUMP_CHARGE_XFADE)
+					if _brake_playback != null:
+						_start_brake_substate()
 			elif _snap_boost_entry or _snap_boost_loop:
 				_apply_boost_root(_should_instant_root_transition(&"boost"))
 			elif _snap_brake_loop:
@@ -160,6 +209,8 @@ func _process(_delta: float) -> void:
 			elif next_root == &"glide" and prev_root == &"jump":
 				_apply_root_travel(&"glide", AIR_XFADE)
 				_jump_root_lock = false
+			elif next_root == &"glide" and prev_root == &"boost":
+				_apply_root_travel(&"glide", AIR_XFADE)
 			elif next_root == &"boost" and prev_root != &"boost":
 				_apply_boost_root(_should_instant_root_transition(&"boost"))
 			elif next_root == &"brake" and prev_root != &"brake":
@@ -172,25 +223,25 @@ func _process(_delta: float) -> void:
 					_start_brake_substate()
 		if entered_locomotion:
 			if prev_root == &"grounded":
-				_start_locomotion_from_idle(steer)
+				_start_locomotion_from_idle(steer, strafe)
 			elif prev_root == &"brake":
-				_warm_locomotion_for_brake_exit(steer)
+				_warm_locomotion_for_brake_exit(steer, strafe)
 			elif prev_root == &"landing":
 				_landing_locomotion_warm = true
-				_warm_locomotion_for_landing_exit(steer)
+				_warm_locomotion_for_landing_exit(steer, strafe)
 			else:
-				_restart_locomotion(steer)
+				_restart_locomotion(steer, strafe)
 
 	if next_root == &"locomotion":
 		_locomotion_travel_cooldown = maxf(0.0, _locomotion_travel_cooldown - _delta)
 		if _is_root_blend_active(&"locomotion"):
 			if _landing_locomotion_warm and _is_locomotion_playback_stale():
-				_warm_locomotion_for_landing_exit(steer)
+				_warm_locomotion_for_landing_exit(steer, strafe)
 		elif _is_locomotion_playback_stale() and _root_state != &"landing":
 			if not _is_any_root_blend_active():
-				_restart_locomotion(steer)
+				_restart_locomotion(steer, strafe)
 		else:
-			_update_locomotion(steer)
+			_update_locomotion(steer, strafe)
 
 	_tick_jump_elapsed(_delta, next_root)
 
@@ -198,8 +249,13 @@ func _process(_delta: float) -> void:
 	_repair_root_playback(next_root)
 	if _root_playback != null and next_root == &"jump":
 		var cur_root := _root_playback.get_current_node()
-		if cur_root not in [&"jump", &"glide"] and not _is_jump_to_glide_blend_active():
+		if cur_root not in [&"jump", &"jump_charge", &"glide"] and not _is_jump_to_glide_blend_active():
+			_prepare_jump_playback()
 			_apply_root_start(&"jump")
+	if _root_playback != null and next_root == &"jump_charge":
+		var charge_root := _root_playback.get_current_node()
+		if charge_root != &"jump_charge":
+			_apply_jump_charge_root()
 	if _tree != null:
 		_tree.advance(_delta)
 		_tick_root_blend(_delta)
@@ -207,6 +263,7 @@ func _process(_delta: float) -> void:
 			var cur_after := _root_playback.get_current_node()
 			if cur_after in [&"glide", &"grounded"]:
 				_jump_root_lock = false
+		_repair_boost_loop()
 		_sync_root_playback_after_advance(next_root)
 
 
@@ -231,6 +288,10 @@ func _on_root_blend_finished() -> void:
 	var finished_target := _root_blend_target
 	_root_blend_target = &""
 	_landing_locomotion_warm = false
+	if finished_target == &"boost" and _boost_playback != null:
+		_start_boost_substate()
+		if _tree != null:
+			_tree.advance(0.0)
 	if finished_target in [&"grounded", &"locomotion"]:
 		_prep_boost_brake_nested_after_exit()
 
@@ -261,6 +322,11 @@ func _apply_root_start(state: StringName) -> void:
 		_jump_root_lock = false
 
 
+func _apply_jump_charge_root() -> void:
+	_reset_jump_charge_pose()
+	_apply_root_travel(&"jump_charge", JUMP_CHARGE_XFADE)
+
+
 func _apply_root_transition(state: StringName, instant: bool) -> void:
 	if instant:
 		_apply_root_start(state)
@@ -271,14 +337,17 @@ func _apply_root_transition(state: StringName, instant: bool) -> void:
 func _should_instant_root_transition(state: StringName) -> bool:
 	if state == &"jump":
 		return true
-	if state == &"boost" and _is_airborne_for_boost():
-		return true
 	return false
 
 
 func _apply_boost_root(instant: bool) -> void:
-	_apply_root_transition(&"boost", instant)
-	if _boost_playback != null:
+	if _is_airborne_for_boost():
+		_apply_root_travel(&"boost", AIR_XFADE)
+	elif instant:
+		_apply_root_start(&"boost")
+	else:
+		_apply_root_travel(&"boost")
+	if _boost_playback != null and not _is_airborne_for_boost():
 		_start_boost_substate()
 
 
@@ -318,6 +387,8 @@ func _sync_root_playback_after_advance(target: StringName) -> void:
 		return
 	var cur := _root_playback.get_current_node()
 	if cur == target:
+		if target == &"boost":
+			_repair_boost_loop()
 		return
 	if _should_skip_root_sync(target, cur):
 		return
@@ -327,7 +398,9 @@ func _sync_root_playback_after_advance(target: StringName) -> void:
 		if not _is_any_root_blend_active():
 			_apply_root_travel(&"locomotion", LANDING_EXIT_XFADE)
 	elif target == &"boost":
-		_apply_boost_root(true)
+		_apply_boost_root(_should_instant_root_transition(&"boost"))
+	elif target == &"glide" and cur == &"boost":
+		_apply_root_travel(&"glide", AIR_XFADE)
 	elif target == &"brake":
 		_apply_brake_root()
 	elif target == &"glide" and cur == &"jump":
@@ -352,14 +425,17 @@ func _repair_root_playback(next_root: StringName) -> void:
 	elif next_root == &"brake":
 		_apply_brake_root()
 	elif next_root == &"locomotion":
-		var loco_xfade := LOCO_IDLE_ENTER_XFADE if cur == &"grounded" else LANDING_EXIT_XFADE if cur == &"landing" else ROOT_GROUND_XFADE
+		var loco_xfade := LOCO_IDLE_ENTER_XFADE if cur == &"grounded" else LANDING_EXIT_XFADE if cur == &"landing" else JUMP_CHARGE_XFADE if cur == &"jump_charge" else ROOT_GROUND_XFADE
 		_apply_root_travel(&"locomotion", loco_xfade)
 	elif next_root == &"glide" and cur == &"jump":
 		_apply_root_travel(&"glide", AIR_XFADE)
 	elif next_root == &"glide":
 		_apply_root_travel(&"glide", AIR_XFADE)
 	elif next_root == &"jump":
+		_prepare_jump_playback()
 		_apply_root_start(&"jump")
+	elif next_root == &"jump_charge":
+		_apply_jump_charge_root()
 
 
 func _repair_brake_enter() -> void:
@@ -372,8 +448,23 @@ func _repair_brake_enter() -> void:
 	_brake_playback.start("loop")
 
 
+func _repair_boost_loop() -> void:
+	if _boost_playback == null or _root_state != &"boost":
+		return
+	if not _glider.is_boost_active() or not _is_airborne_for_boost():
+		return
+	if _boost_playback.get_current_node() == &"loop":
+		return
+	if _boost_playback.get_current_node() not in [&"enter", &"Start"]:
+		return
+	_boost_playback.start(&"loop")
+	if _tree != null:
+		_tree.advance(0.0)
+
+
 func _pick_root_state(speed: float) -> StringName:
 	_snap_jump_entry = false
+	_snap_jump_charge_entry = false
 	_snap_boost_entry = false
 	_snap_boost_loop = false
 	_snap_brake_loop = false
@@ -382,6 +473,9 @@ func _pick_root_state(speed: float) -> StringName:
 		_snap_jump_entry = true
 		_jump_root_lock = true
 		return &"jump"
+	if _glider.is_jump_charging():
+		_snap_jump_charge_entry = _root_state != &"jump_charge"
+		return &"jump_charge"
 	if _glider.is_run_ended():
 		return &"death"
 	var current := _root_playback.get_current_node() if _root_playback != null else &""
@@ -421,6 +515,8 @@ func _pick_root_state(speed: float) -> StringName:
 				return &"brake"
 			if _should_transition_jump_to_glide():
 				return &"glide"
+		if not _is_jump_clip_finished():
+			return &"jump"
 		return &"jump"
 
 	if _glider.is_gliding():
@@ -556,9 +652,11 @@ func _start_boost_substate() -> void:
 	if _boost_playback == null:
 		return
 	if _should_start_boost_loop():
-		_boost_playback.start("loop")
+		_boost_playback.start(&"loop")
 	else:
-		_boost_playback.start("enter")
+		_boost_playback.start(&"enter")
+	if _tree != null:
+		_tree.advance(0.0)
 
 
 func _start_brake_substate() -> void:
@@ -615,12 +713,13 @@ func _is_landing_clip_finished() -> bool:
 	return _root_playback.get_current_play_position() >= length - 0.05
 
 
-func _restart_locomotion(steer: float) -> void:
+func _restart_locomotion(steer: float, strafe: float) -> void:
 	_locomotion_travel_cooldown = 0.0
 	_turn_neutral_frames = 0
+	_strafe_neutral_frames = 0
 	if _locomotion_playback == null:
 		return
-	var desired := _pick_locomotion_state(steer, &"forward")
+	var desired := _pick_locomotion_state(steer, strafe, &"forward")
 	_locomotion_state = desired
 	_queued_locomotion = desired
 	_locomotion_travel_target = desired
@@ -628,35 +727,37 @@ func _restart_locomotion(steer: float) -> void:
 	_locomotion_playback.start(desired)
 
 
-func _warm_locomotion_for_landing_exit(steer: float) -> void:
-	_warm_locomotion_substate(steer)
+func _warm_locomotion_for_landing_exit(steer: float, strafe: float) -> void:
+	_warm_locomotion_substate(steer, strafe)
 	if _tree != null:
 		_tree.advance(0.0)
 
 
-func _warm_locomotion_for_brake_exit(steer: float) -> void:
-	_warm_locomotion_substate(steer)
+func _warm_locomotion_for_brake_exit(steer: float, strafe: float) -> void:
+	_warm_locomotion_substate(steer, strafe)
 
 
-func _warm_locomotion_substate(steer: float) -> void:
+func _warm_locomotion_substate(steer: float, strafe: float) -> void:
 	_locomotion_travel_cooldown = 0.0
 	_turn_neutral_frames = 0
+	_strafe_neutral_frames = 0
 	if _locomotion_playback == null:
 		return
 	var playback_state := _get_locomotion_playback_state()
-	var desired := _pick_locomotion_state(steer, playback_state)
+	var desired := _pick_locomotion_state(steer, strafe, playback_state)
 	_locomotion_state = desired
 	_queued_locomotion = desired
 	_locomotion_travel_target = desired
 	_locomotion_playback.start(desired)
 
 
-func _start_locomotion_from_idle(steer: float) -> void:
+func _start_locomotion_from_idle(steer: float, strafe: float) -> void:
 	_locomotion_travel_cooldown = 0.0
 	_turn_neutral_frames = 0
+	_strafe_neutral_frames = 0
 	if _locomotion_playback == null:
 		return
-	var desired := _pick_locomotion_state(steer, &"forward")
+	var desired := _pick_locomotion_state(steer, strafe, &"forward")
 	_locomotion_state = desired
 	_queued_locomotion = desired
 	_locomotion_travel_target = desired
@@ -679,14 +780,14 @@ func _get_locomotion_playback_state() -> StringName:
 	return node
 
 
-func _update_locomotion(steer: float) -> void:
+func _update_locomotion(steer: float, strafe: float) -> void:
 	if _locomotion_playback == null:
 		return
 	if _locomotion_playback.get_current_node() == &"enter":
 		return
 
 	var playback_state := _get_locomotion_playback_state()
-	var next_locomotion := _pick_locomotion_state(steer, playback_state)
+	var next_locomotion := _pick_locomotion_state(steer, strafe, playback_state)
 	_locomotion_state = next_locomotion
 	_queued_locomotion = next_locomotion
 
@@ -715,7 +816,29 @@ func _apply_locomotion_transition(state: StringName) -> void:
 		_locomotion_playback.travel(state)
 
 
-func _pick_locomotion_state(steer: float, current: StringName) -> StringName:
+func _pick_locomotion_state(steer: float, strafe: float, current: StringName) -> StringName:
+	if current == &"strafe_left" and strafe <= -strafe_enter:
+		_strafe_neutral_frames = 0
+		_turn_neutral_frames = 0
+		return &"strafe_right"
+	if current == &"strafe_right" and strafe >= strafe_enter:
+		_strafe_neutral_frames = 0
+		_turn_neutral_frames = 0
+		return &"strafe_left"
+	if strafe >= strafe_enter:
+		_strafe_neutral_frames = 0
+		_turn_neutral_frames = 0
+		return &"strafe_left"
+	if strafe <= -strafe_enter:
+		_strafe_neutral_frames = 0
+		_turn_neutral_frames = 0
+		return &"strafe_right"
+	if current == &"strafe_left" or current == &"strafe_right":
+		_strafe_neutral_frames += 1
+		if _strafe_neutral_frames < turn_forward_frames:
+			return current
+	_strafe_neutral_frames = 0
+
 	if current == &"turn_left" and steer >= turn_enter:
 		_turn_neutral_frames = 0
 		return &"turn_right"
@@ -736,12 +859,18 @@ func _pick_locomotion_state(steer: float, current: StringName) -> StringName:
 	return &"forward"
 
 
+func _is_forward_locomotion_state(state: StringName) -> bool:
+	return state in [&"forward", &"strafe_left", &"strafe_right"]
+
+
 func _update_forward_time_scale(speed: float) -> void:
-	if _get_locomotion_playback_state() != &"forward":
+	if not _is_forward_locomotion_state(_get_locomotion_playback_state()):
 		return
 	var speed_t := clampf(speed / BLEND_SPEED_MAX, 0.0, 1.0)
 	var scale := lerpf(speed_scale_min, speed_scale_max, speed_t)
 	_tree.set(PARAM_FORWARD_SCALE, scale)
+	_tree.set(PARAM_STRAFE_LEFT_SCALE, scale)
+	_tree.set(PARAM_STRAFE_RIGHT_SCALE, scale)
 
 
 func _update_jump_time_scale() -> void:

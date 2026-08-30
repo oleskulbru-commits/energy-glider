@@ -24,16 +24,11 @@ extends Camera3D
 @export var land_pitch_recover_rate: float = 2.0
 @export var land_recover_min_sec: float = 0.35
 @export var land_recover_max_sec: float = 0.85
-@export var handheld_enabled: bool = true
-@export var handheld_rot_amplitude_deg: float = 0.4
+@export var speed_shake_enabled: bool = true
+@export var speed_shake_strength_at_max: float = 1.0
+@export var handheld_rot_amplitude_deg: float = 0.8
 @export var handheld_rot_frequency: float = 0.85
-@export var handheld_speed_ref: float = 18.0
-@export var handheld_idle_scale: float = 0.35
 @export var handheld_smoothing: float = 10.0
-@export var handheld_base_scale: float = 0.5
-@export var handheld_high_speed_scale: float = 1.3
-@export var handheld_boost_scale: float = 1.55
-@export var handheld_speed_exponent: float = 1.4
 
 const MIN_VELOCITY_YAW_SPEED := 1.5
 const SPEED_BLEND_START := 5.0
@@ -104,7 +99,7 @@ func follow(
 	grounded: bool,
 	terrain_manager: TerrainManager,
 	steering: bool = false,
-	boosting: bool = false
+	speed_bonus: float = 0.0
 ) -> void:
 	var snap := _hard_snap
 	_hard_snap = false
@@ -207,7 +202,7 @@ func follow(
 	var look_t := 1.0 if snap else clampf(look_rate * delta, 0.0, 1.0)
 	_look_focus = _look_focus.lerp(look_target, look_t)
 	look_at(_look_focus, Vector3.UP)
-	_apply_handheld_offset(delta, speed, snap, boosting)
+	_apply_handheld_offset(delta, speed, snap, speed_bonus)
 
 	var speed_t := clampf(speed / SPEED_FOV_REF, 0.0, 1.0)
 	var fov_t := 1.0 if snap else clampf(FOV_RATE * delta, 0.0, 1.0)
@@ -294,21 +289,17 @@ func _reset_handheld() -> void:
 	_handheld_rot = Vector3.ZERO
 
 
-func _apply_handheld_offset(delta: float, speed: float, snap: bool, boosting: bool) -> void:
-	if snap or not handheld_enabled:
+func _apply_handheld_offset(delta: float, speed: float, snap: bool, speed_bonus: float) -> void:
+	if snap or not speed_shake_enabled:
 		_reset_handheld()
 		return
 
 	_handheld_time += delta
-	var intensity := compute_handheld_intensity(
+	var cruise_max := GliderPhysics.cruise_speed_for(speed_bonus)
+	var intensity := compute_speed_shake_intensity(
 		speed,
-		handheld_speed_ref,
-		handheld_idle_scale,
-		handheld_base_scale,
-		handheld_high_speed_scale,
-		handheld_boost_scale,
-		handheld_speed_exponent,
-		boosting
+		cruise_max,
+		speed_shake_strength_at_max
 	)
 	var sample_rot := sample_handheld_rotation(
 		_handheld_time,
@@ -439,20 +430,16 @@ static func step_land_recover_blend(blend: float, delta: float, duration: float)
 	return maxf(0.0, blend - delta / maxf(duration, 0.001))
 
 
-static func compute_handheld_intensity(
+static func compute_speed_shake_ratio(speed: float, cruise_max_speed: float) -> float:
+	return speed / maxf(cruise_max_speed, 0.001)
+
+
+static func compute_speed_shake_intensity(
 	speed: float,
-	speed_ref: float,
-	idle_scale: float,
-	base_scale: float,
-	high_speed_scale: float,
-	boost_scale: float,
-	speed_exponent: float,
-	boosting: bool = false
+	cruise_max_speed: float,
+	strength_at_max: float
 ) -> float:
-	var speed_t := clampf(speed / maxf(speed_ref, 0.001), 0.0, 1.0)
-	var speed_curve := lerpf(idle_scale, high_speed_scale, pow(speed_t, speed_exponent))
-	var boost_mult := boost_scale if boosting else 1.0
-	return base_scale * speed_curve * boost_mult
+	return strength_at_max * compute_speed_shake_ratio(speed, cruise_max_speed)
 
 
 static func sample_handheld_rotation(
