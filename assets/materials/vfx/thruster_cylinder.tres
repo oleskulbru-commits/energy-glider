@@ -1,0 +1,16 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://ca74i1x15gqgv"]
+
+[ext_resource type="Texture2D" uid="uid://boip0revrqqan" path="res://assets/vfx/glider/fbx_thruster/thruster_clip/glider_thruster_flames0000.png" id="1_preview"]
+
+[resource]
+resource_name = "thruster_cylinder"
+transparency = 1
+blend_mode = 1
+cull_mode = 2
+albedo_texture = ExtResource("1_preview")
+emission_enabled = true
+emission = Color(1, 0.38, 0, 1)
+emission_energy_multiplier = 4.0
+emission_texture = ExtResource("1_preview")
+uv1_scale = Vector3(1, 0.75, 1)
+uv1_offset = Vector3(0, -0.745, 0)

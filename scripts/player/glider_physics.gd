@@ -111,9 +111,10 @@ const AIR_GRAVITY_RAMP_DURATION := 0.25
 
 # Manual jump — upward pop scales with tangent speed; momentum is preserved.
 const JUMP_COOLDOWN := 0.4
-const JUMP_MAX_CLEARANCE := HOVER_ZONE
+const JUMP_LANDING_GRACE := 0.35
+const JUMP_MAX_CLEARANCE := 1.35
 const JUMP_MIN_TANGENT_SPEED := 1.5
-const JUMP_UP_BASE := 0.95
+const JUMP_UP_BASE := 1.15
 const JUMP_UP_SPEED_SCALE := 0.12
 const JUMP_UP_MAX := 3.0
 
@@ -309,10 +310,18 @@ static func compute_ground_force(ctx: Context, mass: float, delta: float) -> Vec
 	return force
 
 
+static func jump_up_speed_for_clearance(clearance: float, target_clearance: float = JUMP_MAX_CLEARANCE) -> float:
+	var delta_h := maxf(0.0, target_clearance - clearance)
+	if delta_h <= 0.0:
+		return 0.0
+	return sqrt(2.0 * AIR_GRAVITY * delta_h)
+
+
 static func apply_inertia_jump(
 	velocity: Vector3,
 	ground_normal: Vector3,
-	tangent_speed: float
+	tangent_speed: float,
+	clearance: float = BASE_HEIGHT
 ) -> Vector3:
 	var launch_normal := ground_normal.lerp(Vector3.UP, 0.18).normalized()
 	var result := velocity
@@ -321,6 +330,7 @@ static func apply_inertia_jump(
 		result -= launch_normal * inward
 	var speed := maxf(tangent_speed, JUMP_MIN_TANGENT_SPEED * 0.35)
 	var up_speed := minf(JUMP_UP_BASE + speed * JUMP_UP_SPEED_SCALE, JUMP_UP_MAX)
+	up_speed = maxf(up_speed, jump_up_speed_for_clearance(clearance))
 	var existing_up := result.dot(launch_normal)
 	if up_speed > existing_up:
 		result += launch_normal * (up_speed - maxf(existing_up, 0.0))
