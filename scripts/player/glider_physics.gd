@@ -112,9 +112,9 @@ const AIR_GRAVITY_RAMP_DURATION := 0.25
 # Manual jump — upward pop scales with tangent speed; momentum is preserved.
 const JUMP_COOLDOWN := 0.4
 const JUMP_LANDING_GRACE := 0.35
-const JUMP_MAX_CLEARANCE := HOVER_ZONE
+const JUMP_MAX_CLEARANCE := 1.35
 const JUMP_MIN_TANGENT_SPEED := 1.5
-const JUMP_UP_BASE := 0.95
+const JUMP_UP_BASE := 1.15
 const JUMP_UP_SPEED_SCALE := 0.12
 const JUMP_UP_MAX := 3.0
 

@@ -508,38 +508,41 @@ func _verify_brake_boost_time_scale() -> void:
 
 
 func _verify_handheld_camera() -> void:
-	var idle_scale := 0.35
-	var speed_ref := 18.0
-	var base_scale := 0.5
-	var high_speed_scale := 1.3
-	var boost_scale := 1.55
-	var speed_exponent := 1.4
+	var cruise_max := GliderPhysicsScript.cruise_speed_for(0.0)
+	var strength_at_max := 1.0
+
 	_fail_unless(
 		is_equal_approx(
-			GliderCameraScript.compute_handheld_intensity(
-				0.0, speed_ref, idle_scale, base_scale, high_speed_scale, boost_scale, speed_exponent
-			),
-			base_scale * idle_scale
+			GliderCameraScript.compute_speed_shake_ratio(0.0, cruise_max),
+			0.0
 		),
-		"Stationary handheld intensity should use halved idle scale"
-	)
-	var cruise_intensity := GliderCameraScript.compute_handheld_intensity(
-		speed_ref, speed_ref, idle_scale, base_scale, high_speed_scale, boost_scale, speed_exponent
+		"Stationary speed shake ratio should be zero"
 	)
 	_fail_unless(
-		is_equal_approx(cruise_intensity, base_scale * high_speed_scale),
-		"Full-speed cruise handheld intensity should use high-speed tier"
-	)
-	var boost_intensity := GliderCameraScript.compute_handheld_intensity(
-		speed_ref, speed_ref, idle_scale, base_scale, high_speed_scale, boost_scale, speed_exponent, true
-	)
-	_fail_unless(
-		boost_intensity > cruise_intensity,
-		"Boost handheld intensity should exceed cruise at the same speed"
+		is_equal_approx(
+			GliderCameraScript.compute_speed_shake_ratio(cruise_max * 0.5, cruise_max),
+			0.5
+		),
+		"Half cruise speed should yield half shake ratio"
 	)
 	_fail_unless(
-		boost_intensity > 1.0,
-		"Boost at full speed should exceed legacy max intensity (got %.3f)" % boost_intensity
+		is_equal_approx(
+			GliderCameraScript.compute_speed_shake_intensity(cruise_max, cruise_max, strength_at_max),
+			strength_at_max
+		),
+		"Full cruise speed should yield full shake intensity"
+	)
+	var over_max_speed := cruise_max * 1.3
+	var over_max_intensity := GliderCameraScript.compute_speed_shake_intensity(
+		over_max_speed, cruise_max, strength_at_max
+	)
+	_fail_unless(
+		is_equal_approx(over_max_intensity, strength_at_max * 1.3),
+		"Speed above cruise max should scale shake proportionally (got %.3f)" % over_max_intensity
+	)
+	_fail_unless(
+		over_max_intensity > strength_at_max,
+		"Boost/over-max speed shake should exceed cruise-max shake"
 	)
 
 	var rot_noise := FastNoiseLite.new()

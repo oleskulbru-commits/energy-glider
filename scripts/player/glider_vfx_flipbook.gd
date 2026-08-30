@@ -1,6 +1,23 @@
 class_name GliderVfxFlipbook
 extends RefCounted
 
+const GliderVfxFadeEnvelopeScript = preload("res://scripts/player/glider_vfx_fade.gd")
+
+
+static func apply_omni_fill(
+	light: OmniLight3D,
+	presentation: float,
+	base_energy: float,
+	threshold: float = GliderVfxFadeEnvelopeScript.VISIBILITY_THRESHOLD
+) -> void:
+	if light == null:
+		return
+	var show := presentation > threshold
+	light.visible = show
+	if not show:
+		return
+	light.light_energy = base_energy * presentation
+
 
 static func load_texture_sequence(
 	dir: String,
@@ -23,8 +40,7 @@ static func load_texture_sequence(
 static func resolve_material(
 	template: StandardMaterial3D,
 	texture: Texture2D,
-	intensity: float,
-	emission_tint: Color = Color.WHITE
+	intensity: float
 ) -> StandardMaterial3D:
 	var mat: StandardMaterial3D
 	if template != null:
@@ -36,27 +52,82 @@ static func resolve_material(
 		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 
-	mat.albedo_color = Color(1.0, 1.0, 1.0, clampf(intensity, 0.0, 1.0))
-	if texture != null:
-		mat.albedo_texture = texture
-	apply_flipbook_emission(mat, texture, intensity, emission_tint)
+	apply_flipbook_presentation(mat, texture, intensity)
 	return mat
 
 
-static func apply_flipbook_emission(
+static func apply_flipbook_presentation(
 	mat: StandardMaterial3D,
 	texture: Texture2D,
 	intensity: float,
-	emission_tint: Color = Color.WHITE
+	use_texture: bool = true
 ) -> void:
+	var strength := clampf(intensity, 0.0, 1.0)
+	var base_albedo := mat.albedo_color
+	mat.albedo_color = Color(
+		base_albedo.r,
+		base_albedo.g,
+		base_albedo.b,
+		base_albedo.a * strength
+	)
+	if use_texture and texture != null:
+		mat.albedo_texture = texture
+		if mat.emission_enabled:
+			mat.emission_texture = texture
+	else:
+		mat.albedo_texture = null
+		if mat.emission_enabled:
+			mat.emission_texture = null
+
+	if not mat.emission_enabled:
+		return
+
+	var base_energy := mat.emission_energy_multiplier
+	if base_energy <= 0.0:
+		return
+	mat.emission_energy_multiplier = base_energy * strength
+
+
+static func apply_solid_emission_presentation(
+	mat: StandardMaterial3D,
+	intensity: float
+) -> void:
+	var strength := clampf(intensity, 0.0, 1.0)
+	mat.albedo_texture = null
+	mat.emission_texture = null
+
+	var tint := mat.emission
+	if not mat.emission_enabled or tint.r + tint.g + tint.b < 0.01:
+		tint = Color(mat.albedo_color.r, mat.albedo_color.g, mat.albedo_color.b, 1.0)
 	mat.emission_enabled = true
-	mat.emission = emission_tint
-	if texture != null:
-		mat.emission_texture = texture
+	mat.emission = tint
+	mat.albedo_color = Color(tint.r, tint.g, tint.b, 1.0)
+	finalize_opaque_orb(mat)
+
 	var base_energy := mat.emission_energy_multiplier
 	if base_energy <= 0.0:
 		base_energy = 4.0
-	mat.emission_energy_multiplier = base_energy * clampf(intensity, 0.0, 1.0)
+	mat.emission_energy_multiplier = base_energy * strength
+
+
+static func apply_emission_presentation(
+	mat: StandardMaterial3D,
+	base_energy: float,
+	intensity: float
+) -> void:
+	var strength := clampf(intensity, 0.0, 1.0)
+	var energy := base_energy
+	if energy <= 0.0:
+		energy = mat.emission_energy_multiplier
+	if energy <= 0.0:
+		energy = 1.0
+	mat.emission_energy_multiplier = energy * strength
+
+
+static func finalize_opaque_orb(mat: StandardMaterial3D) -> void:
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
+	var c := mat.albedo_color
+	mat.albedo_color = Color(c.r, c.g, c.b, 1.0)
 
 
 static func resolve_mesh_resource(

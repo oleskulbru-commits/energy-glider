@@ -161,6 +161,7 @@ var _airborne_time := 0.0
 var _jump_cooldown := 0.0
 var _jump_landing_grace_timer := 0.0
 var _jump_anim_pending := false
+var _jump_charging := false
 var _boost_anim_pending := false
 var _was_boost_active := false
 var _brake_anim_pending := false
@@ -973,15 +974,38 @@ func _update_state(delta: float) -> void:
 func _try_jump() -> void:
 	if _input == null:
 		_input = _resolve_input()
-	if _run_ended or _state != State.GROUNDED:
+	if _run_ended:
 		return
-	if _jump_cooldown > 0.0 or _grounded_lock_timer > 0.0:
+
+	if _jump_charging:
+		if not _can_begin_jump_charge():
+			_jump_charging = false
+			return
+		if not _input.is_jump_held():
+			_execute_jump()
+		return
+
+	if not _can_begin_jump_charge():
 		return
 	if _input == null or not _input.is_jump_just_pressed():
 		return
-	if is_braking():
-		return
+	_jump_charging = true
+	if not _input.is_jump_held():
+		_execute_jump()
 
+
+func _can_begin_jump_charge() -> bool:
+	if _state != State.GROUNDED:
+		return false
+	if _jump_cooldown > 0.0 or _grounded_lock_timer > 0.0:
+		return false
+	if _input == null or is_braking():
+		return false
+	return true
+
+
+func _execute_jump() -> void:
+	_jump_charging = false
 	var tangent_speed := velocity.slide(_ground_normal).length()
 	velocity = GliderPhysicsScript.apply_inertia_jump(
 		velocity, _ground_normal, tangent_speed, _get_clearance()
@@ -993,6 +1017,10 @@ func _try_jump() -> void:
 	_jump_anim_pending = true
 	if not _should_preserve_yaw_on_jump():
 		_align_yaw_to_travel_direction(1.0)
+
+
+func is_jump_charging() -> bool:
+	return _jump_charging
 
 
 func _should_preserve_yaw_on_jump() -> bool:
@@ -1449,7 +1477,6 @@ func _update_camera(delta: float) -> void:
 	if _camera == null:
 		return
 	var steering := _input != null and _input.is_steering() and not _run_ended
-	var boosting := _is_boost_active() and not _run_ended
 	_camera.follow(
 		get_camera_follow_target(),
 		get_camera_follow_yaw(),
@@ -1458,7 +1485,7 @@ func _update_camera(delta: float) -> void:
 		get_camera_follow_grounded(),
 		_terrain_manager,
 		steering,
-		boosting
+		_glider_speed_bonus()
 	)
 
 
@@ -1648,6 +1675,7 @@ func reset_for_respawn() -> void:
 	_jump_cooldown = 0.0
 	_jump_landing_grace_timer = 0.0
 	_jump_anim_pending = false
+	_jump_charging = false
 	_boost_anim_pending = false
 	_was_boost_active = false
 	_brake_anim_pending = false
@@ -1762,6 +1790,10 @@ func get_camera_follow_grounded() -> bool:
 	if _is_death_camera_active() and _death_sequence != null and _death_sequence.has_method("is_camera_grounded"):
 		return _death_sequence.is_camera_grounded()
 	return is_grounded()
+
+
+func get_speed_bonus() -> float:
+	return _glider_speed_bonus()
 
 
 func _is_death_camera_active() -> bool:

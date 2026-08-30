@@ -75,6 +75,18 @@ func is_jump_just_pressed() -> bool:
 	return Input.is_action_just_pressed("jump")
 
 
+func is_jump_held() -> bool:
+	if not _locomotion_enabled:
+		return false
+	return Input.is_action_pressed("jump")
+
+
+func is_jump_just_released() -> bool:
+	if not _locomotion_enabled:
+		return false
+	return Input.is_action_just_released("jump")
+
+
 func _process(_delta: float) -> void:
 	_update_sail_state()
 

@@ -14,6 +14,18 @@
 | `GLIDE_EXIT_HEIGHT` | 1.10 | GLIDING → GROUNDED land boundary (hysteresis) |
 | `TOUCH_CLEARANCE` | 0.05 | Emergency repulsion boost when compressed |
 
+## Manual jump (`apply_inertia_jump`)
+
+| Constant | Default | Effect |
+|----------|---------|--------|
+| `JUMP_MAX_CLEARANCE` | 1.35 | Target clearance for standstill/low-clearance jump pop (decoupled from `HOVER_ZONE`) |
+| `JUMP_UP_BASE` | 1.15 | Minimum upward speed component before speed scaling |
+| `JUMP_UP_SPEED_SCALE` | 0.12 | Extra up-speed per m/s tangent speed |
+| `JUMP_UP_MAX` | 3.0 | Up-speed cap |
+| `JUMP_COOLDOWN` | 0.4 | Grounded re-jump lockout (s) |
+
+Charge pose: hold jump on ground → `jump_charge` anim state (0.5s xfade in/out); release → launch.
+
 ## Repulsive hover (`compute_hover_force` + `apply_velocity_constraints` + player noise)
 
 One-sided cushion: repulsion only when **below** target (`penetration = max(0, target − clearance)`). Constant **weight** when rear-supported — no clearance-proportional chase. Clearance spikes from void under the nose disable weight, use supported clearance for physics, and detach to **GLIDING**; momentum carries you off the lip.

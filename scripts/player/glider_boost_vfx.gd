@@ -54,20 +54,13 @@ const THRUSTER_ORB_PATH := NodePath("../../ThrusterVfxPivot/ThrusterVfx/OrbMesh2
 		orb_shading_material = value
 		_refresh_materials()
 
-@export_group("Lighting")
-@export var omni_light_path: NodePath = ^"OmniLight3D"
-
-@export_group("UV Tuning")
-@export var force_loop_preview := false:
-	set(value):
-		force_loop_preview = value
-		if is_inside_tree():
-			_apply_force_loop_state()
-
-
 @export_group("Fade")
 @export var fade_in_duration := GliderVfxFadeEnvelopeScript.DEFAULT_FADE_IN
 @export var fade_out_duration := GliderVfxFadeEnvelopeScript.DEFAULT_FADE_OUT
+
+@export_group("Lighting")
+@export var omni_light_path: NodePath = ^"OmniLight3D"
+@export var light_color := Color(1.0, 0.38, 0.0)
 
 @export_group("Editor Preview")
 @export var editor_preview_sequence: EditorPreviewSequence = EditorPreviewSequence.LOOP:
@@ -90,8 +83,11 @@ var _editor_texture_cache: Dictionary = {}
 var _orb_mesh: MeshInstance3D
 var _cylinder_mesh: MeshInstance3D
 var _omni_light: OmniLight3D
-var _base_light_energy := -1.0
+var _base_omni_energy := -1.0
 var _cylinder_material: StandardMaterial3D
+var _cylinder_scene_material: StandardMaterial3D
+var _cylinder_base_emission_energy := -1.0
+var _cylinder_base_albedo_alpha := -1.0
 var _orb_material: StandardMaterial3D
 var _glider: GliderPlayerScript
 var _phase := Phase.OFF
@@ -117,10 +113,7 @@ func _ready() -> void:
 		return
 
 	_glider = _find_glider()
-	if force_loop_preview:
-		_begin_phase(Phase.LOOP)
-	else:
-		_begin_phase(Phase.OFF)
+	_begin_phase(Phase.OFF)
 	set_process(true)
 
 
@@ -133,19 +126,6 @@ func _process(delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
 
-	if force_loop_preview:
-		_fade.target = 1.0
-		_fade.value = 1.0
-		_show_orb()
-		if _phase != Phase.LOOP:
-			_begin_phase(Phase.LOOP)
-		elif _active_textures.is_empty():
-			return
-		_update_visibility_from_fade()
-		_apply_presentation()
-		_advance_playback(delta)
-		return
-
 	if _glider != null:
 		_update_boost_edges(_glider.is_boost_active())
 
@@ -154,26 +134,27 @@ func _process(delta: float) -> void:
 	if _phase == Phase.OFF:
 		_try_complete_off()
 		if _fade.is_dormant():
+			_hide_lights()
 			_refresh_thruster_idle_orb()
 			return
 		_update_visibility_from_fade()
-		_apply_presentation()
 		_refresh_materials()
+		_apply_light_presentation()
 		return
 
 	_update_visibility_from_fade()
-	_apply_presentation()
 
 	if _active_textures.is_empty():
+		_apply_light_presentation()
 		return
 
 	_advance_playback(delta)
+	_apply_light_presentation()
 
 
 func set_boost_intensity(scale: float) -> void:
 	_intensity = clampf(scale, 0.0, 1.0)
 	_refresh_materials()
-	_apply_presentation()
 
 
 func get_presentation() -> float:
@@ -220,8 +201,28 @@ func get_material_override() -> StandardMaterial3D:
 	return _cylinder_material
 
 
+func get_cylinder_base_emission_energy() -> float:
+	_ensure_scene_cylinder_material()
+	return _cylinder_base_emission_energy
+
+
+func get_cylinder_base_albedo_alpha() -> float:
+	_ensure_scene_cylinder_material()
+	return _cylinder_base_albedo_alpha
+
+
 func get_orb_material_override() -> StandardMaterial3D:
 	return _orb_material
+
+
+func get_omni_light() -> OmniLight3D:
+	_ensure_lights()
+	return _omni_light
+
+
+func get_base_omni_energy() -> float:
+	_ensure_lights()
+	return _base_omni_energy
 
 
 func debug_simulate_boost_only() -> void:
@@ -249,8 +250,6 @@ func debug_simulate_forward_release() -> void:
 
 
 func _update_boost_edges(boosting: bool) -> void:
-	if force_loop_preview:
-		return
 	if boosting and not _was_boost_active:
 		_on_boost_pressed()
 	elif not boosting and _was_boost_active:
@@ -276,6 +275,7 @@ func _begin_phase(phase: Phase) -> void:
 	match phase:
 		Phase.OFF:
 			_fade.target = 0.0
+			_hide_lights()
 			return
 		Phase.START:
 			_active_textures = _start_textures
@@ -294,7 +294,6 @@ func _begin_phase(phase: Phase) -> void:
 	_frame_index = 0
 	_prepare_orb()
 	_update_visibility_from_fade()
-	_apply_presentation()
 
 
 func _try_complete_off() -> void:
@@ -337,17 +336,6 @@ func _sibling_wants_orb() -> bool:
 	return thruster != null and thruster.wants_orb_visible()
 
 
-func _apply_presentation() -> void:
-	_ensure_light()
-	if _omni_light == null:
-		return
-	var presentation := _presentation()
-	if _base_light_energy < 0.0:
-		_base_light_energy = _omni_light.light_energy
-	_omni_light.light_energy = _base_light_energy * presentation
-	_omni_light.visible = presentation > GliderVfxFadeEnvelopeScript.VISIBILITY_THRESHOLD
-
-
 func _advance_playback(delta: float) -> void:
 	if _phase == Phase.OFF or _active_textures.is_empty():
 		return
@@ -361,6 +349,8 @@ func _advance_playback(delta: float) -> void:
 		if frame != _frame_index:
 			_frame_index = frame
 			_apply_cylinder_frame(_frame_index)
+		else:
+			_refresh_cylinder_material()
 		return
 
 	if frame >= frame_count:
@@ -370,6 +360,8 @@ func _advance_playback(delta: float) -> void:
 	if frame != _frame_index:
 		_frame_index = frame
 		_apply_cylinder_frame(_frame_index)
+	else:
+		_refresh_cylinder_material()
 
 
 func _on_sequence_finished() -> void:
@@ -412,7 +404,41 @@ func _set_cylinder_visible(is_visible: bool) -> void:
 func _apply_cylinder_frame(index: int) -> void:
 	if _cylinder_mesh == null or index < 0 or index >= _active_textures.size():
 		return
-	_refresh_cylinder_material(_active_textures[index])
+	var texture := _active_textures[index]
+	_refresh_cylinder_material(texture)
+	_apply_light_presentation()
+
+
+func _ensure_lights() -> void:
+	if _omni_light == null or not is_instance_valid(_omni_light):
+		_omni_light = get_node_or_null(omni_light_path) as OmniLight3D
+	if _omni_light != null and _base_omni_energy < 0.0:
+		_base_omni_energy = _omni_light.light_energy
+
+
+func _hide_lights() -> void:
+	_ensure_lights()
+	if _omni_light != null:
+		_omni_light.visible = false
+
+
+func _apply_light_presentation() -> void:
+	_ensure_lights()
+
+	if _fade.is_dormant() and _phase == Phase.OFF:
+		_hide_lights()
+		return
+
+	var presentation := _presentation()
+	if not _fade.should_show():
+		_hide_lights()
+		return
+
+	GliderVfxFlipbookScript.apply_omni_fill(
+		_omni_light,
+		presentation,
+		_base_omni_energy
+	)
 
 
 func _refresh_materials(texture: Texture2D = null) -> void:
@@ -420,18 +446,28 @@ func _refresh_materials(texture: Texture2D = null) -> void:
 		texture = _active_textures[_frame_index]
 	_refresh_cylinder_material(texture)
 	_refresh_orb_material()
+	_apply_light_presentation()
 
 
-func _refresh_cylinder_material(texture: Texture2D = null) -> void:
+func _refresh_cylinder_material(texture: Texture2D = null, presentation_override: float = -1.0) -> void:
 	if _cylinder_mesh == null:
 		return
 	if texture == null and _frame_index >= 0 and _frame_index < _active_textures.size():
 		texture = _active_textures[_frame_index]
 	if texture == null:
 		return
-	var presentation := _presentation()
-	_cylinder_material = GliderVfxFlipbookScript.resolve_material(
-		shading_material,
+	var presentation := (
+		presentation_override
+		if presentation_override >= 0.0
+		else _presentation()
+	)
+	_ensure_scene_cylinder_material()
+	if _cylinder_scene_material == null:
+		push_warning("GliderBoostVfx: CylinderMesh2 needs a scene material_override")
+		return
+	_cylinder_material = _cylinder_scene_material.duplicate() as StandardMaterial3D
+	GliderVfxFlipbookScript.apply_flipbook_presentation(
+		_cylinder_material,
 		texture,
 		presentation
 	)
@@ -446,57 +482,23 @@ func _refresh_orb_material() -> void:
 	var presentation := _presentation()
 	if presentation <= GliderVfxFadeEnvelopeScript.VISIBILITY_THRESHOLD:
 		return
-	var orb_mesh := _orb_mesh_resource if _orb_mesh_resource != null else _orb_mesh.mesh
-	if orb_mesh == null:
+	var thruster := _find_thruster_vfx()
+	if thruster != null:
+		thruster.apply_orb_presentation(presentation)
+
+
+func _ensure_scene_cylinder_material() -> void:
+	_capture_cylinder_scene_material()
+
+
+func _capture_cylinder_scene_material() -> void:
+	if _cylinder_mesh == null or _cylinder_scene_material != null:
 		return
-	var emission_tint := Color.WHITE
-	var template := orb_shading_material if orb_shading_material != null else shading_material
-	if template != null:
-		_orb_material = template.duplicate() as StandardMaterial3D
-		_orb_material.albedo_color.a = presentation
-		var orb_texture := _orb_material.albedo_texture
-		if orb_texture == null and orb_mesh.get_surface_count() > 0:
-			var surf := orb_mesh.surface_get_material(0)
-			if surf is StandardMaterial3D:
-				orb_texture = (surf as StandardMaterial3D).albedo_texture
-		GliderVfxFlipbookScript.apply_flipbook_emission(
-			_orb_material,
-			orb_texture,
-			presentation,
-			emission_tint
-		)
-	else:
-		_orb_material = StandardMaterial3D.new()
-		_orb_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_orb_material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-		_orb_material.cull_mode = BaseMaterial3D.CULL_DISABLED
-		_orb_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_orb_material.albedo_color = Color(1.0, 1.0, 1.0, presentation)
-		if orb_mesh.get_surface_count() > 0:
-			var surf := orb_mesh.surface_get_material(0)
-			if surf is StandardMaterial3D:
-				var src := surf as StandardMaterial3D
-				if src.albedo_texture != null:
-					_orb_material.albedo_texture = src.albedo_texture
-				elif src.albedo_color.a > 0.0:
-					_orb_material.albedo_color = Color(
-						src.albedo_color.r,
-						src.albedo_color.g,
-						src.albedo_color.b,
-						presentation
-					)
-		GliderVfxFlipbookScript.apply_flipbook_emission(
-			_orb_material,
-			_orb_material.albedo_texture,
-			presentation,
-			emission_tint
-		)
-	_orb_mesh.material_override = _orb_material
-
-
-func _ensure_light() -> void:
-	if _omni_light == null or not is_instance_valid(_omni_light):
-		_omni_light = get_node_or_null(omni_light_path) as OmniLight3D
+	var src: Material = _cylinder_mesh.material_override
+	if src is StandardMaterial3D:
+		_cylinder_scene_material = (src as StandardMaterial3D).duplicate()
+		_cylinder_base_emission_energy = _cylinder_scene_material.emission_energy_multiplier
+		_cylinder_base_albedo_alpha = _cylinder_scene_material.albedo_color.a
 
 
 func _ensure_meshes() -> void:
@@ -504,6 +506,15 @@ func _ensure_meshes() -> void:
 		_orb_mesh = _resolve_mesh_instance(orb_mesh_path, "OrbMesh2")
 	if _cylinder_mesh == null or not is_instance_valid(_cylinder_mesh):
 		_cylinder_mesh = _resolve_mesh_instance(cylinder_mesh_path, "CylinderMesh2")
+	_capture_cylinder_scene_material()
+	_disable_vfx_mesh_shadows()
+
+
+func _disable_vfx_mesh_shadows() -> void:
+	if _orb_mesh != null:
+		_orb_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if _cylinder_mesh != null:
+		_cylinder_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
 func _resolve_mesh_instance(path: NodePath, fallback_name: String) -> MeshInstance3D:
@@ -598,18 +609,6 @@ func _ensure_assets_loaded() -> bool:
 	return _assets_loaded
 
 
-func _apply_force_loop_state() -> void:
-	if Engine.is_editor_hint():
-		_update_editor_preview()
-		return
-	if not _ensure_assets_loaded():
-		return
-	if force_loop_preview:
-		_begin_phase(Phase.LOOP)
-	else:
-		_begin_phase(Phase.OFF)
-
-
 func _editor_sequence_info() -> Array:
 	match editor_preview_sequence:
 		EditorPreviewSequence.START:
@@ -670,7 +669,17 @@ func _update_editor_preview() -> void:
 		return
 
 	_set_cylinder_visible(true)
-	_refresh_cylinder_material(texture)
+	_refresh_cylinder_material(texture, 1.0)
+	_apply_editor_light_preview()
+
+
+func _apply_editor_light_preview() -> void:
+	_ensure_lights()
+	GliderVfxFlipbookScript.apply_omni_fill(
+		_omni_light,
+		1.0,
+		_base_omni_energy
+	)
 
 
 func _find_glider() -> GliderPlayerScript:

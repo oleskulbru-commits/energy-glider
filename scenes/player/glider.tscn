@@ -1,7 +1,6 @@
 [gd_scene format=3 uid="uid://dvblpji1vy3ao"]
 
 [ext_resource type="Script" uid="uid://cbood8bo63qaw" path="res://scripts/player/glider_player.gd" id="1_glider"]
-[ext_resource type="Script" uid="uid://ddl0fwofkchgi" path="res://scripts/player/ground_shadow.gd" id="7_shadow"]
 [ext_resource type="Script" uid="uid://ri1o7e2s8hwd" path="res://scripts/player/hover_dust.gd" id="9_hover_dust"]
 [ext_resource type="PackedScene" path="res://scenes/player/player_health_bar.tscn" id="13_hp_bar"]
 [ext_resource type="PackedScene" uid="uid://cc4m2a3lbllwj" path="res://scenes/player/the_glider_skin.tscn" id="13_skin"]
@@ -33,10 +32,6 @@ shape = SubResource("BoxShape3D_glider")
 transform = Transform3D(1, 0, 0, 0, 0.9659258, 0.25881904, 0, -0.25881904, 0.9659258, 0, 4, 10)
 top_level = true
 script = ExtResource("14_camera")
-
-[node name="GroundShadow" type="Node3D" parent="." unique_id=859006997]
-top_level = true
-script = ExtResource("7_shadow")
 
 [node name="HoverDust" type="Node3D" parent="." unique_id=1087170788]
 script = ExtResource("9_hover_dust")

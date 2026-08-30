@@ -13,6 +13,32 @@ const BRAKE_BLEND_WAIT_FRAMES := 36
 const TURN_SWAP_WAIT_FRAMES := 72
 const PARAM_SAIL_DOWN_SEEK := "parameters/sail/sail_down/seek/seek_request"
 const PARAM_SAIL_DOWN_SCALE := "parameters/sail/sail_down/time_scale/scale"
+const PARAM_STRAFE_LEFT_BLEND := "parameters/body/locomotion/strafe_left/blend/blend_amount"
+const PARAM_STRAFE_RIGHT_BLEND := "parameters/body/locomotion/strafe_right/blend/blend_amount"
+const STRAFE_BLEND_AMOUNT := 0.5
+
+
+func _assert_strafe_blend_tree(locomotion_sm: AnimationNodeStateMachine, state_name: StringName) -> void:
+	var strafe_tree := locomotion_sm.get_node(state_name) as AnimationNodeBlendTree
+	if strafe_tree == null:
+		push_error("Strafe state %s should be a BlendTree" % state_name)
+		quit(1)
+		return
+	var blend := strafe_tree.get_node(&"blend") as AnimationNodeBlend2
+	if blend == null:
+		push_error("Strafe state %s should contain a Blend2 node" % state_name)
+		quit(1)
+		return
+	var forward := strafe_tree.get_node(&"forward") as AnimationNodeAnimation
+	var turn := strafe_tree.get_node(&"turn") as AnimationNodeAnimation
+	if forward == null or turn == null:
+		push_error("Strafe state %s should blend forward and turn clips" % state_name)
+		quit(1)
+		return
+	if forward.animation != &"Eve_Forward":
+		push_error("Strafe state %s forward input should use Eve_Forward" % state_name)
+		quit(1)
+		return
 
 
 func _initialize() -> void:
@@ -305,6 +331,18 @@ func _initialize() -> void:
 	for _i in 24:
 		await process_frame
 
+	_assert_strafe_blend_tree(locomotion_sm, &"strafe_left")
+	_assert_strafe_blend_tree(locomotion_sm, &"strafe_right")
+	var left_blend: Variant = tree.get(PARAM_STRAFE_LEFT_BLEND)
+	var right_blend: Variant = tree.get(PARAM_STRAFE_RIGHT_BLEND)
+	if absf(float(left_blend) - STRAFE_BLEND_AMOUNT) > 0.01 or absf(float(right_blend) - STRAFE_BLEND_AMOUNT) > 0.01:
+		push_error(
+			"Strafe blend amount should be %.2f (left=%s, right=%s)"
+			% [STRAFE_BLEND_AMOUNT, left_blend, right_blend]
+		)
+		quit(1)
+		return
+
 	Input.action_press("strafe_left")
 	for _i in 36:
 		await process_frame
@@ -361,6 +399,8 @@ func _initialize() -> void:
 		await process_frame
 
 	Input.action_press("jump")
+	await process_frame
+	Input.action_release("jump")
 	for _i in JUMP_AIR_WAIT_FRAMES:
 		await process_frame
 
@@ -375,34 +415,58 @@ func _initialize() -> void:
 		quit(1)
 		return
 
-	for state_name in ["jump", "glide", "landing", "boost", "brake"]:
+	for state_name in ["jump_charge", "jump", "glide", "landing", "boost", "brake"]:
 		if not body_sm.has_node(StringName(state_name)):
 			push_error("Body state machine missing node: %s" % state_name)
 			quit(1)
 			return
 
 	Input.action_press("boost")
+	await process_frame
+	var air_boost_root := root_playback.get_current_node()
+	if air_boost_root == &"boost":
+		push_error("Air boost should crossfade from glide, not snap on first frame (state=%s)" % air_boost_root)
+		quit(1)
+		return
+
+	var saw_air_boost := false
+	for _i in BOOST_WAIT_FRAMES:
+		await process_frame
+		if root_playback.get_current_node() == &"boost":
+			saw_air_boost = true
+			break
+
+	if not saw_air_boost:
+		push_error("Air boost should reach boost root while gliding (state=%s)" % root_playback.get_current_node())
+		quit(1)
+		return
+
+	var saw_air_boost_loop := false
+	for _i in BOOST_WAIT_FRAMES:
+		await process_frame
+		if boost_playback.get_current_node() == &"loop":
+			saw_air_boost_loop = true
+			break
+
+	if not saw_air_boost_loop:
+		push_error("Air boost should snap to loop (state=%s)" % boost_playback.get_current_node())
+		quit(1)
+		return
+
 	for _i in BOOST_WAIT_FRAMES:
 		await process_frame
 
-	if root_playback.get_current_node() != &"boost":
-		push_error("Body did not enter boost on air Shift press (state=%s)" % root_playback.get_current_node())
-		quit(1)
-		return
-
-	var air_boost_sub := boost_playback.get_current_node()
-	if air_boost_sub != &"loop":
-		push_error("Air boost should snap to loop (state=%s)" % air_boost_sub)
-		quit(1)
-		return
-
 	Input.action_release("boost")
-	for _i in 12:
+	var saw_glide_after_boost := false
+	for _i in BOOST_WAIT_FRAMES:
 		await process_frame
+		var after_air_boost := root_playback.get_current_node()
+		if after_air_boost == &"glide" or after_air_boost == &"jump":
+			saw_glide_after_boost = true
+			break
 
-	var after_air_boost := root_playback.get_current_node()
-	if after_air_boost != &"glide" and after_air_boost != &"jump":
-		push_error("Body should return to glide/jump after air boost release (state=%s)" % after_air_boost)
+	if not saw_glide_after_boost:
+		push_error("Body should return to glide/jump after air boost release (state=%s)" % root_playback.get_current_node())
 		quit(1)
 		return
 
@@ -476,6 +540,8 @@ func _initialize() -> void:
 	Input.action_release("jump")
 	await process_frame
 	Input.action_press("jump")
+	await process_frame
+	Input.action_release("jump")
 	var saw_boost_for_jump := false
 	var saw_jump_from_boost := false
 	for _i in JUMP_AIR_WAIT_FRAMES:

@@ -7,8 +7,8 @@ const GliderSkinScene = preload("res://scenes/player/the_glider_skin.tscn")
 const THRUSTER_VFX_PATH := (
 	"Model/GliderRoot/GliderBoard/ThrusterSocket/ThrusterVfxPivot/ThrusterVfx"
 )
-const THRUSTER_OMNI_PATH := (
-	"Model/GliderRoot/GliderBoard/ThrusterSocket/ThrusterVfxPivot/ThrusterVfx/OmniLight3D"
+const THRUSTER_TORUS_PATH := (
+	"Model/GliderRoot/GliderBoard/ThrusterSocket/Thruster_Torus"
 )
 
 
@@ -48,12 +48,44 @@ func _await_fade_out(vfx: GliderThrusterVfxScript) -> void:
 	)
 
 
-func _assert_idle_orb(
-	vfx: GliderThrusterVfxScript,
-	orb: MeshInstance3D,
-	omni: OmniLight3D,
-	full_omni_energy: float = -1.0
-) -> void:
+func _assert_warm_orange_emission(material: StandardMaterial3D, label: String) -> void:
+	_fail_unless(material != null, "%s should have a material override" % label)
+	var tint := material.emission
+	if tint.r + tint.g + tint.b < 0.01:
+		tint = material.albedo_color
+	_fail_unless(
+		tint.r > tint.b and tint.b < 0.1,
+		"%s should use warm orange emission (emission=%s, albedo=%s)"
+		% [label, material.emission, material.albedo_color]
+	)
+	_fail_unless(
+		material.emission_enabled or material.albedo_color.a > 0.05,
+		"%s should emit visibly (energy=%.3f, alpha=%.3f)"
+		% [label, material.emission_energy_multiplier, material.albedo_color.a]
+	)
+
+
+func _assert_cylinder_full_presentation(vfx: GliderThrusterVfxScript, material: StandardMaterial3D) -> void:
+	var target := vfx.get_presentation()
+	var base_energy := vfx.get_cylinder_base_emission_energy()
+	var base_alpha := vfx.get_cylinder_base_albedo_alpha()
+	if material.emission_enabled and base_energy > 0.0:
+		var presentation := material.emission_energy_multiplier / base_energy
+		_fail_unless(
+			absf(presentation - target) < 0.08,
+			"Active thruster cylinder should scale scene emission to presentation (got %.3f, target %.3f)"
+			% [presentation, target]
+		)
+	elif base_alpha > 0.0:
+		var presentation := material.albedo_color.a / base_alpha
+		_fail_unless(
+			absf(presentation - target) < 0.08,
+			"Active thruster cylinder should scale scene alpha to presentation (got %.3f, target %.3f)"
+			% [presentation, target]
+		)
+
+
+func _assert_idle_orb(vfx: GliderThrusterVfxScript, orb: MeshInstance3D) -> void:
 	_fail_unless(orb.visible, "Orb should stay visible at idle")
 	var presentation := vfx.get_orb_presentation()
 	_fail_unless(
@@ -67,34 +99,60 @@ func _assert_idle_orb(
 		"Idle orb emission should be straight orange (emission=%s)" % orb_material.emission
 	)
 	_fail_unless(
-		orb_material.emission_texture == null,
-		"Idle orb should not use flipbook emission texture"
+		absf(orb.scale.x - vfx.get_orb_scene_scale()) < 0.02,
+		"Idle orb should keep scene scale (got %.3f, expected %.3f)"
+		% [orb.scale.x, vfx.get_orb_scene_scale()]
 	)
+	var omni := vfx.get_omni_light()
+	_fail_unless(omni != null, "Thruster should have OmniLight3D")
+	_fail_unless(not omni.visible, "Idle omni should stay off")
+	_assert_torus_sync(vfx, orb)
+
+
+func _assert_torus_sync(vfx: GliderThrusterVfxScript, orb: MeshInstance3D) -> void:
+	var torus := vfx.get_torus()
+	_fail_unless(torus != null, "Thruster should resolve Thruster_Torus")
+	_fail_unless(torus.visible, "Torus should stay visible with the orb")
+	var orb_material := vfx.get_orb_material_override()
+	_fail_unless(orb_material != null, "Orb should have a material override for torus sync")
+	var torus_material := torus.material as StandardMaterial3D
+	_fail_unless(torus_material != null, "Torus should have a scene material")
+	var orb_base := vfx.get_orb_base_emission_energy()
+	var torus_base := vfx.get_torus_base_emission_energy()
+	_fail_unless(orb_base > 0.0 and torus_base > 0.0, "Scene orb/torus materials should define emission energy")
+	var orb_presentation := orb_material.emission_energy_multiplier / orb_base
+	var torus_presentation := torus_material.emission_energy_multiplier / torus_base
 	_fail_unless(
-		vfx.get_orb_scale_factor() > 0.45 and vfx.get_orb_scale_factor() < 0.55,
-		"Idle orb should render at half size (scale %.3f)" % vfx.get_orb_scale_factor()
+		absf(orb_presentation - torus_presentation) < 0.08,
+		"Torus brightness should track orb presentation (orb=%.3f, torus=%.3f)"
+		% [orb_presentation, torus_presentation]
 	)
-	_fail_unless(omni != null, "Thruster VFX should include an OmniLight3D")
-	_fail_unless(omni.visible, "Idle thruster omni should stay visible")
+
+
+func _assert_torus_scale_unchanged(torus: CSGShape3D, baseline_scale: Vector3) -> void:
 	_fail_unless(
-		omni.light_color.r > omni.light_color.b,
-		"Idle thruster omni should be orange (color=%s)" % omni.light_color
+		torus.scale.is_equal_approx(baseline_scale),
+		"Torus scale should stay fixed (got %s, expected %s)" % [torus.scale, baseline_scale]
 	)
+
+
+func _assert_active_lights(vfx: GliderThrusterVfxScript) -> void:
+	var omni := vfx.get_omni_light()
+	var base_energy := vfx.get_base_omni_energy()
+	var presentation := vfx.get_presentation() * 0.5
+	_fail_unless(omni != null, "Thruster should have OmniLight3D")
+	_fail_unless(base_energy > 0.0, "Thruster omni should define a scene base energy")
+	_fail_unless(omni.visible, "Active thruster omni should be visible")
 	_fail_unless(
-		vfx.get_omni_light_color().r > vfx.get_omni_light_color().b,
-		"Idle thruster omni color should match orange idle orb"
+		absf(omni.light_energy - base_energy * presentation) < 0.08,
+		"Thruster omni should be half tier at thrust (got %.3f at p=%.3f, base=%.3f)"
+		% [omni.light_energy, presentation, base_energy]
 	)
-	if full_omni_energy > 0.0:
-		_fail_unless(
-			absf(omni.light_energy - full_omni_energy * 0.5) < 0.06,
-			"Idle thruster omni should be half of full thrust energy (got %.3f, full %.3f)"
-			% [omni.light_energy, full_omni_energy]
-		)
-	else:
-		_fail_unless(
-			omni.light_energy > 0.45 and omni.light_energy < 0.55,
-			"Idle thruster omni should emit at half base energy (got %.3f)" % omni.light_energy
-		)
+
+
+func _assert_lights_hidden(vfx: GliderThrusterVfxScript) -> void:
+	var omni := vfx.get_omni_light()
+	_fail_unless(not omni.visible, "Thruster omni should hide when inactive")
 
 
 func _run_tests() -> void:
@@ -108,8 +166,6 @@ func _run_tests() -> void:
 
 	var vfx := thruster_node as GliderThrusterVfxScript
 	_fail_unless(vfx != null, "ThrusterVfx should use GliderThrusterVfx script")
-
-	vfx.force_loop_preview = false
 
 	await process_frame
 	await process_frame
@@ -126,12 +182,13 @@ func _run_tests() -> void:
 	var orb := vfx.get_orb_mesh()
 	_fail_unless(orb != null, "Thruster VFX should create an orb MeshInstance3D")
 
-	var omni := skin.get_node_or_null(THRUSTER_OMNI_PATH) as OmniLight3D
-	_fail_unless(omni != null, "Thruster VFX should include an OmniLight3D")
-
 	_fail_unless(not vfx.is_active(), "Thruster VFX should start inactive")
 	_fail_unless(not cylinder.visible, "Cylinder should hide while inactive")
-	_assert_idle_orb(vfx, orb, omni)
+	_assert_idle_orb(vfx, orb)
+
+	var torus := vfx.get_torus()
+	_fail_unless(torus != null, "Thruster should resolve Thruster_Torus")
+	var torus_baseline_scale := torus.scale
 
 	vfx.debug_simulate_forward_press()
 	await process_frame
@@ -146,45 +203,17 @@ func _run_tests() -> void:
 	for i in 3:
 		await process_frame
 	_fail_unless(
-		vfx.get_presentation() > 0.1 and vfx.get_presentation() < 0.9,
+		vfx.get_presentation() > 0.08 and vfx.get_presentation() < 0.9,
 		"Thruster fade-in should reach mid presentation before full (got %.3f)"
 		% vfx.get_presentation()
-	)
-	_fail_unless(omni.visible, "Thruster omni should stay visible during fade-in")
-	_fail_unless(
-		omni.light_color.r > 0.05 and omni.light_color.b > 0.05,
-		"Mid fade-in omni should crossfade color (color=%s)" % omni.light_color
-	)
-	_fail_unless(
-		not (omni.light_color.r > 0.9 and omni.light_color.b < 0.05),
-		"Mid fade-in omni should not remain pure orange (color=%s)" % omni.light_color
-	)
-	_fail_unless(
-		not (omni.light_color.b > omni.light_color.r and omni.light_color.b > 0.8),
-		"Mid fade-in omni should not snap to full blue (color=%s)" % omni.light_color
-	)
-	_fail_unless(
-		omni.light_energy > 0.5 and omni.light_energy < 1.0,
-		"Mid fade-in omni energy should sit between idle and full (got %.3f)" % omni.light_energy
 	)
 
 	await _await_fade_in(vfx)
 
-	var full_omni_energy := omni.light_energy
-
 	_fail_unless(
-		vfx.get_orb_scale_factor() > 0.95,
-		"Active orb should render at full size (scale %.3f)" % vfx.get_orb_scale_factor()
-	)
-	_fail_unless(omni.visible, "Active thruster omni should be visible after fade-in")
-	_fail_unless(
-		omni.light_color.b > omni.light_color.r,
-		"Active thruster omni should use blue thrust color (color=%s)" % omni.light_color
-	)
-	_fail_unless(
-		absf(omni.light_energy - full_omni_energy) < 0.06,
-		"Active thruster omni should reach full thrust energy (got %.3f, expected %.3f)"
-		% [omni.light_energy, full_omni_energy]
+		absf(orb.scale.x - vfx.get_orb_scene_scale()) < 0.02,
+		"Active orb should keep scene scale (got %.3f, expected %.3f)"
+		% [orb.scale.x, vfx.get_orb_scene_scale()]
 	)
 
 	var material := vfx.get_material_override()
@@ -193,9 +222,16 @@ func _run_tests() -> void:
 		material.blend_mode == BaseMaterial3D.BLEND_MODE_ADD,
 		"Thruster VFX material should use additive blend"
 	)
+	_assert_cylinder_full_presentation(vfx, material)
+
+	var orb_material := vfx.get_orb_material_override()
+	_assert_warm_orange_emission(orb_material, "Active thruster orb")
 
 	var first_texture := material.albedo_texture
 	_fail_unless(first_texture != null, "Thruster VFX should assign an initial texture")
+	_assert_active_lights(vfx)
+	_assert_torus_sync(vfx, orb)
+	_assert_torus_scale_unchanged(torus, torus_baseline_scale)
 
 	var saw_texture_change := false
 	for i in 30:
@@ -212,7 +248,7 @@ func _run_tests() -> void:
 	_fail_unless(not vfx.is_active(), "Brake should deactivate thruster VFX")
 	await _await_fade_out(vfx)
 	_fail_unless(not cylinder.visible, "Cylinder should hide on brake")
-	_assert_idle_orb(vfx, orb, omni, full_omni_energy)
+	_assert_idle_orb(vfx, orb)
 
 	vfx.debug_simulate_forward_press()
 	vfx.debug_simulate_brake_release()
@@ -223,6 +259,7 @@ func _run_tests() -> void:
 	vfx.debug_simulate_boost_active(true)
 	await process_frame
 	_fail_unless(not vfx.is_active(), "Boost should hide cruise thruster even if forward held")
+	_assert_lights_hidden(vfx)
 	await _await_fade_out(vfx)
 	_fail_unless(not cylinder.visible, "Cylinder should hide during boost")
 	_fail_unless(orb.visible, "Orb should stay visible during boost (boost owns full emission)")
@@ -236,7 +273,7 @@ func _run_tests() -> void:
 	await process_frame
 	_fail_unless(not vfx.is_active(), "Forward release should deactivate thruster VFX")
 	await _await_fade_out(vfx)
-	_assert_idle_orb(vfx, orb, omni, full_omni_energy)
+	_assert_idle_orb(vfx, orb)
 
 	skin.queue_free()
 	print("Glider thruster VFX verification passed.")

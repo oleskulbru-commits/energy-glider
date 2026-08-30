@@ -6,6 +6,8 @@ const XFADE_START := 0.05
 const SAIL_XFADE := 0.2
 const AIR_XFADE := 0.2
 const JUMP_ENTER_XFADE := 0.05
+const JUMP_CHARGE_XFADE := 0.5
+const STRAFE_BLEND := 0.5
 
 
 func _initialize() -> void:
@@ -52,7 +54,8 @@ func _build_body_state_machine(
 	var sm := AnimationNodeStateMachine.new()
 	sm.add_node("grounded", _make_clip("Eve_Idle"), Vector2(0, 0))
 	sm.add_node("locomotion", locomotion, Vector2(280, 0))
-	sm.add_node("jump", _make_timescaled_one_shot_clip("Eve_Jump"), Vector2(560, -160))
+	sm.add_node("jump_charge", _make_seek_timescaled_clip("Eve_Jump"), Vector2(560, -280))
+	sm.add_node("jump", _make_seek_timescaled_clip("Eve_Jump"), Vector2(560, -160))
 	sm.add_node("glide", _make_loop_clip("Eve_Glide"), Vector2(840, -160))
 	sm.add_node("boost", boost, Vector2(560, 0))
 	sm.add_node("brake", brake, Vector2(560, 120))
@@ -60,7 +63,7 @@ func _build_body_state_machine(
 	sm.add_node("death", _make_clip("Eve_Idle"), Vector2(1400, 0))
 
 	var body_states := [
-		"grounded", "locomotion", "jump", "glide", "boost", "brake", "landing", "death",
+		"grounded", "locomotion", "jump_charge", "jump", "glide", "boost", "brake", "landing", "death",
 	]
 	for from_state in body_states:
 		for to_state in body_states:
@@ -82,6 +85,12 @@ func _uses_air_xfade(from_state: String, to_state: String) -> bool:
 func _body_transition_xfade(from_state: String, to_state: String) -> float:
 	if from_state == "landing":
 		return XFADE
+	if to_state == "jump_charge" and from_state in ["grounded", "locomotion", "boost", "brake"]:
+		return JUMP_CHARGE_XFADE
+	if from_state == "jump_charge" and to_state in ["grounded", "locomotion", "boost", "brake"]:
+		return JUMP_CHARGE_XFADE
+	if to_state == "jump" and from_state == "jump_charge":
+		return JUMP_ENTER_XFADE
 	if to_state == "jump" and from_state in ["grounded", "locomotion", "boost", "brake"]:
 		return JUMP_ENTER_XFADE
 	if to_state == "locomotion" and from_state == "grounded":
@@ -118,8 +127,8 @@ func _build_locomotion_state_machine(ease: Curve) -> AnimationNodeStateMachine:
 	sm.add_node("forward", _make_timescaled_clip("Eve_Forward"), Vector2(0, 0))
 	sm.add_node("turn_left", _make_clip("Eve_Turn_Left"), Vector2(280, -120))
 	sm.add_node("turn_right", _make_clip("Eve_Turn_Right"), Vector2(280, 120))
-	sm.add_node("strafe_left", _make_timescaled_clip("Eve_Forward"), Vector2(560, -120))
-	sm.add_node("strafe_right", _make_timescaled_clip("Eve_Forward"), Vector2(560, 120))
+	sm.add_node("strafe_left", _make_strafe_blend_clip("Eve_Turn_Left"), Vector2(560, -120))
+	sm.add_node("strafe_right", _make_strafe_blend_clip("Eve_Turn_Right"), Vector2(560, 120))
 
 	sm.add_transition("Start", "enter", _make_transition(XFADE_START, ease))
 	sm.add_transition("enter", "forward", _make_auto_end_transition(AIR_XFADE, ease))
@@ -201,6 +210,23 @@ func _make_timescaled_one_shot_clip(clip_name: String) -> AnimationNodeBlendTree
 	tree.add_node("clip", clip, Vector2(0, 100))
 	tree.add_node("time_scale", time_scale, Vector2(240, 100))
 	tree.connect_node(&"time_scale", 0, &"clip")
+	tree.connect_node(&"output", 0, &"time_scale")
+	return tree
+
+
+func _make_strafe_blend_clip(turn_clip_name: String) -> AnimationNodeBlendTree:
+	var tree := AnimationNodeBlendTree.new()
+	var forward := _make_clip("Eve_Forward")
+	var turn := _make_clip(turn_clip_name)
+	var blend := AnimationNodeBlend2.new()
+	var time_scale := AnimationNodeTimeScale.new()
+	tree.add_node("forward", forward, Vector2(0, 0))
+	tree.add_node("turn", turn, Vector2(0, 120))
+	tree.add_node("blend", blend, Vector2(240, 60))
+	tree.add_node("time_scale", time_scale, Vector2(480, 60))
+	tree.connect_node(&"blend", 0, &"forward")
+	tree.connect_node(&"blend", 1, &"turn")
+	tree.connect_node(&"time_scale", 0, &"blend")
 	tree.connect_node(&"output", 0, &"time_scale")
 	return tree
 

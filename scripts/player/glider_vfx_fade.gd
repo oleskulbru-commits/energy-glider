@@ -2,7 +2,7 @@ class_name GliderVfxFadeEnvelope
 extends RefCounted
 
 const DEFAULT_FADE_IN := 0.12
-const DEFAULT_FADE_OUT := 0.25
+const DEFAULT_FADE_OUT := 1.0
 const VISIBILITY_THRESHOLD := 0.02
 const DORMANT_EPSILON := 0.001
 
