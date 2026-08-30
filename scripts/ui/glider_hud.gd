@@ -13,6 +13,7 @@ const BATTERY_COLOR_EMPTY := Color(0.85, 0.28, 0.22)
 
 const GliderInputScript = preload("res://scripts/input/glider_input.gd")
 const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
+const LaserTargetReticleUIScript = preload("res://scripts/ui/laser_target_reticle_ui.gd")
 
 @onready var _power_label: Label = %PowerLabel
 @onready var _power_percent_label: Label = %PowerPercent
@@ -67,6 +68,7 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _range_label: Label = %RangeLabel
 @onready var _speed_label: Label = %SpeedLabel
 @onready var _weapon_tray: HBoxContainer = %WeaponTray
+@onready var _laser_target_reticle: LaserTargetReticleUIScript = %LaserTargetReticle
 
 var _rig: PlayerRig
 var _player: GliderPlayer
@@ -90,6 +92,7 @@ var _fail_overlay_style: StyleBoxEmpty
 
 func _ready() -> void:
 	layer = 10
+	add_to_group("glider_hud")
 	_rig = get_parent() as PlayerRig
 	if _rig != null:
 		_player = _rig.get_node_or_null("Glider") as GliderPlayer
@@ -831,3 +834,37 @@ func _on_stop_chip_gui_input(event: InputEvent) -> void:
 		return
 	_input.set_brake_ui_hold(mouse.pressed)
 	_stop_chip.accept_event()
+
+
+func set_laser_target_telegraph_active(active: bool) -> void:
+	if _laser_target_reticle == null:
+		return
+	if active:
+		var anchor := _player_reticle_screen_anchor()
+		_laser_target_reticle.show_telegraph()
+		_laser_target_reticle.update_telegraph(0.0, 0.0, anchor.screen_pos, anchor.valid)
+	else:
+		_laser_target_reticle.hide_telegraph()
+
+
+func update_laser_target_telegraph(elapsed: float, delta: float) -> void:
+	if _laser_target_reticle == null:
+		return
+	var anchor := _player_reticle_screen_anchor()
+	_laser_target_reticle.update_telegraph(elapsed, delta, anchor.screen_pos, anchor.valid)
+
+
+func _player_reticle_screen_anchor() -> Dictionary:
+	var fallback := get_viewport().get_visible_rect().size * 0.5
+	if _player == null or not is_instance_valid(_player):
+		return {"screen_pos": fallback, "valid": false}
+	if _camera == null and _rig != null:
+		_camera = _rig.get_node_or_null("Glider/GliderCamera") as GliderCamera
+		if _camera == null:
+			_camera = _rig.get_node_or_null("Glider/Camera3D") as GliderCamera
+	if _camera == null:
+		return {"screen_pos": fallback, "valid": false}
+	var world_pos := _player.global_position + Vector3(0.0, _camera.look_height, 0.0)
+	if _camera.is_position_behind(world_pos):
+		return {"screen_pos": fallback, "valid": false}
+	return {"screen_pos": _camera.unproject_position(world_pos), "valid": true}

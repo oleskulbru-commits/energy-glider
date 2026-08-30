@@ -185,6 +185,11 @@ static func pick_unique_targets(
 	var want := maxi(count, 0)
 	if want <= 0 or rng == null:
 		return found
+	var magnet := WeaponTargeting.find_laser_drone_magnet(pills, origin, facing, range_m)
+	if magnet != null:
+		for _i in want:
+			found.append(magnet)
+		return found
 	var candidates := AutoRifle.collect_candidates(pills, origin, facing, range_m)
 	var n := candidates.size()
 	for i in n:

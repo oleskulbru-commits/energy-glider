@@ -83,7 +83,7 @@ func _physics_process(delta: float) -> void:
 	if _target == null or not is_instance_valid(_target):
 		queue_free()
 		return
-	if not never_despawn and is_behind_facing(_target.global_position, _target_facing_xz(), global_position):
+	if can_despawn_when_behind() and not never_despawn and is_behind_facing(_target.global_position, _target_facing_xz(), global_position):
 		queue_free()
 		return
 
@@ -179,6 +179,10 @@ func _face_target() -> void:
 ## Subclasses implement weapons. Base is a no-op.
 func _update_weapons(_delta: float) -> void:
 	pass
+
+
+func can_despawn_when_behind() -> bool:
+	return true
 
 
 func can_fire_weapons() -> bool:

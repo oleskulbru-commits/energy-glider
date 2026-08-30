@@ -22,8 +22,9 @@ const CHARGER_SPAWN_CHANCE := 1.0 / 6.0
 const CHARGER_MIN_LEVEL := 4
 ## Drones unlock after crossing tower 4 (level 5+).
 const DRONE_MIN_LEVEL := CombatDroneScript.DRONE_MIN_LEVEL
+const LASER_KILL_COOLDOWN_SEC := 45.0
 ## Dev/test: invulnerable laser drone on level 1, 60 m ahead.
-const SPAWN_TEST_DRONE := false
+const SPAWN_TEST_DRONE := true
 const TEST_DRONE_AHEAD_M := 60.0
 
 @export var player_rig_path: NodePath
@@ -41,10 +42,13 @@ var _spawn_cooldown := 0.0
 var _grace_left := 0.0
 var _active: Array[Node] = []
 var _active_drones: Array[Node] = []
-var _next_drone_is_laser := true
 var _drone_level := 0
-var _drones_spawned_in_level := 0
-var _drone_spawn_thresholds: Array[float] = []
+var _lasers_spawned_in_level := 0
+var _missiles_spawned_in_level := 0
+var _laser_spawn_thresholds: Array[float] = []
+var _missile_spawn_thresholds: Array[float] = []
+var _active_laser: LaserDrone = null
+var _laser_kill_cooldown_left := 0.0
 var _test_missile_drone: CombatDroneScript = null
 
 
@@ -83,6 +87,7 @@ func _on_run_ended() -> void:
 
 func _physics_process(delta: float) -> void:
 	_cull_active()
+	_laser_kill_cooldown_left = maxf(_laser_kill_cooldown_left - delta, 0.0)
 	_spawn_cooldown = maxf(_spawn_cooldown - delta, 0.0)
 	if _grace_left > 0.0:
 		_grace_left = maxf(_grace_left - delta, 0.0)
@@ -123,16 +128,51 @@ func clear_stream() -> void:
 		if node != null and is_instance_valid(node):
 			node.queue_free()
 	_active_drones.clear()
-	_drone_level = 0
-	_drones_spawned_in_level = 0
-	_drone_spawn_thresholds.clear()
-	_test_missile_drone = null
+	_reset_drone_spawn_state()
 
 
 func reset_after_dawn() -> void:
 	clear_stream()
 	_grace_left = DAWN_SPAWN_GRACE_SEC
 	_spawn_cooldown = 0.0
+
+
+func _reset_drone_spawn_state() -> void:
+	_drone_level = 0
+	_lasers_spawned_in_level = 0
+	_missiles_spawned_in_level = 0
+	_laser_spawn_thresholds.clear()
+	_missile_spawn_thresholds.clear()
+	_active_laser = null
+	_laser_kill_cooldown_left = 0.0
+	_test_missile_drone = null
+
+
+static func laser_budget_for_level(level: int) -> int:
+	var total := CombatDroneScript.drone_cap_for_level(level)
+	if total <= 0:
+		return 0
+	return int(ceil(float(total) / 2.0))
+
+
+static func missile_budget_for_level(level: int) -> int:
+	var total := CombatDroneScript.drone_cap_for_level(level)
+	return maxi(total - laser_budget_for_level(level), 0)
+
+
+static func can_spawn_laser(
+	spawned: int,
+	budget: int,
+	cooldown_left: float,
+	has_active: bool
+) -> bool:
+	if has_active:
+		return false
+	if spawned >= budget:
+		return false
+	if cooldown_left > 0.0:
+		return false
+	return true
 
 
 func _should_spawn() -> bool:
@@ -199,21 +239,50 @@ func _try_spawn_drones(level: int) -> void:
 		return
 	if level != _drone_level:
 		_drone_level = level
-		_drones_spawned_in_level = 0
-		var budget := CombatDroneScript.drone_cap_for_level(level)
-		_drone_spawn_thresholds = _roll_drone_spawn_thresholds(budget)
-	var budget := CombatDroneScript.drone_cap_for_level(level)
-	if budget <= 0 or _drones_spawned_in_level >= budget:
+		_lasers_spawned_in_level = 0
+		_missiles_spawned_in_level = 0
+		_laser_kill_cooldown_left = 0.0
+		var laser_budget := laser_budget_for_level(level)
+		var missile_budget := missile_budget_for_level(level)
+		_laser_spawn_thresholds = _roll_drone_spawn_thresholds(laser_budget)
+		_missile_spawn_thresholds = _roll_drone_spawn_thresholds(missile_budget)
+	_try_spawn_laser(level)
+	_try_spawn_missile(level)
+
+
+func _try_spawn_laser(level: int) -> void:
+	var budget := laser_budget_for_level(level)
+	if not can_spawn_laser(
+		_lasers_spawned_in_level,
+		budget,
+		_laser_kill_cooldown_left,
+		_active_laser != null and is_instance_valid(_active_laser)
+	):
 		return
 	var track := _track_body()
 	if track == null:
 		return
 	if not drone_spawn_progress_allows(
-		track.global_position.x, level, _drones_spawned_in_level, _drone_spawn_thresholds
+		track.global_position.x, level, _lasers_spawned_in_level, _laser_spawn_thresholds
 	):
 		return
-	_spawn_drone(track, level)
-	_drones_spawned_in_level += 1
+	_spawn_laser_drone(track, level)
+	_lasers_spawned_in_level += 1
+
+
+func _try_spawn_missile(level: int) -> void:
+	var budget := missile_budget_for_level(level)
+	if _missiles_spawned_in_level >= budget:
+		return
+	var track := _track_body()
+	if track == null:
+		return
+	if not drone_spawn_progress_allows(
+		track.global_position.x, level, _missiles_spawned_in_level, _missile_spawn_thresholds
+	):
+		return
+	_spawn_missile_drone(track, level)
+	_missiles_spawned_in_level += 1
 
 
 ## spread 0 = all drones near cluster_center; spread 1 = evenly spaced midpoints.
@@ -294,7 +363,6 @@ func _spawn_test_missile_drone(track: Node3D) -> void:
 	drone.global_position = Vector3(world.x, world_y, world.z)
 	drone.invulnerable = true
 	drone.never_despawn = true
-	drone.uniform_laser_patterns = true
 	drone.configure(_terrain, track, CombatDroneScript.move_speed_for_drone_level(DRONE_MIN_LEVEL))
 	var bonus := 0.0
 	if _director != null:
@@ -304,7 +372,38 @@ func _spawn_test_missile_drone(track: Node3D) -> void:
 	_active_drones.append(drone)
 
 
-func _spawn_drone(track: Node3D, level: int) -> void:
+func _spawn_laser_drone(track: Node3D, level: int) -> void:
+	var world := _drone_spawn_position(track)
+	var drone: LaserDrone = LaserDroneScene.instantiate() as LaserDrone
+	add_child(drone)
+	drone.global_position = world
+	drone.configure(_terrain, track, CombatDroneScript.move_speed_for_drone_level(level))
+	var bonus := 0.0
+	if _director != null:
+		bonus = _director.difficulty_bonus()
+	drone.apply_difficulty(bonus)
+	if not drone.died.is_connected(_on_laser_killed):
+		drone.died.connect(_on_laser_killed)
+	if not drone.tree_exited.is_connected(_on_laser_tree_exited):
+		drone.tree_exited.connect(_on_laser_tree_exited.bind(drone))
+	_active_laser = drone
+	_active_drones.append(drone)
+
+
+func _spawn_missile_drone(track: Node3D, level: int) -> void:
+	var world := _drone_spawn_position(track)
+	var drone: MissileDrone = MissileDroneScene.instantiate() as MissileDrone
+	add_child(drone)
+	drone.global_position = world
+	drone.configure(_terrain, track, CombatDroneScript.move_speed_for_drone_level(level))
+	var bonus := 0.0
+	if _director != null:
+		bonus = _director.difficulty_bonus()
+	drone.apply_difficulty(bonus)
+	_active_drones.append(drone)
+
+
+func _drone_spawn_position(track: Node3D) -> Vector3:
 	var facing := _facing_xz()
 	var ahead_m := CombatDroneScript.spawn_ahead_m()
 	var lateral := _rng.randf_range(-12.0, 12.0)
@@ -313,18 +412,17 @@ func _spawn_drone(track: Node3D, level: int) -> void:
 	var world_y := track.global_position.y + CombatDroneScript.CRUISE_HEIGHT_M
 	if _terrain != null:
 		world_y = _terrain.sample_height(world.x, world.z) + CombatDroneScript.CRUISE_HEIGHT_M
+	return Vector3(world.x, world_y, world.z)
 
-	var scene: PackedScene = LaserDroneScene if _next_drone_is_laser else MissileDroneScene
-	_next_drone_is_laser = not _next_drone_is_laser
-	var drone: CombatDroneScript = scene.instantiate() as CombatDroneScript
-	add_child(drone)
-	drone.global_position = Vector3(world.x, world_y, world.z)
-	drone.configure(_terrain, track, CombatDroneScript.move_speed_for_drone_level(level))
-	var bonus := 0.0
-	if _director != null:
-		bonus = _director.difficulty_bonus()
-	drone.apply_difficulty(bonus)
-	_active_drones.append(drone)
+
+func _on_laser_killed() -> void:
+	_active_laser = null
+	_laser_kill_cooldown_left = LASER_KILL_COOLDOWN_SEC
+
+
+func _on_laser_tree_exited(drone: LaserDrone) -> void:
+	if _active_laser == drone:
+		_active_laser = null
 
 
 func _facing_xz() -> Vector3:
@@ -369,3 +467,5 @@ func _cull_active() -> void:
 		if node != null and is_instance_valid(node) and not node.is_queued_for_deletion():
 			drones.append(node)
 	_active_drones = drones
+	if _active_laser != null and (not is_instance_valid(_active_laser) or _active_laser.is_queued_for_deletion()):
+		_active_laser = null
