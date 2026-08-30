@@ -8,6 +8,7 @@ const INITIAL_LOAD_RADIUS := LOAD_RADIUS
 const MAX_MESH_FINALIZE_PER_FRAME := 1
 const MAX_COLLISION_FINALIZE_PER_FRAME := 1
 const LevelRunScript = preload("res://scripts/game/level_run.gd")
+const RUN_SESSION_PATH := "user://run_session.cfg"
 
 @export var world_seed: int = 42
 @export var sand_material: Material
@@ -44,12 +45,15 @@ func _ready() -> void:
 
 func _apply_session_seed() -> void:
 	var cfg := ConfigFile.new()
-	if cfg.load("user://run_session.cfg") != OK:
-		LevelRunScript.ensure(world_seed)
-		return
-	if cfg.has_section_key("terrain", "world_seed"):
+	cfg.load(RUN_SESSION_PATH)
+	if OS.has_feature("editor"):
+		# F5 / editor play should roll a fresh run so tower shops vary while iterating.
+		world_seed = randi()
+	elif cfg.has_section_key("terrain", "world_seed"):
 		world_seed = int(cfg.get_value("terrain", "world_seed"))
-	LevelRunScript.ensure(world_seed)
+	cfg.set_value("terrain", "world_seed", world_seed)
+	cfg.save(RUN_SESSION_PATH)
+	LevelRunScript.generate(world_seed)
 
 
 func _prewarm_height_cache() -> void:

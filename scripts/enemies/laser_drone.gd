@@ -4,6 +4,7 @@ extends "res://scripts/enemies/combat_drone.gd"
 ## Glass-cannon drone: shrinking HUD reticle telegraph, then one unavoidable 35-damage blast.
 
 const GliderHUDScript = preload("res://scripts/ui/glider_hud.gd")
+const GliderPhysicsScript = preload("res://scripts/player/glider_physics.gd")
 const LaserDroneTelegraphScript = preload("res://scripts/enemies/laser_drone_telegraph.gd")
 const DroneLaserBlastScript = preload("res://scripts/enemies/drone_laser_blast.gd")
 const LaserDroneFlareScript = preload("res://scripts/enemies/laser_drone_flare.gd")
@@ -14,11 +15,15 @@ const TELEGRAPH_TOTAL_SEC := (
 )
 const BLAST_DAMAGE := 35
 const RELOAD_SEC := 5.0
-const FLEE_RADIUS_M := 50.0
+## Inside this radius the drone kites away; between here and lock-on is engage (hold).
+const ENGAGE_INNER_M := 35.0
+## Reticle countdown starts once the player closes within this XZ distance.
+const LOCK_ON_RANGE_M := 180.0
 
 enum AttackPhase { CHARGE, RELOAD }
 
 var _attack_phase := AttackPhase.CHARGE
+var _telegraph_armed := false
 var _telegraph_elapsed := 0.0
 var _reload_left := 0.0
 var _has_fired_blast := false
@@ -50,21 +55,58 @@ func can_despawn_when_behind() -> bool:
 	return _has_fired_blast
 
 
+static func is_within_lock_on_range(dist_m: float) -> bool:
+	return dist_m <= LOCK_ON_RANGE_M
+
+
+static func movement_zone_for_distance(dist_m: float) -> String:
+	if dist_m > LOCK_ON_RANGE_M:
+		return "acquire"
+	if dist_m >= ENGAGE_INNER_M:
+		return "engage"
+	return "flee"
+
+
+static func acquire_speed_for_player_bonus(speed_bonus: float = 0.0) -> float:
+	return GliderPhysicsScript.flat_max_speed(false, speed_bonus)
+
+
+func _is_player_in_lock_on_range() -> bool:
+	return is_within_lock_on_range(xz_distance_to_target())
+
+
+func _player_cruise_speed_mps() -> float:
+	var bonus := 0.0
+	if _target is GliderPlayer:
+		var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
+		if state != null:
+			bonus = state.glider_speed_bonus
+	return acquire_speed_for_player_bonus(bonus)
+
+
 func desired_velocity_xz() -> Vector3:
 	if _target == null or not is_instance_valid(_target):
 		return Vector3.ZERO
 	if _stun_left > 0.0:
 		return Vector3.ZERO
 	var dist := xz_distance_to_target()
-	if dist > FLEE_RADIUS_M:
-		return Vector3.ZERO
-	var away := global_position - _target.global_position
-	away.y = 0.0
-	if away.length_squared() < 0.0001:
-		away = Vector3(1.0, 0.0, 0.0)
-	else:
-		away = away.normalized()
-	return away * _get_move_speed()
+	match movement_zone_for_distance(dist):
+		"acquire":
+			var toward := _target.global_position - global_position
+			toward.y = 0.0
+			if toward.length_squared() < 0.0001:
+				return Vector3.ZERO
+			return toward.normalized() * _player_cruise_speed_mps()
+		"engage":
+			return Vector3.ZERO
+		_:
+			var away := global_position - _target.global_position
+			away.y = 0.0
+			if away.length_squared() < 0.0001:
+				away = Vector3(1.0, 0.0, 0.0)
+			else:
+				away = away.normalized()
+			return away * _get_move_speed()
 
 
 func _update_fly_state() -> void:
@@ -99,11 +141,17 @@ func _tick_reload(delta: float) -> void:
 	if _reload_left > 0.0:
 		return
 	_attack_phase = AttackPhase.CHARGE
+	_telegraph_armed = false
 	_telegraph_elapsed = 0.0
-	_ensure_reticle()
 
 
 func _tick_charge(delta: float) -> void:
+	if not _telegraph_armed:
+		_update_flare()
+		if not _is_player_in_lock_on_range():
+			return
+		_telegraph_armed = true
+		_telegraph_elapsed = 0.0
 	_ensure_reticle()
 	_telegraph_elapsed += delta
 	_update_reticle(delta)
@@ -162,6 +210,12 @@ func _update_flare() -> void:
 		_flare.set_reload_phase(true)
 		return
 	_flare.set_reload_phase(false)
+	if not _telegraph_armed:
+		if _flare.has_method("set_acquire_phase"):
+			_flare.set_acquire_phase(true)
+		return
+	if _flare.has_method("set_acquire_phase"):
+		_flare.set_acquire_phase(false)
 	var ratio := clampf(_telegraph_elapsed / TELEGRAPH_TOTAL_SEC, 0.0, 1.0)
 	_flare.set_charge_phase(true, ratio)
 

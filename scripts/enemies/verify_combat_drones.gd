@@ -152,8 +152,36 @@ func _verify_laser_rework() -> void:
 	_fail_unless(LaserDroneScript.BLAST_DAMAGE == 35, "Laser blast should deal 35")
 	_fail_unless(is_equal_approx(LaserDroneScript.RELOAD_SEC, 5.0), "Laser reload should be 5 s")
 	_fail_unless(
-		is_equal_approx(LaserDroneScript.FLEE_RADIUS_M, 50.0),
-		"Laser flee radius should be 50 m"
+		is_equal_approx(LaserDroneScript.ENGAGE_INNER_M, 35.0),
+		"Laser flee band should start inside 35 m"
+	)
+	_fail_unless(
+		is_equal_approx(LaserDroneScript.LOCK_ON_RANGE_M, 180.0),
+		"Laser lock-on range should be 180 m"
+	)
+	_fail_unless(
+		LaserDroneScript.movement_zone_for_distance(200.0) == "acquire",
+		"Beyond 180 m should be acquire"
+	)
+	_fail_unless(
+		LaserDroneScript.movement_zone_for_distance(100.0) == "engage",
+		"35-180 m should be engage"
+	)
+	_fail_unless(
+		LaserDroneScript.movement_zone_for_distance(20.0) == "flee",
+		"Inside 35 m should flee"
+	)
+	_fail_unless(
+		is_equal_approx(LaserDroneScript.acquire_speed_for_player_bonus(0.0), 26.6),
+		"Acquire chase should match player cruise max without boost"
+	)
+	_fail_unless(
+		LaserDroneScript.is_within_lock_on_range(120.0),
+		"Player within 180 m should allow laser lock-on"
+	)
+	_fail_unless(
+		not LaserDroneScript.is_within_lock_on_range(220.0),
+		"Player beyond 180 m should not start laser lock-on"
 	)
 	_fail_unless(DroneLaserBlastScript.DAMAGE == 35, "Blast damage alias should be 35")
 	_fail_unless(
@@ -221,15 +249,22 @@ func _verify_laser_rework() -> void:
 	var laser: LaserDrone = LaserDroneScript.new()
 	root.add_child(laser)
 	laser.configure(null, player, 15.0)
+	laser.global_position = Vector3(-200.0, 8.0, 0.0)
+	var acquire := laser.desired_velocity_xz()
+	_fail_unless(acquire.x > 0.0, "Laser should chase the player in acquire zone")
+	_fail_unless(
+		is_equal_approx(acquire.length(), LaserDroneScript.acquire_speed_for_player_bonus(0.0)),
+		"Acquire chase should use player cruise max speed"
+	)
 	laser.global_position = Vector3(-80.0, 8.0, 0.0)
 	_fail_unless(
 		laser.desired_velocity_xz().is_equal_approx(Vector3.ZERO),
-		"Laser should hover when player is beyond flee radius"
+		"Laser should hold in the engage zone"
 	)
 	laser.global_position = Vector3(-20.0, 8.0, 0.0)
 	var flee := laser.desired_velocity_xz()
-	_fail_unless(flee.x < 0.0, "Laser should flee away from the player within 50 m")
-	_fail_unless(is_equal_approx(flee.length(), 15.0), "Laser flee should use move speed")
+	_fail_unless(flee.x < 0.0, "Laser should flee away from the player inside 35 m")
+	_fail_unless(is_equal_approx(flee.length(), 15.0), "Laser flee should use drone move speed")
 
 	var health: PlayerHealth = PlayerHealthScript.new()
 	root.add_child(health)
@@ -273,10 +308,21 @@ func _verify_laser_rework() -> void:
 	var charge_laser: LaserDrone = LaserDroneScript.new()
 	root.add_child(charge_laser)
 	charge_laser.configure(null, charge_player, 15.0)
-	charge_laser.global_position = Vector3(-20.0, 8.0, 0.0)
 	charge_player.global_position = Vector3.ZERO
+	charge_laser.global_position = Vector3(-250.0, 8.0, 0.0)
 	_fail_unless(not charge_laser.can_despawn_when_behind(), "Laser should not despawn behind until it fires")
 	var step := 1.0 / 60.0
+	for _i in 30:
+		charge_laser._update_weapons(step)
+	_fail_unless(
+		not bool(charge_laser.get("_telegraph_armed")),
+		"Laser should not arm while the player is outside lock-on range"
+	)
+	_fail_unless(
+		not bool(charge_laser.get("_ui_reticle_active")),
+		"Reticle should stay hidden until lock-on"
+	)
+	charge_laser.global_position = Vector3(-20.0, 8.0, 0.0)
 	var frames := int(ceil(LaserDroneTelegraphScript.telegraph_total_sec() / step)) + 1
 	for _i in frames:
 		charge_laser._update_weapons(step)

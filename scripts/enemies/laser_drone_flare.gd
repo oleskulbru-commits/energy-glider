@@ -34,6 +34,14 @@ func _process(delta: float) -> void:
 		_light.light_energy = energy
 
 
+func set_acquire_phase(active: bool) -> void:
+	_reload_scale = 1.0
+	if active:
+		_charge_boost = 0.35
+	else:
+		_charge_boost = 0.2
+
+
 func set_charge_phase(active: bool, telegraph_ratio: float = 0.0) -> void:
 	_reload_scale = 1.0
 	if active:
