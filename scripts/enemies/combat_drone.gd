@@ -268,7 +268,7 @@ func _is_spawn_active() -> bool:
 static func drone_cap_for_level(level: int) -> int:
 	if level < DRONE_MIN_LEVEL:
 		return 0
-	return int(ceil(float(level) / 2.0))
+	return level - DRONE_MIN_LEVEL + 1
 
 
 static func move_speed_for_drone_level(level: int) -> float:

@@ -64,10 +64,11 @@ func _verify_cap_and_speed() -> void:
 	_fail_unless(CombatDroneScript.DRONE_MIN_LEVEL == 5, "Drones unlock at level 5")
 	_fail_unless(EnemyStreamSpawnerScript.DRONE_MIN_LEVEL == 5, "Spawner drone min level should be 5")
 	_fail_unless(CombatDroneScript.drone_cap_for_level(4) == 0, "Level 4 should have 0 drones")
-	_fail_unless(CombatDroneScript.drone_cap_for_level(5) == 3, "Level 5 should have ceil(5/2)=3 drones")
-	_fail_unless(CombatDroneScript.drone_cap_for_level(6) == 3, "Level 6 should have ceil(6/2)=3 drones")
-	_fail_unless(CombatDroneScript.drone_cap_for_level(7) == 4, "Level 7 should have ceil(7/2)=4 drones")
-	_fail_unless(CombatDroneScript.drone_cap_for_level(10) == 5, "Level 10 should have ceil(10/2)=5 drones")
+	_fail_unless(CombatDroneScript.drone_cap_for_level(5) == 1, "Level 5 should have 1 drone")
+	_fail_unless(CombatDroneScript.drone_cap_for_level(6) == 2, "Level 6 should have 2 drones")
+	_fail_unless(CombatDroneScript.drone_cap_for_level(7) == 3, "Level 7 should have 3 drones")
+	_fail_unless(CombatDroneScript.drone_cap_for_level(8) == 4, "Level 8 should have 4 drones")
+	_fail_unless(CombatDroneScript.drone_cap_for_level(10) == 6, "Level 10 should have 6 drones")
 	_fail_unless(
 		is_equal_approx(CombatDroneScript.move_speed_for_drone_level(5), 15.0),
 		"Level 5 drone speed should be 15 m/s"
@@ -401,42 +402,58 @@ func _advance_blast_to_impact(blast: DroneLaserBlast) -> void:
 
 
 func _verify_laser_spawn_rules() -> void:
+	var plan_rng := RandomNumberGenerator.new()
+	plan_rng.seed = 9001
+	var level8_plan := EnemyStreamSpawnerScript.build_drone_spawn_plan(8, plan_rng)
+	_fail_unless(level8_plan.size() == 4, "Level 8 should roll four drone slots")
+	var level5_plan := EnemyStreamSpawnerScript.build_drone_spawn_plan(5, plan_rng)
+	_fail_unless(level5_plan.size() == 1, "Level 5 should roll one drone slot")
 	_fail_unless(
-		EnemyStreamSpawnerScript.laser_budget_for_level(5) == 2,
-		"Level 5 should allocate 2 laser drones"
+		EnemyStreamSpawnerScript.drone_spawn_thresholds_from_plan(level8_plan).size() == 4,
+		"Spawn plan should expose one threshold per slot"
 	)
 	_fail_unless(
-		EnemyStreamSpawnerScript.missile_budget_for_level(5) == 1,
-		"Level 5 should allocate 1 missile drone"
+		not EnemyStreamSpawnerScript.can_spawn_laser_now(0.0, true),
+		"Active laser should block another laser spawn"
 	)
 	_fail_unless(
-		EnemyStreamSpawnerScript.laser_budget_for_level(7) == 2,
-		"Level 7 should allocate 2 laser drones"
-	)
-	_fail_unless(
-		EnemyStreamSpawnerScript.missile_budget_for_level(7) == 2,
-		"Level 7 should allocate 2 missile drones"
-	)
-	_fail_unless(
-		EnemyStreamSpawnerScript.can_spawn_laser(0, 2, 0.0, false),
-		"Should allow first laser when budget remains and no cooldown"
-	)
-	_fail_unless(
-		not EnemyStreamSpawnerScript.can_spawn_laser(0, 2, 1.0, false),
+		not EnemyStreamSpawnerScript.can_spawn_laser_now(1.0, false),
 		"Kill cooldown should block laser spawn"
 	)
 	_fail_unless(
+		EnemyStreamSpawnerScript.can_spawn_laser_now(0.0, false),
+		"Laser should spawn when no active laser and no cooldown"
+	)
+	_fail_unless(
+		EnemyStreamSpawnerScript.can_spawn_laser(0, 2, 0.0, false),
+		"Legacy laser budget helper should allow first spawn"
+	)
+	_fail_unless(
+		not EnemyStreamSpawnerScript.can_spawn_laser(0, 2, 1.0, false),
+		"Legacy laser budget helper should respect cooldown"
+	)
+	_fail_unless(
 		not EnemyStreamSpawnerScript.can_spawn_laser(0, 2, 0.0, true),
-		"Active laser should block another spawn"
+		"Legacy laser budget helper should respect active laser"
 	)
 	_fail_unless(
 		not EnemyStreamSpawnerScript.can_spawn_laser(2, 2, 0.0, false),
-		"Laser budget exhaustion should block spawn"
+		"Legacy laser budget helper should respect exhausted budget"
 	)
 	_fail_unless(
 		is_equal_approx(EnemyStreamSpawnerScript.LASER_KILL_COOLDOWN_SEC, 45.0),
-		"Laser kill cooldown should be 45 s"
+		"Laser respawn cooldown should be 45 s after kill or despawn"
 	)
+	_fail_unless(
+		not EnemyStreamSpawnerScript.should_start_laser_cooldown_on_exit(null, null),
+		"Exiting laser should not start cooldown when spawner already cleared active ref"
+	)
+	var fake_active := LaserDroneScript.new()
+	_fail_unless(
+		EnemyStreamSpawnerScript.should_start_laser_cooldown_on_exit(fake_active, fake_active),
+		"Despawned active laser should start respawn cooldown"
+	)
+	fake_active.free()
 
 
 func _verify_missile_hail() -> void:

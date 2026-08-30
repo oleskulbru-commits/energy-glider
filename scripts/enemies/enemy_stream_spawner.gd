@@ -23,6 +23,7 @@ const CHARGER_MIN_LEVEL := 4
 ## Drones unlock after crossing tower 4 (level 5+).
 const DRONE_MIN_LEVEL := CombatDroneScript.DRONE_MIN_LEVEL
 const LASER_KILL_COOLDOWN_SEC := 45.0
+## After a laser drone is killed or despawns, wait this long before another can spawn.
 ## Dev/test: invulnerable laser drone on level 1, 60 m ahead.
 const SPAWN_TEST_DRONE := false
 const TEST_DRONE_AHEAD_M := 60.0
@@ -34,6 +35,15 @@ const TEST_DRONE_AHEAD_M := 60.0
 @export var spawn_interval_sec := 0.35
 @export var spawns_per_tick_max := 2
 
+class DroneSpawnSlot:
+	var is_laser := false
+	var threshold := 0.0
+
+	func _init(laser: bool, thresh: float) -> void:
+		is_laser = laser
+		threshold = thresh
+
+
 var _rig: PlayerRig
 var _terrain: TerrainManager
 var _director: EonDirectorScript
@@ -43,10 +53,8 @@ var _grace_left := 0.0
 var _active: Array[Node] = []
 var _active_drones: Array[Node] = []
 var _drone_level := 0
-var _lasers_spawned_in_level := 0
-var _missiles_spawned_in_level := 0
-var _laser_spawn_thresholds: Array[float] = []
-var _missile_spawn_thresholds: Array[float] = []
+var _drones_spawned_in_level := 0
+var _drone_spawn_plan: Array = []
 var _active_laser: LaserDrone = null
 var _laser_kill_cooldown_left := 0.0
 var _test_missile_drone: CombatDroneScript = null
@@ -139,25 +147,55 @@ func reset_after_dawn() -> void:
 
 func _reset_drone_spawn_state() -> void:
 	_drone_level = 0
-	_lasers_spawned_in_level = 0
-	_missiles_spawned_in_level = 0
-	_laser_spawn_thresholds.clear()
-	_missile_spawn_thresholds.clear()
+	_drones_spawned_in_level = 0
+	_drone_spawn_plan.clear()
 	_active_laser = null
 	_laser_kill_cooldown_left = 0.0
 	_test_missile_drone = null
 
 
-static func laser_budget_for_level(level: int) -> int:
-	var total := CombatDroneScript.drone_cap_for_level(level)
-	if total <= 0:
-		return 0
-	return int(ceil(float(total) / 2.0))
+static func drone_spawn_thresholds_from_plan(plan: Array) -> Array[float]:
+	var thresholds: Array[float] = []
+	for slot in plan:
+		if slot is DroneSpawnSlot:
+			thresholds.append(slot.threshold)
+	return thresholds
 
 
-static func missile_budget_for_level(level: int) -> int:
-	var total := CombatDroneScript.drone_cap_for_level(level)
-	return maxi(total - laser_budget_for_level(level), 0)
+static func build_drone_spawn_plan(level: int, rng: RandomNumberGenerator) -> Array:
+	var budget := CombatDroneScript.drone_cap_for_level(level)
+	if budget <= 0 or rng == null:
+		return []
+	var spread := rng.randf()
+	var cluster_center := rng.randf_range(0.18, 0.82)
+	var thresholds := build_drone_spawn_thresholds(budget, spread, cluster_center, rng)
+	var plan: Array = []
+	for i in budget:
+		plan.append(DroneSpawnSlot.new(rng.randf() < 0.5, thresholds[i]))
+	return plan
+
+
+static func count_laser_slots(plan: Array) -> int:
+	var count := 0
+	for slot in plan:
+		if slot is DroneSpawnSlot and slot.is_laser:
+			count += 1
+	return count
+
+
+static func can_spawn_laser_now(cooldown_left: float, has_active: bool) -> bool:
+	if has_active:
+		return false
+	if cooldown_left > 0.0:
+		return false
+	return true
+
+
+static func should_start_laser_cooldown_on_exit(
+	active_laser: LaserDrone,
+	exiting: LaserDrone
+) -> bool:
+	return active_laser != null and exiting != null and active_laser == exiting
 
 
 static func can_spawn_laser(
@@ -166,6 +204,7 @@ static func can_spawn_laser(
 	cooldown_left: float,
 	has_active: bool
 ) -> bool:
+	# Legacy helper for tests that still pass explicit laser budgets.
 	if has_active:
 		return false
 	if spawned >= budget:
@@ -239,50 +278,38 @@ func _try_spawn_drones(level: int) -> void:
 		return
 	if level != _drone_level:
 		_drone_level = level
-		_lasers_spawned_in_level = 0
-		_missiles_spawned_in_level = 0
+		_drones_spawned_in_level = 0
 		_laser_kill_cooldown_left = 0.0
-		var laser_budget := laser_budget_for_level(level)
-		var missile_budget := missile_budget_for_level(level)
-		_laser_spawn_thresholds = _roll_drone_spawn_thresholds(laser_budget)
-		_missile_spawn_thresholds = _roll_drone_spawn_thresholds(missile_budget)
-	_try_spawn_laser(level)
-	_try_spawn_missile(level)
+		_drone_spawn_plan = build_drone_spawn_plan(level, _rng)
+	_try_spawn_next_drone_slot(level)
 
 
-func _try_spawn_laser(level: int) -> void:
-	var budget := laser_budget_for_level(level)
-	if not can_spawn_laser(
-		_lasers_spawned_in_level,
-		budget,
-		_laser_kill_cooldown_left,
-		_active_laser != null and is_instance_valid(_active_laser)
-	):
+func _try_spawn_next_drone_slot(level: int) -> void:
+	if _drones_spawned_in_level >= _drone_spawn_plan.size():
 		return
 	var track := _track_body()
 	if track == null:
 		return
+	var thresholds := drone_spawn_thresholds_from_plan(_drone_spawn_plan)
 	if not drone_spawn_progress_allows(
-		track.global_position.x, level, _lasers_spawned_in_level, _laser_spawn_thresholds
+		track.global_position.x, level, _drones_spawned_in_level, thresholds
 	):
 		return
-	_spawn_laser_drone(track, level)
-	_lasers_spawned_in_level += 1
+	var slot: DroneSpawnSlot = _drone_spawn_plan[_drones_spawned_in_level]
+	if slot.is_laser:
+		if not can_spawn_laser_now(
+			_laser_kill_cooldown_left,
+			_active_laser != null and is_instance_valid(_active_laser)
+		):
+			return
+		_spawn_laser_drone(track, level)
+	else:
+		_spawn_missile_drone(track, level)
+	_drones_spawned_in_level += 1
 
 
-func _try_spawn_missile(level: int) -> void:
-	var budget := missile_budget_for_level(level)
-	if _missiles_spawned_in_level >= budget:
-		return
-	var track := _track_body()
-	if track == null:
-		return
-	if not drone_spawn_progress_allows(
-		track.global_position.x, level, _missiles_spawned_in_level, _missile_spawn_thresholds
-	):
-		return
-	_spawn_missile_drone(track, level)
-	_missiles_spawned_in_level += 1
+func _roll_drone_spawn_plan(level: int) -> Array:
+	return build_drone_spawn_plan(level, _rng)
 
 
 ## spread 0 = all drones near cluster_center; spread 1 = evenly spaced midpoints.
@@ -417,12 +444,18 @@ func _drone_spawn_position(track: Node3D) -> Vector3:
 
 func _on_laser_killed() -> void:
 	_active_laser = null
-	_laser_kill_cooldown_left = LASER_KILL_COOLDOWN_SEC
+	_start_laser_cooldown()
 
 
 func _on_laser_tree_exited(drone: LaserDrone) -> void:
-	if _active_laser == drone:
-		_active_laser = null
+	if not should_start_laser_cooldown_on_exit(_active_laser, drone):
+		return
+	_active_laser = null
+	_start_laser_cooldown()
+
+
+func _start_laser_cooldown() -> void:
+	_laser_kill_cooldown_left = LASER_KILL_COOLDOWN_SEC
 
 
 func _facing_xz() -> Vector3:
