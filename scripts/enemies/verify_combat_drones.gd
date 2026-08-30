@@ -185,6 +185,34 @@ func _verify_laser_rework() -> void:
 		> LaserTargetReticleUIScript.bracket_half_spread(LaserDroneTelegraphScript.END_SCALE),
 		"Bracket reticle should close inward over the telegraph"
 	)
+	_fail_unless(
+		is_equal_approx(LaserDroneTelegraphScript.circle_trace_progress(8.0), 0.0),
+		"Ring trace should start at the blink phase"
+	)
+	_fail_unless(
+		is_equal_approx(LaserDroneTelegraphScript.circle_trace_progress(9.0), 0.5),
+		"Ring trace should be halfway through after 1 s of blink"
+	)
+	_fail_unless(
+		is_equal_approx(LaserDroneTelegraphScript.circle_trace_progress(10.0), 1.0),
+		"Ring trace should complete when the blast fires"
+	)
+	_fail_unless(
+		is_equal_approx(
+			LaserTargetReticleUIScript.outer_ring_radius(LaserDroneTelegraphScript.END_SCALE),
+			LaserTargetReticleUIScript.bracket_half_spread(LaserDroneTelegraphScript.END_SCALE)
+			+ LaserTargetReticleUIScript.BAR_LENGTH_PX
+		),
+		"Ring should pass through the outer tips of the bracket bars"
+	)
+	_fail_unless(
+		LaserDroneTelegraphScript.brackets_visible(8.06),
+		"Bracket bars should flash during the 2 s ring phase"
+	)
+	_fail_unless(
+		not LaserDroneTelegraphScript.brackets_visible(8.13),
+		"Bracket bars should alternate off during the ring phase"
+	)
 
 	var player := Node3D.new()
 	root.add_child(player)
@@ -213,6 +241,26 @@ func _verify_laser_rework() -> void:
 	_fail_unless(blast.is_finished(), "Laser pulse should finish after impact")
 	blast.free()
 	health.free()
+
+	var chase_player := Node3D.new()
+	root.add_child(chase_player)
+	chase_player.global_position = Vector3.ZERO
+	var chase_blast: DroneLaserBlast = DroneLaserBlastScript.fire(
+		self, Vector3(-40.0, 10.0, 0.0), chase_player, null, 35
+	)
+	var chase_step := 1.0 / 60.0
+	var chase_elapsed := 0.0
+	while chase_elapsed < 4.0 and is_instance_valid(chase_blast) and not chase_blast.is_finished():
+		chase_player.global_position.x += 22.0 * chase_step
+		chase_blast.advance(chase_step)
+		chase_elapsed += chase_step
+	_fail_unless(chase_blast.is_finished(), "Homing pulse should impact after catching the player")
+	_fail_unless(
+		chase_blast.global_position.x > 4.0,
+		"Homing pulse should pursue the player's live position, not the fire-time lock"
+	)
+	chase_blast.free()
+	chase_player.free()
 
 	var charge_health: PlayerHealth = PlayerHealthScript.new()
 	var charge_rig := Node3D.new()

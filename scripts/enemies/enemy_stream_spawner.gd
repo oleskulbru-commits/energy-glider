@@ -24,7 +24,7 @@ const CHARGER_MIN_LEVEL := 4
 const DRONE_MIN_LEVEL := CombatDroneScript.DRONE_MIN_LEVEL
 const LASER_KILL_COOLDOWN_SEC := 45.0
 ## Dev/test: invulnerable laser drone on level 1, 60 m ahead.
-const SPAWN_TEST_DRONE := true
+const SPAWN_TEST_DRONE := false
 const TEST_DRONE_AHEAD_M := 60.0
 
 @export var player_rig_path: NodePath

@@ -15,6 +15,10 @@ const GliderInputScript = preload("res://scripts/input/glider_input.gd")
 const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 const LaserTargetReticleUIScript = preload("res://scripts/ui/laser_target_reticle_ui.gd")
 
+const LASER_HIT_HUE_COLOR := Color(0.92, 0.1, 0.06, 1.0)
+const LASER_HIT_HUE_PEAK_ALPHA := 0.42
+const LASER_HIT_HUE_FADE_SEC := 2.0
+
 @onready var _power_label: Label = %PowerLabel
 @onready var _power_percent_label: Label = %PowerPercent
 @onready var _solar_chip: PanelContainer = %SolarChip
@@ -23,6 +27,7 @@ const LaserTargetReticleUIScript = preload("res://scripts/ui/laser_target_reticl
 @onready var _battery_bar: ProgressBar = %BatteryBar
 @onready var _stopped_overlay: PanelContainer = %StoppedOverlay
 @onready var _fail_fade: ColorRect = %FailFade
+@onready var _laser_hit_hue: ColorRect = %LaserHitHue
 @onready var _stopped_title: Label = %StoppedTitle
 @onready var _stopped_distance: Label = %StoppedDistance
 @onready var _death_buttons: HBoxContainer = %DeathButtons
@@ -87,6 +92,7 @@ var _night_warning_timer := 0.0
 var _safe_pulse_time := 0.0
 var _fail_fade_tween: Tween
 var _fail_fade_active := false
+var _laser_hit_hue_tween: Tween
 var _fail_overlay_style: StyleBoxEmpty
 
 
@@ -145,6 +151,11 @@ func _ready() -> void:
 		_fail_fade.color = Color(0, 0, 0, 0)
 		_fail_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_fail_fade.z_index = 100
+	if _laser_hit_hue != null:
+		_laser_hit_hue.visible = false
+		_laser_hit_hue.color = Color(LASER_HIT_HUE_COLOR.r, LASER_HIT_HUE_COLOR.g, LASER_HIT_HUE_COLOR.b, 0.0)
+		_laser_hit_hue.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_laser_hit_hue.z_index = 95
 	call_deferred("_connect_weapon_tray")
 	if _stopped_overlay != null:
 		_stopped_overlay.z_index = 101
@@ -852,6 +863,39 @@ func update_laser_target_telegraph(elapsed: float, delta: float) -> void:
 		return
 	var anchor := _player_reticle_screen_anchor()
 	_laser_target_reticle.update_telegraph(elapsed, delta, anchor.screen_pos, anchor.valid)
+
+
+func play_laser_drone_hit_hue() -> void:
+	if _laser_hit_hue == null:
+		return
+	if _laser_hit_hue_tween != null:
+		_laser_hit_hue_tween.kill()
+		_laser_hit_hue_tween = null
+	_laser_hit_hue.visible = true
+	_laser_hit_hue.color = Color(
+		LASER_HIT_HUE_COLOR.r,
+		LASER_HIT_HUE_COLOR.g,
+		LASER_HIT_HUE_COLOR.b,
+		LASER_HIT_HUE_PEAK_ALPHA
+	)
+	_laser_hit_hue_tween = create_tween()
+	_laser_hit_hue_tween.tween_property(
+		_laser_hit_hue, "color:a", 0.0, LASER_HIT_HUE_FADE_SEC
+	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	_laser_hit_hue_tween.finished.connect(_on_laser_hit_hue_fade_finished, CONNECT_ONE_SHOT)
+
+
+func _on_laser_hit_hue_fade_finished() -> void:
+	_laser_hit_hue_tween = null
+	if _laser_hit_hue == null:
+		return
+	_laser_hit_hue.visible = false
+	_laser_hit_hue.color = Color(
+		LASER_HIT_HUE_COLOR.r,
+		LASER_HIT_HUE_COLOR.g,
+		LASER_HIT_HUE_COLOR.b,
+		0.0
+	)
 
 
 func _player_reticle_screen_anchor() -> Dictionary:
