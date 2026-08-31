@@ -3,6 +3,7 @@ extends SceneTree
 const CombatDroneScript = preload("res://scripts/enemies/combat_drone.gd")
 const LaserDroneScript = preload("res://scripts/enemies/laser_drone.gd")
 const MissileDroneScript = preload("res://scripts/enemies/missile_drone.gd")
+const MachineGunDroneScript = preload("res://scripts/enemies/machine_gun_drone.gd")
 const DroneLaserBlastScript = preload("res://scripts/enemies/drone_laser_blast.gd")
 const LaserDroneTelegraphScript = preload("res://scripts/enemies/laser_drone_telegraph.gd")
 const LaserTargetReticleUIScript = preload("res://scripts/ui/laser_target_reticle_ui.gd")
@@ -45,6 +46,9 @@ func _run() -> void:
 	if _failed:
 		return
 	_verify_missile_hail()
+	if _failed:
+		return
+	_verify_machine_gun_drone()
 	if _failed:
 		return
 	_verify_air_targeting()
@@ -471,6 +475,14 @@ func _verify_laser_spawn_rules() -> void:
 		"Laser should spawn when no active laser and no cooldown"
 	)
 	_fail_unless(
+		not EnemyStreamSpawnerScript.can_spawn_mg_now(true),
+		"Active MG drone should block another MG spawn"
+	)
+	_fail_unless(
+		EnemyStreamSpawnerScript.can_spawn_mg_now(false),
+		"MG drone should spawn when none is active"
+	)
+	_fail_unless(
 		EnemyStreamSpawnerScript.can_spawn_laser(0, 2, 0.0, false),
 		"Legacy laser budget helper should allow first spawn"
 	)
@@ -601,6 +613,174 @@ func _verify_missile_hail() -> void:
 	reticle.place(Vector3(1.0, 2.0, 3.0), 0.5)
 	_fail_unless(is_instance_valid(reticle), "Ground reticle should spawn")
 	reticle.queue_free()
+
+
+func _verify_machine_gun_drone() -> void:
+	_fail_unless(
+		is_equal_approx(MachineGunDroneScript.CHARGE_TRIGGER_M, 100.0),
+		"MG drone should charge within 100 m"
+	)
+	_fail_unless(
+		is_equal_approx(MachineGunDroneScript.MG_FIRE_INTERVAL_SEC, 0.05),
+		"MG fire interval should be 0.05 s"
+	)
+	_fail_unless(MachineGunDroneScript.PASS_DAMAGE == 15, "MG pass-by damage should be 15")
+	_fail_unless(
+		MachineGunDroneScript.should_begin_charge(100.0),
+		"MG drone should begin charge at 100 m ahead on lane"
+	)
+	_fail_unless(
+		not MachineGunDroneScript.should_begin_charge(100.1),
+		"MG drone should stay aligned beyond 100 m ahead"
+	)
+
+	var facing := Vector3(-1.0, 0.0, 0.0)
+	var player := Vector3(0.0, 0.0, 0.0)
+	var drone_west := Vector3(-400.0, 0.0, 20.0)
+	_fail_unless(
+		is_equal_approx(MachineGunDroneScript.lateral_offset_m(drone_west, player, facing), 20.0),
+		"Positive lateral offset should read +20 m"
+	)
+	var pass_heading := MachineGunDroneScript.lane_pass_heading(
+		drone_west, Vector3(-150.0, 0.0, 0.0), facing
+	)
+	_fail_unless(
+		pass_heading.x > 0.9 and absf(pass_heading.z) < 0.1,
+		"Lane pass heading should run east through the player when aligned"
+	)
+	var mirrored := MachineGunDroneScript.mirror_align_position(
+		Vector3(-400.0, 8.0, 20.0),
+		Vector3(0.0, 4.0, -35.0),
+		-400.0
+	)
+	_fail_unless(
+		is_equal_approx(mirrored.x, -400.0),
+		"Align mirror should keep spawn X locked"
+	)
+	_fail_unless(
+		is_equal_approx(mirrored.z, -35.0),
+		"Align mirror should copy player world Z exactly"
+	)
+	_fail_unless(
+		is_equal_approx(mirrored.y, 8.0),
+		"Align mirror should leave height to cruise snap"
+	)
+	_fail_unless(
+		is_equal_approx(MachineGunDroneScript.westbound_ahead_m(-400.0, -300.0), 100.0),
+		"Westbound ahead should use world X separation"
+	)
+	_fail_unless(
+		MachineGunDroneScript.charge_heading_xz(
+			Vector3(-400.0, 0.0, -80.0),
+			Vector3(-250.0, 0.0, -80.0)
+		).is_equal_approx(Vector3(1.0, 0.0, 0.0)),
+		"Charge should run along X while Z stays mirrored"
+	)
+
+	var start_heading := Vector3(-1.0, 0.0, 0.0)
+	var turn_target := Vector3(0.0, 0.0, -1.0)
+	var turned := MachineGunDroneScript.rotate_heading_toward(
+		start_heading, turn_target, MachineGunDroneScript.CHARGE_TURN_RATE_DEG, 1.0
+	)
+	var turned_deg := rad_to_deg(acos(clampf(start_heading.dot(turned), -1.0, 1.0)))
+	_fail_unless(
+		turned_deg <= MachineGunDroneScript.CHARGE_TURN_RATE_DEG + 0.01,
+		"MG charge turn rate should cap per second"
+	)
+
+	_fail_unless(
+		MachineGunDroneScript.player_in_pass_hitbox(Vector3(0.4, 0.0, 0.0), Vector3.ZERO),
+		"Pass damage should require overlap with the drone cube on XZ"
+	)
+	_fail_unless(
+		MachineGunDroneScript.player_in_pass_hitbox(Vector3(0.0, 8.0, 0.0), Vector3(0.0, 1.0, 0.0)),
+		"Pass damage should hit when the drone passes overhead above the player"
+	)
+	_fail_unless(
+		not MachineGunDroneScript.player_in_pass_hitbox(
+			Vector3(10.0, 0.0, 0.0), Vector3(0.0, 0.0, 5.0)
+		),
+		"Pass damage should not hit a wide Z miss"
+	)
+
+	var mg = MachineGunDroneScript.new()
+	root.add_child(mg)
+	_fail_unless(mg.invulnerable, "MG drone should spawn invulnerable")
+	_fail_unless(not mg.take_damage(999), "Invulnerable MG drone should ignore damage")
+
+	var rig := Node3D.new()
+	root.add_child(rig)
+	var player_body := CharacterBody3D.new()
+	rig.add_child(player_body)
+	player_body.global_position = Vector3.ZERO
+	var health := PlayerHealthScript.new()
+	rig.add_child(health)
+	mg.configure(null, player_body, 15.0)
+	mg.set("_phase", MachineGunDroneScript.FlyPhase.CHARGE)
+	mg.set("_charge_heading", Vector3(1.0, 0.0, 0.0))
+	mg.global_position = Vector3(-0.4, 0.0, 0.0)
+	mg._try_pass_damage()
+	_fail_unless(bool(mg.get("_pass_damage_dealt")), "Pass damage should hit when cube overlaps player")
+	_fail_unless(health.get_current() == 35, "Pass-by should deal 15 damage once")
+	mg.set("_pass_damage_dealt", false)
+	health.reset_full()
+	mg.global_position = Vector3(10.0, 0.0, 0.0)
+	player_body.global_position = Vector3(0.0, 0.0, 5.0)
+	mg._try_pass_damage()
+	_fail_unless(not bool(mg.get("_pass_damage_dealt")), "Wide miss should not deal pass damage")
+	_fail_unless(health.get_current() == 50, "Wide miss should deal no pass damage")
+	mg._check_pass_transition()
+	_fail_unless(
+		int(mg.get("_phase")) == MachineGunDroneScript.FlyPhase.EXIT,
+		"Drone should still exit after passing player on X"
+	)
+	mg.set("_phase", MachineGunDroneScript.FlyPhase.CHARGE)
+	mg.set("_pass_damage_dealt", false)
+	health.reset_full()
+	mg.global_position = Vector3(-0.4, 8.0, 0.0)
+	player_body.global_position = Vector3(0.0, 1.0, 0.0)
+	mg._try_pass_damage()
+	_fail_unless(
+		bool(mg.get("_pass_damage_dealt")),
+		"Overhead pass should deal damage when aligned on XZ"
+	)
+	_fail_unless(health.get_current() == 35, "Overhead pass should deal 15 damage once")
+	mg.free()
+	rig.free()
+
+	var plan_rng := RandomNumberGenerator.new()
+	plan_rng.seed = 424242
+	var mg_count := 0
+	var laser_count := 0
+	var missile_count := 0
+	for level in range(5, 13):
+		var plan := EnemyStreamSpawnerScript.build_drone_spawn_plan(level, plan_rng)
+		mg_count += EnemyStreamSpawnerScript.count_drone_type_slots(
+			plan, EnemyStreamSpawnerScript.DroneType.MACHINE_GUN
+		)
+		laser_count += EnemyStreamSpawnerScript.count_laser_slots(plan)
+		missile_count += EnemyStreamSpawnerScript.count_drone_type_slots(
+			plan, EnemyStreamSpawnerScript.DroneType.MISSILE
+		)
+	var total := mg_count + laser_count + missile_count
+	_fail_unless(total > 0, "Spawn plan should include drones")
+	_fail_unless(mg_count > 0, "Spawn plan should include MG drones")
+	_fail_unless(laser_count > 0, "Spawn plan should include laser drones")
+	_fail_unless(missile_count > 0, "Spawn plan should include missile drones")
+	var mg_share := float(mg_count) / float(total)
+	_fail_unless(
+		mg_share > 0.2 and mg_share < 0.45,
+		"MG drones should roll near one third of slots"
+	)
+
+	var invuln: CombatDrone = MachineGunDroneScript.new()
+	root.add_child(invuln)
+	invuln.global_position = Vector3(-12.0, 0.0, 0.0)
+	var candidates := AutoRifleScript.collect_candidates(
+		[invuln], Vector3.ZERO, Vector3(-1.0, 0.0, 0.0), 40.0
+	)
+	_fail_unless(candidates.is_empty(), "Invulnerable drones should be skipped by weapon targeting")
+	invuln.free()
 
 
 func _verify_air_targeting() -> void:
