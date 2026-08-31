@@ -17,6 +17,7 @@ const AIR_VOLLEY_CENTER_JITTER_MAX_M := 4.0
 const HAIL_COOLDOWN_SEC := 7.0
 const FALL_TELEGRAPH_SEC := DroneRocketScript.FLIGHT_SEC
 const STAGGER_SEC := 0.1
+const SPAWN_SLOT_COUNT := 6
 
 var _cooldown_left := 1.5
 var _rng_hail := RandomNumberGenerator.new()
@@ -24,6 +25,7 @@ var _pending_offsets: Array[Vector3] = []
 var _stagger_left := 0.0
 var _firing_hail := false
 var _hail_center_bias := Vector3.ZERO
+var _hail_rockets_fired := 0
 
 
 func _ready() -> void:
@@ -58,6 +60,7 @@ func _begin_hail() -> void:
 	_hail_center_bias = Vector3(cos(bias_angle) * bias_dist, 0.0, sin(bias_angle) * bias_dist)
 	_firing_hail = true
 	_stagger_left = 0.0
+	_hail_rockets_fired = 0
 	_fire_next_rocket()
 
 
@@ -81,11 +84,20 @@ func _fire_next_rocket() -> void:
 		parent = self
 	var rocket = DroneRocketScript.new()
 	parent.add_child(rocket)
+	var slot_index := _hail_rockets_fired % SPAWN_SLOT_COUNT
+	var spawn_slot := _get_spawn_slot(slot_index)
+	var spawn_transform := _get_spawn_slot_transform(slot_index)
+	_hail_rockets_fired += 1
 	if uses_air_targeting():
 		var lead := _lead_point_3d()
 		var air_offset := air_offset_from_ground(offset, _rng_hail)
 		var impact := lead + _hail_center_bias + air_offset
-		rocket.launch_to_air_point(global_position, impact)
+		rocket.launch_to_air_point(
+			spawn_transform.origin,
+			impact,
+			spawn_transform,
+			spawn_slot
+		)
 	else:
 		var lead := _lead_point()
 		var impact := lead + offset
@@ -95,10 +107,31 @@ func _fire_next_rocket() -> void:
 		var reticle = GroundReticleScript.new()
 		parent.add_child(reticle)
 		reticle.place(ground, FALL_TELEGRAPH_SEC)
-		rocket.launch_from_drone(global_position, ground, _terrain)
+		rocket.launch_from_drone(
+			spawn_transform.origin,
+			ground,
+			_terrain,
+			spawn_transform,
+			spawn_slot
+		)
 	_stagger_left = STAGGER_SEC
 	if _pending_offsets.is_empty():
 		_firing_hail = false
+
+
+func _get_spawn_slot(slot_index: int) -> Node3D:
+	var visual := get_node_or_null("Visual")
+	if visual == null:
+		return null
+	var slot_name := "Missile_Projectile_%d" % (slot_index + 1)
+	return visual.find_child(slot_name, true, false) as Node3D
+
+
+func _get_spawn_slot_transform(slot_index: int) -> Transform3D:
+	var slot := _get_spawn_slot(slot_index)
+	if slot != null:
+		return slot.global_transform
+	return global_transform
 
 
 func _target_velocity() -> Vector3:

@@ -1,9 +1,9 @@
 class_name DroneRocket
 extends Area3D
 
-## Lofted hail rocket using player rocket visuals. Reaches its mark in FLIGHT_SEC.
+## Lofted hail rocket with drone missile mesh and particle trail.
 
-const RocketMissileScene = preload("res://scenes/weapons/rocket_missile.tscn")
+const DroneMissileProjectileScene = preload("res://scenes/enemies/drone_missile_projectile.tscn")
 const DroneGroundBlastScript = preload("res://scripts/enemies/drone_ground_blast.gd")
 
 enum FlightMode { GROUND_ARC, AIR_LINEAR }
@@ -35,7 +35,9 @@ var _pass_traveled := 0.0
 func launch_from_drone(
 	origin: Vector3,
 	impact: Vector3,
-	terrain: TerrainManager = null
+	terrain: TerrainManager = null,
+	spawn_transform: Transform3D = Transform3D.IDENTITY,
+	visual_template: Node = null
 ) -> void:
 	_flight_mode = FlightMode.GROUND_ARC
 	_pass_through = false
@@ -47,13 +49,18 @@ func launch_from_drone(
 	_impact = Vector3(impact.x, ground_y, impact.z)
 	_flight_t = 0.0
 	_spent = false
-	global_position = _origin
+	_apply_spawn_transform(spawn_transform, origin)
 	_dir = arc_velocity(_origin, _impact, 0.0)
-	_steal_player_visuals()
+	_attach_projectile_visual(visual_template)
 	_orient()
 
 
-func launch_to_air_point(origin: Vector3, impact_3d: Vector3) -> void:
+func launch_to_air_point(
+	origin: Vector3,
+	impact_3d: Vector3,
+	spawn_transform: Transform3D = Transform3D.IDENTITY,
+	visual_template: Node = null
+) -> void:
 	_flight_mode = FlightMode.AIR_LINEAR
 	_pass_through = false
 	_terrain = null
@@ -61,14 +68,30 @@ func launch_to_air_point(origin: Vector3, impact_3d: Vector3) -> void:
 	_impact = impact_3d
 	_flight_t = 0.0
 	_spent = false
-	global_position = _origin
+	_apply_spawn_transform(spawn_transform, origin)
 	var delta := _impact - _origin
 	if delta.length_squared() < 0.0001:
 		_dir = Vector3.FORWARD
 	else:
 		_dir = delta.normalized()
-	_steal_player_visuals()
+	_attach_projectile_visual(visual_template)
 	_orient()
+
+
+func _apply_spawn_transform(spawn_transform: Transform3D, origin: Vector3) -> void:
+	if spawn_transform != Transform3D.IDENTITY:
+		global_transform = spawn_transform
+		_origin = global_position
+	else:
+		global_position = origin
+
+
+func get_trail() -> CPUParticles3D:
+	return find_child("Trail", true, false) as CPUParticles3D
+
+
+func uses_drone_missile_visual() -> bool:
+	return get_node_or_null("ProjectileVisual") != null
 
 
 func _ready() -> void:
@@ -217,20 +240,36 @@ func _find_player_body() -> Node3D:
 	return null
 
 
-func _steal_player_visuals() -> void:
-	# Build the same capsule/streak/trail as rocket_missile.tscn without running its script.
-	if get_node_or_null("Visual") != null:
+func _attach_projectile_visual(visual_template: Node = null) -> void:
+	if get_node_or_null("ProjectileVisual") != null:
 		return
-	var template: Node = RocketMissileScene.instantiate()
-	for child_name in ["Visual", "Streak", "Trail"]:
-		var src := template.get_node_or_null(child_name)
-		if src == null:
-			continue
-		var copy := src.duplicate()
-		if child_name == "Trail" and copy is CPUParticles3D:
-			_tint_trail_blue(copy as CPUParticles3D)
-		add_child(copy)
-	template.queue_free()
+	var visual_root := Node3D.new()
+	visual_root.name = "ProjectileVisual"
+	add_child(visual_root)
+	if visual_template != null and _duplicate_template_visuals(visual_root, visual_template):
+		_tint_trail_nodes(visual_root)
+		return
+	var fallback: Node3D = DroneMissileProjectileScene.instantiate()
+	visual_root.add_child(fallback)
+	_tint_trail_nodes(visual_root)
+
+
+func _duplicate_template_visuals(visual_root: Node3D, visual_template: Node) -> bool:
+	var copied := false
+	if visual_template is MeshInstance3D or visual_template is CSGShape3D:
+		visual_root.add_child(visual_template.duplicate())
+		return true
+	for child in visual_template.get_children():
+		if child is Node3D:
+			visual_root.add_child(child.duplicate())
+			copied = true
+	return copied
+
+
+func _tint_trail_nodes(root: Node) -> void:
+	var trail := root.find_child("Trail", true, false) as CPUParticles3D
+	if trail != null:
+		_tint_trail_blue(trail)
 
 
 func _tint_trail_blue(trail: CPUParticles3D) -> void:

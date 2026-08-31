@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://dpfc3r14weqc3"]
+
+[ext_resource type="PackedScene" uid="uid://bthxxa63biywm" path="res://assets/3dmodels/enemies/drones/Rebel_Drone_Body_v001.glb" id="1_body"]
+
+[node name="DroneBodySkin" type="Node3D"]
+
+[node name="Body" parent="." instance=ExtResource("1_body")]

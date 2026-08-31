@@ -20,6 +20,7 @@ const AIR_TARGETING_EXIT_SEC := 0.35
 enum FlyState { APPROACH, KITE, CATCH_UP }
 
 var fly_state: int = FlyState.APPROACH
+var _visual: Node3D
 var _cube: MeshInstance3D
 var _cube_color := Color(0.85, 0.15, 0.12)
 var _airborne_time := 0.0
@@ -50,9 +51,11 @@ func configure(terrain: TerrainManager, target: Node3D, speed: float = BASE_MOVE
 
 
 func _ensure_cube_visual() -> void:
-	var old_visual := get_node_or_null("Visual")
-	if old_visual != null:
-		old_visual.queue_free()
+	var scene_visual := get_node_or_null("Visual") as Node3D
+	if scene_visual != null:
+		_visual = scene_visual
+		return
+
 	_cube = get_node_or_null("Cube") as MeshInstance3D
 	if _cube == null:
 		_cube = MeshInstance3D.new()
@@ -239,7 +242,9 @@ func _die(from_pos: Vector3) -> void:
 	var collision := get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if collision != null:
 		collision.disabled = true
-	if _cube != null:
+	if _visual != null:
+		_visual.visible = false
+	elif _cube != null:
 		_cube.visible = false
 	died.emit()
 	queue_free()

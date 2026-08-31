@@ -532,6 +532,8 @@ func _verify_missile_hail() -> void:
 	var rocket: DroneRocket = DroneRocketScript.new()
 	root.add_child(rocket)
 	rocket.launch_from_drone(origin, impact)
+	_fail_unless(rocket.uses_drone_missile_visual(), "Drone rocket should attach a projectile visual")
+	_fail_unless(rocket.get_trail() != null, "Drone rocket should include a CPUParticles3D trail")
 	var elapsed := 0.0
 	var step := 1.0 / 60.0
 	while elapsed < DroneRocketScript.FLIGHT_SEC + step and not bool(rocket.get("_spent")):

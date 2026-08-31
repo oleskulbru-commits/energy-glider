@@ -1,6 +1,7 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene format=3 uid="uid://d06xplc6i3drw"]
 
 [ext_resource type="Script" path="res://scripts/enemies/missile_drone.gd" id="1_missile"]
+[ext_resource type="PackedScene" uid="uid://c8missiledrskin1" path="res://scenes/enemies/missile_drone_skin.tscn" id="2_skin"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_body"]
 size = Vector3(1.4, 1.4, 1.4)
@@ -12,3 +13,5 @@ script = ExtResource("1_missile")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("BoxShape3D_body")
+
+[node name="Visual" parent="." instance=ExtResource("2_skin")]

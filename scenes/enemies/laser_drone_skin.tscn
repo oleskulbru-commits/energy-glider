@@ -1,0 +1,43 @@
+[gd_scene format=3 uid="uid://dshlk53s6gucm"]
+
+[ext_resource type="PackedScene" uid="uid://dpfc3r14weqc3" path="res://scenes/enemies/drone_body_skin.tscn" id="1_body_skin"]
+[ext_resource type="Texture2D" uid="uid://crr472fyv05qe" path="res://assets/3dmodels/enemies/drones/drone_laser_module_v001_drone_laser_cannon_basecolor.jpg" id="2_basecolor"]
+[ext_resource type="PackedScene" uid="uid://moqvolggobts" path="res://assets/3dmodels/enemies/drones/drone_laser_module_v001.glb" id="2_laser_module"]
+[ext_resource type="Texture2D" uid="uid://be8obmqhj6big" path="res://assets/3dmodels/enemies/drones/drone_laser_module_v001_drone_laser_cannon_metallic.JPEG-drone_laser_cannon_roughness.png" id="3_metallic_roughness"]
+[ext_resource type="Texture2D" uid="uid://pe8kguguo3uq" path="res://assets/3dmodels/enemies/drones/drone_laser_module_v001_drone_laser_cannon_normal.jpg" id="4_normal"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_laser"]
+resource_name = "Laser_Materials"
+cull_mode = 2
+albedo_texture = ExtResource("2_basecolor")
+metallic = 1.0
+metallic_texture = ExtResource("3_metallic_roughness")
+metallic_texture_channel = 2
+roughness_texture = ExtResource("3_metallic_roughness")
+roughness_texture_channel = 1
+normal_enabled = true
+normal_texture = ExtResource("4_normal")
+uv1_scale = Vector3(-0.23, 0.115, 1)
+texture_filter = 2
+metadata/_gltf_primary_texture_coord = 0
+
+[node name="LaserDroneSkin" type="Node3D" unique_id=918097358]
+
+[node name="Body" parent="." unique_id=958847883 instance=ExtResource("1_body_skin")]
+
+[node name="CSGCylinder3D" type="CSGCylinder3D" parent="Body" unique_id=1544172360]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.004001394, 0.35843623)
+material_override = SubResource("StandardMaterial3D_laser")
+radius = 0.028320313
+height = 0.14003418
+
+[node name="Weapon_Pivot" type="Node3D" parent="Body/CSGCylinder3D" unique_id=889987755]
+transform = Transform3D(0.45, 0, 0, 0, 0.45, 0, 0, 0, 0.45, 0, -0.015617151, 0.0013711452)
+
+[node name="WeaponModule" parent="Body/CSGCylinder3D/Weapon_Pivot" unique_id=1039405588 instance=ExtResource("2_laser_module")]
+transform = Transform3D(1.27, 0, 0, 0, 1.27, 0, 0, 0, 1.27, 0, -0.629, 0.07)
+
+[node name="Drone_Laser_Cannon" parent="Body/CSGCylinder3D/Weapon_Pivot/WeaponModule" index="0" unique_id=2058229223]
+transform = Transform3D(0.99999994, 0, 0, 0, 0.99999994, 0, 0, 0, 0.99999994, 0, 0.1235421, -0.08951825)
+
+[editable path="Body/CSGCylinder3D/Weapon_Pivot/WeaponModule"]
