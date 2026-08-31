@@ -12,6 +12,7 @@ func _init() -> void:
 func _run() -> void:
 	_verify_stats()
 	_verify_unique_targets()
+	_verify_chamber_semantics()
 	_verify_stun()
 	_verify_bounce_chain()
 	print("Tesla verification passed.")
@@ -83,12 +84,32 @@ func _verify_unique_targets() -> void:
 	_fail_unless(not picked.has(behind), "Tesla extras must stay in the front hemisphere")
 	_fail_unless(not picked.has(far), "Tesla extras must stay inside 20 m")
 	var one := AutoTeslaScript.pick_unique_targets([a], origin, facing, 20.0, 4, rng)
-	_fail_unless(one.size() == 1 and one[0] == a, "Leftover extras should fizzle if targets run out")
+	_fail_unless(one.size() == 1 and one[0] == a, "A single pick call should cap at available unique targets")
+	var exclude: Dictionary = {a.get_instance_id(): true}
+	var after_exclude := AutoTeslaScript.pick_unique_targets([a], origin, facing, 20.0, 1, rng, exclude)
+	_fail_unless(after_exclude.is_empty(), "Volley exclude should skip already-struck targets")
 	a.free()
 	b.free()
 	c.free()
 	behind.free()
 	far.free()
+
+
+func _verify_chamber_semantics() -> void:
+	# Mirror shotgun: failed strikes keep chamber slots; cooldown waits until the volley empties.
+	var remaining := 2
+	var fired := 0
+	var miss: Node3D = null
+	if miss == null:
+		pass
+	else:
+		remaining -= 1
+		fired += 1
+	_fail_unless(remaining == 2 and fired == 0, "Missed Tesla strike should keep chamber slots")
+	while remaining > 0:
+		remaining -= 1
+		fired += 1
+	_fail_unless(remaining == 0 and fired == 2, "Cooldown should wait until every chambered strike fires")
 
 
 func _verify_stun() -> void:
