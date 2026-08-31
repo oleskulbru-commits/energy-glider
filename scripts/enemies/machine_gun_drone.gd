@@ -8,7 +8,7 @@ const DroneMgRoundScript = preload("res://scripts/enemies/drone_mg_round.gd")
 
 const CHARGE_TRIGGER_M := 100.0
 const CHARGE_SPEED_MPS := 28.0
-const CHARGE_TURN_RATE_DEG := 28.0
+const CHARGE_TURN_RATE_DEG := 34.0
 const MG_FIRE_INTERVAL_SEC := 0.05
 const PASS_DAMAGE := 15
 const PASS_HIT_HALF_XZ_M := CUBE_SIZE_M * 0.5
