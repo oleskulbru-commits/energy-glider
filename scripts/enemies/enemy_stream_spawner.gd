@@ -62,6 +62,7 @@ var _drone_spawn_plan: Array = []
 var _active_laser: LaserDrone = null
 var _laser_kill_cooldown_left := 0.0
 var _active_mg_drone: Node = null
+var _test_mg_drone_spawned := false
 
 
 func _ready() -> void:
@@ -156,6 +157,7 @@ func _reset_drone_spawn_state() -> void:
 	_active_laser = null
 	_laser_kill_cooldown_left = 0.0
 	_active_mg_drone = null
+	_test_mg_drone_spawned = false
 
 
 static func drone_spawn_thresholds_from_plan(plan: Array) -> Array[float]:
@@ -396,12 +398,15 @@ func _try_spawn_test_mg_drone(level: int) -> void:
 		return
 	if level != 1:
 		return
+	if _test_mg_drone_spawned:
+		return
 	if _active_mg_drone != null and is_instance_valid(_active_mg_drone):
 		return
 	var track := _track_body()
 	if track == null:
 		return
 	_spawn_test_mg_drone(track)
+	_test_mg_drone_spawned = true
 
 
 func _spawn_test_mg_drone(track: Node3D) -> void:
