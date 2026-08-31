@@ -63,6 +63,7 @@ var _active_laser: LaserDrone = null
 var _laser_kill_cooldown_left := 0.0
 var _active_mg_drone: Node = null
 var _test_mg_drone_spawned := false
+var _pending_singleton_slots: Array = []
 
 
 func _ready() -> void:
@@ -158,6 +159,7 @@ func _reset_drone_spawn_state() -> void:
 	_laser_kill_cooldown_left = 0.0
 	_active_mg_drone = null
 	_test_mg_drone_spawned = false
+	_pending_singleton_slots.clear()
 
 
 static func drone_spawn_thresholds_from_plan(plan: Array) -> Array[float]:
@@ -206,6 +208,84 @@ static func count_drone_type_slots(plan: Array, drone_type: int) -> int:
 
 static func can_spawn_mg_now(has_active: bool) -> bool:
 	return not has_active
+
+
+static func is_singleton_drone_type(drone_type: int) -> bool:
+	return drone_type == DroneType.LASER or drone_type == DroneType.MACHINE_GUN
+
+
+static func can_spawn_singleton_type(
+	drone_type: int,
+	laser_cooldown_left: float,
+	has_active_laser: bool,
+	has_active_mg: bool
+) -> bool:
+	match drone_type:
+		DroneType.LASER:
+			return can_spawn_laser_now(laser_cooldown_left, has_active_laser)
+		DroneType.MACHINE_GUN:
+			return can_spawn_mg_now(has_active_mg)
+	return true
+
+
+static func collect_due_drone_spawns(
+	plan: Array,
+	cursor: int,
+	pending: Array,
+	player_x: float,
+	level: int,
+	laser_cooldown_left: float,
+	has_active_laser: bool,
+	has_active_mg: bool
+) -> Dictionary:
+	var thresholds := drone_spawn_thresholds_from_plan(plan)
+	var spawns: Array = []
+	var next_pending: Array = []
+	var simulated_active_laser := has_active_laser
+	var simulated_active_mg := has_active_mg
+	var simulated_cooldown := laser_cooldown_left
+
+	for slot in pending:
+		if slot is DroneSpawnSlot and can_spawn_singleton_type(
+			slot.drone_type,
+			simulated_cooldown,
+			simulated_active_laser,
+			simulated_active_mg
+		):
+			spawns.append(slot)
+			if slot.drone_type == DroneType.LASER:
+				simulated_active_laser = true
+			elif slot.drone_type == DroneType.MACHINE_GUN:
+				simulated_active_mg = true
+		else:
+			next_pending.append(slot)
+
+	var next_cursor := cursor
+	while next_cursor < plan.size():
+		if not drone_spawn_progress_allows(player_x, level, next_cursor, thresholds):
+			break
+		var slot: DroneSpawnSlot = plan[next_cursor]
+		if is_singleton_drone_type(slot.drone_type) and not can_spawn_singleton_type(
+			slot.drone_type,
+			simulated_cooldown,
+			simulated_active_laser,
+			simulated_active_mg
+		):
+			next_pending.append(slot)
+			next_cursor += 1
+			continue
+		spawns.append(slot)
+		if slot.drone_type == DroneType.LASER:
+			simulated_active_laser = true
+		elif slot.drone_type == DroneType.MACHINE_GUN:
+			simulated_active_mg = true
+		next_cursor += 1
+
+	return {
+		"cursor": next_cursor,
+		"pending": next_pending,
+		"spawns": spawns,
+	}
 
 
 static func can_spawn_laser_now(cooldown_left: float, has_active: bool) -> bool:
@@ -310,32 +390,36 @@ func _try_spawn_drones(level: int) -> void:
 
 
 func _try_spawn_next_drone_slot(level: int) -> void:
-	if _drones_spawned_in_level >= _drone_spawn_plan.size():
+	if _drones_spawned_in_level >= _drone_spawn_plan.size() and _pending_singleton_slots.is_empty():
 		return
 	var track := _track_body()
 	if track == null:
 		return
-	var thresholds := drone_spawn_thresholds_from_plan(_drone_spawn_plan)
-	if not drone_spawn_progress_allows(
-		track.global_position.x, level, _drones_spawned_in_level, thresholds
-	):
-		return
-	var slot: DroneSpawnSlot = _drone_spawn_plan[_drones_spawned_in_level]
+	var result := collect_due_drone_spawns(
+		_drone_spawn_plan,
+		_drones_spawned_in_level,
+		_pending_singleton_slots,
+		track.global_position.x,
+		level,
+		_laser_kill_cooldown_left,
+		_active_laser != null and is_instance_valid(_active_laser),
+		_active_mg_drone != null and is_instance_valid(_active_mg_drone)
+	)
+	_drones_spawned_in_level = int(result.cursor)
+	_pending_singleton_slots = result.pending
+	for slot in result.spawns:
+		if slot is DroneSpawnSlot:
+			_spawn_drone_slot(slot, track, level)
+
+
+func _spawn_drone_slot(slot: DroneSpawnSlot, track: Node3D, level: int) -> void:
 	match slot.drone_type:
 		DroneType.LASER:
-			if not can_spawn_laser_now(
-				_laser_kill_cooldown_left,
-				_active_laser != null and is_instance_valid(_active_laser)
-			):
-				return
 			_spawn_laser_drone(track, level)
 		DroneType.MACHINE_GUN:
-			if not can_spawn_mg_now(_active_mg_drone != null and is_instance_valid(_active_mg_drone)):
-				return
 			_spawn_machine_gun_drone(track, level)
 		_:
 			_spawn_missile_drone(track, level)
-	_drones_spawned_in_level += 1
 
 
 func _roll_drone_spawn_plan(level: int) -> Array:

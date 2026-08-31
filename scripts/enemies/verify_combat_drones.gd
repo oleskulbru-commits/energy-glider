@@ -512,6 +512,56 @@ func _verify_laser_spawn_rules() -> void:
 		"Despawned active laser should start respawn cooldown"
 	)
 	fake_active.free()
+	_verify_singleton_spawn_plan_deferral()
+
+
+func _verify_singleton_spawn_plan_deferral() -> void:
+	var plan: Array = [
+		EnemyStreamSpawnerScript.DroneSpawnSlot.new(
+			EnemyStreamSpawnerScript.DroneType.LASER, 0.2
+		),
+		EnemyStreamSpawnerScript.DroneSpawnSlot.new(
+			EnemyStreamSpawnerScript.DroneType.MISSILE, 0.5
+		),
+	]
+	var late_x := _player_x_at_segment_progress(8, 0.6)
+	var blocked := EnemyStreamSpawnerScript.collect_due_drone_spawns(
+		plan, 0, [], late_x, 8, 0.0, true, false
+	)
+	_fail_unless(int(blocked.cursor) == 2, "Blocked singleton slot should advance the plan cursor")
+	_fail_unless(blocked.pending.size() == 1, "Blocked laser slot should be deferred")
+	_fail_unless(blocked.spawns.size() == 1, "Missile slot should still spawn on schedule")
+	var missile_slot: EnemyStreamSpawnerScript.DroneSpawnSlot = blocked.spawns[0]
+	_fail_unless(
+		missile_slot.drone_type == EnemyStreamSpawnerScript.DroneType.MISSILE,
+		"Deferred laser should not block later missile spawns"
+	)
+
+	var early_x := _player_x_at_segment_progress(8, 0.3)
+	var ready := EnemyStreamSpawnerScript.collect_due_drone_spawns(
+		plan, 0, [], early_x, 8, 0.0, false, false
+	)
+	_fail_unless(int(ready.cursor) == 1, "Progress gate should stop before the missile threshold")
+	_fail_unless(ready.pending.is_empty(), "Ready laser slot should not be deferred")
+	_fail_unless(ready.spawns.size() == 1, "Only the first due slot should spawn early")
+
+	var deferred_laser: EnemyStreamSpawnerScript.DroneSpawnSlot = blocked.pending[0]
+	var flushed := EnemyStreamSpawnerScript.collect_due_drone_spawns(
+		plan, 2, [deferred_laser], late_x, 8, 0.0, false, false
+	)
+	_fail_unless(flushed.pending.is_empty(), "Deferred laser should clear once singleton is free")
+	_fail_unless(flushed.spawns.size() == 1, "Deferred laser should spawn when singleton frees")
+	_fail_unless(
+		(flushed.spawns[0] as EnemyStreamSpawnerScript.DroneSpawnSlot).drone_type
+		== EnemyStreamSpawnerScript.DroneType.LASER,
+		"Deferred singleton slot should keep its original type"
+	)
+
+
+func _player_x_at_segment_progress(level: int, progress: float) -> float:
+	var bounds := LevelRunScript.segment_east_west_x(level)
+	var span := bounds.x - bounds.y
+	return bounds.x - clampf(progress, 0.0, 1.0) * span
 
 
 func _verify_missile_hail() -> void:
