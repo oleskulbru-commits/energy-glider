@@ -27,7 +27,7 @@ const DRONE_MIN_LEVEL := CombatDroneScript.DRONE_MIN_LEVEL
 const LASER_KILL_COOLDOWN_SEC := 45.0
 ## After a laser drone is killed or despawns, wait this long before another can spawn.
 ## Dev/test: machine gun drone on level 1, 400 m ahead (full align → charge flow).
-const SPAWN_TEST_DRONE := true
+const SPAWN_TEST_DRONE := false
 const TEST_DRONE_AHEAD_M := CombatDroneScript.SPAWN_AHEAD_M
 
 @export var player_rig_path: NodePath
