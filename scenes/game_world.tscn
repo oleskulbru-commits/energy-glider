@@ -19,6 +19,7 @@
 [ext_resource type="Script" uid="uid://dtkgjkuvsrhd8" path="res://scripts/game/tower_visit_controller.gd" id="20_visit"]
 [ext_resource type="PackedScene" path="res://scenes/ui/upgrade_tower_menu.tscn" id="21_upgrade_menu"]
 [ext_resource type="PackedScene" path="res://scenes/ui/weapon_select_menu.tscn" id="22_weapon_select"]
+[ext_resource type="PackedScene" path="res://scenes/ui/pause_menu.tscn" id="23_pause_menu"]
 
 [node name="GameWorld" type="Node3D"]
 
@@ -93,6 +94,8 @@ script = ExtResource("19_upgrades")
 [node name="UpgradeTowerMenu" parent="." instance=ExtResource("21_upgrade_menu")]
 
 [node name="WeaponSelectMenu" parent="." instance=ExtResource("22_weapon_select")]
+
+[node name="PauseMenu" parent="." instance=ExtResource("23_pause_menu")]
 
 [node name="TowerVisitController" type="Node" parent="."]
 script = ExtResource("20_visit")

@@ -9,6 +9,7 @@ const EMPTY_MODULATE := Color(0.55, 0.52, 0.48, 1.0)
 const SELECTED_BORDER := Color(1.0, 0.9, 0.38, 1.0)
 const IDLE_BORDER := Color(0.85, 0.72, 0.55, 0.28)
 const EMPTY_BORDER := Color(0.45, 0.42, 0.38, 0.32)
+const PauseMenuScript = preload("res://scripts/ui/pause_menu.gd")
 
 @onready var _root: Control = %Root
 @onready var _title: Label = %TitleLabel
@@ -28,6 +29,7 @@ var _empty_frame_style: StyleBoxFlat
 
 
 func _ready() -> void:
+	add_to_group("upgrade_tower_menu")
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
 	_root.visible = false
@@ -57,12 +59,6 @@ func open_for(tower: UpgradeTower, state: RunUpgradeState, rig: PlayerRig) -> vo
 		viewport.gui_disable_input = false
 	if _rig != null:
 		_rig.release_look_mouse()
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-
-
-func _process(_delta: float) -> void:
-	if not visible:
-		return
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
@@ -236,7 +232,7 @@ func _close() -> void:
 	visible = false
 	_root.visible = false
 	get_tree().paused = false
-	if _rig != null:
+	if _rig != null and PauseMenuScript.should_capture_look_after_unpause(get_tree()):
 		_rig.capture_look_mouse()
 	_tower = null
 	closed.emit()

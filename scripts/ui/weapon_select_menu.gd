@@ -6,6 +6,7 @@ extends CanvasLayer
 const SELECTED_MODULATE := Color(1.0, 0.95, 0.75, 1.0)
 const IDLE_MODULATE := Color(0.92, 0.88, 0.8, 1.0)
 const VOICE_DELAY_SEC := 1.0
+const PauseMenuScript = preload("res://scripts/ui/pause_menu.gd")
 
 @onready var _root: Control = %Root
 @onready var _rifle_button: Button = %RifleButton
@@ -25,6 +26,7 @@ var _eon_token := 0
 
 
 func _ready() -> void:
+	add_to_group("weapon_select_menu")
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	layer = 21
 	visible = false
@@ -85,12 +87,6 @@ func open() -> void:
 		_schedule_choose_voice()
 
 
-func _process(_delta: float) -> void:
-	if not visible:
-		return
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-
-
 func _refresh() -> void:
 	_rifle_button.modulate = SELECTED_MODULATE if _selected == UpgradeCatalog.FAMILY_RIFLE else IDLE_MODULATE
 	_laser_button.modulate = SELECTED_MODULATE if _selected == UpgradeCatalog.FAMILY_LASER else IDLE_MODULATE
@@ -118,7 +114,7 @@ func _close() -> void:
 	visible = false
 	_root.visible = false
 	get_tree().paused = false
-	if _rig != null:
+	if _rig != null and PauseMenuScript.should_capture_look_after_unpause(get_tree()):
 		_rig.capture_look_mouse()
 	_schedule_eon_voice()
 
