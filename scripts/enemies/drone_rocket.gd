@@ -30,6 +30,7 @@ var _pass_through := false
 var _pass_vel := Vector3.ZERO
 var _pass_ttl := 0.0
 var _pass_traveled := 0.0
+var _flight_speed_mps := 0.0
 
 
 func launch_from_drone(
@@ -72,8 +73,10 @@ func launch_to_air_point(
 	var delta := _impact - _origin
 	if delta.length_squared() < 0.0001:
 		_dir = Vector3.FORWARD
+		_flight_speed_mps = 0.0
 	else:
 		_dir = delta.normalized()
+		_flight_speed_mps = delta.length() / FLIGHT_SEC
 	_attach_projectile_visual(visual_template)
 	_orient()
 
@@ -145,9 +148,12 @@ func _tick_pass_through(delta: float) -> void:
 
 func _begin_pass_through() -> void:
 	_pass_through = true
-	_pass_vel = _dir
-	if _pass_vel.length_squared() < 0.0001:
-		_pass_vel = Vector3.FORWARD
+	var dir := _dir
+	if dir.length_squared() < 0.0001:
+		dir = Vector3.FORWARD
+	else:
+		dir = dir.normalized()
+	_pass_vel = dir * _flight_speed_mps
 	_pass_ttl = PASS_THROUGH_SEC
 	_pass_traveled = 0.0
 

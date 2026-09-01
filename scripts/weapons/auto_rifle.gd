@@ -216,6 +216,8 @@ static func collect_candidates(
 		var pill := node as Node3D
 		if pill == null or not is_instance_valid(pill):
 			continue
+		if pill is CombatDrone and (pill as CombatDrone).invulnerable:
+			continue
 		if pill is SwarmPill and not (pill as SwarmPill).is_alive():
 			continue
 		if xz_distance(origin, pill.global_position) > range_m:

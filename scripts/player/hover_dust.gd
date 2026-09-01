@@ -15,30 +15,7 @@ const DUST_COLOR := Color(0.78, 0.62, 0.4, BASE_ALPHA)
 var _particles: CPUParticles3D
 
 
-func _ready() -> void:
-	top_level = true
-	_particles = CPUParticles3D.new()
-	_particles.emitting = false
-	_particles.amount = BASE_AMOUNT
-	_particles.lifetime = BASE_LIFETIME
-	_particles.explosiveness = 0.12
-	_particles.randomness = 0.45
-	_particles.direction = Vector3(0.0, 1.0, 0.0)
-	_particles.spread = 75.0
-	_particles.gravity = Vector3(0.0, -1.2, 0.0)
-	_particles.initial_velocity_min = BASE_VELOCITY_MIN
-	_particles.initial_velocity_max = BASE_VELOCITY_MAX
-	_particles.scale_amount_min = 0.1
-	_particles.scale_amount_max = 0.22
-	_particles.color = DUST_COLOR
-	_particles.local_coords = false
-	_particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
-	_particles.emission_box_extents = Vector3(0.425, 0.025, 0.85)
-	add_child(_particles)
-	_configure_particle_mesh()
-
-
-func _configure_particle_mesh() -> void:
+static func configure_sand_mesh(particles: CPUParticles3D) -> void:
 	var quad := QuadMesh.new()
 	quad.size = Vector2(0.2, 0.2)
 	var mat := StandardMaterial3D.new()
@@ -48,8 +25,59 @@ func _configure_particle_mesh() -> void:
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	quad.material = mat
-	_particles.mesh = quad
-	_particles.visibility_aabb = AABB(Vector3(-2.0, -1.0, -2.0), Vector3(4.0, 3.0, 4.0))
+	particles.mesh = quad
+	particles.visibility_aabb = AABB(Vector3(-2.0, -1.0, -2.0), Vector3(4.0, 3.0, 4.0))
+
+
+static func configure_hover_stream(particles: CPUParticles3D) -> void:
+	configure_sand_mesh(particles)
+	particles.emitting = false
+	particles.amount = BASE_AMOUNT
+	particles.lifetime = BASE_LIFETIME
+	particles.explosiveness = 0.12
+	particles.randomness = 0.45
+	particles.direction = Vector3(0.0, 1.0, 0.0)
+	particles.spread = 75.0
+	particles.gravity = Vector3(0.0, -1.2, 0.0)
+	particles.initial_velocity_min = BASE_VELOCITY_MIN
+	particles.initial_velocity_max = BASE_VELOCITY_MAX
+	particles.scale_amount_min = 0.1
+	particles.scale_amount_max = 0.22
+	particles.color = DUST_COLOR
+	particles.local_coords = false
+	particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	particles.emission_box_extents = Vector3(0.425, 0.025, 0.85)
+
+
+static func configure_impact_burst(particles: CPUParticles3D, intensity: float = 1.15) -> void:
+	configure_sand_mesh(particles)
+	var clamped := clampf(intensity, 0.5, 2.0)
+	particles.emitting = true
+	particles.one_shot = true
+	particles.amount = int(round(lerpf(float(BASE_AMOUNT), 56.0, clamped - 0.5)))
+	particles.lifetime = BASE_LIFETIME
+	particles.explosiveness = 0.92
+	particles.randomness = 0.45
+	particles.direction = Vector3(0.0, 1.0, 0.0)
+	particles.spread = 75.0
+	particles.gravity = Vector3(0.0, -1.2, 0.0)
+	var velocity_scale := lerpf(2.4, 4.8, clamped - 0.5)
+	particles.initial_velocity_min = BASE_VELOCITY_MIN * velocity_scale
+	particles.initial_velocity_max = BASE_VELOCITY_MAX * velocity_scale
+	particles.scale_amount_min = 0.1
+	particles.scale_amount_max = 0.22
+	var alpha := lerpf(0.55, 0.82, clamped - 0.5)
+	particles.color = Color(DUST_COLOR.r, DUST_COLOR.g, DUST_COLOR.b, alpha)
+	particles.local_coords = false
+	particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	particles.emission_sphere_radius = 0.08
+
+
+func _ready() -> void:
+	top_level = true
+	_particles = CPUParticles3D.new()
+	configure_hover_stream(_particles)
+	add_child(_particles)
 
 
 func _sample_surface_contact(player: GliderPlayer) -> Dictionary:
