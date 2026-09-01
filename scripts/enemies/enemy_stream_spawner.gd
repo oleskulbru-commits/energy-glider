@@ -382,11 +382,16 @@ func _try_spawn_drones(level: int) -> void:
 	if level < DRONE_MIN_LEVEL:
 		return
 	if level != _drone_level:
-		_drone_level = level
-		_drones_spawned_in_level = 0
-		_laser_kill_cooldown_left = 0.0
-		_drone_spawn_plan = build_drone_spawn_plan(level, _rng)
+		_begin_drone_level(level)
 	_try_spawn_next_drone_slot(level)
+
+
+func _begin_drone_level(level: int) -> void:
+	_drone_level = level
+	_drones_spawned_in_level = 0
+	_laser_kill_cooldown_left = 0.0
+	_pending_singleton_slots.clear()
+	_drone_spawn_plan = build_drone_spawn_plan(level, _rng)
 
 
 func _try_spawn_next_drone_slot(level: int) -> void:

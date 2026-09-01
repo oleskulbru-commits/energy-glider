@@ -47,6 +47,10 @@ const PREDICT_BLEND_RELEASE_RATE := 2.5
 const PREDICT_NORMAL_RATE := 8.0
 const GROUND_NORMAL_MAX_STEP_DEG := 6.0
 const BOOST_CLIMB_NORMAL_MAX_STEP_DEG := 12.0
+const BOOST_CLIMB_CLIP_MAX := -0.02
+const GROUND_CLIP_MAX := -0.06
+const FLOOR_CORRECT_MAX_STEP := 0.06
+const BOOST_CLIMB_FLOOR_CORRECT_MAX_STEP := 0.18
 const AHEAD_RISE_NORMAL_MAX_STEP_DEG := 18.0
 const PROBE_SPEED_DISTANCE_SCALE := 0.065
 const PROBE_DISTANCE_SCALE_MAX := 2.0
@@ -803,25 +807,43 @@ func _live_board_min_clearance_at(origin: Vector3, use_deck_tilt: bool) -> float
 
 
 func _enforce_floor_contact(state: PhysicsDirectBodyState3D) -> void:
+	if _state != State.GROUNDED:
+		return
+	var boost_climb := _is_boost_climb_active()
+	var climbing := _is_climbing(_downhill_dir(), _board_forward_on_ground())
 	var origin := state.transform.origin
-	var use_deck := _state == State.GROUNDED
-	var min_clearance := _live_board_min_clearance_at(origin, use_deck)
-	var min_allowed := (
-		GliderPhysicsScript.TOUCH_CLEARANCE
-		if _state == State.GROUNDED
-		else 0.0
+	var min_clearance := _live_board_min_clearance_at(origin, false)
+	if climbing:
+		min_clearance = minf(min_clearance, _live_board_min_clearance_at(origin, true))
+	var clip_max := (
+		BOOST_CLIMB_CLIP_MAX
+		if boost_climb or climbing
+		else GROUND_CLIP_MAX
 	)
+	var ny := maxf(_ground_normal.y, 0.2)
+	var max_step := (
+		BOOST_CLIMB_FLOOR_CORRECT_MAX_STEP if boost_climb else FLOOR_CORRECT_MAX_STEP
+	)
+	if min_clearance < clip_max:
+		var correction := minf((clip_max - min_clearance) / ny, max_step)
+		var xf := state.transform
+		xf.origin += _ground_normal * correction
+		state.transform = xf
+		# Climbing: leave normal speed to hover/alignment — zeroing it bleeds crest carry.
+		if not climbing:
+			var vel := state.linear_velocity
+			var inward := vel.dot(_ground_normal)
+			if inward < 0.0:
+				state.linear_velocity = vel - _ground_normal * inward
+		return
+	var min_allowed := GliderPhysicsScript.TOUCH_CLEARANCE
 	if min_clearance >= min_allowed:
 		return
-	var ny := maxf(_ground_normal.y, 0.15)
-	var correction := (min_allowed - min_clearance) / ny
+	var correction := minf((min_allowed - min_clearance) / ny, max_step)
 	var xf := state.transform
 	xf.origin += _ground_normal * correction
 	state.transform = xf
-	var vel := state.linear_velocity
-	var inward := vel.dot(_ground_normal)
-	if inward < 0.0:
-		state.linear_velocity = vel - _ground_normal * inward
+	# Soft settle: nudge origin only — killing normal speed here tugs crest momentum.
 
 func _setup_contact_sparks() -> void:
 	_contact_sparks = CPUParticles3D.new()

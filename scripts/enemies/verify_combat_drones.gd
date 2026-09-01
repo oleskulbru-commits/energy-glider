@@ -556,6 +556,41 @@ func _verify_singleton_spawn_plan_deferral() -> void:
 		== EnemyStreamSpawnerScript.DroneType.LASER,
 		"Deferred singleton slot should keep its original type"
 	)
+	_verify_level_change_clears_pending_singletons()
+
+
+func _verify_level_change_clears_pending_singletons() -> void:
+	var leftover: EnemyStreamSpawnerScript.DroneSpawnSlot = (
+		EnemyStreamSpawnerScript.DroneSpawnSlot.new(
+			EnemyStreamSpawnerScript.DroneType.LASER, 0.95
+		)
+	)
+	var new_plan: Array = [
+		EnemyStreamSpawnerScript.DroneSpawnSlot.new(
+			EnemyStreamSpawnerScript.DroneType.MISSILE, 0.5
+		),
+	]
+	var early_x := _player_x_at_segment_progress(6, 0.1)
+	var stale := EnemyStreamSpawnerScript.collect_due_drone_spawns(
+		new_plan, 0, [leftover], early_x, 6, 0.0, false, false
+	)
+	_fail_unless(
+		stale.spawns.size() == 1,
+		"Uncleared pending singletons flush immediately once the singleton is free"
+	)
+	_fail_unless(
+		(stale.spawns[0] as EnemyStreamSpawnerScript.DroneSpawnSlot).drone_type
+		== EnemyStreamSpawnerScript.DroneType.LASER,
+		"Stale pending slots keep their original drone type"
+	)
+
+	var fresh := EnemyStreamSpawnerScript.collect_due_drone_spawns(
+		new_plan, 0, [], early_x, 6, 0.0, false, false
+	)
+	_fail_unless(
+		fresh.spawns.is_empty() and fresh.pending.is_empty(),
+		"Level transitions must clear pending singletons before rebuilding the plan"
+	)
 
 
 func _player_x_at_segment_progress(level: int, progress: float) -> float:
@@ -905,6 +940,11 @@ func is_gliding() -> bool:
 	_fail_unless(
 		bool(miss_rocket.get("_pass_through")),
 		"Air rocket should enter pass-through after missing impact"
+	)
+	var expected_pass_speed := origin.distance_to(impact) / DroneRocketScript.FLIGHT_SEC
+	_fail_unless(
+		(miss_rocket.get("_pass_vel") as Vector3).length() >= expected_pass_speed - 0.01,
+		"Missed air rocket should pass through at flight speed"
 	)
 	var pass_pos: Vector3 = miss_rocket.global_position
 	miss_rocket._physics_process(step)
