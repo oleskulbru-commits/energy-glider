@@ -193,6 +193,11 @@ func _update_reticle(delta: float) -> void:
 
 
 func _ensure_flare() -> void:
+	if _visual != null:
+		if _flare != null and is_instance_valid(_flare):
+			_flare.queue_free()
+			_flare = null
+		return
 	if _flare != null and is_instance_valid(_flare):
 		return
 	_flare = LaserDroneFlareScript.new()
@@ -201,6 +206,8 @@ func _ensure_flare() -> void:
 
 
 func _update_flare() -> void:
+	if _visual != null:
+		return
 	_ensure_flare()
 	if _flare == null or not is_instance_valid(_flare):
 		return

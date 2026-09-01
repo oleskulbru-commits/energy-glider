@@ -1,0 +1,86 @@
+[gd_resource type="VisualShader" format=3 uid="uid://bnqlopp1isdwy"]
+
+[ext_resource type="Texture2D" uid="uid://8kipaftkan41" path="res://assets/vfx/noise_textures/radial_smoke_puff.png" id="1_f1myi"]
+
+[sub_resource type="VisualShaderNodeTexture2DParameter" id="VisualShaderNodeTexture2DParameter_3jblp"]
+parameter_name = "Streak_Mask"
+texture_type = 1
+texture_repeat = 2
+
+[sub_resource type="VisualShaderNodeInput" id="VisualShaderNodeInput_uv"]
+input_name = "uv"
+
+[sub_resource type="VisualShaderNodeVectorOp" id="VisualShaderNodeVectorOp_color"]
+operator = 2
+
+[sub_resource type="VisualShaderNodeClamp" id="VisualShaderNodeClamp_f1myi"]
+
+[sub_resource type="VisualShaderNodeColorParameter" id="VisualShaderNodeColorParameter_f1myi"]
+parameter_name = "ColorParameter"
+
+[sub_resource type="VisualShaderNodeTexture2DParameter" id="VisualShaderNodeTexture2DParameter_f1myi"]
+parameter_name = "Base_Texture"
+texture_type = 1
+texture_repeat = 1
+
+[sub_resource type="VisualShaderNodeTexture" id="VisualShaderNodeTexture_3jblp"]
+output_port_for_preview = 0
+expanded_output_ports = [0]
+source = 5
+texture = ExtResource("1_f1myi")
+
+[sub_resource type="VisualShaderNodeUVFunc" id="VisualShaderNodeUVFunc_jsgsf"]
+
+[sub_resource type="VisualShaderNodeVec2Parameter" id="VisualShaderNodeVec2Parameter_f1myi"]
+parameter_name = "SpeedXY"
+
+[sub_resource type="VisualShaderNodeInput" id="VisualShaderNodeInput_3jblp"]
+output_port_for_preview = 0
+input_name = "time"
+
+[sub_resource type="VisualShaderNodeVectorOp" id="VisualShaderNodeVectorOp_jsgsf"]
+default_input_values = [0, Vector2(0, 0), 1, Vector2(0, 0)]
+op_type = 0
+operator = 2
+
+[sub_resource type="VisualShaderNodeFloatOp" id="VisualShaderNodeFloatOp_f1myi"]
+operator = 1
+
+[sub_resource type="VisualShaderNodeTexture" id="VisualShaderNodeTexture_jsgsf"]
+output_port_for_preview = 0
+expanded_output_ports = [0]
+source = 5
+
+[resource]
+modes/cull = 2
+flags/unshaded = true
+flags/shadows_disabled = true
+preview_params/SpeedXY = "Vector2(0, 1)"
+nodes/fragment/0/position = Vector2(1546.6666, 440)
+nodes/fragment/2/node = SubResource("VisualShaderNodeTexture2DParameter_f1myi")
+nodes/fragment/2/position = Vector2(-733.3333, 600)
+nodes/fragment/3/node = SubResource("VisualShaderNodeTexture_3jblp")
+nodes/fragment/3/position = Vector2(120, 373.33334)
+nodes/fragment/4/node = SubResource("VisualShaderNodeUVFunc_jsgsf")
+nodes/fragment/4/position = Vector2(-426.66666, 226.66667)
+nodes/fragment/5/node = SubResource("VisualShaderNodeVec2Parameter_f1myi")
+nodes/fragment/5/position = Vector2(-1240, 360)
+nodes/fragment/6/node = SubResource("VisualShaderNodeInput_3jblp")
+nodes/fragment/6/position = Vector2(-1240, 533.3333)
+nodes/fragment/7/node = SubResource("VisualShaderNodeVectorOp_jsgsf")
+nodes/fragment/7/position = Vector2(-880, 320)
+nodes/fragment/8/node = SubResource("VisualShaderNodeFloatOp_f1myi")
+nodes/fragment/8/position = Vector2(546.6667, 440)
+nodes/fragment/9/node = SubResource("VisualShaderNodeTexture_jsgsf")
+nodes/fragment/9/position = Vector2(133.33333, 880)
+nodes/fragment/10/node = SubResource("VisualShaderNodeTexture2DParameter_3jblp")
+nodes/fragment/10/position = Vector2(-720, 1013.3333)
+nodes/fragment/11/node = SubResource("VisualShaderNodeInput_uv")
+nodes/fragment/11/position = Vector2(-720, 880)
+nodes/fragment/12/node = SubResource("VisualShaderNodeVectorOp_color")
+nodes/fragment/12/position = Vector2(546.6667, 320)
+nodes/fragment/13/node = SubResource("VisualShaderNodeClamp_f1myi")
+nodes/fragment/13/position = Vector2(1173.3334, 480)
+nodes/fragment/14/node = SubResource("VisualShaderNodeColorParameter_f1myi")
+nodes/fragment/14/position = Vector2(1173.3334, 146.66667)
+nodes/fragment/connections = PackedInt32Array(2, 0, 3, 2, 4, 0, 3, 0, 7, 0, 4, 2, 6, 0, 7, 1, 5, 0, 7, 0, 3, 0, 12, 0, 3, 1, 8, 0, 10, 0, 9, 2, 9, 0, 8, 1, 8, 0, 13, 0, 13, 0, 0, 1, 14, 0, 0, 0)

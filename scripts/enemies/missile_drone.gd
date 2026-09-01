@@ -1,7 +1,7 @@
 class_name MissileDrone
 extends "res://scripts/enemies/combat_drone.gd"
 
-## Blue cube. Fires a staggered lofted hail with player-rocket visuals.
+## Blue drone. Fires a staggered lofted hail using drone_missile_projectile.tscn.
 
 const GroundReticleScript = preload("res://scripts/enemies/ground_reticle.gd")
 const DroneRocketScript = preload("res://scripts/enemies/drone_rocket.gd")
@@ -85,7 +85,6 @@ func _fire_next_rocket() -> void:
 	var rocket = DroneRocketScript.new()
 	parent.add_child(rocket)
 	var slot_index := _hail_rockets_fired % SPAWN_SLOT_COUNT
-	var spawn_slot := _get_spawn_slot(slot_index)
 	var spawn_transform := _get_spawn_slot_transform(slot_index)
 	_hail_rockets_fired += 1
 	if uses_air_targeting():
@@ -95,8 +94,7 @@ func _fire_next_rocket() -> void:
 		rocket.launch_to_air_point(
 			spawn_transform.origin,
 			impact,
-			spawn_transform,
-			spawn_slot
+			spawn_transform
 		)
 	else:
 		var lead := _lead_point()
@@ -111,8 +109,7 @@ func _fire_next_rocket() -> void:
 			spawn_transform.origin,
 			ground,
 			_terrain,
-			spawn_transform,
-			spawn_slot
+			spawn_transform
 		)
 	_stagger_left = STAGGER_SEC
 	if _pending_offsets.is_empty():

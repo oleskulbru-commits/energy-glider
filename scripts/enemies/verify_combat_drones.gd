@@ -533,12 +533,33 @@ func _verify_missile_hail() -> void:
 	root.add_child(rocket)
 	rocket.launch_from_drone(origin, impact)
 	_fail_unless(rocket.uses_drone_missile_visual(), "Drone rocket should attach a projectile visual")
-	_fail_unless(rocket.get_trail() != null, "Drone rocket should include a CPUParticles3D trail")
-	var elapsed := 0.0
+	var projectile_visual := rocket.get_node("ProjectileVisual").get_child(0)
+	var streak := projectile_visual.find_child("Streak", true, false)
+	_fail_unless(streak != null and streak is MeshInstance3D, "Drone rocket should include a Streak mesh")
+	var launch_basis := rocket.global_transform.basis
 	var step := 1.0 / 60.0
+	var travel_dir: Vector3 = rocket.get("_dir")
+	_fail_unless(
+		-rocket.global_transform.basis.z.dot(travel_dir) > 0.99,
+		"Rocket root should face velocity"
+	)
+	var elapsed := 0.0
+	var mid_checked := false
 	while elapsed < DroneRocketScript.FLIGHT_SEC + step and not bool(rocket.get("_spent")):
 		rocket._physics_process(step)
 		elapsed += step
+		if not mid_checked and float(rocket.get("_flight_t")) >= 0.5:
+			mid_checked = true
+			_fail_unless(
+				not rocket.global_transform.basis.is_equal_approx(launch_basis),
+				"Rocket should bank along arc"
+			)
+			travel_dir = rocket.get("_dir")
+			_fail_unless(
+				-rocket.global_transform.basis.z.dot(travel_dir) > 0.99,
+				"Rocket should face velocity mid-flight"
+			)
+	_fail_unless(mid_checked, "Rocket should reach mid-flight before detonation")
 	_fail_unless(
 		absf(elapsed - DroneRocketScript.FLIGHT_SEC) <= step * 2.0,
 		"Rocket should detonate after one flight duration"

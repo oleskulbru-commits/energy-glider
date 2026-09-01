@@ -54,6 +54,8 @@ func _ensure_cube_visual() -> void:
 	var scene_visual := get_node_or_null("Visual") as Node3D
 	if scene_visual != null:
 		_visual = scene_visual
+		# Imported drone GLBs face +Z; steering uses look_at (-Z toward target).
+		scene_visual.rotation.y = PI
 		return
 
 	_cube = get_node_or_null("Cube") as MeshInstance3D

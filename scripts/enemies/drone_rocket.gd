@@ -1,7 +1,7 @@
 class_name DroneRocket
 extends Area3D
 
-## Lofted hail rocket with drone missile mesh and particle trail.
+## Lofted hail rocket with drone missile mesh and energy streak VFX.
 
 const DroneMissileProjectileScene = preload("res://scenes/enemies/drone_missile_projectile.tscn")
 const DroneGroundBlastScript = preload("res://scripts/enemies/drone_ground_blast.gd")
@@ -80,14 +80,10 @@ func launch_to_air_point(
 
 func _apply_spawn_transform(spawn_transform: Transform3D, origin: Vector3) -> void:
 	if spawn_transform != Transform3D.IDENTITY:
-		global_transform = spawn_transform
+		global_position = spawn_transform.origin
 		_origin = global_position
 	else:
 		global_position = origin
-
-
-func get_trail() -> CPUParticles3D:
-	return find_child("Trail", true, false) as CPUParticles3D
 
 
 func uses_drone_missile_visual() -> bool:
@@ -246,12 +242,16 @@ func _attach_projectile_visual(visual_template: Node = null) -> void:
 	var visual_root := Node3D.new()
 	visual_root.name = "ProjectileVisual"
 	add_child(visual_root)
+	var from_template := false
 	if visual_template != null and _duplicate_template_visuals(visual_root, visual_template):
-		_tint_trail_nodes(visual_root)
+		from_template = true
+		_tint_projectile_vfx(visual_root)
+		_align_projectile_visual(visual_root, from_template)
 		return
 	var fallback: Node3D = DroneMissileProjectileScene.instantiate()
 	visual_root.add_child(fallback)
-	_tint_trail_nodes(visual_root)
+	_tint_projectile_vfx(visual_root)
+	_align_projectile_visual(visual_root, false)
 
 
 func _duplicate_template_visuals(visual_root: Node3D, visual_template: Node) -> bool:
@@ -266,25 +266,38 @@ func _duplicate_template_visuals(visual_root: Node3D, visual_template: Node) -> 
 	return copied
 
 
-func _tint_trail_nodes(root: Node) -> void:
-	var trail := root.find_child("Trail", true, false) as CPUParticles3D
-	if trail != null:
-		_tint_trail_blue(trail)
+func _tint_projectile_vfx(root: Node) -> void:
+	var streak := root.find_child("Streak", true, false) as MeshInstance3D
+	if streak != null:
+		_tint_streak_blue(streak)
 
 
-func _tint_trail_blue(trail: CPUParticles3D) -> void:
-	trail.color = TRAIL_COLOR
-	if trail.material_override is StandardMaterial3D:
-		var mat := (trail.material_override as StandardMaterial3D).duplicate()
-		mat.albedo_color = TRAIL_COLOR
-		mat.emission = TRAIL_EMISSION
-		trail.material_override = mat
+func _tint_streak_blue(streak: MeshInstance3D) -> void:
+	var mat := streak.material_override
+	if mat is ShaderMaterial:
+		var shader_mat := (mat as ShaderMaterial).duplicate()
+		shader_mat.set_shader_parameter(
+			"ColorParameter",
+			Color(TRAIL_COLOR.r * 1.6, TRAIL_COLOR.g * 1.4, TRAIL_COLOR.b * 1.6, 0.85)
+		)
+		shader_mat.set_shader_parameter("GlowStrength", 3.0)
+		streak.material_override = shader_mat
+	elif mat is StandardMaterial3D:
+		var std_mat := (mat as StandardMaterial3D).duplicate()
+		std_mat.albedo_color = Color(TRAIL_COLOR.r, TRAIL_COLOR.g, TRAIL_COLOR.b, 0.65)
+		std_mat.emission = TRAIL_EMISSION
+		streak.material_override = std_mat
+
+
+func _align_projectile_visual(visual_root: Node3D, _from_template: bool) -> void:
+	# GLB missile meshes point +Z; DroneRocket travel forward is -Z (Basis.looking_at).
+	visual_root.basis = Basis.from_euler(Vector3(0.0, PI, 0.0))
 
 
 func _orient() -> void:
 	if _dir.length_squared() < 0.0001:
 		return
-	if absf(_dir.dot(Vector3.UP)) > 0.98:
-		look_at(global_position + _dir, Vector3.FORWARD)
-	else:
-		look_at(global_position + _dir, Vector3.UP)
+	var up := Vector3.UP
+	if absf(_dir.dot(up)) > 0.98:
+		up = Vector3.FORWARD
+	global_transform = Transform3D(Basis.looking_at(_dir, up), global_position)
