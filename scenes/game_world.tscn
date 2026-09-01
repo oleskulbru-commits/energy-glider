@@ -16,6 +16,7 @@
 [ext_resource type="Script" uid="uid://d304h7bfwf23y" path="res://scripts/game/level_progress.gd" id="17_level"]
 [ext_resource type="Script" uid="uid://cmltivlks2lph" path="res://scripts/enemies/enemy_stream_spawner.gd" id="18_stream"]
 [ext_resource type="Script" uid="uid://dmcb4pm1f6xqy" path="res://scripts/game/run_upgrade_state.gd" id="19_upgrades"]
+[ext_resource type="Script" path="res://scripts/game/run_damage_stats.gd" id="23_damage_stats"]
 [ext_resource type="Script" uid="uid://dtkgjkuvsrhd8" path="res://scripts/game/tower_visit_controller.gd" id="20_visit"]
 [ext_resource type="PackedScene" path="res://scenes/ui/upgrade_tower_menu.tscn" id="21_upgrade_menu"]
 [ext_resource type="PackedScene" path="res://scenes/ui/weapon_select_menu.tscn" id="22_weapon_select"]
@@ -40,6 +41,9 @@ track_node_path = NodePath("../PlayerRig/Glider")
 script = ExtResource("5_run_score")
 player_path = NodePath("../PlayerRig")
 terrain_manager_path = NodePath("../TerrainManager")
+
+[node name="RunDamageStats" type="Node" parent="."]
+script = ExtResource("23_damage_stats")
 
 [node name="ExpeditionState" type="Node" parent="."]
 script = ExtResource("13_expedition")

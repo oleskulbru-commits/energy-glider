@@ -28,7 +28,7 @@ const LASER_HIT_HUE_FADE_SEC := 2.0
 @onready var _stopped_overlay: PanelContainer = %StoppedOverlay
 @onready var _fail_fade: ColorRect = %FailFade
 @onready var _laser_hit_hue: ColorRect = %LaserHitHue
-@onready var _stopped_title: Label = %StoppedTitle
+@onready var _death_stats_panel: DeathStatsPanel = %DeathStatsPanel
 @onready var _stopped_distance: Label = %StoppedDistance
 @onready var _death_buttons: HBoxContainer = %DeathButtons
 @onready var _try_again_button: Button = %TryAgainButton
@@ -356,13 +356,17 @@ func _update_death_overlay() -> void:
 	if _stopped_overlay != null:
 		_stopped_overlay.add_theme_stylebox_override("panel", _fail_overlay_style)
 	var can_retry := _director != null and _director.can_try_again()
-	if _stopped_title != null:
-		if can_retry:
-			_stopped_title.text = "You have failed your mission. Fix it."
-		else:
-			_stopped_title.text = (
-				"You have failed your mission. The eternals condemn you for all eternity."
-			)
+	var flavor := (
+		"You have failed your mission. Fix it."
+		if can_retry
+		else "You have failed your mission. The eternals condemn you for all eternity."
+	)
+	if _death_stats_panel != null:
+		_death_stats_panel.set_flavor_text(flavor)
+		var terrain := get_tree().get_first_node_in_group("terrain_manager") as TerrainManager
+		var upgrade_state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
+		var damage_stats := get_tree().get_first_node_in_group("run_damage_stats") as RunDamageStats
+		_death_stats_panel.populate(_director, terrain, upgrade_state, damage_stats)
 	if _stopped_distance != null:
 		_stopped_distance.visible = false
 	if _stopped_summary != null:
@@ -535,8 +539,9 @@ func _update_safe_chip(delta: float) -> void:
 func _update_stopped_overlay() -> void:
 	if _stopped_overlay != null:
 		_stopped_overlay.remove_theme_stylebox_override("panel")
-	if _stopped_title != null:
-		_stopped_title.text = "Stopped"
+	if _death_stats_panel != null:
+		_death_stats_panel.set_flavor_text("Stopped")
+		_death_stats_panel.set_sections_visible(false)
 	if _death_buttons != null:
 		_death_buttons.visible = false
 	if _stopped_distance != null:
