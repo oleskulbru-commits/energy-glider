@@ -264,6 +264,11 @@ static func pick_target(
 	range_m: float,
 	rng: RandomNumberGenerator
 ) -> Node3D:
+	var magnet := WeaponTargeting.find_laser_drone_magnet(
+		pills, origin, facing, range_m, true, BELOW_XZ_EPS_M
+	)
+	if magnet != null:
+		return magnet
 	var candidates := collect_candidates(pills, origin, facing, range_m)
 	if candidates.is_empty():
 		return null

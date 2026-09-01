@@ -1,6 +1,8 @@
 class_name RunUpgradeState
 extends Node
 
+const UpgradeCatalogScript = preload("res://scripts/game/upgrade_catalog.gd")
+
 ## Stacks and weapons persist across Try Again. New Game reloads the scene.
 ## Taken tower slots (including weapon bundles) stay Empty for the world seed.
 
@@ -144,6 +146,10 @@ func grant_starter(family: StringName) -> void:
 
 
 func grant_weapon(family: StringName) -> void:
+	if owns_weapon(family):
+		return
+	if at_weapon_cap():
+		return
 	if family == UpgradeCatalog.FAMILY_RIFLE:
 		if has_rifle:
 			return
@@ -182,6 +188,14 @@ func grant_weapon(family: StringName) -> void:
 
 func owned_weapon_ids() -> PackedStringArray:
 	return _owned_order
+
+
+func owned_weapon_count() -> int:
+	return _owned_order.size()
+
+
+func at_weapon_cap() -> bool:
+	return owned_weapon_count() >= UpgradeCatalogScript.MAX_OWNED_WEAPONS
 
 
 func weapon_level(family: StringName) -> int:
@@ -294,6 +308,8 @@ func pick_offer(tower_index: int, slot: int) -> StringName:
 	var id := StringName(offers[slot])
 	if UpgradeCatalog.is_empty_offer(id):
 		return &""
+	if UpgradeCatalog.is_weapon_unlock(id) and at_weapon_cap():
+		return &""
 	if UpgradeCatalog.is_weapon_offer(id):
 		_remember_weapon_hole(tower_index, slot)
 	offers[slot] = String(UpgradeCatalog.EMPTY_OFFER)
@@ -304,6 +320,8 @@ func pick_offer(tower_index: int, slot: int) -> StringName:
 
 func _apply_upgrade(id: StringName, weapon_family: StringName = &"") -> void:
 	if UpgradeCatalog.is_weapon_unlock(id):
+		if at_weapon_cap():
+			return
 		grant_weapon(UpgradeCatalog.unlock_weapon_family(id))
 		return
 	if UpgradeCatalog.is_weapon_offer(id):
@@ -419,6 +437,21 @@ func hud_pushback_bonus() -> float:
 
 func hud_range_bonus() -> float:
 	return range_bonus
+
+
+func hud_bounce_count() -> int:
+	var best := bounce_count
+	if has_rifle:
+		best = maxi(best, bounce_count_for(UpgradeCatalog.FAMILY_RIFLE))
+	if has_laser:
+		best = maxi(best, bounce_count_for(UpgradeCatalog.FAMILY_LASER))
+	if has_tesla:
+		best = maxi(best, bounce_count_for(UpgradeCatalog.FAMILY_TESLA))
+	if has_rocket:
+		best = maxi(best, bounce_count_for(UpgradeCatalog.FAMILY_ROCKET))
+	if has_shotgun:
+		best = maxi(best, bounce_count_for(UpgradeCatalog.FAMILY_SHOTGUN))
+	return best
 
 
 func add_extra_projectile(amount: int = 1) -> void:

@@ -132,9 +132,11 @@ func _verify_health_bonus() -> void:
 	_fail_unless(health.get_max() == 60, "Common Health should raise max to 60")
 	_fail_unless(health.get_current() == 30, "Common Health should add 10 current (20 -> 30)")
 	health.reset_full()
-	_fail_unless(health.get_current() == 50, "reset_full should restore base 50 current")
+	_fail_unless(health.get_current() == 60, "reset_full should restore full max health")
+	_fail_unless(health.get_max() == 60, "reset_full should keep upgraded max health")
 	state.max_health_bonus = 0
 	health.reset_full()
+	_fail_unless(health.get_current() == 50, "reset_full without bonus should restore base 50")
 	state.max_health_bonus = 10
 	health.add_bonus_health(10)
 	_fail_unless(health.get_current() == 60, "Full health plus common should become 60/60")

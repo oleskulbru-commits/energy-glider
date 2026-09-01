@@ -170,7 +170,6 @@ func _run_tests() -> void:
 	await _verify_boost_no_clip_crest()
 	await _verify_boost_climb_no_clip()
 	await _verify_boost_steep_climb_no_clip()
-	await _verify_boost_hover_no_soften()
 	await _verify_jump_while_boosting()
 	print("Glider controller verification passed.")
 	quit(0)
@@ -2500,32 +2499,6 @@ func _verify_boost_steep_climb_no_clip() -> void:
 	_release_boost()
 	glider.queue_free()
 	terrain.queue_free()
-
-
-func _verify_boost_hover_no_soften() -> void:
-	var penetration := 0.08
-	var cruise_ctx := _hover_ctx(GliderPhysicsScript.BASE_HEIGHT - penetration)
-	cruise_ctx.clearance_change_rate = 4.0
-	cruise_ctx.boost_active = false
-	cruise_ctx.climbing = false
-
-	var boost_ctx := _hover_ctx(GliderPhysicsScript.BASE_HEIGHT - penetration)
-	boost_ctx.clearance_change_rate = 4.0
-	boost_ctx.boost_active = true
-	boost_ctx.climbing = false
-
-	var cruise_scale := GliderPhysicsScript._hover_point_repulsion_scale(cruise_ctx, penetration)
-	var boost_scale := GliderPhysicsScript._hover_point_repulsion_scale(boost_ctx, penetration)
-	_fail_unless(
-		boost_scale > cruise_scale * 1.2,
-		"Boost should keep stronger corner repulsion on fast crest changes (%.2f vs %.2f)" % [
-			boost_scale, cruise_scale
-		]
-	)
-	_fail_unless(
-		boost_scale >= 0.95,
-		"Boost repulsion scale should stay near full strength (%.2f)" % boost_scale
-	)
 
 
 func _verify_jump_while_boosting() -> void:

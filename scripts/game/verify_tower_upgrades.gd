@@ -8,6 +8,7 @@ const UpgradeTowerScript = preload("res://scripts/world/upgrade_tower.gd")
 const AutoRifleScript = preload("res://scripts/weapons/auto_rifle.gd")
 const GliderPhysicsScript = preload("res://scripts/player/glider_physics.gd")
 const GliderPlayerScript = preload("res://scripts/player/glider_player.gd")
+const PlayerHealthScript = preload("res://scripts/player/player_health.gd")
 
 
 func _init() -> void:
@@ -38,6 +39,7 @@ func _run() -> void:
 	_verify_weapon_cards()
 	_verify_weapon_hud_levels()
 	_verify_dawn_pose()
+	_verify_tower_visit_heal()
 	await _verify_visit_radius()
 	print("Tower upgrade verification passed.")
 	quit(0)
@@ -2392,6 +2394,32 @@ func _verify_bounce_stacking() -> void:
 		and state.bounce_count_for(UpgradeCatalogScript.FAMILY_LASER) == 0,
 		"Rifle bundle Bounce should stay on the Rifle"
 	)
+	state.grant_weapon(UpgradeCatalogScript.FAMILY_TESLA)
+	var tesla_bounce := UpgradeCatalogScript.encode_weapon_offer(
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_TESLA,
+			UpgradeCatalogScript.RARITY_UNCOMMON
+		),
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_BOUNCE,
+			UpgradeCatalogScript.RARITY_UNCOMMON
+		),
+		UpgradeCatalogScript.make_id(
+			UpgradeCatalogScript.FAMILY_CRIT,
+			UpgradeCatalogScript.RARITY_COMMON
+		)
+	)
+	_seed_offers(
+		state,
+		26,
+		PackedStringArray([tesla_bounce, leftover, leftover, leftover, leftover])
+	)
+	state.pick_offer(26, 0)
+	_fail_unless(
+		state.bounce_count_for(UpgradeCatalogScript.FAMILY_TESLA) == 2,
+		"Tesla bundle Bounce should land on the Tesla bundle"
+	)
+	_fail_unless(state.hud_bounce_count() == 2, "HUD bounce should include Tesla bundle bounce")
 	state.free()
 
 
@@ -2924,8 +2952,12 @@ func _verify_weapon_cards() -> void:
 		"Shotgun-only shops should roll Pushback, not Projectile Speed, Duration, or Bounce"
 	)
 	_fail_unless(
-		UpgradeCatalogScript.missing_unlock_id(true, true, true, true, true) == &"",
-		"All five weapons owned should skip the unlock card"
+		UpgradeCatalogScript.missing_unlock_id(true, true, true, true, false) == &"",
+		"Four weapons owned should skip the unlock card"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.MAX_OWNED_WEAPONS == 4,
+		"Players should own at most four weapons"
 	)
 	var missing := UpgradeCatalogScript.missing_unlock_ids(true, false, false, false)
 	_fail_unless(
@@ -2957,11 +2989,11 @@ func _verify_weapon_cards() -> void:
 		"Rifle-only unlock card should randomly pick Laser, Tesla, Rocket, or Shotgun"
 	)
 	for tower_index in range(1, 41):
-		var all_owned := UpgradeCatalogScript.roll_shop(3, tower_index, 0, true, true, true, true, true)
-		for id in all_owned:
+		var capped := UpgradeCatalogScript.roll_shop(3, tower_index, 0, true, true, true, true, false)
+		for id in capped:
 			_fail_unless(
 				not UpgradeCatalogScript.is_weapon_unlock(StringName(id)),
-				"Owned all weapons should never roll an unlock"
+				"Four owned weapons should never roll an unlock"
 			)
 
 	var pity_state: RunUpgradeState = RunUpgradeStateScript.new()
@@ -3083,8 +3115,12 @@ func _verify_weapon_cards() -> void:
 	)
 	state.grant_weapon(UpgradeCatalogScript.FAMILY_SHOTGUN)
 	_fail_unless(
-		state.has_shotgun and state.owned_weapon_ids() == PackedStringArray(["laser", "rifle", "tesla", "rocket", "shotgun"]),
-		"HUD order should append Shotgun after the other owned weapons"
+		not state.has_shotgun,
+		"A fifth weapon should not be granted after reaching the cap"
+	)
+	_fail_unless(
+		state.owned_weapon_ids() == PackedStringArray(["laser", "rifle", "tesla", "rocket"]),
+		"HUD order should stop at four owned weapons"
 	)
 	_fail_unless(
 		is_equal_approx(
@@ -3216,9 +3252,12 @@ func _verify_weapon_cards() -> void:
 	)
 	unlock_state.pick_offer(32, 0)
 	_fail_unless(
-		unlock_state.has_shotgun
-		and unlock_state.owned_weapon_ids() == PackedStringArray(["laser", "rifle", "tesla", "rocket", "shotgun"]),
-		"Picking unlock_shotgun should grant Shotgun"
+		not unlock_state.has_shotgun,
+		"A fifth unlock should not be granted after reaching the cap"
+	)
+	_fail_unless(
+		unlock_state.owned_weapon_ids() == PackedStringArray(["laser", "rifle", "tesla", "rocket"]),
+		"Unlock flow should stop at four owned weapons"
 	)
 
 	var tesla_start: RunUpgradeState = RunUpgradeStateScript.new()
@@ -3483,6 +3522,39 @@ func _verify_dawn_pose() -> void:
 	)
 	_fail_unless(is_equal_approx(xz.y, tower_pos.z), "Wait until dawn should keep the tower Z")
 	_fail_unless(not is_equal_approx(xz.x, 40.0) or not is_equal_approx(tower_pos.x, 0.0), "Pose must be relative to this tower")
+
+
+func _verify_tower_visit_heal() -> void:
+	_fail_unless(
+		TowerVisitControllerScript.visit_heal_amount(1) == 5,
+		"Tower 1 first visit should heal 5 HP"
+	)
+	_fail_unless(
+		TowerVisitControllerScript.visit_heal_amount(2) == 10,
+		"Tower 2 first visit should heal 10 HP"
+	)
+	_fail_unless(
+		TowerVisitControllerScript.visit_heal_amount(4) == 20,
+		"Tower 4 first visit should heal 20 HP"
+	)
+	_fail_unless(
+		TowerVisitControllerScript.visit_heal_amount(0) == 0,
+		"Invalid tower index should not heal"
+	)
+	var health: PlayerHealth = PlayerHealthScript.new()
+	root.add_child(health)
+	health.take_damage(30)
+	health.heal(TowerVisitControllerScript.visit_heal_amount(3))
+	_fail_unless(
+		health.get_current() == 35,
+		"Tower 3 visit heal should restore 15 HP (20 -> 35)"
+	)
+	health.heal(TowerVisitControllerScript.visit_heal_amount(4))
+	_fail_unless(
+		health.get_current() == 50,
+		"Tower heal should clamp at max health"
+	)
+	health.free()
 
 
 func _verify_visit_radius() -> void:

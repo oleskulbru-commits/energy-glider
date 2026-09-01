@@ -186,7 +186,7 @@ func _verify_charger() -> void:
 
 func _verify_pill_health() -> void:
 	_fail_unless(SwarmPillScript.MAX_HEALTH == 20, "Crawler HP should be 20")
-	_fail_unless(ChargerPillScript.CHARGER_MAX_HEALTH == 25, "Charger HP should be 25")
+	_fail_unless(ChargerPillScript.CHARGER_MAX_HEALTH == 33, "Charger HP should be 33")
 	_fail_unless(AutoRifleScript.DAMAGE == 10, "Rifle damage should be 10")
 	_fail_unless(AutoRifleScript.damage_for(0.0) == 10, "Base rifle damage should stay 10")
 	_fail_unless(AutoRifleScript.damage_for(0.04) == 10, "4% more damage should round 10.4 down to 10")
@@ -206,11 +206,13 @@ func _verify_pill_health() -> void:
 
 	var green: ChargerPill = ChargerPillScript.new()
 	root.add_child(green)
-	_fail_unless(green.get_max_health() == 25, "Charger max HP after ready should be 25")
+	_fail_unless(green.get_max_health() == 33, "Charger max HP after ready should be 33")
 	_fail_unless(not green.take_damage(10), "First shot should not kill charger")
 	_fail_unless(not green.take_damage(10), "Second shot should not kill charger")
-	_fail_unless(green.get_health() == 5, "Charger should have 5 HP after two shots")
-	_fail_unless(green.take_damage(10), "Third shot should kill charger")
+	_fail_unless(green.get_health() == 13, "Charger should have 13 HP after two shots")
+	_fail_unless(not green.take_damage(10), "Third shot should not kill charger")
+	_fail_unless(green.get_health() == 3, "Charger should have 3 HP after three shots")
+	_fail_unless(green.take_damage(10), "Fourth shot should kill charger")
 	green.free()
 
 	var scaled_red: SwarmPill = SwarmPillScript.new()
@@ -230,7 +232,7 @@ func _verify_pill_health() -> void:
 	root.add_child(scaled_green)
 	scaled_green.configure(null, null, SwarmPillScript.DEFAULT_SPEED)
 	scaled_green.apply_difficulty(0.15)
-	_fail_unless(scaled_green.get_max_health() == 28, "15% of 25 HP should floor to 28")
+	_fail_unless(scaled_green.get_max_health() == 37, "15% of 33 HP should floor to 37")
 	_fail_unless(scaled_green.contact_damage == 13, "15% of 12 damage should floor to 13")
 	_fail_unless(
 		is_equal_approx(scaled_green.move_speed, 6.0),

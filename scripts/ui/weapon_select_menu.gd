@@ -141,7 +141,7 @@ func _play_choose_later(token: int) -> void:
 		return
 	if _choose_voice == null:
 		return
-	_choose_voice.play()
+	# Muted for filming — restore _choose_voice.play() when done.
 
 
 func _schedule_eon_voice() -> void:
@@ -162,4 +162,4 @@ func _play_eon_later(token: int) -> void:
 		return
 	if _eon_voice == null:
 		return
-	_eon_voice.play()
+	# Muted for filming — restore _eon_voice.play() when done.

@@ -33,6 +33,8 @@ static func _spawn_at(tree: SceneTree, from: Vector3, to: Vector3, is_link: bool
 		return
 	var parent := tree.current_scene
 	if parent == null:
+		parent = tree.root
+	if parent == null:
 		return
 	var bolt := TeslaStrike.new()
 	bolt._from = from

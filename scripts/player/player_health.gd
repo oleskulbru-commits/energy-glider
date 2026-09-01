@@ -7,6 +7,9 @@ signal damaged(amount: int)
 const BASE_HEALTH := 50
 const CONTACT_DAMAGE := 2
 const REGEN_LOCKOUT_SEC := 4.0
+const LASER_BURN_DURATION_SEC := 3.0
+const LASER_BURN_TICK_SEC := 0.5
+const LASER_BURN_DAMAGE := 2
 
 @export var glider_path: NodePath
 
@@ -16,6 +19,9 @@ var _glider: Node
 var _death_triggered := false
 var _regen_lockout := 0.0
 var _regen_accum := 0.0
+var _burn_left := 0.0
+var _burn_tick_accum := 0.0
+var _prev_glider_pos := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -28,6 +34,7 @@ func _ready() -> void:
 			_glider = parent.get_glider()
 	current = BASE_HEALTH
 	health_changed.emit(current, get_max())
+	process_physics_priority = -10
 
 
 func get_current() -> int:
@@ -49,7 +56,10 @@ func reset_full() -> void:
 	_death_triggered = false
 	_regen_lockout = 0.0
 	_regen_accum = 0.0
-	current = BASE_HEALTH
+	_burn_left = 0.0
+	_burn_tick_accum = 0.0
+	_prev_glider_pos = _glider_world_pos()
+	current = get_max()
 	health_changed.emit(current, get_max())
 
 
@@ -74,6 +84,32 @@ func _process(delta: float) -> void:
 	var healed := int(stepped["heal"])
 	if healed > 0:
 		heal(healed)
+
+
+func _physics_process(delta: float) -> void:
+	if _is_run_ended():
+		return
+	var burn_step := tick_burn(_burn_left, _burn_tick_accum, delta)
+	_burn_left = float(burn_step["burn_left"])
+	_burn_tick_accum = float(burn_step["tick_accum"])
+	var burn_damage := int(burn_step["damage"])
+	if burn_damage > 0:
+		take_damage(burn_damage)
+	_prev_glider_pos = _glider_world_pos()
+
+
+func apply_laser_burn() -> void:
+	_burn_left = LASER_BURN_DURATION_SEC
+	_burn_tick_accum = LASER_BURN_TICK_SEC
+
+
+func movement_chord() -> Dictionary:
+	var to_pos := _glider_world_pos()
+	return {"from": _prev_glider_pos, "to": to_pos}
+
+
+func get_burn_left() -> float:
+	return _burn_left
 
 
 func take_damage(amount: int) -> void:
@@ -142,6 +178,12 @@ func _trigger_death() -> void:
 			_glider.end_run("death")
 
 
+func _glider_world_pos() -> Vector3:
+	if _glider != null and is_instance_valid(_glider) and _glider is Node3D:
+		return (_glider as Node3D).global_position
+	return Vector3.ZERO
+
+
 ## Pure helpers for verifies / tuning.
 static func apply_damage(current_hp: int, amount: int, max_hp: int = BASE_HEALTH) -> int:
 	return clampi(current_hp - maxi(amount, 0), 0, max_hp)
@@ -167,3 +209,16 @@ static func tick_regen(rate: float, dt: float, accum: float, lockout: float) -> 
 	var healed := int(floor(next_accum))
 	next_accum -= float(healed)
 	return {"lockout": 0.0, "accum": next_accum, "heal": healed}
+
+
+static func tick_burn(burn_left: float, tick_accum: float, dt: float) -> Dictionary:
+	var step := maxf(dt, 0.0)
+	if burn_left <= 0.0:
+		return {"burn_left": 0.0, "tick_accum": 0.0, "damage": 0}
+	var next_left := maxf(burn_left - step, 0.0)
+	var next_accum := tick_accum - step
+	var damage := 0
+	while next_accum < 0.0:
+		damage += LASER_BURN_DAMAGE
+		next_accum += LASER_BURN_TICK_SEC
+	return {"burn_left": next_left, "tick_accum": next_accum, "damage": damage}

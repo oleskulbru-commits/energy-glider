@@ -1,14 +1,20 @@
 class_name EnemyStreamSpawner
 extends Node3D
 
-## Spawns crawlers and chargers ahead of the glider after the run has started.
+## Spawns crawlers, chargers, and (from level 5) flying combat drones ahead of the glider.
 ## New game waits for the first E.O.N. pickup. Try Again keeps spawning even
 ## before the E.O.N. is collected again.
 
 const SwarmPillScene := preload("res://scenes/enemies/swarm_pill.tscn")
 const ChargerPillScene := preload("res://scenes/enemies/charger_pill.tscn")
+const LaserDroneScene := preload("res://scenes/enemies/laser_drone.tscn")
+const MissileDroneScene := preload("res://scenes/enemies/missile_drone.tscn")
+const MachineGunDroneScene := preload("res://scenes/enemies/machine_gun_drone.tscn")
+const MachineGunDroneScript := preload("res://scripts/enemies/machine_gun_drone.gd")
 const SwarmPillScript := preload("res://scripts/enemies/swarm_pill.gd")
+const CombatDroneScript := preload("res://scripts/enemies/combat_drone.gd")
 const EonDirectorScript := preload("res://scripts/game/eon_director.gd")
+const LevelRunScript := preload("res://scripts/game/level_run.gd")
 
 const SPAWN_GRACE_SEC := 3.0
 const DAWN_SPAWN_GRACE_SEC := 2.0
@@ -16,6 +22,13 @@ const DAWN_SPAWN_GRACE_SEC := 2.0
 const CHARGER_SPAWN_CHANCE := 1.0 / 6.0
 ## Chargers unlock after crossing tower 3 (level 4+).
 const CHARGER_MIN_LEVEL := 4
+## Drones unlock after crossing tower 4 (level 5+).
+const DRONE_MIN_LEVEL := CombatDroneScript.DRONE_MIN_LEVEL
+const LASER_KILL_COOLDOWN_SEC := 45.0
+## After a laser drone is killed or despawns, wait this long before another can spawn.
+## Dev/test: machine gun drone on level 1, 400 m ahead (full align → charge flow).
+const SPAWN_TEST_DRONE := false
+const TEST_DRONE_AHEAD_M := CombatDroneScript.SPAWN_AHEAD_M
 
 @export var player_rig_path: NodePath
 @export var terrain_manager_path: NodePath
@@ -24,6 +37,17 @@ const CHARGER_MIN_LEVEL := 4
 @export var spawn_interval_sec := 0.35
 @export var spawns_per_tick_max := 2
 
+enum DroneType { LASER, MISSILE, MACHINE_GUN }
+
+class DroneSpawnSlot:
+	var drone_type: int = DroneType.MISSILE
+	var threshold := 0.0
+
+	func _init(type: int, thresh: float) -> void:
+		drone_type = type
+		threshold = thresh
+
+
 var _rig: PlayerRig
 var _terrain: TerrainManager
 var _director: EonDirectorScript
@@ -31,6 +55,15 @@ var _rng := RandomNumberGenerator.new()
 var _spawn_cooldown := 0.0
 var _grace_left := 0.0
 var _active: Array[Node] = []
+var _active_drones: Array[Node] = []
+var _drone_level := 0
+var _drones_spawned_in_level := 0
+var _drone_spawn_plan: Array = []
+var _active_laser: LaserDrone = null
+var _laser_kill_cooldown_left := 0.0
+var _active_mg_drone: Node = null
+var _test_mg_drone_spawned := false
+var _pending_singleton_slots: Array = []
 
 
 func _ready() -> void:
@@ -68,6 +101,7 @@ func _on_run_ended() -> void:
 
 func _physics_process(delta: float) -> void:
 	_cull_active()
+	_laser_kill_cooldown_left = maxf(_laser_kill_cooldown_left - delta, 0.0)
 	_spawn_cooldown = maxf(_spawn_cooldown - delta, 0.0)
 	if _grace_left > 0.0:
 		_grace_left = maxf(_grace_left - delta, 0.0)
@@ -76,6 +110,9 @@ func _physics_process(delta: float) -> void:
 		return
 
 	var level := _current_level()
+	_try_spawn_test_mg_drone(level)
+	_try_spawn_drones(level)
+
 	var cap := SwarmPillScript.active_cap_for_level(level)
 	if _active.size() >= cap:
 		return
@@ -101,12 +138,185 @@ func clear_stream() -> void:
 		if node != null and is_instance_valid(node):
 			node.queue_free()
 	_active.clear()
+	for node in _active_drones:
+		if node != null and is_instance_valid(node):
+			node.queue_free()
+	_active_drones.clear()
+	_reset_drone_spawn_state()
 
 
 func reset_after_dawn() -> void:
 	clear_stream()
 	_grace_left = DAWN_SPAWN_GRACE_SEC
 	_spawn_cooldown = 0.0
+
+
+func _reset_drone_spawn_state() -> void:
+	_drone_level = 0
+	_drones_spawned_in_level = 0
+	_drone_spawn_plan.clear()
+	_active_laser = null
+	_laser_kill_cooldown_left = 0.0
+	_active_mg_drone = null
+	_test_mg_drone_spawned = false
+	_pending_singleton_slots.clear()
+
+
+static func drone_spawn_thresholds_from_plan(plan: Array) -> Array[float]:
+	var thresholds: Array[float] = []
+	for slot in plan:
+		if slot is DroneSpawnSlot:
+			thresholds.append(slot.threshold)
+	return thresholds
+
+
+static func build_drone_spawn_plan(level: int, rng: RandomNumberGenerator) -> Array:
+	var budget := CombatDroneScript.drone_cap_for_level(level)
+	if budget <= 0 or rng == null:
+		return []
+	var spread := rng.randf()
+	var cluster_center := rng.randf_range(0.18, 0.82)
+	var thresholds := build_drone_spawn_thresholds(budget, spread, cluster_center, rng)
+	var plan: Array = []
+	for i in budget:
+		plan.append(DroneSpawnSlot.new(roll_drone_type(rng), thresholds[i]))
+	return plan
+
+
+static func roll_drone_type(rng: RandomNumberGenerator) -> int:
+	if rng == null:
+		return DroneType.MISSILE
+	var roll := rng.randf()
+	if roll < 1.0 / 3.0:
+		return DroneType.LASER
+	if roll < 2.0 / 3.0:
+		return DroneType.MISSILE
+	return DroneType.MACHINE_GUN
+
+
+static func count_laser_slots(plan: Array) -> int:
+	return count_drone_type_slots(plan, DroneType.LASER)
+
+
+static func count_drone_type_slots(plan: Array, drone_type: int) -> int:
+	var count := 0
+	for slot in plan:
+		if slot is DroneSpawnSlot and slot.drone_type == drone_type:
+			count += 1
+	return count
+
+
+static func can_spawn_mg_now(has_active: bool) -> bool:
+	return not has_active
+
+
+static func is_singleton_drone_type(drone_type: int) -> bool:
+	return drone_type == DroneType.LASER or drone_type == DroneType.MACHINE_GUN
+
+
+static func can_spawn_singleton_type(
+	drone_type: int,
+	laser_cooldown_left: float,
+	has_active_laser: bool,
+	has_active_mg: bool
+) -> bool:
+	match drone_type:
+		DroneType.LASER:
+			return can_spawn_laser_now(laser_cooldown_left, has_active_laser)
+		DroneType.MACHINE_GUN:
+			return can_spawn_mg_now(has_active_mg)
+	return true
+
+
+static func collect_due_drone_spawns(
+	plan: Array,
+	cursor: int,
+	pending: Array,
+	player_x: float,
+	level: int,
+	laser_cooldown_left: float,
+	has_active_laser: bool,
+	has_active_mg: bool
+) -> Dictionary:
+	var thresholds := drone_spawn_thresholds_from_plan(plan)
+	var spawns: Array = []
+	var next_pending: Array = []
+	var simulated_active_laser := has_active_laser
+	var simulated_active_mg := has_active_mg
+	var simulated_cooldown := laser_cooldown_left
+
+	for slot in pending:
+		if slot is DroneSpawnSlot and can_spawn_singleton_type(
+			slot.drone_type,
+			simulated_cooldown,
+			simulated_active_laser,
+			simulated_active_mg
+		):
+			spawns.append(slot)
+			if slot.drone_type == DroneType.LASER:
+				simulated_active_laser = true
+			elif slot.drone_type == DroneType.MACHINE_GUN:
+				simulated_active_mg = true
+		else:
+			next_pending.append(slot)
+
+	var next_cursor := cursor
+	while next_cursor < plan.size():
+		if not drone_spawn_progress_allows(player_x, level, next_cursor, thresholds):
+			break
+		var slot: DroneSpawnSlot = plan[next_cursor]
+		if is_singleton_drone_type(slot.drone_type) and not can_spawn_singleton_type(
+			slot.drone_type,
+			simulated_cooldown,
+			simulated_active_laser,
+			simulated_active_mg
+		):
+			next_pending.append(slot)
+			next_cursor += 1
+			continue
+		spawns.append(slot)
+		if slot.drone_type == DroneType.LASER:
+			simulated_active_laser = true
+		elif slot.drone_type == DroneType.MACHINE_GUN:
+			simulated_active_mg = true
+		next_cursor += 1
+
+	return {
+		"cursor": next_cursor,
+		"pending": next_pending,
+		"spawns": spawns,
+	}
+
+
+static func can_spawn_laser_now(cooldown_left: float, has_active: bool) -> bool:
+	if has_active:
+		return false
+	if cooldown_left > 0.0:
+		return false
+	return true
+
+
+static func should_start_laser_cooldown_on_exit(
+	active_laser: LaserDrone,
+	exiting: LaserDrone
+) -> bool:
+	return active_laser != null and exiting != null and active_laser == exiting
+
+
+static func can_spawn_laser(
+	spawned: int,
+	budget: int,
+	cooldown_left: float,
+	has_active: bool
+) -> bool:
+	# Legacy helper for tests that still pass explicit laser budgets.
+	if has_active:
+		return false
+	if spawned >= budget:
+		return false
+	if cooldown_left > 0.0:
+		return false
+	return true
 
 
 func _should_spawn() -> bool:
@@ -168,6 +378,223 @@ func _spawn_one(track: Node3D, ahead: Vector2, spread: float, speed: float, leve
 	_active.append(pill)
 
 
+func _try_spawn_drones(level: int) -> void:
+	if level < DRONE_MIN_LEVEL:
+		return
+	if level != _drone_level:
+		_begin_drone_level(level)
+	_try_spawn_next_drone_slot(level)
+
+
+func _begin_drone_level(level: int) -> void:
+	_drone_level = level
+	_drones_spawned_in_level = 0
+	_laser_kill_cooldown_left = 0.0
+	_pending_singleton_slots.clear()
+	_drone_spawn_plan = build_drone_spawn_plan(level, _rng)
+
+
+func _try_spawn_next_drone_slot(level: int) -> void:
+	if _drones_spawned_in_level >= _drone_spawn_plan.size() and _pending_singleton_slots.is_empty():
+		return
+	var track := _track_body()
+	if track == null:
+		return
+	var result := collect_due_drone_spawns(
+		_drone_spawn_plan,
+		_drones_spawned_in_level,
+		_pending_singleton_slots,
+		track.global_position.x,
+		level,
+		_laser_kill_cooldown_left,
+		_active_laser != null and is_instance_valid(_active_laser),
+		_active_mg_drone != null and is_instance_valid(_active_mg_drone)
+	)
+	_drones_spawned_in_level = int(result.cursor)
+	_pending_singleton_slots = result.pending
+	for slot in result.spawns:
+		if slot is DroneSpawnSlot:
+			_spawn_drone_slot(slot, track, level)
+
+
+func _spawn_drone_slot(slot: DroneSpawnSlot, track: Node3D, level: int) -> void:
+	match slot.drone_type:
+		DroneType.LASER:
+			_spawn_laser_drone(track, level)
+		DroneType.MACHINE_GUN:
+			_spawn_machine_gun_drone(track, level)
+		_:
+			_spawn_missile_drone(track, level)
+
+
+func _roll_drone_spawn_plan(level: int) -> Array:
+	return build_drone_spawn_plan(level, _rng)
+
+
+## spread 0 = all drones near cluster_center; spread 1 = evenly spaced midpoints.
+static func build_drone_spawn_thresholds(
+	budget: int,
+	spread: float,
+	cluster_center: float,
+	rng: RandomNumberGenerator,
+	min_progress: float = 0.08,
+	max_progress: float = 0.95
+) -> Array[float]:
+	var thresholds: Array[float] = []
+	if budget <= 0:
+		return thresholds
+	var t := clampf(spread, 0.0, 1.0)
+	var center := clampf(cluster_center, min_progress, max_progress)
+	for i in budget:
+		var even := (float(i) + 0.5) / float(budget)
+		var cluster := center
+		if t < 0.999:
+			cluster += rng.randf_range(-0.02, 0.02)
+		var threshold := lerpf(cluster, even, t)
+		thresholds.append(clampf(threshold, min_progress, max_progress))
+	thresholds.sort()
+	return thresholds
+
+
+func _roll_drone_spawn_thresholds(budget: int) -> Array[float]:
+	if budget <= 0:
+		return []
+	var spread := _rng.randf()
+	var cluster_center := _rng.randf_range(0.18, 0.82)
+	return build_drone_spawn_thresholds(budget, spread, cluster_center, _rng)
+
+
+static func drone_spawn_progress_allows(
+	player_x: float,
+	level: int,
+	spawned: int,
+	thresholds: Array[float]
+) -> bool:
+	if spawned >= thresholds.size():
+		return false
+	var bounds := LevelRunScript.segment_east_west_x(level)
+	var east_x := bounds.x
+	var west_x := bounds.y
+	var span := east_x - west_x
+	if span <= 0.001:
+		return spawned == 0
+	var progress := clampf((east_x - player_x) / span, 0.0, 1.0)
+	return progress >= thresholds[spawned]
+
+
+func _try_spawn_test_mg_drone(level: int) -> void:
+	if not SPAWN_TEST_DRONE:
+		return
+	if level != 1:
+		return
+	if _test_mg_drone_spawned:
+		return
+	if _active_mg_drone != null and is_instance_valid(_active_mg_drone):
+		return
+	var track := _track_body()
+	if track == null:
+		return
+	_spawn_test_mg_drone(track)
+	_test_mg_drone_spawned = true
+
+
+func _spawn_test_mg_drone(track: Node3D) -> void:
+	var world := _machine_gun_drone_spawn_position(track, TEST_DRONE_AHEAD_M)
+	var drone = MachineGunDroneScene.instantiate()
+	add_child(drone)
+	drone.global_position = world
+	(drone as MachineGunDroneScript).configure(_terrain, track, CombatDroneScript.move_speed_for_drone_level(DRONE_MIN_LEVEL))
+	var bonus := 0.0
+	if _director != null:
+		bonus = _director.difficulty_bonus()
+	drone.apply_difficulty(bonus)
+	_active_mg_drone = drone
+	_active_drones.append(drone)
+
+
+func _spawn_laser_drone(track: Node3D, level: int) -> void:
+	var world := _drone_spawn_position(track)
+	var drone: LaserDrone = LaserDroneScene.instantiate() as LaserDrone
+	add_child(drone)
+	drone.global_position = world
+	drone.configure(_terrain, track, CombatDroneScript.move_speed_for_drone_level(level))
+	var bonus := 0.0
+	if _director != null:
+		bonus = _director.difficulty_bonus()
+	drone.apply_difficulty(bonus)
+	if not drone.died.is_connected(_on_laser_killed):
+		drone.died.connect(_on_laser_killed)
+	if not drone.tree_exited.is_connected(_on_laser_tree_exited):
+		drone.tree_exited.connect(_on_laser_tree_exited.bind(drone))
+	_active_laser = drone
+	_active_drones.append(drone)
+
+
+func _spawn_missile_drone(track: Node3D, level: int) -> void:
+	var world := _drone_spawn_position(track)
+	var drone: MissileDrone = MissileDroneScene.instantiate() as MissileDrone
+	add_child(drone)
+	drone.global_position = world
+	drone.configure(_terrain, track, CombatDroneScript.move_speed_for_drone_level(level))
+	var bonus := 0.0
+	if _director != null:
+		bonus = _director.difficulty_bonus()
+	drone.apply_difficulty(bonus)
+	_active_drones.append(drone)
+
+
+func _spawn_machine_gun_drone(track: Node3D, level: int) -> void:
+	var world := _machine_gun_drone_spawn_position(track, CombatDroneScript.spawn_ahead_m())
+	var drone = MachineGunDroneScene.instantiate()
+	add_child(drone)
+	drone.global_position = world
+	(drone as MachineGunDroneScript).configure(_terrain, track, CombatDroneScript.move_speed_for_drone_level(level))
+	var bonus := 0.0
+	if _director != null:
+		bonus = _director.difficulty_bonus()
+	drone.apply_difficulty(bonus)
+	_active_mg_drone = drone
+	_active_drones.append(drone)
+
+
+func _machine_gun_drone_spawn_position(track: Node3D, ahead_m: float) -> Vector3:
+	var facing := _facing_xz()
+	var ahead_world := track.global_position + facing * ahead_m
+	var world_y := track.global_position.y + CombatDroneScript.CRUISE_HEIGHT_M
+	if _terrain != null:
+		world_y = _terrain.sample_height(ahead_world.x, track.global_position.z) + CombatDroneScript.CRUISE_HEIGHT_M
+	# Far ahead on the lane (X when westbound); same world Z as the player at spawn.
+	return Vector3(ahead_world.x, world_y, track.global_position.z)
+
+
+func _drone_spawn_position(track: Node3D) -> Vector3:
+	var facing := _facing_xz()
+	var ahead_m := CombatDroneScript.spawn_ahead_m()
+	var lateral := _rng.randf_range(-12.0, 12.0)
+	var right := Vector3(facing.z, 0.0, -facing.x)
+	var world := track.global_position + facing * ahead_m + right * lateral
+	var world_y := track.global_position.y + CombatDroneScript.CRUISE_HEIGHT_M
+	if _terrain != null:
+		world_y = _terrain.sample_height(world.x, world.z) + CombatDroneScript.CRUISE_HEIGHT_M
+	return Vector3(world.x, world_y, world.z)
+
+
+func _on_laser_killed() -> void:
+	_active_laser = null
+	_start_laser_cooldown()
+
+
+func _on_laser_tree_exited(drone: LaserDrone) -> void:
+	if not should_start_laser_cooldown_on_exit(_active_laser, drone):
+		return
+	_active_laser = null
+	_start_laser_cooldown()
+
+
+func _start_laser_cooldown() -> void:
+	_laser_kill_cooldown_left = LASER_KILL_COOLDOWN_SEC
+
+
 func _facing_xz() -> Vector3:
 	var glider := _get_glider()
 	if glider == null:
@@ -205,3 +632,12 @@ func _cull_active() -> void:
 		if node != null and is_instance_valid(node) and not node.is_queued_for_deletion():
 			alive.append(node)
 	_active = alive
+	var drones: Array[Node] = []
+	for node in _active_drones:
+		if node != null and is_instance_valid(node) and not node.is_queued_for_deletion():
+			drones.append(node)
+	_active_drones = drones
+	if _active_laser != null and (not is_instance_valid(_active_laser) or _active_laser.is_queued_for_deletion()):
+		_active_laser = null
+	if _active_mg_drone != null and (not is_instance_valid(_active_mg_drone) or _active_mg_drone.is_queued_for_deletion()):
+		_active_mg_drone = null

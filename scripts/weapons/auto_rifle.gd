@@ -216,6 +216,8 @@ static func collect_candidates(
 		var pill := node as Node3D
 		if pill == null or not is_instance_valid(pill):
 			continue
+		if pill is CombatDrone and (pill as CombatDrone).invulnerable:
+			continue
 		if pill is SwarmPill and not (pill as SwarmPill).is_alive():
 			continue
 		if xz_distance(origin, pill.global_position) > range_m:
@@ -233,6 +235,9 @@ static func pick_target(
 	range_m: float,
 	rng: RandomNumberGenerator
 ) -> Node3D:
+	var magnet := WeaponTargeting.find_laser_drone_magnet(pills, origin, facing, range_m)
+	if magnet != null:
+		return magnet
 	var candidates := collect_candidates(pills, origin, facing, range_m)
 	if candidates.is_empty():
 		return null
@@ -254,6 +259,9 @@ static func pick_bounce_target(
 	exclude: Dictionary,
 	rng: RandomNumberGenerator
 ) -> Node3D:
+	var magnet := WeaponTargeting.find_laser_drone_magnet_bounce(pills, from, bounce_range)
+	if magnet != null:
+		return magnet
 	var found: Array[Node3D] = []
 	for node in pills:
 		var pill := node as Node3D

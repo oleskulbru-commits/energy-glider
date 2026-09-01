@@ -13,6 +13,11 @@ const BATTERY_COLOR_EMPTY := Color(0.85, 0.28, 0.22)
 
 const GliderInputScript = preload("res://scripts/input/glider_input.gd")
 const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
+const LaserTargetReticleUIScript = preload("res://scripts/ui/laser_target_reticle_ui.gd")
+
+const LASER_HIT_HUE_COLOR := Color(0.92, 0.1, 0.06, 1.0)
+const LASER_HIT_HUE_PEAK_ALPHA := 0.42
+const LASER_HIT_HUE_FADE_SEC := 2.0
 
 @onready var _power_label: Label = %PowerLabel
 @onready var _power_percent_label: Label = %PowerPercent
@@ -22,6 +27,7 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _battery_bar: ProgressBar = %BatteryBar
 @onready var _stopped_overlay: PanelContainer = %StoppedOverlay
 @onready var _fail_fade: ColorRect = %FailFade
+@onready var _laser_hit_hue: ColorRect = %LaserHitHue
 @onready var _stopped_title: Label = %StoppedTitle
 @onready var _stopped_distance: Label = %StoppedDistance
 @onready var _death_buttons: HBoxContainer = %DeathButtons
@@ -61,11 +67,13 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 @onready var _luck_label: Label = %LuckLabel
 @onready var _momentum_retention_label: Label = %MomentumRetentionLabel
 @onready var _crit_label: Label = %CritLabel
+@onready var _bounce_label: Label = %BounceLabel
 @onready var _duration_label: Label = %DurationLabel
 @onready var _pushback_label: Label = %PushbackLabel
 @onready var _range_label: Label = %RangeLabel
 @onready var _speed_label: Label = %SpeedLabel
 @onready var _weapon_tray: HBoxContainer = %WeaponTray
+@onready var _laser_target_reticle: LaserTargetReticleUIScript = %LaserTargetReticle
 
 var _rig: PlayerRig
 var _player: GliderPlayer
@@ -84,11 +92,13 @@ var _night_warning_timer := 0.0
 var _safe_pulse_time := 0.0
 var _fail_fade_tween: Tween
 var _fail_fade_active := false
+var _laser_hit_hue_tween: Tween
 var _fail_overlay_style: StyleBoxEmpty
 
 
 func _ready() -> void:
 	layer = 10
+	add_to_group("glider_hud")
 	_rig = get_parent() as PlayerRig
 	if _rig != null:
 		_player = _rig.get_node_or_null("Glider") as GliderPlayer
@@ -141,6 +151,11 @@ func _ready() -> void:
 		_fail_fade.color = Color(0, 0, 0, 0)
 		_fail_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_fail_fade.z_index = 100
+	if _laser_hit_hue != null:
+		_laser_hit_hue.visible = false
+		_laser_hit_hue.color = Color(LASER_HIT_HUE_COLOR.r, LASER_HIT_HUE_COLOR.g, LASER_HIT_HUE_COLOR.b, 0.0)
+		_laser_hit_hue.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_laser_hit_hue.z_index = 95
 	call_deferred("_connect_weapon_tray")
 	if _stopped_overlay != null:
 		_stopped_overlay.z_index = 101
@@ -159,10 +174,24 @@ func _ready() -> void:
 
 
 func _connect_weapon_tray() -> void:
+	_layout_weapon_tray_slots()
 	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
 	if state != null and not state.weapons_changed.is_connected(_refresh_weapon_tray):
 		state.weapons_changed.connect(_refresh_weapon_tray)
 	_refresh_weapon_tray()
+
+
+func _layout_weapon_tray_slots() -> void:
+	if _weapon_tray == null:
+		return
+	for slot in _weapon_tray.get_children():
+		var icon := slot.get_node_or_null("Frame/Icon") as TextureRect
+		if icon == null:
+			continue
+		icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, 2)
+		icon.custom_minimum_size = Vector2.ZERO
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 
 
 func _refresh_weapon_tray() -> void:
@@ -696,6 +725,7 @@ func _update_rifle_debug() -> void:
 	var duration := 0.0
 	var pushback := 0.0
 	var range_bonus := 0.0
+	var bounce := 0
 	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
 	if state != null:
 		extras = state.hud_extra_projectiles()
@@ -713,6 +743,7 @@ func _update_rifle_debug() -> void:
 		duration = state.hud_duration_bonus()
 		pushback = state.hud_pushback_bonus()
 		range_bonus = state.hud_range_bonus()
+		bounce = state.hud_bounce_count()
 	var any := false
 	any = _show_upgrade_line(
 		_rifle_cooldown_label,
@@ -773,6 +804,11 @@ func _update_rifle_debug() -> void:
 		crit > 0.0
 	) or any
 	any = _show_upgrade_line(
+		_bounce_label,
+		"Bounce %d" % bounce,
+		bounce > 0
+	) or any
+	any = _show_upgrade_line(
 		_duration_label,
 		"Duration %d%%" % int(roundf(duration * 100.0)),
 		duration > 0.0
@@ -809,3 +845,70 @@ func _on_stop_chip_gui_input(event: InputEvent) -> void:
 		return
 	_input.set_brake_ui_hold(mouse.pressed)
 	_stop_chip.accept_event()
+
+
+func set_laser_target_telegraph_active(active: bool) -> void:
+	if _laser_target_reticle == null:
+		return
+	if active:
+		var anchor := _player_reticle_screen_anchor()
+		_laser_target_reticle.show_telegraph()
+		_laser_target_reticle.update_telegraph(0.0, 0.0, anchor.screen_pos, anchor.valid)
+	else:
+		_laser_target_reticle.hide_telegraph()
+
+
+func update_laser_target_telegraph(elapsed: float, delta: float) -> void:
+	if _laser_target_reticle == null:
+		return
+	var anchor := _player_reticle_screen_anchor()
+	_laser_target_reticle.update_telegraph(elapsed, delta, anchor.screen_pos, anchor.valid)
+
+
+func play_laser_drone_hit_hue() -> void:
+	if _laser_hit_hue == null:
+		return
+	if _laser_hit_hue_tween != null:
+		_laser_hit_hue_tween.kill()
+		_laser_hit_hue_tween = null
+	_laser_hit_hue.visible = true
+	_laser_hit_hue.color = Color(
+		LASER_HIT_HUE_COLOR.r,
+		LASER_HIT_HUE_COLOR.g,
+		LASER_HIT_HUE_COLOR.b,
+		LASER_HIT_HUE_PEAK_ALPHA
+	)
+	_laser_hit_hue_tween = create_tween()
+	_laser_hit_hue_tween.tween_property(
+		_laser_hit_hue, "color:a", 0.0, LASER_HIT_HUE_FADE_SEC
+	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	_laser_hit_hue_tween.finished.connect(_on_laser_hit_hue_fade_finished, CONNECT_ONE_SHOT)
+
+
+func _on_laser_hit_hue_fade_finished() -> void:
+	_laser_hit_hue_tween = null
+	if _laser_hit_hue == null:
+		return
+	_laser_hit_hue.visible = false
+	_laser_hit_hue.color = Color(
+		LASER_HIT_HUE_COLOR.r,
+		LASER_HIT_HUE_COLOR.g,
+		LASER_HIT_HUE_COLOR.b,
+		0.0
+	)
+
+
+func _player_reticle_screen_anchor() -> Dictionary:
+	var fallback := get_viewport().get_visible_rect().size * 0.5
+	if _player == null or not is_instance_valid(_player):
+		return {"screen_pos": fallback, "valid": false}
+	if _camera == null and _rig != null:
+		_camera = _rig.get_node_or_null("Glider/GliderCamera") as GliderCamera
+		if _camera == null:
+			_camera = _rig.get_node_or_null("Glider/Camera3D") as GliderCamera
+	if _camera == null:
+		return {"screen_pos": fallback, "valid": false}
+	var world_pos := _player.global_position + Vector3(0.0, _camera.look_height, 0.0)
+	if _camera.is_position_behind(world_pos):
+		return {"screen_pos": fallback, "valid": false}
+	return {"screen_pos": _camera.unproject_position(world_pos), "valid": true}

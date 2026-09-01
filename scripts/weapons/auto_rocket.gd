@@ -5,7 +5,7 @@ extends Node
 
 const RocketMissileScene := preload("res://scenes/weapons/rocket_missile.tscn")
 
-const DAMAGE := 20
+const DAMAGE := 18
 const RANGE_M := 75.0
 const FIRE_INTERVAL_SEC := 4.0
 const BURST_GAP_SEC := 0.12
@@ -203,6 +203,9 @@ static func pick_best_target(
 	facing: Vector3,
 	range_m: float
 ) -> Node3D:
+	var magnet := WeaponTargeting.find_laser_drone_magnet(pills, origin, facing, range_m)
+	if magnet != null:
+		return magnet
 	var ranked := rank_targets(pills, origin, facing, range_m, 1)
 	if ranked.is_empty():
 		return null
@@ -219,6 +222,11 @@ static func rank_targets(
 	var ranked: Array[Node3D] = []
 	var want := maxi(count, 0)
 	if want <= 0:
+		return ranked
+	var magnet := WeaponTargeting.find_laser_drone_magnet(pills, origin, facing, range_m)
+	if magnet != null:
+		for _i in want:
+			ranked.append(magnet)
 		return ranked
 	var candidates := AutoRifle.collect_candidates(pills, origin, facing, range_m)
 	candidates.sort_custom(

@@ -100,10 +100,17 @@ func _deal_tick(
 func _retarget(
 	origin: Vector3, facing: Vector3, pills: Array, rng: RandomNumberGenerator
 ) -> void:
-	var next := AutoLaser.closest_in_front(pills, origin, facing, _acquire_range)
-	if next == null:
-		next = AutoRifle.pick_target(pills, origin, facing, _acquire_range, rng)
+	var owner := get_parent() as AutoLaser
+	var exclude: Dictionary = {}
+	if owner != null:
+		owner._release_primary(self)
+		exclude = owner._claimed_lock_ids()
+	var next := AutoLaser.pick_unique_target(
+		pills, origin, facing, _acquire_range, exclude, rng
+	)
 	_target = next
+	if owner != null and next != null:
+		owner._claim_primary(self, next)
 	_rebuild_hops(pills, rng)
 
 
@@ -123,6 +130,9 @@ func _aim_point() -> Vector3:
 
 func _finish() -> void:
 	finished = true
+	var owner := get_parent() as AutoLaser
+	if owner != null:
+		owner._release_primary(self)
 	_hide_beam()
 	queue_free()
 

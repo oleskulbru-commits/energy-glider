@@ -30,7 +30,7 @@ func _run() -> void:
 
 
 func _verify_stats() -> void:
-	_fail_unless(AutoRocketScript.DAMAGE == 20, "Rocket damage should be 20")
+	_fail_unless(AutoRocketScript.DAMAGE == 18, "Rocket damage should be 18")
 	_fail_unless(is_equal_approx(AutoRocketScript.RANGE_M, 75.0), "Rocket acquire range should be 75 m")
 	_fail_unless(is_equal_approx(AutoRocketScript.FIRE_INTERVAL_SEC, 4.0), "Rocket interval should be 4 s")
 	_fail_unless(is_equal_approx(AutoRocketScript.BURST_GAP_SEC, 0.12), "Rocket burst gap should be 0.12 s")
@@ -40,10 +40,10 @@ func _verify_stats() -> void:
 		is_equal_approx(RocketMissileScript.SPEED_MPS * RocketMissileScript.BOOST_SEC, 6.0),
 		"Rocket loft should stay 6 m"
 	)
-	_fail_unless(AutoRocketScript.damage_for(0.0) == 20, "Base rocket should deal 20")
+	_fail_unless(AutoRocketScript.damage_for(0.0) == 18, "Base rocket should deal 18")
 	_fail_unless(
-		AutoRocketScript.damage_for(0.04) == 21,
-		"4% Damage should round 20.8 to 21"
+		AutoRocketScript.damage_for(0.04) == 19,
+		"4% Damage should round 18.72 to 19"
 	)
 	_fail_unless(
 		is_equal_approx(AutoRocketScript.fire_interval_for(0.0), 4.0),
@@ -90,8 +90,8 @@ func _verify_stats() -> void:
 		"25% Pushback should knock back at 25"
 	)
 	_fail_unless(
-		AutoRifleScript.crit_damage_for(AutoRocketScript.damage_for(0.0), true) == 40,
-		"Rocket crit should double 20 to 40"
+		AutoRifleScript.crit_damage_for(AutoRocketScript.damage_for(0.0), true) == 36,
+		"Rocket crit should double 18 to 36"
 	)
 	var missile: RocketMissile = RocketMissileScript.new()
 	root.add_child(missile)

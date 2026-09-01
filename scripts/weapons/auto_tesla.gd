@@ -1,16 +1,20 @@
 class_name AutoTesla
 extends Node
 
-## Instant sky-strikes. Clock matches the rifle; hops are lightning-fast.
+## Instant sky-strikes. Chamber clock matches the shotgun; hops are lightning-fast.
 
 const DAMAGE := 23
 const RANGE_M := 20.0
 const FIRE_INTERVAL_SEC := 3.0
+const BURST_GAP_SEC := 0.12
 const STUN_SEC := 1.0
 
 
 var _rig: PlayerRig
 var _cooldown := 0.0
+var _burst_gap := 0.0
+var _burst_remaining := 0
+var _volley_exclude: Dictionary = {}
 var _rng := RandomNumberGenerator.new()
 
 
@@ -21,30 +25,65 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	_cooldown = maxf(_cooldown - delta, 0.0)
+	_burst_gap = maxf(_burst_gap - delta, 0.0)
 	if not _can_fire():
+		_burst_remaining = 0
+		_burst_gap = 0.0
+		_volley_exclude.clear()
+		return
+	if _burst_remaining > 0:
+		if _burst_gap > 0.0:
+			return
+		_tick_burst()
 		return
 	if _cooldown > 0.0:
 		return
-	if not _try_fire():
+	if not _try_start_burst():
 		return
 
 
-func _try_fire() -> bool:
+func get_projectile_count() -> int:
+	return AutoRifle.projectile_count_for(_extra_projectiles())
+
+
+func _try_start_burst() -> bool:
+	_volley_exclude.clear()
+	if not _fire_one():
+		return false
+	_burst_remaining = get_projectile_count() - 1
+	if _burst_remaining <= 0:
+		_cooldown = fire_interval_for(_attack_speed_reduction())
+	else:
+		_burst_gap = BURST_GAP_SEC
+	return true
+
+
+func _tick_burst() -> void:
+	# Keep leftover strikes chambered until they fire. Cooldown starts only when empty.
+	if not _fire_one():
+		return
+	_burst_remaining -= 1
+	if _burst_remaining <= 0:
+		_cooldown = fire_interval_for(_attack_speed_reduction())
+	else:
+		_burst_gap = BURST_GAP_SEC
+
+
+func _fire_one() -> bool:
 	var origin := _muzzle_origin()
 	var facing := _facing_xz()
 	var range_m := _current_range()
-	var count := AutoRifle.projectile_count_for(_extra_projectiles())
 	var pills := _pills()
-	var targets := pick_unique_targets(pills, origin, facing, range_m, count, _rng)
+	var targets := pick_unique_targets(pills, origin, facing, range_m, 1, _rng, _volley_exclude)
 	if targets.is_empty():
 		return false
+	var target := targets[0]
 	var bounce_n := _bounce_count()
 	var bounce_range := AutoRifle.bounce_range_for(range_m)
 	var bonus := _damage_bonus()
 	var crit := _crit_chance()
-	for target in targets:
-		_strike_chain(target, pills, bounce_n, bounce_range, bonus, crit)
-	_cooldown = fire_interval_for(_attack_speed_reduction())
+	_strike_chain(target, pills, bounce_n, bounce_range, bonus, crit)
+	_volley_exclude[target.get_instance_id()] = true
 	return true
 
 
@@ -179,13 +218,23 @@ static func pick_unique_targets(
 	facing: Vector3,
 	range_m: float,
 	count: int,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	exclude: Dictionary = {}
 ) -> Array[Node3D]:
 	var found: Array[Node3D] = []
 	var want := maxi(count, 0)
 	if want <= 0 or rng == null:
 		return found
-	var candidates := AutoRifle.collect_candidates(pills, origin, facing, range_m)
+	var magnet := WeaponTargeting.find_laser_drone_magnet(pills, origin, facing, range_m)
+	if magnet != null:
+		for _i in want:
+			found.append(magnet)
+		return found
+	var candidates: Array[Node3D] = []
+	for pill in AutoRifle.collect_candidates(pills, origin, facing, range_m):
+		if exclude.has(pill.get_instance_id()):
+			continue
+		candidates.append(pill)
 	var n := candidates.size()
 	for i in n:
 		var j := rng.randi_range(i, n - 1)

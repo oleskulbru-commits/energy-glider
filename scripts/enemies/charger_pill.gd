@@ -5,7 +5,7 @@ extends SwarmPill
 
 const CRAWLER_VISUAL_SCALE_MULT := 3.0
 const CHARGER_CONTACT_DAMAGE := 12
-const CHARGER_MAX_HEALTH := 25
+const CHARGER_MAX_HEALTH := 33
 const AGGRO_RANGE_M := 15.0
 ## 2x base (6 → 12 m/s) while aggro'd.
 const AGGRO_SPEED_MULT := 2.0

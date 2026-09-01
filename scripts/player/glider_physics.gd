@@ -10,7 +10,6 @@ const GLIDE_EXIT_HEIGHT := 1.10
 const HOVER_ZONE := 1.12
 const TOUCH_CLEARANCE := 0.05
 const GROUND_CONTACT_CLEARANCE := 0.0
-const GROUND_CLIP_MAX := -0.06
 const HOVER_COMPRESS_START := 0.42
 const HOVER_YIELD_SPEED := 5.0
 const HOVER_BREAK_SPEED := 7.5
@@ -94,8 +93,6 @@ const HOVER_SLOW_SPEED_REF := 5.0
 const HOVER_IDLE_SETTLE_NVEL := 0.12
 const HOVER_MAX_NORMAL_SPEED := 2.75
 const HOVER_SLOW_MAX_NORMAL_SPEED := 1.85
-const HOVER_CLEARANCE_RATE_SOFTEN := 1.8
-const HOVER_CLEARANCE_RATE_MIN_SCALE := 0.42
 # Per-corner suspension — tuned so flat-ground total ≈ central quadratic hover.
 const HOVER_POINT_SPRING_K := 84.0
 const HOVER_POINT_DAMPING := 5.25
@@ -151,7 +148,6 @@ class Context:
 	var downhill: Vector3 = Vector3.ZERO
 	var clearance: float = 0.0
 	var hover_clearance: float = 0.0
-	var clearance_change_rate: float = 0.0
 	var slope_grade: float = 0.0
 	var climbing: bool = false
 	var forward_held: bool = false
@@ -405,18 +401,6 @@ static func compute_hover_force(ctx: Context, mass: float, _delta: float) -> Vec
 			repulsion = repulsion_k * pow(penetration, HOVER_REPULSION_POWER)
 			if HOVER_REPULSION_SOFT_START > 0.0:
 				repulsion *= smoothstep(0.0, HOVER_REPULSION_SOFT_START, penetration)
-			if (
-				hover_clearance >= BASE_HEIGHT
-				and ctx.clearance_change_rate > HOVER_CLEARANCE_RATE_SOFTEN
-				and not ctx.climbing
-				and not ctx.boost_active
-			):
-				var soften := lerpf(
-					HOVER_CLEARANCE_RATE_MIN_SCALE,
-					1.0,
-					HOVER_CLEARANCE_RATE_SOFTEN / ctx.clearance_change_rate
-				)
-				repulsion *= soften
 		force += ctx.ground_normal * (repulsion - damp * normal_vel) * mass * strength
 
 	return force
@@ -431,22 +415,10 @@ static func _hover_point_normal(normal: Vector3, reference: Vector3 = Vector3.UP
 	return aligned
 
 
-static func _hover_point_repulsion_scale(ctx: Context, penetration: float) -> float:
-	var scale := 1.0
-	if HOVER_REPULSION_SOFT_START > 0.0:
-		scale *= smoothstep(0.0, HOVER_REPULSION_SOFT_START, penetration)
-	if (
-		penetration > 0.0
-		and ctx.clearance_change_rate > HOVER_CLEARANCE_RATE_SOFTEN
-		and not ctx.climbing
-		and not ctx.boost_active
-	):
-		scale *= lerpf(
-			HOVER_CLEARANCE_RATE_MIN_SCALE,
-			1.0,
-			HOVER_CLEARANCE_RATE_SOFTEN / ctx.clearance_change_rate
-		)
-	return scale
+static func _hover_point_repulsion_scale(_ctx: Context, penetration: float) -> float:
+	if HOVER_REPULSION_SOFT_START <= 0.0:
+		return 1.0
+	return smoothstep(0.0, HOVER_REPULSION_SOFT_START, penetration)
 
 
 static func compute_corner_hover_forces(
@@ -596,19 +568,6 @@ static func apply_velocity_constraints(ctx: Context, velocity: Vector3, mode: in
 				clampf(ctx.slope_grade / CLIMB_REPULSION_GRADE_REF, 0.0, 1.0)
 			)
 			max_normal = maxf(max_normal, escape)
-		if (
-			hover_clearance < BASE_HEIGHT - HOVER_SPRING_DEADBAND
-			and not (ctx.boost_active and ctx.climbing)
-		):
-			var compression := clampf(
-				(BASE_HEIGHT - hover_clearance) / BASE_HEIGHT,
-				0.0,
-				1.0
-			)
-			max_normal = minf(
-				max_normal,
-				lerpf(max_normal, HOVER_SLOW_MAX_NORMAL_SPEED, compression)
-			)
 		var out_normal_vel := v.dot(normal)
 		if out_normal_vel > max_normal and hover_clearance >= 0.0:
 			v -= normal * (out_normal_vel - max_normal)
