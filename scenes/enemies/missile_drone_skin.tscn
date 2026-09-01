@@ -1,10 +1,10 @@
 [gd_scene format=3 uid="uid://dtuwxjc16646b"]
 
-[ext_resource type="PackedScene" path="res://scenes/enemies/drone_body_skin.tscn" id="1_body_skin"]
-[ext_resource type="Texture2D" path="res://assets/3dmodels/enemies/drones/drone_rocket_module_v001_drone_rocket_module_basecolor.jpg" id="2_qjuy4"]
-[ext_resource type="PackedScene" path="res://assets/3dmodels/enemies/drones/drone_rocket_module_v001.glb" id="2_rocket_module"]
-[ext_resource type="Texture2D" path="res://assets/3dmodels/enemies/drones/drone_rocket_module_v001_drone_rocket_module_metallic.JPEG-drone_rocket_module_roughness.png" id="3_ld4q5"]
-[ext_resource type="Texture2D" path="res://assets/3dmodels/enemies/drones/drone_rocket_module_v001_drone_rocket_module_normal.jpg" id="4_2v3k4"]
+[ext_resource type="PackedScene" uid="uid://dpfc3r14weqc3" path="res://scenes/enemies/drone_body_skin.tscn" id="1_body_skin"]
+[ext_resource type="Texture2D" uid="uid://5n5nvtt2tupy" path="res://assets/3dmodels/enemies/drones/drone_rocket_module_v001_drone_rocket_module_basecolor.jpg" id="2_qjuy4"]
+[ext_resource type="PackedScene" uid="uid://dq3p63nvk310v" path="res://assets/3dmodels/enemies/drones/drone_rocket_module_v001.glb" id="2_rocket_module"]
+[ext_resource type="Texture2D" uid="uid://to1unl6rjglb" path="res://assets/3dmodels/enemies/drones/drone_rocket_module_v001_drone_rocket_module_metallic.JPEG-drone_rocket_module_roughness.png" id="3_ld4q5"]
+[ext_resource type="Texture2D" uid="uid://ng2hobb0kqmu" path="res://assets/3dmodels/enemies/drones/drone_rocket_module_v001_drone_rocket_module_normal.jpg" id="4_2v3k4"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_sied0"]
 resource_name = "Rocket_Materials"
