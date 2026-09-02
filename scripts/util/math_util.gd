@@ -32,3 +32,20 @@ static func format_distance_m(distance_m: float) -> String:
 	if distance_m >= 1000.0:
 		return "%.1f km" % (distance_m / 1000.0)
 	return "%d m" % int(roundf(distance_m))
+
+
+static func format_damage_compact(amount: int) -> String:
+	if amount <= 0:
+		return "0"
+	var value := float(amount)
+	if value >= 1_000_000.0:
+		var millions := value / 1_000_000.0
+		if fmod(millions, 1.0) < 0.05:
+			return "%dM" % int(roundf(millions))
+		return "%.1fM" % millions
+	if value >= 1000.0:
+		var thousands := value / 1000.0
+		if fmod(thousands, 1.0) < 0.05:
+			return "%dk" % int(roundf(thousands))
+		return "%.1fk" % thousands
+	return str(amount)

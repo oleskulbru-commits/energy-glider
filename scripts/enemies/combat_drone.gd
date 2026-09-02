@@ -232,11 +232,12 @@ func take_damage(
 	amount: int,
 	hit_dir: Vector3 = Vector3.ZERO,
 	is_crit: bool = false,
-	knockback_speed: float = HIT_KNOCKBACK_SPEED
+	knockback_speed: float = HIT_KNOCKBACK_SPEED,
+	weapon_family: StringName = &""
 ) -> bool:
 	if invulnerable:
 		return false
-	return super.take_damage(amount, hit_dir, is_crit, knockback_speed)
+	return super.take_damage(amount, hit_dir, is_crit, knockback_speed, weapon_family)
 
 
 func _die(from_pos: Vector3) -> void:

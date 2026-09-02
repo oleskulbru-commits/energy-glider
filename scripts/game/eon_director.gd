@@ -28,6 +28,7 @@ const HeadWestVoice := preload("res://assets/audio/ui/head_west.mp3")
 const EonPickupScene := preload("res://scenes/game/eon_pickup.tscn")
 const EonPickupScript := preload("res://scripts/game/eon_pickup.gd")
 const LevelLayoutScript = preload("res://scripts/game/level_layout.gd")
+const RunDamageStatsScript = preload("res://scripts/game/run_damage_stats.gd")
 
 @export var player_rig_path: NodePath
 @export var terrain_manager_path: NodePath
@@ -369,6 +370,8 @@ func _show_death_overlay() -> void:
 	if awaiting_death_choice:
 		return
 	awaiting_death_choice = true
+	if _rig != null:
+		_rig.release_look_mouse()
 	player_died.emit(death_position)
 	objective_changed.emit(get_objective_text())
 	_cancel_head_west_voice()
@@ -393,6 +396,9 @@ func _cancel_death_overlay_timer() -> void:
 func _soft_retry() -> void:
 	_cancel_death_overlay_timer()
 	retry_count += 1
+	var damage_stats := RunDamageStatsScript.find_in_tree(get_tree())
+	if damage_stats != null:
+		damage_stats.reset()
 	# Teleport first while the run is still ended so proximity pickup cannot fire
 	# against a death-spot E.O.N before the player is back at start.
 	if _rig != null:

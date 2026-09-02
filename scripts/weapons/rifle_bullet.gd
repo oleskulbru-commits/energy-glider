@@ -98,7 +98,9 @@ func _on_body_entered(body: Node) -> void:
 		return
 	_hit_ids[id] = true
 	var hit := _resolve_hit()
-	var killed := pill.take_damage(hit.damage, _dir, hit.is_crit, _knockback_speed)
+	var killed := pill.take_damage(
+		hit.damage, _dir, hit.is_crit, _knockback_speed, UpgradeCatalog.FAMILY_RIFLE
+	)
 	if killed:
 		KillSparks.spawn(get_tree(), pill.global_position)
 	if _try_bounce(pill.global_position):

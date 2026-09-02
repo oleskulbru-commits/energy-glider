@@ -121,7 +121,7 @@ func _hurt(target: Node3D, bonus: float, crit: float) -> void:
 		return
 	var is_crit := AutoRifle.roll_crit(crit, _rng)
 	var amount := AutoRifle.crit_damage_for(damage_for(bonus), is_crit)
-	var died := pill.take_damage(amount, Vector3.ZERO, is_crit, 0.0)
+	var died := pill.take_damage(amount, Vector3.ZERO, is_crit, 0.0, UpgradeCatalog.FAMILY_TESLA)
 	if not died:
 		pill.apply_stun(STUN_SEC)
 

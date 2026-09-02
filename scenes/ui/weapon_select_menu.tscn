@@ -1,9 +1,10 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/weapon_select_menu.gd" id="1_menu"]
 [ext_resource type="Theme" path="res://themes/hud_theme.tres" id="2_theme"]
 [ext_resource type="AudioStream" uid="uid://bvc30ivfkcne0" path="res://assets/audio/ui/choose_a_weapon.mp3" id="3_voice"]
 [ext_resource type="AudioStream" uid="uid://dbinm04liq6go" path="res://assets/audio/ui/get_the_eon.mp3" id="4_eon"]
+[ext_resource type="PackedScene" path="res://scenes/ui/god_mode_menu.tscn" id="5_god_mode"]
 
 [node name="WeaponSelectMenu" type="CanvasLayer"]
 process_mode = 3
@@ -41,124 +42,144 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 0
 
-[node name="Panel" type="PanelContainer" parent="Root/Center"]
+[node name="MainPanel" type="PanelContainer" parent="Root/Center"]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(1140, 360)
 layout_mode = 2
 theme_type_variation = &"HudOverlay"
 
-[node name="VBox" type="VBoxContainer" parent="Root/Center/Panel"]
+[node name="VBox" type="VBoxContainer" parent="Root/Center/MainPanel"]
 layout_mode = 2
 theme_override_constants/separation = 18
 
-[node name="TitleLabel" type="Label" parent="Root/Center/Panel/VBox"]
+[node name="TitleLabel" type="Label" parent="Root/Center/MainPanel/VBox"]
 layout_mode = 2
 theme_type_variation = &"HudStoppedTitle"
 text = "CHOOSE A WEAPON"
 horizontal_alignment = 1
 
-[node name="HintLabel" type="Label" parent="Root/Center/Panel/VBox"]
+[node name="HintLabel" type="Label" parent="Root/Center/MainPanel/VBox"]
 layout_mode = 2
 theme_type_variation = &"HudMuted"
 text = "Start with one. Find the others in the towers."
 horizontal_alignment = 1
 
-[node name="Cards" type="HBoxContainer" parent="Root/Center/Panel/VBox"]
+[node name="Cards" type="HBoxContainer" parent="Root/Center/MainPanel/VBox"]
 layout_mode = 2
 theme_override_constants/separation = 24
 alignment = 1
 
-[node name="RifleCard" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards"]
+[node name="RifleCard" type="VBoxContainer" parent="Root/Center/MainPanel/VBox/Cards"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="RifleButton" type="Button" parent="Root/Center/Panel/VBox/Cards/RifleCard"]
+[node name="RifleButton" type="Button" parent="Root/Center/MainPanel/VBox/Cards/RifleCard"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 160)
 layout_mode = 2
 icon_alignment = 1
 expand_icon = true
 
-[node name="RifleName" type="Label" parent="Root/Center/Panel/VBox/Cards/RifleCard"]
+[node name="RifleName" type="Label" parent="Root/Center/MainPanel/VBox/Cards/RifleCard"]
 layout_mode = 2
 theme_type_variation = &"HudValue"
 text = "Rifle"
 horizontal_alignment = 1
 
-[node name="LaserCard" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards"]
+[node name="LaserCard" type="VBoxContainer" parent="Root/Center/MainPanel/VBox/Cards"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="LaserButton" type="Button" parent="Root/Center/Panel/VBox/Cards/LaserCard"]
+[node name="LaserButton" type="Button" parent="Root/Center/MainPanel/VBox/Cards/LaserCard"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 160)
 layout_mode = 2
 icon_alignment = 1
 expand_icon = true
 
-[node name="LaserName" type="Label" parent="Root/Center/Panel/VBox/Cards/LaserCard"]
+[node name="LaserName" type="Label" parent="Root/Center/MainPanel/VBox/Cards/LaserCard"]
 layout_mode = 2
 theme_type_variation = &"HudValue"
 text = "Laser"
 horizontal_alignment = 1
 
-[node name="TeslaCard" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards"]
+[node name="TeslaCard" type="VBoxContainer" parent="Root/Center/MainPanel/VBox/Cards"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="TeslaButton" type="Button" parent="Root/Center/Panel/VBox/Cards/TeslaCard"]
+[node name="TeslaButton" type="Button" parent="Root/Center/MainPanel/VBox/Cards/TeslaCard"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 160)
 layout_mode = 2
 icon_alignment = 1
 expand_icon = true
 
-[node name="TeslaName" type="Label" parent="Root/Center/Panel/VBox/Cards/TeslaCard"]
+[node name="TeslaName" type="Label" parent="Root/Center/MainPanel/VBox/Cards/TeslaCard"]
 layout_mode = 2
 theme_type_variation = &"HudValue"
 text = "Tesla Coil"
 horizontal_alignment = 1
 
-[node name="RocketCard" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards"]
+[node name="RocketCard" type="VBoxContainer" parent="Root/Center/MainPanel/VBox/Cards"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="RocketButton" type="Button" parent="Root/Center/Panel/VBox/Cards/RocketCard"]
+[node name="RocketButton" type="Button" parent="Root/Center/MainPanel/VBox/Cards/RocketCard"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 160)
 layout_mode = 2
 icon_alignment = 1
 expand_icon = true
 
-[node name="RocketName" type="Label" parent="Root/Center/Panel/VBox/Cards/RocketCard"]
+[node name="RocketName" type="Label" parent="Root/Center/MainPanel/VBox/Cards/RocketCard"]
 layout_mode = 2
 theme_type_variation = &"HudValue"
 text = "Rocket Launcher"
 horizontal_alignment = 1
 
-[node name="ShotgunCard" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards"]
+[node name="ShotgunCard" type="VBoxContainer" parent="Root/Center/MainPanel/VBox/Cards"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="ShotgunButton" type="Button" parent="Root/Center/Panel/VBox/Cards/ShotgunCard"]
+[node name="ShotgunButton" type="Button" parent="Root/Center/MainPanel/VBox/Cards/ShotgunCard"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 160)
 layout_mode = 2
 icon_alignment = 1
 expand_icon = true
 
-[node name="ShotgunName" type="Label" parent="Root/Center/Panel/VBox/Cards/ShotgunCard"]
+[node name="ShotgunName" type="Label" parent="Root/Center/MainPanel/VBox/Cards/ShotgunCard"]
 layout_mode = 2
 theme_type_variation = &"HudValue"
 text = "Shotgun"
 horizontal_alignment = 1
 
-[node name="StartButton" type="Button" parent="Root/Center/Panel/VBox"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(220, 40)
+[node name="Buttons" type="HBoxContainer" parent="Root/Center/MainPanel/VBox"]
 layout_mode = 2
-size_flags_horizontal = 4
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="StartButton" type="Button" parent="Root/Center/MainPanel/VBox/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 40)
 disabled = true
 text = "Start"
+
+[node name="GodModeButton" type="Button" parent="Root/Center/MainPanel/VBox/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 40)
+text = "God mode"
+
+[node name="GodModeMenu" parent="Root" instance=ExtResource("5_god_mode")]
+unique_name_in_owner = true
+z_index = 10
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
 
 [node name="ChooseWeaponVoice" type="AudioStreamPlayer" parent="."]
 unique_name_in_owner = true

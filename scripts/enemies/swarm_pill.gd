@@ -6,6 +6,7 @@ signal died
 ## Stream enemy: animated crawler that chases the player and deals contact damage.
 
 const CrawlerDeathBurstScript := preload("res://scripts/enemies/crawler_death_burst.gd")
+const RunDamageStatsScript := preload("res://scripts/game/run_damage_stats.gd")
 
 ## Fine-tune below 1.0 if the Blender-sized import still reads large in-game.
 const CRAWLER_SIZE_MULT := 0.85
@@ -114,10 +115,16 @@ func take_damage(
 	amount: int,
 	hit_dir: Vector3 = Vector3.ZERO,
 	is_crit: bool = false,
-	knockback_speed: float = HIT_KNOCKBACK_SPEED
+	knockback_speed: float = HIT_KNOCKBACK_SPEED,
+	weapon_family: StringName = &""
 ) -> bool:
 	if amount <= 0 or _hp <= 0:
 		return false
+	var dealt := mini(amount, _hp)
+	if weapon_family != StringName():
+		var stats := RunDamageStatsScript.find_in_tree(get_tree())
+		if stats != null:
+			stats.record(weapon_family, dealt)
 	_hp = maxi(_hp - amount, 0)
 	# Show rolled hit damage (incl. crit / overkill), not HP remaining.
 	_spawn_damage_float(amount, is_crit)

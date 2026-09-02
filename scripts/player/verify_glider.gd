@@ -123,6 +123,7 @@ func _run_tests() -> void:
 	_verify_steering_upgrade_scale()
 	_verify_chase_camera_math()
 	_verify_landing_recovery()
+	await _verify_fall_pitch_moves_camera()
 	_verify_brake_boost_time_scale()
 	_verify_handheld_camera()
 	_verify_boost_climb_target_speed()
@@ -395,10 +396,46 @@ func _verify_chase_camera_math() -> void:
 	_fail_unless(absf(chase_velocity) < 0.5, "Chase spring should settle with low velocity (got %.3f)" % chase_velocity)
 
 	var fall_pitch := GliderCameraScript.compute_fall_pitch(12.0, 28.0, 12.0)
-	_fail_unless(fall_pitch < 0.0, "Fall pitch should tilt down while descending (got %.3f)" % fall_pitch)
+	_fail_unless(fall_pitch > 0.0, "Fall pitch should raise the boom to look down while descending (got %.3f)" % fall_pitch)
 	_fail_unless(
 		absf(GliderCameraScript.compute_fall_pitch(0.0, 28.0, 12.0)) < 0.001,
 		"No descent should yield zero fall pitch"
+	)
+
+	var rest_pitch := deg_to_rad(12.0)
+	var max_look := deg_to_rad(35.0)
+	_fail_unless(
+		is_equal_approx(
+			GliderCameraScript.compute_boom_pitch(rest_pitch, fall_pitch, rest_pitch, max_look),
+			rest_pitch + fall_pitch
+		),
+		"Rest look should apply full fall pitch to the boom"
+	)
+	_fail_unless(
+		is_equal_approx(
+			GliderCameraScript.compute_fall_pitch_weight(rest_pitch + max_look, rest_pitch, max_look),
+			0.0
+		),
+		"Full mouse pitch should zero fall-pitch weight"
+	)
+	_fail_unless(
+		is_equal_approx(
+			GliderCameraScript.compute_boom_pitch(rest_pitch + max_look, fall_pitch, rest_pitch, max_look),
+			rest_pitch + max_look
+		),
+		"Full mouse pitch should overrule fall dip"
+	)
+	_fail_unless(
+		is_equal_approx(
+			GliderCameraScript.compute_boom_pitch(
+				rest_pitch + max_look * 0.5,
+				fall_pitch,
+				rest_pitch,
+				max_look
+			),
+			rest_pitch + max_look * 0.5 + fall_pitch * 0.5
+		),
+		"Partial mouse pitch should blend fall dip"
 	)
 
 	_fail_unless(
@@ -463,6 +500,44 @@ func _verify_landing_recovery() -> void:
 			recover_step_total, build_step_total
 		]
 	)
+
+
+func _verify_fall_pitch_moves_camera() -> void:
+	var cam := GliderCameraScript.new()
+	cam.speed_shake_enabled = false
+	root.add_child(cam)
+	var target := Node3D.new()
+	root.add_child(target)
+	target.global_position = Vector3(0.0, 10.0, 0.0)
+	await process_frame
+
+	cam.reset_follow_state()
+	cam.request_hard_snap()
+	cam.follow(target, 0.0, Vector3.ZERO, PHYSICS_DT, true, null)
+	var rest_y := cam.global_position.y
+	for i in 30:
+		cam.follow(target, 0.0, Vector3(0.0, -12.0, 6.0), PHYSICS_DT, false, null)
+	_fail_unless(
+		cam.global_position.y > rest_y + 0.2,
+		"Fall pitch should raise the camera to look down (rest %.2f now %.2f)" % [rest_y, cam.global_position.y]
+	)
+
+	cam.reset_follow_state()
+	cam.request_hard_snap()
+	cam.follow(target, 0.0, Vector3.ZERO, PHYSICS_DT, true, null)
+	cam.apply_look_input(0.0, 20000.0)
+	cam.request_hard_snap()
+	cam.follow(target, 0.0, Vector3.ZERO, PHYSICS_DT, true, null)
+	var look_y := cam.global_position.y
+	for i in 30:
+		cam.follow(target, 0.0, Vector3(0.0, -12.0, 6.0), PHYSICS_DT, false, null)
+	_fail_unless(
+		absf(cam.global_position.y - look_y) < 0.01,
+		"Mouse look pitch should overrule fall dip (look %.2f now %.2f)" % [look_y, cam.global_position.y]
+	)
+
+	cam.queue_free()
+	target.queue_free()
 
 
 func _verify_brake_boost_time_scale() -> void:

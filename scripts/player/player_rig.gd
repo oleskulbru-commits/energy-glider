@@ -16,7 +16,7 @@ const GliderPhysicsScript = preload("res://scripts/player/glider_physics.gd")
 var _input: GliderInputScript
 var _camera: GliderCamera
 var _terrain_manager: TerrainManager
-var _mouse_captured := false
+var _look_input_enabled := false
 var _spawn_position := Vector3.ZERO
 var _spawn_yaw := 0.0
 var _spawn_pose_ready := false
@@ -67,7 +67,7 @@ func _setup_west_start_pose() -> void:
 		_camera.snap_follow_yaw(SPAWN_YAW_WEST)
 		snap_camera_now()
 	_capture_spawn_pose()
-	_capture_mouse()
+	capture_look_mouse()
 
 
 func _capture_spawn_pose() -> void:
@@ -107,7 +107,7 @@ func reset_to_spawn() -> void:
 		_camera.reset_follow_state()
 		_camera.snap_follow_yaw(_spawn_yaw)
 		snap_camera_now()
-	_capture_mouse()
+	capture_look_mouse()
 
 
 func snap_camera_now() -> void:
@@ -123,24 +123,33 @@ func _physics_process(delta: float) -> void:
 	_update_glider_camera(delta)
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if get_tree().paused:
+func _process(_delta: float) -> void:
+	if not _look_input_enabled or not _should_enable_look_input():
 		return
-	if event.is_action_pressed("ui_cancel"):
-		_release_mouse()
+	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not _should_enable_look_input():
 		return
 
 	if event.is_action_pressed("cycle_camera") and _camera != null:
 		_camera.cycle_distance_preset()
 		return
 
-	if event is InputEventMouseButton:
+	if event is InputEventMouseButton and _look_input_enabled and _camera != null:
 		var mouse := event as InputEventMouseButton
-		if mouse.pressed and mouse.button_index == MOUSE_BUTTON_LEFT:
-			_capture_mouse()
-		return
+		if mouse.pressed and (
+			mouse.button_index == MOUSE_BUTTON_WHEEL_UP
+			or mouse.button_index == MOUSE_BUTTON_WHEEL_DOWN
+		):
+			var direction := 1.0 if mouse.button_index == MOUSE_BUTTON_WHEEL_UP else -1.0
+			_camera.apply_zoom(direction)
+			get_viewport().set_input_as_handled()
+			return
 
-	if event is InputEventMouseMotion and _mouse_captured and _camera != null:
+	if event is InputEventMouseMotion and _look_input_enabled and _camera != null:
 		var motion := event as InputEventMouseMotion
 		_camera.apply_look_input(motion.relative.x, motion.relative.y)
 
@@ -188,11 +197,37 @@ func _update_glider_camera(delta: float) -> void:
 
 
 func capture_look_mouse() -> void:
-	_capture_mouse()
+	if not _should_enable_look_input():
+		return
+	_look_input_enabled = true
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
 func release_look_mouse() -> void:
-	_release_mouse()
+	_look_input_enabled = false
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+func is_look_input_enabled() -> bool:
+	return _look_input_enabled
+
+
+func _should_enable_look_input() -> bool:
+	if get_tree().paused:
+		return false
+	var director := get_tree().get_first_node_in_group("eon_director") as EonDirector
+	if director != null and director.awaiting_death_choice:
+		return false
+	var weapon := get_tree().get_first_node_in_group("weapon_select_menu") as WeaponSelectMenu
+	if weapon != null and weapon.is_open():
+		return false
+	var upgrade := get_tree().get_first_node_in_group("upgrade_tower_menu") as UpgradeTowerMenu
+	if upgrade != null and upgrade.is_open():
+		return false
+	var pause_menu := PauseMenu.find_menu(get_tree())
+	if pause_menu != null and pause_menu.is_open():
+		return false
+	return true
 
 
 func teleport_in_front_of(tower_pos: Vector3) -> void:
@@ -217,20 +252,6 @@ func teleport_in_front_of(tower_pos: Vector3) -> void:
 
 static func in_front_xz(tower_pos: Vector3) -> Vector2:
 	return Vector2(tower_pos.x - SPAWN_WEST_OFFSET_M, tower_pos.z)
-
-
-func _capture_mouse() -> void:
-	if _mouse_captured:
-		return
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	_mouse_captured = true
-
-
-func _release_mouse() -> void:
-	if not _mouse_captured and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
-		return
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	_mouse_captured = false
 
 
 func _update_terrain_track_node() -> void:

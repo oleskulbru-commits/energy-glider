@@ -19,6 +19,7 @@ func _init() -> void:
 
 
 func _run() -> void:
+	await _verify_death_overlay_releases_look()
 	await _verify_death_tumble()
 	await _verify_sail_retract_on_death()
 	await _verify_respawn_restore()
@@ -33,6 +34,41 @@ func _run() -> void:
 	await _verify_death_overlay_delay()
 	print("Player death verification passed.")
 	quit(0)
+
+
+func _verify_death_overlay_releases_look() -> void:
+	var rig: PlayerRig = PlayerRigScript.new()
+	rig.name = "PlayerRig"
+	var glider: GliderPlayer = GliderScene.instantiate() as GliderPlayer
+	glider.name = "Glider"
+	rig.add_child(glider)
+	root.add_child(rig)
+
+	var director: EonDirector = EonDirectorScript.new()
+	director.death_overlay_delay_sec = 0.0
+	director.player_rig_path = rig.get_path()
+	root.add_child(director)
+
+	await process_frame
+	await process_frame
+	await process_frame
+
+	rig.capture_look_mouse()
+	_fail_unless(rig.is_look_input_enabled(), "Look should be captured before death")
+	glider.end_run("death")
+	_fail_unless(director.awaiting_death_choice, "Zero delay should show overlay immediately")
+	_fail_unless(
+		not rig.is_look_input_enabled(),
+		"Death overlay should release look mouse so HUD buttons can be clicked"
+	)
+	rig.capture_look_mouse()
+	_fail_unless(
+		not rig.is_look_input_enabled(),
+		"Death overlay should block recapturing the mouse"
+	)
+
+	director.queue_free()
+	rig.queue_free()
 
 
 func _verify_death_tumble() -> void:
@@ -490,6 +526,9 @@ func _verify_death_overlay_delay() -> void:
 	await process_frame
 	await process_frame
 
+	rig.capture_look_mouse()
+	_fail_unless(rig.is_look_input_enabled(), "Look should be captured before death")
+
 	glider.end_run("death")
 	_fail_unless(glider.is_run_ended(), "Death should end the run")
 	_fail_unless(
@@ -499,6 +538,10 @@ func _verify_death_overlay_delay() -> void:
 	_fail_unless(
 		not director.awaiting_death_choice,
 		"Death overlay choice should not activate immediately"
+	)
+	_fail_unless(
+		rig.is_look_input_enabled(),
+		"Death cinematic should keep look captured until the overlay"
 	)
 
 	await create_timer(0.05).timeout
@@ -520,11 +563,24 @@ func _verify_death_overlay_delay() -> void:
 		not director.awaiting_death_choice,
 		"Death overlay choice should still wait after fade starts"
 	)
+	_fail_unless(
+		rig.is_look_input_enabled(),
+		"Death fade should not release look before the overlay"
+	)
 
 	await create_timer(0.1).timeout
 	_fail_unless(
 		director.awaiting_death_choice,
 		"Death overlay choice should activate after delay"
+	)
+	_fail_unless(
+		not rig.is_look_input_enabled(),
+		"Death overlay should release look mouse so HUD buttons can be clicked"
+	)
+	rig.capture_look_mouse()
+	_fail_unless(
+		not rig.is_look_input_enabled(),
+		"Death overlay should block recapturing the mouse"
 	)
 
 	director.queue_free()

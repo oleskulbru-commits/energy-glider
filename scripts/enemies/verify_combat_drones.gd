@@ -692,6 +692,22 @@ func _verify_missile_hail() -> void:
 			absf(air_off.y) <= MissileDroneScript.SPREAD_RADIUS_AIR_M * 0.5 + 0.02,
 			"Air offsets should keep vertical jitter within band"
 		)
+	var player_still := CharacterBody3D.new()
+	root.add_child(player_still)
+	player_still.velocity = Vector3.ZERO
+	player_still.global_position = Vector3(12.0, 0.0, -7.0)
+	var still_drone: MissileDrone = MissileDroneScript.new()
+	root.add_child(still_drone)
+	still_drone.configure(null, player_still, 15.0)
+	var lead_still: Vector3 = still_drone._lead_point()
+	_fail_unless(
+		Vector2(lead_still.x, lead_still.z).distance_to(
+			Vector2(player_still.global_position.x, player_still.global_position.z)
+		) < 0.01,
+		"Stationary player lead should stay on player XZ"
+	)
+	still_drone.queue_free()
+	player_still.queue_free()
 	var player_track := CharacterBody3D.new()
 	root.add_child(player_track)
 	player_track.velocity = Vector3(18.0, 0.0, 0.0)
@@ -700,8 +716,22 @@ func _verify_missile_hail() -> void:
 	track_drone.configure(null, player_track, 15.0)
 	player_track.global_position = Vector3.ZERO
 	var lead_a: Vector3 = track_drone._lead_point()
+	var expected_a := player_track.global_position + Vector3(
+		player_track.velocity.x, 0.0, player_track.velocity.z
+	) * MissileDroneScript.LEAD_SEC
+	_fail_unless(
+		Vector2(lead_a.x, lead_a.z).distance_to(Vector2(expected_a.x, expected_a.z)) < 0.01,
+		"Moving player lead should follow straight-line velocity extrapolation"
+	)
 	player_track.global_position = Vector3(40.0, 0.0, 0.0)
 	var lead_b: Vector3 = track_drone._lead_point()
+	var expected_b := player_track.global_position + Vector3(
+		player_track.velocity.x, 0.0, player_track.velocity.z
+	) * MissileDroneScript.LEAD_SEC
+	_fail_unless(
+		Vector2(lead_b.x, lead_b.z).distance_to(Vector2(expected_b.x, expected_b.z)) < 0.01,
+		"Lead should refresh from current player position and velocity"
+	)
 	_fail_unless(lead_b.x > lead_a.x + 30.0, "Each rocket should use a fresh lead on the moving player")
 	track_drone.queue_free()
 	player_track.queue_free()
