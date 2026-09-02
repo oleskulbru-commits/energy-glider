@@ -1,0 +1,68 @@
+[gd_scene format=3 uid="uid://8n7jehpwerc7"]
+
+[ext_resource type="Script" uid="uid://bbqhh0w466g6h" path="res://scripts/enemies/sand_impact_dust.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://8kipaftkan41" path="res://assets/vfx/noise_textures/radial_smoke_puff.png" id="2_puff"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_dust"]
+transparency = 1
+cull_mode = 2
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.5803922, 0.27058825, 0.16078432, 1)
+albedo_texture = ExtResource("2_puff")
+texture_filter = 0
+disable_receive_shadows = true
+billboard_mode = 3
+billboard_keep_scale = true
+particles_anim_h_frames = 1
+particles_anim_v_frames = 1
+particles_anim_loop = false
+grow = true
+grow_amount = 0.115
+
+[sub_resource type="QuadMesh" id="QuadMesh_dust"]
+material = SubResource("StandardMaterial3D_dust")
+size = Vector2(2, 2)
+
+[sub_resource type="Curve" id="Curve_7fswv"]
+_limits = [-360.0, 360.0, 0.0, 1.0]
+_data = [Vector2(0.014652014, -1.0084229), 0.0, 131.48381, 0, 0, Vector2(1, 61.512573), 51.81989, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="Curve" id="Curve_scale"]
+_data = [Vector2(0, 0.12), 0.0, 0.0, 0, 0, Vector2(0.35, 0.55), 0.0, 0.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="Gradient" id="Gradient_fade"]
+offsets = PackedFloat32Array(0, 0.7, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0)
+
+[node name="SandImpactDust" type="Node3D" unique_id=816318249]
+script = ExtResource("1_script")
+
+[node name="SandBurst" type="CPUParticles3D" parent="." unique_id=42313922]
+emitting = false
+amount = 100
+lifetime = 2.0
+one_shot = true
+explosiveness = 0.92
+randomness = 0.45
+visibility_aabb = AABB(-4, -2, -4, 8, 4, 8)
+mesh = SubResource("QuadMesh_dust")
+emission_shape = 1
+emission_sphere_radius = 0.08
+particle_flag_align_y = true
+direction = Vector3(0, 1, 0)
+spread = 35.0
+gravity = Vector3(0, -2, 0)
+initial_velocity_min = 2.664
+initial_velocity_max = 7.992
+tangential_accel_min = 1.0
+tangential_accel_max = 1.0
+damping_min = 1.0
+damping_max = 1.0
+angle_max = 10.0
+angle_curve = SubResource("Curve_7fswv")
+scale_amount_min = 0.3
+scale_amount_curve = SubResource("Curve_scale")
+color_ramp = SubResource("Gradient_fade")

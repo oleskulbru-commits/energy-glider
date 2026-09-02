@@ -10,27 +10,17 @@ const BASE_LIFETIME := 0.65
 const BASE_VELOCITY_MIN := 0.6
 const BASE_VELOCITY_MAX := 1.8
 const BASE_ALPHA := 0.45
-const DUST_COLOR := Color(0.78, 0.62, 0.4, BASE_ALPHA)
 
 var _particles: CPUParticles3D
 
 
 static func configure_sand_mesh(particles: CPUParticles3D) -> void:
-	var quad := QuadMesh.new()
-	quad.size = Vector2(0.2, 0.2)
-	var mat := StandardMaterial3D.new()
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.vertex_color_use_as_albedo = true
-	mat.billboard_mode = StandardMaterial3D.BILLBOARD_PARTICLES
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	quad.material = mat
-	particles.mesh = quad
-	particles.visibility_aabb = AABB(Vector3(-2.0, -1.0, -2.0), Vector3(4.0, 3.0, 4.0))
+	SandParticleVfx.apply_to(particles, SandParticleVfx.GLIDER_QUAD_SIZE)
 
 
 static func configure_hover_stream(particles: CPUParticles3D) -> void:
 	configure_sand_mesh(particles)
+	var fade_ramp: Gradient = SandParticleVfx.make_fade_ramp()
 	particles.emitting = false
 	particles.amount = BASE_AMOUNT
 	particles.lifetime = BASE_LIFETIME
@@ -41,9 +31,10 @@ static func configure_hover_stream(particles: CPUParticles3D) -> void:
 	particles.gravity = Vector3(0.0, -1.2, 0.0)
 	particles.initial_velocity_min = BASE_VELOCITY_MIN
 	particles.initial_velocity_max = BASE_VELOCITY_MAX
-	particles.scale_amount_min = 0.1
-	particles.scale_amount_max = 0.22
-	particles.color = DUST_COLOR
+	particles.scale_amount_min = 0.15
+	particles.scale_amount_max = 0.35
+	particles.color = Color(1.0, 1.0, 1.0, BASE_ALPHA)
+	particles.color_ramp = fade_ramp
 	particles.local_coords = false
 	particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
 	particles.emission_box_extents = Vector3(0.425, 0.025, 0.85)
@@ -51,6 +42,7 @@ static func configure_hover_stream(particles: CPUParticles3D) -> void:
 
 static func configure_impact_burst(particles: CPUParticles3D, intensity: float = 1.15) -> void:
 	configure_sand_mesh(particles)
+	var fade_ramp: Gradient = SandParticleVfx.make_fade_ramp()
 	var clamped := clampf(intensity, 0.5, 2.0)
 	particles.emitting = true
 	particles.one_shot = true
@@ -64,10 +56,11 @@ static func configure_impact_burst(particles: CPUParticles3D, intensity: float =
 	var velocity_scale := lerpf(2.4, 4.8, clamped - 0.5)
 	particles.initial_velocity_min = BASE_VELOCITY_MIN * velocity_scale
 	particles.initial_velocity_max = BASE_VELOCITY_MAX * velocity_scale
-	particles.scale_amount_min = 0.1
-	particles.scale_amount_max = 0.22
+	particles.scale_amount_min = 0.15
+	particles.scale_amount_max = 0.35
 	var alpha := lerpf(0.55, 0.82, clamped - 0.5)
-	particles.color = Color(DUST_COLOR.r, DUST_COLOR.g, DUST_COLOR.b, alpha)
+	particles.color = Color(1.0, 1.0, 1.0, alpha)
+	particles.color_ramp = fade_ramp
 	particles.local_coords = false
 	particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
 	particles.emission_sphere_radius = 0.08
@@ -144,4 +137,4 @@ func _physics_process(_delta: float) -> void:
 	_particles.emitting = true
 	_particles.initial_velocity_min = BASE_VELOCITY_MIN * lerpf(0.7, 1.15, intensity)
 	_particles.initial_velocity_max = BASE_VELOCITY_MAX * lerpf(0.75, 1.25, intensity)
-	_particles.color = Color(DUST_COLOR.r, DUST_COLOR.g, DUST_COLOR.b, BASE_ALPHA * intensity)
+	_particles.color = Color(1.0, 1.0, 1.0, BASE_ALPHA * intensity)

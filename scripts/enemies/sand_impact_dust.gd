@@ -1,13 +1,14 @@
 class_name SandImpactDust
 extends Node3D
 
-## Mars-sand burst when MG rounds pepper the dunes. Matches glider hover dust visuals.
+## Mars-sand burst when MG rounds pepper the dunes. Tune Albedo Color on SandBurst mesh material in sand_impact_dust.tscn.
 
-const SandImpactDustScript := preload("res://scripts/enemies/sand_impact_dust.gd")
-const HoverDustScript = preload("res://scripts/player/hover_dust.gd")
+const SandImpactDustScene := preload("res://scenes/effects/sand_impact_dust.tscn")
 
 const GROUND_LIFT := 0.05
-const BURST_INTENSITY := 1.35
+const FREE_BUFFER_SEC := 0.1
+
+@export_range(0.0, 1.0, 0.01) var burst_alpha := 0.75
 
 
 static func spawn(
@@ -20,7 +21,7 @@ static func spawn(
 	var parent := tree.current_scene
 	if parent == null:
 		return
-	var dust: SandImpactDust = SandImpactDustScript.new()
+	var dust: SandImpactDust = SandImpactDustScene.instantiate() as SandImpactDust
 	parent.add_child(dust)
 	dust._place_on_surface(impact, terrain, tree)
 
@@ -46,10 +47,17 @@ func _place_on_surface(impact: Vector3, terrain: TerrainManager, tree: SceneTree
 
 
 func _ready() -> void:
-	var burst := CPUParticles3D.new()
-	burst.name = "SandBurst"
-	HoverDustScript.configure_impact_burst(burst, BURST_INTENSITY)
-	add_child(burst)
+	var burst := get_node_or_null("SandBurst") as CPUParticles3D
+	if burst == null:
+		queue_free()
+		return
+	_apply_sand_tint(burst)
+	burst.emitting = true
 	burst.restart()
-	var timer := get_tree().create_timer(HoverDustScript.BASE_LIFETIME + 0.1)
+	var timer := get_tree().create_timer(burst.lifetime + FREE_BUFFER_SEC)
 	timer.timeout.connect(queue_free)
+
+
+func _apply_sand_tint(burst: CPUParticles3D) -> void:
+	SandParticleVfx.apply_to(burst, SandParticleVfx.IMPACT_QUAD_SIZE)
+	burst.color = Color(1.0, 1.0, 1.0, burst_alpha)

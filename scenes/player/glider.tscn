@@ -48,9 +48,9 @@ spread = 35.0
 gravity = Vector3(0, -4, 0)
 initial_velocity_min = 0.8
 initial_velocity_max = 2.2
-scale_amount_min = 0.08
-scale_amount_max = 0.16
-color = Color(0.78, 0.62, 0.4, 0.65)
+scale_amount_min = 0.15
+scale_amount_max = 0.35
+color = Color(1, 1, 1, 0.65)
 
 [node name="ImpactDust" type="CPUParticles3D" parent="." unique_id=131676693]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, 0)
@@ -65,9 +65,9 @@ spread = 55.0
 gravity = Vector3(0, -6, 0)
 initial_velocity_min = 2.0
 initial_velocity_max = 5.5
-scale_amount_min = 0.1
-scale_amount_max = 0.22
-color = Color(0.82, 0.66, 0.42, 0.75)
+scale_amount_min = 0.25
+scale_amount_max = 0.55
+color = Color(1, 1, 1, 0.75)
 
 [node name="PlayerHealthBar" parent="." unique_id=112739311 instance=ExtResource("13_hp_bar")]
 player_health_path = NodePath("../../PlayerHealth")

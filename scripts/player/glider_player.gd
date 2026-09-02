@@ -191,6 +191,7 @@ func _ready() -> void:
 		_camera = get_node_or_null("Camera3D") as GliderCameraScript
 	_contact_dust = get_node_or_null("ContactDust") as CPUParticles3D
 	_impact_dust = get_node_or_null("ImpactDust") as CPUParticles3D
+	_setup_sand_particles()
 	_setup_contact_sparks()
 	_yaw = rotation.y
 
@@ -844,6 +845,22 @@ func _enforce_floor_contact(state: PhysicsDirectBodyState3D) -> void:
 	xf.origin += _ground_normal * correction
 	state.transform = xf
 	# Soft settle: nudge origin only — killing normal speed here tugs crest momentum.
+
+func _setup_sand_particles() -> void:
+	var fade_ramp: Gradient = SandParticleVfx.make_fade_ramp()
+	if _contact_dust != null:
+		SandParticleVfx.apply_to(_contact_dust, SandParticleVfx.GLIDER_QUAD_SIZE)
+		_contact_dust.color = Color(1.0, 1.0, 1.0, 0.65)
+		_contact_dust.color_ramp = fade_ramp
+		_contact_dust.scale_amount_min = 0.15
+		_contact_dust.scale_amount_max = 0.35
+	if _impact_dust != null:
+		SandParticleVfx.apply_to(_impact_dust, SandParticleVfx.GLIDER_QUAD_SIZE)
+		_impact_dust.color = Color(1.0, 1.0, 1.0, 0.75)
+		_impact_dust.color_ramp = fade_ramp
+		_impact_dust.scale_amount_min = 0.25
+		_impact_dust.scale_amount_max = 0.55
+
 
 func _setup_contact_sparks() -> void:
 	_contact_sparks = CPUParticles3D.new()

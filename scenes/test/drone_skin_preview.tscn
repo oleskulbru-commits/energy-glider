@@ -3,6 +3,7 @@
 [ext_resource type="Environment" uid="uid://c16k12ob5acay" path="res://assets/environment/game_world_env.tres" id="1_env"]
 [ext_resource type="PackedScene" uid="uid://c8laserdrnskin01" path="res://scenes/enemies/laser_drone_skin.tscn" id="2_laser_skin"]
 [ext_resource type="PackedScene" uid="uid://c8missiledrskin1" path="res://scenes/enemies/missile_drone_skin.tscn" id="3_missile_skin"]
+[ext_resource type="PackedScene" uid="uid://c8gundrnskin01" path="res://scenes/enemies/gun_drone_skin.tscn" id="4_gun_skin"]
 
 [sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_cam"]
 
@@ -25,3 +26,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.5, 0, 0)
 
 [node name="MissileDroneSkin" parent="." instance=ExtResource("3_missile_skin")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, 0)
+
+[node name="GunDroneSkin" parent="." instance=ExtResource("4_gun_skin")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 0, 0)

@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://gkw488qdpgi3" path="res://scripts/enemies/crawler_anim_controller.gd" id="2_anim"]
 
 [node name="CrawlerSkin" type="Node3D" unique_id=215302053]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.022922814, 0)
 
 [node name="Model" parent="." unique_id=1663528737 instance=ExtResource("1_crawler")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, -0.006, 0)
