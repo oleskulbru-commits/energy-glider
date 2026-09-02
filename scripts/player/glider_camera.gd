@@ -21,7 +21,7 @@ extends Camera3D
 @export var zoom_smooth_rate: float = 12.0
 @export var max_look_yaw_deg: float = 180.0
 @export var default_pitch_deg: float = 12.0
-@export var fall_pitch_max_deg: float = 28.0
+@export var fall_pitch_max_deg: float = 18.0
 @export var fall_pitch_speed_ref: float = 12.0
 @export var fall_pitch_rate: float = 5.0
 @export var air_focus_rate_scale: float = 2.8
@@ -155,7 +155,13 @@ func follow(
 	var boom_forward := MathUtil.yaw_forward(aim_yaw)
 	var boom_right := Vector3.UP.cross(boom_forward).normalized()
 	var boom_back := -boom_forward
-	var pitched_dir := boom_back.rotated(boom_right, _look_pitch_offset).normalized()
+	var boom_pitch := compute_boom_pitch(
+		_look_pitch_offset,
+		_fall_pitch,
+		_rest_pitch(),
+		deg_to_rad(MAX_LOOK_PITCH_DEG)
+	)
+	var pitched_dir := boom_back.rotated(boom_right, boom_pitch).normalized()
 	var arm := pitched_dir * _distance
 
 	var desired_pos := pivot + arm
@@ -422,7 +428,31 @@ static func compute_fall_pitch(
 	if descent_speed <= 0.5:
 		return 0.0
 	var t := clampf(descent_speed / maxf(speed_ref, 0.001), 0.0, 1.0)
-	return -deg_to_rad(max_deg) * t
+	# Positive raises the boom so look_at aims down at the sand, not the sky.
+	return deg_to_rad(max_deg) * t
+
+
+static func compute_fall_pitch_weight(
+	look_pitch: float,
+	rest_pitch: float,
+	max_look_pitch_rad: float
+) -> float:
+	if max_look_pitch_rad <= 0.0:
+		return 1.0
+	return 1.0 - clampf(absf(look_pitch - rest_pitch) / max_look_pitch_rad, 0.0, 1.0)
+
+
+static func compute_boom_pitch(
+	look_pitch: float,
+	fall_pitch: float,
+	rest_pitch: float,
+	max_look_pitch_rad: float
+) -> float:
+	return look_pitch + fall_pitch * compute_fall_pitch_weight(
+		look_pitch,
+		rest_pitch,
+		max_look_pitch_rad
+	)
 
 
 static func compute_land_recover_duration(

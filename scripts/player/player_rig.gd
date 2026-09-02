@@ -124,14 +124,14 @@ func _physics_process(delta: float) -> void:
 
 
 func _process(_delta: float) -> void:
-	if not _look_input_enabled or get_tree().paused:
+	if not _look_input_enabled or not _should_enable_look_input():
 		return
 	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if get_tree().paused:
+	if not _should_enable_look_input():
 		return
 
 	if event.is_action_pressed("cycle_camera") and _camera != null:
@@ -214,6 +214,9 @@ func is_look_input_enabled() -> bool:
 
 func _should_enable_look_input() -> bool:
 	if get_tree().paused:
+		return false
+	var director := get_tree().get_first_node_in_group("eon_director") as EonDirector
+	if director != null and director.awaiting_death_choice:
 		return false
 	var weapon := get_tree().get_first_node_in_group("weapon_select_menu") as WeaponSelectMenu
 	if weapon != null and weapon.is_open():

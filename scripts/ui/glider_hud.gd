@@ -351,6 +351,8 @@ func _update_eon_tracker() -> void:
 
 
 func _update_death_overlay() -> void:
+	if _rig != null:
+		_rig.release_look_mouse()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_start_fail_fade()
 	if _stopped_overlay != null:
