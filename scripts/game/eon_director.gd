@@ -369,6 +369,8 @@ func _show_death_overlay() -> void:
 	if awaiting_death_choice:
 		return
 	awaiting_death_choice = true
+	if _rig != null:
+		_rig.release_look_mouse()
 	player_died.emit(death_position)
 	objective_changed.emit(get_objective_text())
 	_cancel_head_west_voice()
