@@ -88,11 +88,16 @@ func _refresh_cards() -> void:
 		var wrapper := button.get_parent()
 		if wrapper == _cards:
 			wrapper = button
+		var frame := _card_frames[i] if i < _card_frames.size() else null
+		if i >= offers.size():
+			if frame != null:
+				frame.visible = false
+			wrapper.visible = false
+			continue
+		if frame != null:
+			frame.visible = true
 		wrapper.visible = true
 		button.visible = true
-		if i >= offers.size():
-			_apply_empty_card(button, wrapper)
-			continue
 		var id := StringName(offers[i])
 		var empty := UpgradeCatalog.is_empty_offer(id)
 		if empty:
@@ -119,7 +124,10 @@ func _refresh_cards() -> void:
 	_wait_button.disabled = not can_confirm
 	_keep_button.disabled = not can_confirm
 	if _tower != null:
-		_title.text = "TOWER %d" % _tower.tower_index
+		if _tower.is_bonus:
+			_title.text = "BONUS TOWER"
+		else:
+			_title.text = "TOWER %d" % _tower.tower_index
 
 
 func _apply_empty_card(button: Button, wrapper: Node) -> void:

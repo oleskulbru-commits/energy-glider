@@ -3,6 +3,7 @@ extends Node
 
 ## Opens the upgrade menu the first time a west tower is entered within 20 m this life.
 ## Also heals once per tower per life: tower N restores N * 5 HP (capped at max).
+## A bonus on level N uses the same heal as westbound tower N.
 
 const VISIT_RADIUS_M := 20.0
 const VISIT_HEAL_PER_TOWER_INDEX := 5
@@ -50,7 +51,7 @@ static func visit_heal_amount(tower_index: int) -> int:
 
 
 func _apply_visit_heal(tower: UpgradeTower) -> void:
-	var amount := visit_heal_amount(tower.tower_index)
+	var amount := visit_heal_amount(tower.visit_heal_level())
 	if amount <= 0:
 		return
 	var health := _rig.get_node_or_null("PlayerHealth") as PlayerHealth

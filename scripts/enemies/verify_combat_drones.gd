@@ -762,6 +762,22 @@ func _verify_machine_gun_drone() -> void:
 		"Charge should run along X while Z stays mirrored"
 	)
 
+	_fail_unless(
+		is_equal_approx(MachineGunDroneScript.follow_terrain_y(12.0, 8.0), 20.0),
+		"Charge height should rise with a hill"
+	)
+	_fail_unless(
+		is_equal_approx(MachineGunDroneScript.follow_terrain_y(-4.0, 8.0), 4.0),
+		"Charge height should drop into a valley"
+	)
+	_fail_unless(
+		is_equal_approx(
+			MachineGunDroneScript.terrain_clearance_m(Vector3(0.0, 11.0, 0.0), null),
+			11.0
+		),
+		"Charge should lock the hover gap it had when it started"
+	)
+
 	var start_heading := Vector3(-1.0, 0.0, 0.0)
 	var turn_target := Vector3(0.0, 0.0, -1.0)
 	var turned := MachineGunDroneScript.rotate_heading_toward(

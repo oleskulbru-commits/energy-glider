@@ -2,9 +2,11 @@ class_name OutpostSpawner
 extends Node3D
 
 const UPGRADE_TOWER_SCENE := preload("res://scenes/world/upgrade_tower.tscn")
+const BonusTowerPlannerScript := preload("res://scripts/game/bonus_tower_planner.gd")
 
 @export var terrain_manager_path: NodePath
 @export var include_home := true
+@export var include_bonus := true
 ## Z-only ridge search. Clamped to hub radius so the westbound line stays inside deposit/night hub.
 @export var ridge_sample_radius_m := 30.0
 @export var ridge_sample_steps := 8
@@ -27,21 +29,58 @@ func _spawn_outposts() -> void:
 	var west_index := 1
 	for offset_x in LevelLayout.tower_x_offsets_from_origin():
 		var west := origin + Vector3(offset_x, 0.0, 0.0)
-		planned.append({ "pos": west, "is_home": false, "tower_index": west_index })
+		planned.append({
+			"pos": west,
+			"is_home": false,
+			"tower_index": west_index,
+			"is_bonus": false,
+			"source_level": west_index,
+		})
 		west_index += 1
 
+	if include_bonus:
+		var world_seed := LevelRun.world_seed()
+		if world_seed < 0:
+			world_seed = 42
+			LevelRun.ensure(world_seed)
+		for bonus in BonusTowerPlannerScript.plan(world_seed):
+			var pos := origin + Vector3(float(bonus.x_offset), 0.0, float(bonus.z_offset))
+			planned.append({
+				"pos": pos,
+				"is_home": false,
+				"tower_index": int(bonus.tower_index),
+				"is_bonus": true,
+				"source_level": int(bonus.source_level),
+			})
+
 	for entry in planned:
-		_spawn_one(entry.pos as Vector3, terrain, bool(entry.is_home), int(entry.tower_index))
+		_spawn_one(
+			entry.pos as Vector3,
+			terrain,
+			bool(entry.is_home),
+			int(entry.tower_index),
+			bool(entry.get("is_bonus", false)),
+			int(entry.get("source_level", 0))
+		)
 
 
-func _spawn_one(approx: Vector3, terrain: TerrainManager, is_home: bool, tower_index: int) -> void:
+func _spawn_one(
+	approx: Vector3,
+	terrain: TerrainManager,
+	is_home: bool,
+	tower_index: int,
+	is_bonus: bool = false,
+	source_level: int = 0
+) -> void:
 	var placed_xz := Vector2(approx.x, approx.z)
-	if not is_home:
+	if not is_home and not is_bonus:
 		placed_xz = _pick_ridge_xz(approx, terrain)
 	var tower: UpgradeTower = UPGRADE_TOWER_SCENE.instantiate() as UpgradeTower
 	add_child(tower)
 	tower.is_home = is_home
+	tower.is_bonus = is_bonus
 	tower.tower_index = tower_index
+	tower.source_level = source_level if source_level > 0 else tower_index
 	if terrain != null:
 		tower.terrain_manager_path = tower.get_path_to(terrain)
 	tower.global_position = Vector3(placed_xz.x, 0.0, placed_xz.y)

@@ -2,6 +2,7 @@ class_name RunUpgradeState
 extends Node
 
 const UpgradeCatalogScript = preload("res://scripts/game/upgrade_catalog.gd")
+const BonusTowerPlannerScript = preload("res://scripts/game/bonus_tower_planner.gd")
 
 ## Stacks and weapons persist across Try Again. New Game reloads the scene.
 ## Taken tower slots (including weapon bundles) stay Empty for the world seed.
@@ -270,8 +271,20 @@ func ensure_tower(tower_index: int) -> void:
 	var world_seed := LevelRun.world_seed()
 	if world_seed < 0:
 		world_seed = 42
+	var slot_count := UpgradeCatalog.SLOTS_PER_TOWER
+	if BonusTowerPlannerScript.is_bonus_index(tower_index):
+		slot_count = BonusTowerPlannerScript.offer_count_for(world_seed, tower_index)
 	_offers[tower_index] = UpgradeCatalog.roll_shop(
-		world_seed, tower_index, luck_bonus, has_rifle, has_laser, has_tesla, has_rocket, has_shotgun, unlock_pity_steps
+		world_seed,
+		tower_index,
+		luck_bonus,
+		has_rifle,
+		has_laser,
+		has_tesla,
+		has_rocket,
+		has_shotgun,
+		unlock_pity_steps,
+		slot_count
 	)
 
 
