@@ -89,6 +89,8 @@ func desired_velocity_xz() -> Vector3:
 		return Vector3.ZERO
 	if _stun_left > 0.0:
 		return Vector3.ZERO
+	if garrisoned:
+		return _garrison_laser_velocity()
 	var dist := xz_distance_to_target()
 	match movement_zone_for_distance(dist):
 		"acquire":
@@ -107,6 +109,39 @@ func desired_velocity_xz() -> Vector3:
 			else:
 				away = away.normalized()
 			return away * _get_move_speed()
+
+
+func _garrison_laser_velocity() -> Vector3:
+	tick_garrison_aggro(_target.global_position)
+	if not _garrison_aggroed:
+		return _hold_garrison_home()
+	var dist := xz_distance_to_target()
+	var desired := Vector3.ZERO
+	match movement_zone_for_distance(dist):
+		"acquire":
+			return _hold_garrison_home()
+		"engage":
+			desired = Vector3.ZERO
+		_:
+			var away := global_position - _target.global_position
+			away.y = 0.0
+			if away.length_squared() < 0.0001:
+				away = Vector3(1.0, 0.0, 0.0)
+			else:
+				away = away.normalized()
+			desired = away * _get_move_speed()
+	var from_anchor := Vector2(global_position.x - garrison_anchor.x, global_position.z - garrison_anchor.z)
+	if from_anchor.length() > GARRISON_LEASH_M * 0.85:
+		return _hold_garrison_home()
+	return desired
+
+
+func _hold_garrison_home() -> Vector3:
+	var to := garrison_home - Vector3(global_position.x, 0.0, global_position.z)
+	to.y = 0.0
+	if to.length_squared() < 0.25:
+		return Vector3.ZERO
+	return to.normalized() * _get_move_speed()
 
 
 func _update_fly_state() -> void:
@@ -146,6 +181,11 @@ func _tick_reload(delta: float) -> void:
 
 
 func _tick_charge(delta: float) -> void:
+	if garrisoned:
+		tick_garrison_aggro(_target.global_position)
+		if not _garrison_aggroed:
+			_update_flare()
+			return
 	if not _telegraph_armed:
 		_update_flare()
 		if not _is_player_in_lock_on_range():

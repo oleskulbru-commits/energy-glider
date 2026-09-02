@@ -15,6 +15,11 @@ const MAX_OFFERS := 6
 const PLAN_SEED := 3301
 const TIER_SEED := 7919
 const OFFER_SEED := 17
+const GARRISON_SEED := 5513
+const GARRISON_DRONE_MIN_LEVEL := 5
+const GARRISON_CHARGER_CHANCE := 1.0 / 6.0
+const KIND_GROUND := "ground"
+const KIND_DRONE := "drone"
 
 const TIER_Z_M: Array[float] = [900.0, 1100.0, 1300.0, 1500.0, 1800.0, 2100.0]
 
@@ -153,3 +158,84 @@ static func _tier_weights(level: int) -> PackedInt32Array:
 	else:
 		full = PackedInt32Array([8, 12, 18, 24, 22, 16])
 	return full
+
+
+static func garrison_plan(world_seed: int, level: int) -> Dictionary:
+	if level < MIN_LEVEL:
+		return empty_garrison_plan()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(world_seed) * GARRISON_SEED + index_for_level(level) * 4409
+	var band := garrison_band(level)
+	var kind := KIND_GROUND
+	if level >= GARRISON_DRONE_MIN_LEVEL and rng.randf() < 0.5:
+		kind = KIND_DRONE
+	var count := 0
+	var laser_count := 0
+	var charger_count := 0
+	if kind == KIND_DRONE:
+		count = rng.randi_range(int(band.dmin), int(band.dmax))
+		laser_count = laser_count_for(count)
+	else:
+		count = rng.randi_range(int(band.gmin), int(band.gmax))
+		for _i in count:
+			if rng.randf() < GARRISON_CHARGER_CHANCE:
+				charger_count += 1
+	return {
+		"kind": kind,
+		"count": count,
+		"laser_count": laser_count,
+		"charger_count": charger_count,
+	}
+
+
+static func empty_garrison_plan() -> Dictionary:
+	return {
+		"kind": KIND_GROUND,
+		"count": 0,
+		"laser_count": 0,
+		"charger_count": 0,
+	}
+
+
+static func laser_count_for(drone_count: int) -> int:
+	return int(floor(float(maxi(drone_count, 0)) / 4.0))
+
+
+static func garrison_band(level: int) -> Dictionary:
+	if level <= 7:
+		return {"gmin": 6, "gmax": 7, "dmin": 1, "dmax": 1}
+	if level <= 11:
+		return {"gmin": 7, "gmax": 9, "dmin": 2, "dmax": 2}
+	if level <= 15:
+		return {"gmin": 10, "gmax": 12, "dmin": 3, "dmax": 4}
+	if level <= 25:
+		return {"gmin": 13, "gmax": 16, "dmin": 5, "dmax": 7}
+	if level <= 35:
+		return {"gmin": 17, "gmax": 21, "dmin": 8, "dmax": 10}
+	return {"gmin": 25, "gmax": 25, "dmin": 13, "dmax": 13}
+
+
+static func visit_locked(cleared: bool, spawned: bool, alive_count: int) -> bool:
+	if cleared:
+		return false
+	if spawned:
+		return alive_count > 0
+	return true
+
+
+static func should_spawn_garrison(player_pos: Vector3, tower_pos: Vector3, spawned: bool, cleared: bool, range_m: float = 500.0) -> bool:
+	if cleared or spawned:
+		return false
+	return Vector2(player_pos.x - tower_pos.x, player_pos.z - tower_pos.z).length() <= range_m
+
+
+static func should_skip_despawn(player_pos: Vector3, tower_pos: Vector3) -> bool:
+	if player_pos.x >= tower_pos.x - 200.0:
+		return false
+	return Vector2(player_pos.x - tower_pos.x, player_pos.z - tower_pos.z).length() > 300.0
+
+
+static func ring_offset(index: int, count: int, radius: float) -> Vector3:
+	var n := maxi(count, 1)
+	var angle := TAU * float(index) / float(n)
+	return Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)

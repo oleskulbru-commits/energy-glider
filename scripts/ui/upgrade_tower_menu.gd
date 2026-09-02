@@ -117,10 +117,13 @@ func _refresh_cards() -> void:
 	if _state != null and _tower != null:
 		remaining = _state.remaining_count(_tower.tower_index)
 	var can_confirm := remaining == 0 or _selected_slot >= 0
-	_wait_button.disabled = not can_confirm
+	var bonus_stop := _tower != null and _tower.is_bonus
+	if _wait_button != null:
+		_wait_button.visible = not bonus_stop
+		_wait_button.disabled = bonus_stop or not can_confirm
 	_keep_button.disabled = not can_confirm
 	if _tower != null:
-		if _tower.is_bonus:
+		if bonus_stop:
 			_title.text = "BONUS TOWER"
 		else:
 			_title.text = "TOWER %d" % _tower.tower_index
@@ -202,6 +205,8 @@ func _on_card_pressed(slot: int) -> void:
 
 
 func _on_wait_pressed() -> void:
+	if _tower != null and _tower.is_bonus:
+		return
 	_confirm_and_close(true)
 
 
@@ -218,7 +223,7 @@ func _confirm_and_close(wait_until_dawn: bool) -> void:
 			var picked := _state.pick_offer(_tower.tower_index, _selected_slot)
 			took_unlock = UpgradeCatalog.is_weapon_unlock(picked)
 		_state.note_visit_outcome(took_unlock)
-	if wait_until_dawn:
+	if wait_until_dawn and _tower != null and not _tower.is_bonus:
 		_wait_until_dawn()
 	_close()
 

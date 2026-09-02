@@ -31,6 +31,8 @@ const MAX_HEALTH := 20
 const HIT_KNOCKBACK_SPEED := 12.0
 const HIT_KNOCKBACK_DECAY_SEC := 0.3
 const DAMAGE_FLOAT_HEIGHT_M := 1.55
+const GARRISON_AGGRO_M := 120.0
+const GARRISON_LEASH_M := 180.0
 
 var move_speed := DEFAULT_SPEED
 var contact_damage := CONTACT_DAMAGE
@@ -51,6 +53,10 @@ var _anim: CrawlerAnimController
 var _collision_bottom_y := 0.0
 var _rng := RandomNumberGenerator.new()
 var _stun_left := 0.0
+var garrisoned := false
+var garrison_anchor := Vector3.ZERO
+var garrison_home := Vector3.ZERO
+var _garrison_aggroed := false
 
 
 func _ready() -> void:
@@ -79,6 +85,13 @@ func set_target(target: Node3D) -> void:
 
 func set_move_speed(speed: float) -> void:
 	move_speed = speed
+
+
+func bind_garrison(anchor: Vector3) -> void:
+	garrisoned = true
+	garrison_anchor = Vector3(anchor.x, 0.0, anchor.z)
+	garrison_home = Vector3(global_position.x, 0.0, global_position.z)
+	_garrison_aggroed = false
 
 
 func get_health() -> int:
@@ -158,10 +171,10 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 		return
 
-	var to_target := _target.global_position - global_position
+	var to_target := _seek_offset_xz()
 	to_target.y = 0.0
 	# Fallen behind the player's facing past margin — despawn.
-	if is_behind_facing(_target.global_position, _target_facing_xz(), global_position):
+	if not garrisoned and is_behind_facing(_target.global_position, _target_facing_xz(), global_position):
 		queue_free()
 		return
 
@@ -278,11 +291,35 @@ func _orient_to_velocity() -> void:
 
 
 func _flat_seek_to_target() -> Vector3:
+	return _seek_offset_xz()
+
+
+func _seek_offset_xz() -> Vector3:
 	if _target == null or not is_instance_valid(_target):
 		return Vector3.ZERO
-	var to_target := _target.global_position - global_position
+	var goal := _target.global_position
+	if garrisoned:
+		goal = _garrison_goal_xz()
+	var to_target := goal - global_position
 	to_target.y = 0.0
 	return to_target
+
+
+func _garrison_goal_xz() -> Vector3:
+	tick_garrison_aggro(_target.global_position)
+	if _garrison_aggroed:
+		return Vector3(_target.global_position.x, 0.0, _target.global_position.z)
+	return garrison_home
+
+
+func tick_garrison_aggro(player_pos: Vector3) -> void:
+	if not garrisoned:
+		return
+	var dist := Vector2(player_pos.x - garrison_anchor.x, player_pos.z - garrison_anchor.z).length()
+	if dist <= GARRISON_AGGRO_M:
+		_garrison_aggroed = true
+	elif dist > GARRISON_LEASH_M:
+		_garrison_aggroed = false
 
 
 func _target_facing_xz() -> Vector3:

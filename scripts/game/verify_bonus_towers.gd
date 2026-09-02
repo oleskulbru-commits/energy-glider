@@ -6,6 +6,7 @@ const UpgradeCatalogScript := preload("res://scripts/game/upgrade_catalog.gd")
 const UpgradeTowerScript := preload("res://scripts/world/upgrade_tower.gd")
 const TowerVisitControllerScript := preload("res://scripts/game/tower_visit_controller.gd")
 const OutpostSpawnerScript := preload("res://scripts/world/outpost_spawner.gd")
+const BonusTowerGarrisonScript := preload("res://scripts/world/bonus_tower_garrison.gd")
 
 var _failed := false
 
@@ -23,6 +24,8 @@ func _run() -> void:
 	_verify_offer_counts()
 	_verify_radar_copy()
 	_verify_tower_flags()
+	_verify_garrison_plan()
+	await _verify_garrison_visit_lock()
 	await _verify_spawner_bonus_flags()
 	if _failed:
 		quit(1)
@@ -183,6 +186,180 @@ func _verify_tower_flags() -> void:
 	tower.free()
 
 
+func _verify_garrison_plan() -> void:
+	var empty: Dictionary = BonusTowerPlannerScript.garrison_plan(42, 3)
+	_fail_unless(int(empty.get("count", -1)) == 0, "Levels 1-3 should have no garrison")
+	for seed in [1, 42, 99]:
+		var p4: Dictionary = BonusTowerPlannerScript.garrison_plan(seed, 4)
+		_fail_unless(
+			String(p4.get("kind", "")) == BonusTowerPlannerScript.KIND_GROUND,
+			"Level 4 garrison should always be ground"
+		)
+		_assert_in_band(int(p4.get("count", 0)), 6, 7, "Level 4 ground count")
+		_fail_unless(int(p4.get("laser_count", -1)) == 0, "Ground packs should have no lasers")
+	var a: Dictionary = BonusTowerPlannerScript.garrison_plan(42, 10)
+	var b: Dictionary = BonusTowerPlannerScript.garrison_plan(42, 10)
+	_fail_unless(
+		String(a.get("kind", "")) == String(b.get("kind", ""))
+		and int(a.get("count", 0)) == int(b.get("count", 0))
+		and int(a.get("laser_count", 0)) == int(b.get("laser_count", 0))
+		and int(a.get("charger_count", 0)) == int(b.get("charger_count", 0)),
+		"Same seed should repeat garrison kind and counts"
+	)
+	var seen_ground := false
+	var seen_drone := false
+	for seed in range(1, 81):
+		var plan: Dictionary = BonusTowerPlannerScript.garrison_plan(seed, 10)
+		var kind := String(plan.get("kind", ""))
+		var count := int(plan.get("count", 0))
+		if kind == BonusTowerPlannerScript.KIND_GROUND:
+			seen_ground = true
+			_assert_in_band(count, 7, 9, "Level 10 ground count")
+			_fail_unless(int(plan.get("laser_count", -1)) == 0, "Ground garrison should not include lasers")
+			_fail_unless(int(plan.get("charger_count", 0)) <= count, "Chargers cannot exceed pack size")
+		else:
+			seen_drone = true
+			_fail_unless(kind == BonusTowerPlannerScript.KIND_DRONE, "Kind should be ground or drone")
+			_assert_in_band(count, 2, 2, "Level 10 drone count")
+			_fail_unless(
+				int(plan.get("laser_count", -1)) == BonusTowerPlannerScript.laser_count_for(count),
+				"Laser count should be floor(n/4)"
+			)
+			_fail_unless(int(plan.get("charger_count", -1)) == 0, "Drone packs should have no chargers")
+	_fail_unless(seen_ground and seen_drone, "Level 5+ should roll both ground and drone camps")
+	_fail_unless(BonusTowerPlannerScript.laser_count_for(1) == 0, "1 drone should have 0 lasers")
+	_fail_unless(BonusTowerPlannerScript.laser_count_for(3) == 0, "3 drones should have 0 lasers")
+	_fail_unless(BonusTowerPlannerScript.laser_count_for(4) == 1, "4 drones should have 1 laser")
+	_fail_unless(BonusTowerPlannerScript.laser_count_for(7) == 1, "7 drones should have 1 laser")
+	_fail_unless(BonusTowerPlannerScript.laser_count_for(8) == 2, "8 drones should have 2 lasers")
+	_fail_unless(BonusTowerPlannerScript.laser_count_for(11) == 2, "11 drones should have 2 lasers")
+	_fail_unless(BonusTowerPlannerScript.laser_count_for(12) == 3, "12 drones should have 3 lasers")
+	_fail_unless(BonusTowerPlannerScript.laser_count_for(13) == 3, "13 drones should have 3 lasers")
+	_verify_garrison_bands()
+	var late: Dictionary = BonusTowerPlannerScript.garrison_plan(3, 40)
+	if String(late.get("kind", "")) == BonusTowerPlannerScript.KIND_GROUND:
+		_fail_unless(int(late.get("count", 0)) == 25, "Level 36-40 ground pack is 25")
+	else:
+		_fail_unless(int(late.get("count", 0)) == 13, "Level 36-40 drone pack is 13")
+	_fail_unless(BonusTowerPlannerScript.visit_locked(true, true, 3) == false, "Cleared garrison should unlock visit")
+	_fail_unless(BonusTowerPlannerScript.visit_locked(false, false, 0), "Unspawned garrison should lock visit")
+	_fail_unless(BonusTowerPlannerScript.visit_locked(false, true, 2), "Living garrison should lock visit")
+	_fail_unless(BonusTowerPlannerScript.visit_locked(false, true, 0) == false, "Wiped spawned camp should unlock")
+	_fail_unless(
+		BonusTowerPlannerScript.should_spawn_garrison(Vector3.ZERO, Vector3(100.0, 0.0, 0.0), false, false, 500.0),
+		"Approach within 500 m should spawn the camp"
+	)
+	_fail_unless(
+		not BonusTowerPlannerScript.should_spawn_garrison(Vector3.ZERO, Vector3(100.0, 0.0, 0.0), false, false, 50.0),
+		"Far approach should not spawn yet"
+	)
+	_fail_unless(
+		BonusTowerPlannerScript.should_skip_despawn(Vector3(-400.0, 0.0, 0.0), Vector3(0.0, 0.0, 0.0)),
+		"West and far from the tower should skip-despawn"
+	)
+	_fail_unless(
+		not BonusTowerPlannerScript.should_skip_despawn(Vector3(-50.0, 0.0, 0.0), Vector3(0.0, 0.0, 0.0)),
+		"Still near the tower should not skip-despawn"
+	)
+	var ring := BonusTowerPlannerScript.ring_offset(0, 4, 32.0)
+	_fail_unless(is_equal_approx(ring.length(), 32.0), "Ring offset should sit on the spawn radius")
+
+
+func _verify_garrison_bands() -> void:
+	var cases: Array = [
+		[4, 6, 7, 1, 1],
+		[7, 6, 7, 1, 1],
+		[8, 7, 9, 2, 2],
+		[11, 7, 9, 2, 2],
+		[12, 10, 12, 3, 4],
+		[15, 10, 12, 3, 4],
+		[16, 13, 16, 5, 7],
+		[25, 13, 16, 5, 7],
+		[26, 17, 21, 8, 10],
+		[35, 17, 21, 8, 10],
+		[36, 25, 25, 13, 13],
+		[40, 25, 25, 13, 13],
+	]
+	for row in cases:
+		var band: Dictionary = BonusTowerPlannerScript.garrison_band(int(row[0]))
+		_fail_unless(int(band.get("gmin", 0)) == int(row[1]), "Band %d ground min" % int(row[0]))
+		_fail_unless(int(band.get("gmax", 0)) == int(row[2]), "Band %d ground max" % int(row[0]))
+		_fail_unless(int(band.get("dmin", 0)) == int(row[3]), "Band %d drone min" % int(row[0]))
+		_fail_unless(int(band.get("dmax", 0)) == int(row[4]), "Band %d drone max" % int(row[0]))
+		for seed in [1, 8, 42]:
+			var plan: Dictionary = BonusTowerPlannerScript.garrison_plan(seed, int(row[0]))
+			var kind := String(plan.get("kind", ""))
+			_fail_unless(
+				kind == BonusTowerPlannerScript.KIND_GROUND or kind == BonusTowerPlannerScript.KIND_DRONE,
+				"Garrison kind should be ground or drone, never MG"
+			)
+			var count := int(plan.get("count", 0))
+			if kind == BonusTowerPlannerScript.KIND_DRONE:
+				_assert_in_band(count, int(row[3]), int(row[4]), "Level %d drone count" % int(row[0]))
+				_fail_unless(
+					int(plan.get("laser_count", -1)) == BonusTowerPlannerScript.laser_count_for(count),
+					"Laser count should be floor(n/4)"
+				)
+			else:
+				_assert_in_band(count, int(row[1]), int(row[2]), "Level %d ground count" % int(row[0]))
+				_fail_unless(int(plan.get("laser_count", -1)) == 0, "Ground packs should have no lasers")
+
+
+func _verify_garrison_visit_lock() -> void:
+	var root_node := Node.new()
+	root_node.name = "GarrisonVisitRoot"
+	root.add_child(root_node)
+	var garrison = BonusTowerGarrisonScript.new()
+	garrison.name = "BonusTowerGarrison"
+	root_node.add_child(garrison)
+	var bonus: UpgradeTower = UpgradeTowerScript.new()
+	bonus.is_bonus = true
+	bonus.source_level = 7
+	bonus.tower_index = BonusTowerPlannerScript.index_for_level(7)
+	root_node.add_child(bonus)
+	bonus.global_position = Vector3(-500.0, 0.0, 0.0)
+	var west: UpgradeTower = UpgradeTowerScript.new()
+	west.tower_index = 7
+	west.is_home = false
+	west.is_bonus = false
+	root_node.add_child(west)
+	west.global_position = Vector3(-800.0, 0.0, 0.0)
+	await process_frame
+	_fail_unless(
+		garrison.is_visit_locked(bonus),
+		"Unspawned bonus garrison should lock the visit"
+	)
+	_fail_unless(
+		TowerVisitControllerScript.find_visit_tower(self, bonus.global_position) == null,
+		"find_visit_tower should skip a bonus with a live garrison"
+	)
+	_fail_unless(
+		TowerVisitControllerScript.find_visit_tower(self, west.global_position) == west,
+		"Night hub / west towers should stay visitable with garrisons present"
+	)
+	var dummy := Node.new()
+	root_node.add_child(dummy)
+	garrison._camps[bonus.tower_index] = {
+		"cleared": false,
+		"spawned": true,
+		"units": [dummy],
+	}
+	_fail_unless(garrison.is_visit_locked(bonus), "Living garrison units should keep the visit locked")
+	garrison._camps[bonus.tower_index] = {
+		"cleared": false,
+		"spawned": true,
+		"units": [],
+	}
+	_fail_unless(not garrison.is_visit_locked(bonus), "Wiped camp should open the bonus visit")
+	_fail_unless(
+		TowerVisitControllerScript.find_visit_tower(self, bonus.global_position) == bonus,
+		"Cleared garrison should allow the 20 m bonus visit"
+	)
+	root_node.queue_free()
+	await process_frame
+	await process_frame
+
+
 func _verify_spawner_bonus_flags() -> void:
 	var root_node := Node.new()
 	root_node.name = "BonusSpawnRoot"
@@ -228,6 +405,10 @@ func _verify_spawner_bonus_flags() -> void:
 		)
 	root_node.queue_free()
 	await process_frame
+
+
+func _assert_in_band(value: int, lo: int, hi: int, label: String) -> void:
+	_fail_unless(value >= lo and value <= hi, "%s %d should be %d-%d" % [label, value, lo, hi])
 
 
 func _fail_unless(condition: bool, message: String) -> void:
