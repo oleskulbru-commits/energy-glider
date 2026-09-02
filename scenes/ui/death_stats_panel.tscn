@@ -1,0 +1,62 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/death_stats_panel.gd" id="1_panel"]
+
+[node name="DeathStatsPanel" type="VBoxContainer"]
+theme_override_constants/separation = 12
+custom_minimum_size = Vector2(560, 0)
+script = ExtResource("1_panel")
+
+[node name="StoppedTitle" type="Label" parent="."]
+unique_name_in_owner = true
+theme_type_variation = &"HudStoppedTitle"
+text = "You have failed your mission. Fix it."
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="RunSummary" type="VBoxContainer" parent="."]
+theme_override_constants/separation = 4
+
+[node name="WestDistance" type="Label" parent="RunSummary"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "Distance west: 0 m"
+horizontal_alignment = 1
+
+[node name="TowerReached" type="Label" parent="RunSummary"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "Tower 1 of 40"
+horizontal_alignment = 1
+
+[node name="IntegrityValue" type="Label" parent="RunSummary"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "E.O.N. Integrity  100%"
+horizontal_alignment = 1
+
+[node name="DamageSection" type="VBoxContainer" parent="."]
+unique_name_in_owner = true
+theme_override_constants/separation = 6
+
+[node name="DamageHeader" type="Label" parent="DamageSection"]
+theme_type_variation = &"HudLabel"
+text = "Damage dealt"
+horizontal_alignment = 1
+
+[node name="DamageRows" type="VBoxContainer" parent="DamageSection"]
+unique_name_in_owner = true
+theme_override_constants/separation = 4
+
+[node name="UpgradesSection" type="VBoxContainer" parent="."]
+unique_name_in_owner = true
+theme_override_constants/separation = 6
+
+[node name="UpgradesHeader" type="Label" parent="UpgradesSection"]
+theme_type_variation = &"HudLabel"
+text = "Upgrades"
+horizontal_alignment = 1
+
+[node name="UpgradeRows" type="VBoxContainer" parent="UpgradesSection"]
+unique_name_in_owner = true
+theme_override_constants/separation = 4

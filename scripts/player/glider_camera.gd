@@ -15,8 +15,13 @@ extends Camera3D
 @export var min_camera_arm_length: float = 2.5
 @export var camera_collision_backoff: float = 0.6
 @export var preset_blend_rate: float = 6.0
+@export var min_zoom_distance: float = 3.8
+@export var max_zoom_distance: float = 9.5
+@export var zoom_wheel_step: float = 0.55
+@export var zoom_smooth_rate: float = 12.0
 @export var max_look_yaw_deg: float = 180.0
-@export var fall_pitch_max_deg: float = 28.0
+@export var default_pitch_deg: float = 12.0
+@export var fall_pitch_max_deg: float = 18.0
 @export var fall_pitch_speed_ref: float = 12.0
 @export var fall_pitch_rate: float = 5.0
 @export var air_focus_rate_scale: float = 2.8
@@ -46,25 +51,22 @@ const MOUSE_PITCH_SENSITIVITY := 0.0018
 const MAX_LOOK_PITCH_DEG := 35.0
 const LOOK_OFFSET_SPRING := 8.0
 const LOOK_OFFSET_DAMPING := 6.0
-const LOOK_RECENTER_DELAY := 1.0
+const LOOK_RECENTER_DELAY := 3.0
 const LOOK_RECENTER_RAMP_TIME := 1.4
 const LOOK_STEER_RECENTER_SCALE := 0.45
 const LOOK_SPEED_RECENTER_REF := 18.0
 
 var _distance_index := 1
 var _distance := 6.0
+var _distance_target := 6.0
 var _focus := Vector3.ZERO
 var _look_focus := Vector3.ZERO
 var _focus_initialized := false
-var _chase_yaw := 0.0
-var _chase_yaw_velocity := 0.0
-var _chase_initialized := false
-var _look_yaw_offset := 0.0
+var _orbit_yaw := 0.0
+var _orbit_initialized := false
 var _look_pitch_offset := 0.0
-var _look_offset_yaw_velocity := 0.0
-var _look_offset_pitch_velocity := 0.0
-var _mouse_look_enabled := true
 var _look_idle_time := 0.0
+var _mouse_look_enabled := true
 var _fov_blend := 0.0
 var _fall_pitch := 0.0
 var _was_airborne := false
@@ -84,6 +86,8 @@ func _ready() -> void:
 	current = true
 	fov = camera_fov
 	_distance = _active_preset_distance()
+	_distance_target = _distance
+	_look_pitch_offset = _rest_pitch()
 	_setup_handheld_noise()
 
 
@@ -97,16 +101,12 @@ func follow(
 	velocity: Vector3,
 	delta: float,
 	grounded: bool,
-	terrain_manager: TerrainManager,
-	steering: bool = false,
+	_terrain_manager: TerrainManager,
+	_steering: bool = false,
 	speed_bonus: float = 0.0
 ) -> void:
 	var snap := _hard_snap
 	_hard_snap = false
-
-	var preset_distance := _active_preset_distance()
-	var preset_t := 1.0 if snap else clampf(preset_blend_rate * delta, 0.0, 1.0)
-	_distance = lerpf(_distance, preset_distance, preset_t)
 
 	var horizontal_vel := Vector3(velocity.x, 0.0, velocity.z)
 	var speed := horizontal_vel.length()
@@ -139,68 +139,36 @@ func follow(
 	else:
 		_update_fall_pitch(descent_speed, grounded, delta)
 
-	if snap or not _chase_initialized:
-		_chase_yaw = body_yaw
-		_chase_yaw_velocity = 0.0
-		_chase_initialized = true
-
-	if _mouse_look_enabled and not snap:
-		_decay_look_offsets(horizontal_vel, steering, delta)
+	if snap or not _orbit_initialized:
+		_orbit_yaw = body_yaw
+		_orbit_initialized = true
 
 	if snap:
-		_chase_yaw = body_yaw
-		_chase_yaw_velocity = 0.0
-	else:
-		var chase_target := _compute_chase_target_yaw(body_yaw, horizontal_vel, steering)
-		_update_chase_yaw(chase_target, speed, steering, delta)
+		_orbit_yaw = body_yaw
 
-	var aim_yaw := _chase_yaw + _look_yaw_offset
+	if _mouse_look_enabled and not snap:
+		_update_orbit_recenter(body_yaw, delta)
+
+	_update_zoom_distance(delta, snap)
+
+	var aim_yaw := _orbit_yaw
 	var boom_forward := MathUtil.yaw_forward(aim_yaw)
 	var boom_right := Vector3.UP.cross(boom_forward).normalized()
-
-	var height_scale := 1.0 + _distance * height_distance_scale
-	var camera_height := height_scale + air_height_bonus * air_blend
-	var boom_pitch := _look_pitch_offset + _fall_pitch
-	var pitched_up := Vector3.UP.rotated(boom_right, boom_pitch).normalized()
-	var arm := -boom_forward * _distance + pitched_up * camera_height
+	var boom_back := -boom_forward
+	var boom_pitch := compute_boom_pitch(
+		_look_pitch_offset,
+		_fall_pitch,
+		_rest_pitch(),
+		deg_to_rad(MAX_LOOK_PITCH_DEG)
+	)
+	var pitched_dir := boom_back.rotated(boom_right, boom_pitch).normalized()
+	var arm := pitched_dir * _distance
 
 	var desired_pos := pivot + arm
-	desired_pos = _resolve_camera_collision(pivot, desired_pos, target)
-	desired_pos = _enforce_camera_floor(desired_pos, terrain_manager)
+	global_position = desired_pos
 
-	var pos_t := 1.0 if snap else clampf(follow_rate * delta, 0.0, 1.0)
-	global_position = global_position.lerp(desired_pos, pos_t)
-	_snap_camera_above_floor(terrain_manager)
-
-	var low_speed_blend := 1.0 - clampf(
-		(speed - MIN_VELOCITY_YAW_SPEED) / maxf(SPEED_BLEND_END - SPEED_BLEND_START, 0.001),
-		0.0,
-		1.0
-	)
-	var lead_dir := boom_forward
-	if speed > MIN_VELOCITY_YAW_SPEED:
-		var velocity_dir := horizontal_vel / speed
-		lead_dir = velocity_dir.lerp(boom_forward, low_speed_blend).normalized()
-
-	var effective_look_ahead := compute_effective_look_ahead(
-		look_ahead, _look_yaw_offset, max_look_yaw_deg
-	)
-	var look_offset := lead_dir * effective_look_ahead + Vector3.UP * look_height
-	if speed_3d > 3.0:
-		if not grounded:
-			_land_recover_vel_dir = velocity / speed_3d
-		var vel_offset := _land_recover_vel_dir * effective_look_ahead + Vector3.UP * look_height * 0.35
-		var look_blend := 0.0
-		if not grounded:
-			var fall_blend := clampf(descent_speed / maxf(fall_pitch_speed_ref, 0.001), 0.0, 1.0)
-			look_blend = lerpf(air_look_velocity_blend * 0.35, air_look_velocity_blend, fall_blend)
-		elif _land_recover_blend > 0.0:
-			look_blend = _land_recover_look_blend * _land_recover_blend
-		if look_blend > 0.0:
-			look_offset = look_offset.lerp(vel_offset, look_blend)
-	var look_target := _focus + look_offset
-	var look_t := 1.0 if snap else clampf(look_rate * delta, 0.0, 1.0)
-	_look_focus = _look_focus.lerp(look_target, look_t)
+	var look_target := pivot + Vector3(0.0, look_height, 0.0)
+	_look_focus = look_target
 	look_at(_look_focus, Vector3.UP)
 	_apply_handheld_offset(delta, speed, snap, speed_bonus)
 
@@ -214,10 +182,24 @@ func cycle_distance_preset() -> void:
 	if distance_presets.is_empty():
 		return
 	_distance_index = (_distance_index + 1) % distance_presets.size()
+	_distance_target = _active_preset_distance()
+	_distance = _distance_target
+
+
+func apply_zoom(wheel_delta: float) -> void:
+	if not _mouse_look_enabled or is_zero_approx(wheel_delta):
+		return
+	var step := zoom_wheel_step if zoom_wheel_step > 0.0 else 0.55
+	_distance_target = clampf(
+		_distance_target - wheel_delta * step,
+		min_zoom_distance,
+		max_zoom_distance
+	)
+	_sync_distance_index_to_nearest()
 
 
 func get_follow_yaw() -> float:
-	return _chase_yaw + _look_yaw_offset
+	return _orbit_yaw
 
 
 func get_forward_flat() -> Vector3:
@@ -228,12 +210,15 @@ func apply_look_input(rel_x: float, rel_y: float) -> void:
 	if not _mouse_look_enabled:
 		return
 	_look_idle_time = 0.0
-	_look_yaw_offset -= rel_x * MOUSE_YAW_SENSITIVITY
-	_look_pitch_offset -= rel_y * MOUSE_PITCH_SENSITIVITY
+	_orbit_yaw -= rel_x * MOUSE_YAW_SENSITIVITY
+	_look_pitch_offset += rel_y * MOUSE_PITCH_SENSITIVITY
+	var rest_pitch := _rest_pitch()
 	var max_pitch := deg_to_rad(MAX_LOOK_PITCH_DEG)
-	_look_pitch_offset = clampf(_look_pitch_offset, -max_pitch, max_pitch)
-	var max_yaw := deg_to_rad(max_look_yaw_deg)
-	_look_yaw_offset = clampf(_look_yaw_offset, -max_yaw, max_yaw)
+	_look_pitch_offset = clampf(
+		_look_pitch_offset,
+		rest_pitch - max_pitch,
+		rest_pitch + max_pitch
+	)
 
 
 func set_mouse_look_enabled(enabled: bool) -> void:
@@ -245,14 +230,10 @@ func is_mouse_look_enabled() -> bool:
 
 
 func snap_follow_yaw(yaw: float) -> void:
-	_chase_yaw = yaw
-	_chase_yaw_velocity = 0.0
-	_look_yaw_offset = 0.0
-	_look_pitch_offset = 0.0
-	_look_offset_yaw_velocity = 0.0
-	_look_offset_pitch_velocity = 0.0
-	_chase_initialized = true
+	_orbit_yaw = yaw
+	_look_pitch_offset = _rest_pitch()
 	_look_idle_time = 0.0
+	_orbit_initialized = true
 
 
 func request_hard_snap() -> void:
@@ -261,20 +242,51 @@ func request_hard_snap() -> void:
 
 func reset_follow_state() -> void:
 	_focus_initialized = false
-	_chase_initialized = false
-	_distance_index = 1
-	_distance = _active_preset_distance()
-	_chase_yaw_velocity = 0.0
-	_look_yaw_offset = 0.0
-	_look_pitch_offset = 0.0
-	_look_offset_yaw_velocity = 0.0
-	_look_offset_pitch_velocity = 0.0
+	_orbit_initialized = false
+	_look_pitch_offset = _rest_pitch()
 	_look_idle_time = 0.0
 	_fov_blend = 0.0
 	_fall_pitch = 0.0
 	_reset_landing_recovery()
 	_reset_handheld()
 	fov = camera_fov
+
+
+func _update_orbit_recenter(body_yaw: float, delta: float) -> void:
+	_look_idle_time += delta
+	if _look_idle_time < LOOK_RECENTER_DELAY:
+		return
+
+	var rest_pitch := _rest_pitch()
+	var yaw_error := absf(angle_diff(_orbit_yaw, body_yaw))
+	var pitch_error := absf(_look_pitch_offset - rest_pitch)
+	if yaw_error < 0.001 and pitch_error < 0.001:
+		_orbit_yaw = body_yaw
+		_look_pitch_offset = rest_pitch
+		return
+
+	var ramp := clampf(
+		(_look_idle_time - LOOK_RECENTER_DELAY) / LOOK_RECENTER_RAMP_TIME,
+		0.0,
+		1.0
+	)
+	var rate := lerpf(LOOK_OFFSET_SPRING * 0.35, LOOK_OFFSET_SPRING, ramp)
+	var t := clampf(rate * delta, 0.0, 1.0)
+	_orbit_yaw = lerp_angle(_orbit_yaw, body_yaw, t)
+	_look_pitch_offset = lerpf(_look_pitch_offset, rest_pitch, t)
+
+
+func _rest_pitch() -> float:
+	return deg_to_rad(default_pitch_deg)
+
+
+func _update_zoom_distance(delta: float, snap: bool) -> void:
+	if snap or is_equal_approx(_distance, _distance_target):
+		_distance = _distance_target
+		return
+	var rate := zoom_smooth_rate if zoom_smooth_rate > 0.0 else 12.0
+	var t := 1.0 - exp(-rate * delta)
+	_distance = lerpf(_distance, _distance_target, t)
 
 
 func _setup_handheld_noise() -> void:
@@ -395,7 +407,8 @@ static func angle_diff(from_yaw: float, to_yaw: float) -> float:
 static func compute_orbit_look_blend(look_yaw_offset: float, max_look_yaw_deg: float) -> float:
 	if max_look_yaw_deg <= 0.0:
 		return 0.0
-	return clampf(absf(look_yaw_offset) / deg_to_rad(max_look_yaw_deg), 0.0, 1.0)
+	var wrapped_offset := wrapf(look_yaw_offset, -PI, PI)
+	return clampf(absf(wrapped_offset) / deg_to_rad(max_look_yaw_deg), 0.0, 1.0)
 
 
 static func compute_effective_look_ahead(
@@ -415,7 +428,31 @@ static func compute_fall_pitch(
 	if descent_speed <= 0.5:
 		return 0.0
 	var t := clampf(descent_speed / maxf(speed_ref, 0.001), 0.0, 1.0)
-	return -deg_to_rad(max_deg) * t
+	# Positive raises the boom so look_at aims down at the sand, not the sky.
+	return deg_to_rad(max_deg) * t
+
+
+static func compute_fall_pitch_weight(
+	look_pitch: float,
+	rest_pitch: float,
+	max_look_pitch_rad: float
+) -> float:
+	if max_look_pitch_rad <= 0.0:
+		return 1.0
+	return 1.0 - clampf(absf(look_pitch - rest_pitch) / max_look_pitch_rad, 0.0, 1.0)
+
+
+static func compute_boom_pitch(
+	look_pitch: float,
+	fall_pitch: float,
+	rest_pitch: float,
+	max_look_pitch_rad: float
+) -> float:
+	return look_pitch + fall_pitch * compute_fall_pitch_weight(
+		look_pitch,
+		rest_pitch,
+		max_look_pitch_rad
+	)
 
 
 static func compute_land_recover_duration(
@@ -480,78 +517,17 @@ func _active_preset_distance() -> float:
 	return distance_presets[_distance_index % distance_presets.size()]
 
 
-func _compute_chase_target_yaw(body_yaw: float, horizontal_vel: Vector3, steering: bool) -> float:
-	var speed := horizontal_vel.length()
-	if speed <= MIN_VELOCITY_YAW_SPEED:
-		return body_yaw
-
-	var velocity_yaw := atan2(horizontal_vel.x, horizontal_vel.z)
-	var speed_blend := clampf(
-		(speed - SPEED_BLEND_START) / maxf(SPEED_BLEND_END - SPEED_BLEND_START, 0.001),
-		0.0,
-		1.0
-	)
-	var max_blend := MAX_VELOCITY_YAW_BLEND if not steering else STEER_VELOCITY_YAW_BLEND
-	return lerp_angle(body_yaw, velocity_yaw, speed_blend * max_blend)
-
-
-func _update_chase_yaw(target_yaw: float, speed: float, steering: bool, delta: float) -> void:
-	var cruise_factor := clampf(
-		(speed - MIN_VELOCITY_YAW_SPEED) / maxf(SPEED_BLEND_END - MIN_VELOCITY_YAW_SPEED, 0.001),
-		0.0,
-		1.0
-	)
-	var stiffness := lerpf(STEER_CHASE_STIFFNESS, CRUISE_CHASE_STIFFNESS, cruise_factor)
-	if steering:
-		stiffness *= STEER_LAG_SCALE
-
-	var result := step_chase_yaw(
-		_chase_yaw,
-		_chase_yaw_velocity,
-		target_yaw,
-		delta,
-		stiffness,
-		CHASE_DAMPING
-	)
-	_chase_yaw = result.chase_yaw
-	_chase_yaw_velocity = result.chase_yaw_velocity
-
-
-func _decay_look_offsets(horizontal_vel: Vector3, steering: bool, delta: float) -> void:
-	_look_idle_time += delta
-	if _look_idle_time < LOOK_RECENTER_DELAY:
+func _sync_distance_index_to_nearest() -> void:
+	if distance_presets.is_empty():
 		return
-
-	var speed_factor := clampf(horizontal_vel.length() / LOOK_SPEED_RECENTER_REF, 0.2, 1.0)
-	var ramp := clampf(
-		(_look_idle_time - LOOK_RECENTER_DELAY) / LOOK_RECENTER_RAMP_TIME,
-		0.0,
-		1.0
-	)
-	var spring := lerpf(LOOK_OFFSET_SPRING * 0.35, LOOK_OFFSET_SPRING, ramp)
-	spring *= lerpf(0.75, 1.1, speed_factor)
-	if steering:
-		spring *= LOOK_STEER_RECENTER_SCALE
-
-	_spring_offset_toward_zero(spring, LOOK_OFFSET_DAMPING, delta)
-
-
-func _spring_offset_toward_zero(stiffness: float, damping: float, delta: float) -> void:
-	var yaw_result := step_chase_yaw(
-		_look_yaw_offset,
-		_look_offset_yaw_velocity,
-		0.0,
-		delta,
-		stiffness,
-		damping
-	)
-	_look_yaw_offset = yaw_result.chase_yaw
-	_look_offset_yaw_velocity = yaw_result.chase_yaw_velocity
-
-	var pitch_error := -_look_pitch_offset
-	_look_offset_pitch_velocity += pitch_error * stiffness * delta
-	_look_offset_pitch_velocity *= exp(-damping * delta)
-	_look_pitch_offset += _look_offset_pitch_velocity * delta
+	var best_index := 0
+	var best_delta := absf(_distance_target - distance_presets[0])
+	for i in distance_presets.size():
+		var delta_dist := absf(_distance_target - distance_presets[i])
+		if delta_dist < best_delta:
+			best_delta = delta_dist
+			best_index = i
+	_distance_index = best_index
 
 
 func _enforce_camera_floor(pos: Vector3, terrain_manager: TerrainManager) -> Vector3:

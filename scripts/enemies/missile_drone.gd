@@ -113,14 +113,9 @@ func _target_velocity() -> Vector3:
 
 func _lead_point() -> Vector3:
 	var player := _target.global_position
-	var facing := _target_facing_xz()
 	var vel := _target_velocity()
 	var horiz := Vector3(vel.x, 0.0, vel.z)
 	var lead := player + horiz * LEAD_SEC
-	# Keep the volley ahead of the player so rockets don't land behind.
-	var ahead := Vector3(lead.x - player.x, 0.0, lead.z - player.z)
-	if ahead.dot(facing) < 4.0:
-		lead = player + facing * maxf(horiz.length() * LEAD_SEC, 10.0)
 	if _terrain != null:
 		lead.y = _terrain.sample_height(lead.x, lead.z)
 	else:
@@ -130,15 +125,8 @@ func _lead_point() -> Vector3:
 
 func _lead_point_3d() -> Vector3:
 	var player := _target.global_position
-	var facing := _target_facing_xz()
 	var vel := _target_velocity()
-	var lead := player + vel * LEAD_SEC
-	var ahead := Vector3(lead.x - player.x, 0.0, lead.z - player.z)
-	if ahead.dot(facing) < 4.0:
-		var horiz := Vector3(vel.x, 0.0, vel.z)
-		lead = player + facing * maxf(horiz.length() * LEAD_SEC, 10.0)
-		lead.y = player.y + vel.y * LEAD_SEC
-	return lead
+	return player + vel * LEAD_SEC
 
 
 ## Wide ring/ellipse offsets with jitter so the player can slip between hits.

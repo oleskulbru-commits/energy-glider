@@ -189,7 +189,9 @@ func _hit_pill(
 		hit_dir = _facing_xz()
 	var is_crit := AutoRifle.roll_crit(crit_chance, _rng)
 	var dealt := AutoRifle.crit_damage_for(amount, is_crit)
-	var killed := swarm.take_damage(dealt, hit_dir.normalized(), is_crit, knock)
+	var killed := swarm.take_damage(
+		dealt, hit_dir.normalized(), is_crit, knock, UpgradeCatalog.FAMILY_SHOTGUN
+	)
 	if killed:
 		KillSparks.spawn(get_tree(), pill.global_position)
 

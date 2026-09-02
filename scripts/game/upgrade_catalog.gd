@@ -127,6 +127,10 @@ const CRIT_RARE := 0.10
 const CRIT_EPIC := 0.13
 const CRIT_LEGENDARY := 0.17
 const CRIT_CAP := 1.0
+## Max attack-speed reduction applied to weapon cooldowns (matches AutoRifle.CDR_CAP).
+const ATTACK_SPEED_CAP := 0.80
+## Max projectile-speed bonus applied when spawning shots (matches AutoRifle.SPEED_CAP).
+const PROJECTILE_SPEED_CAP := 0.80
 
 const DURATION_COMMON := 0.10
 const DURATION_UNCOMMON := 0.15
@@ -1095,3 +1099,100 @@ static func _apply_luck_point(weights: PackedInt32Array) -> PackedInt32Array:
 static func _roll_family(rng: RandomNumberGenerator) -> StringName:
 	var families := eligible_shop_families(true, true, true, true, true)
 	return families[rng.randi_range(0, families.size() - 1)]
+
+
+const GOD_MODE_KIND_INT := &"int"
+const GOD_MODE_KIND_PERCENT := &"percent"
+const GOD_MODE_PERCENT_MAX_UNCAPPED := 999
+
+
+static func god_mode_weapon_families() -> Array[StringName]:
+	return [
+		FAMILY_RIFLE,
+		FAMILY_LASER,
+		FAMILY_TESLA,
+		FAMILY_ROCKET,
+		FAMILY_SHOTGUN,
+	]
+
+
+static func god_mode_stat_defs() -> Array[Dictionary]:
+	var defs: Array[Dictionary] = []
+	var families: Array[StringName] = [
+		FAMILY_PROJECTILE,
+		FAMILY_ATTACK_SPEED,
+		FAMILY_DAMAGE,
+		FAMILY_PROJECTILE_SPEED,
+		FAMILY_GLIDER_SPEED,
+		FAMILY_GLIDE,
+		FAMILY_STEERING,
+		FAMILY_HP_REGEN,
+		FAMILY_HEALTH,
+		FAMILY_LUCK,
+		FAMILY_MOMENTUM_RETENTION,
+		FAMILY_CRIT,
+		FAMILY_DURATION,
+		FAMILY_PUSHBACK,
+		FAMILY_BOUNCE,
+		FAMILY_RANGE,
+	]
+	for family in families:
+		defs.append(_god_mode_stat_def(family))
+	return defs
+
+
+static func _god_mode_stat_def(family: StringName) -> Dictionary:
+	var kind := GOD_MODE_KIND_PERCENT
+	var cap_percent := -1
+	if family == FAMILY_PROJECTILE or family == FAMILY_HEALTH or family == FAMILY_LUCK or family == FAMILY_BOUNCE or family == FAMILY_HP_REGEN:
+		kind = GOD_MODE_KIND_INT
+	if family == FAMILY_GLIDE:
+		cap_percent = int(round(GLIDE_CAP * 100.0))
+	elif family == FAMILY_STEERING:
+		cap_percent = int(round(STEERING_CAP * 100.0))
+	elif family == FAMILY_MOMENTUM_RETENTION:
+		cap_percent = int(round(MOMENTUM_RETENTION_CAP * 100.0))
+	elif family == FAMILY_CRIT:
+		cap_percent = int(round(CRIT_CAP * 100.0))
+	elif family == FAMILY_ATTACK_SPEED:
+		cap_percent = int(round(ATTACK_SPEED_CAP * 100.0))
+	elif family == FAMILY_PROJECTILE_SPEED:
+		cap_percent = int(round(PROJECTILE_SPEED_CAP * 100.0))
+	var label_id := make_id(family, RARITY_COMMON)
+	if family == FAMILY_HP_REGEN:
+		label_id = make_id(family, RARITY_COMMON)
+	return {
+		"family": family,
+		"label": display_name(label_id),
+		"kind": kind,
+		"cap_percent": cap_percent,
+		"icon": icon_for(label_id),
+	}
+
+
+static func clamp_god_mode_percent(family: StringName, pct_int: int) -> int:
+	var value := maxi(pct_int, 0)
+	var cap := _god_mode_percent_cap(family)
+	if cap >= 0:
+		return mini(value, cap)
+	return mini(value, GOD_MODE_PERCENT_MAX_UNCAPPED)
+
+
+static func clamp_god_mode_int(_family: StringName, value: int) -> int:
+	return maxi(value, 0)
+
+
+static func god_mode_percent_to_fraction(family: StringName, pct_int: int) -> float:
+	return float(clamp_god_mode_percent(family, pct_int)) / 100.0
+
+
+static func god_mode_hp_regen_per_sec(hp_per_period: int) -> float:
+	var clamped := clamp_god_mode_int(FAMILY_HP_REGEN, hp_per_period)
+	return float(clamped) / HP_REGEN_PERIOD_SEC
+
+
+static func _god_mode_percent_cap(family: StringName) -> int:
+	for def in god_mode_stat_defs():
+		if def.get("family") == family and def.get("kind") == GOD_MODE_KIND_PERCENT:
+			return int(def.get("cap_percent", -1))
+	return -1
