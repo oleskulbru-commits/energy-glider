@@ -145,6 +145,70 @@ func grant_starter(family: StringName) -> void:
 	_refill_weapon_holes()
 
 
+func apply_god_mode_loadout(weapons: PackedStringArray, enabled_stats: Dictionary) -> void:
+	has_rifle = false
+	has_laser = false
+	has_tesla = false
+	has_rocket = false
+	has_shotgun = false
+	_owned_order = PackedStringArray()
+	_rifle_level = 0
+	_laser_level = 0
+	_tesla_level = 0
+	_rocket_level = 0
+	_shotgun_level = 0
+	for family_name in weapons:
+		var family := StringName(family_name)
+		if at_weapon_cap():
+			break
+		grant_weapon(family)
+	_refill_weapon_holes()
+	_apply_god_mode_stats(enabled_stats)
+	extra_projectiles_changed.emit(extra_projectiles)
+	weapons_changed.emit()
+
+
+func _apply_god_mode_stats(enabled_stats: Dictionary) -> void:
+	for family in enabled_stats.keys():
+		var value := int(enabled_stats[family])
+		if family == UpgradeCatalog.FAMILY_PROJECTILE:
+			extra_projectiles = UpgradeCatalog.clamp_god_mode_int(family, value)
+		elif family == UpgradeCatalog.FAMILY_ATTACK_SPEED:
+			attack_speed_reduction = UpgradeCatalog.god_mode_percent_to_fraction(family, value)
+		elif family == UpgradeCatalog.FAMILY_DAMAGE:
+			damage_bonus = UpgradeCatalog.god_mode_percent_to_fraction(family, value)
+		elif family == UpgradeCatalog.FAMILY_PROJECTILE_SPEED:
+			projectile_speed_bonus = UpgradeCatalog.god_mode_percent_to_fraction(family, value)
+		elif family == UpgradeCatalog.FAMILY_GLIDER_SPEED:
+			glider_speed_bonus = UpgradeCatalog.god_mode_percent_to_fraction(family, value)
+		elif family == UpgradeCatalog.FAMILY_GLIDE:
+			glide_bonus = UpgradeCatalog.god_mode_percent_to_fraction(family, value)
+		elif family == UpgradeCatalog.FAMILY_STEERING:
+			steering_bonus = UpgradeCatalog.god_mode_percent_to_fraction(family, value)
+		elif family == UpgradeCatalog.FAMILY_HP_REGEN:
+			health_regen_per_sec = UpgradeCatalog.god_mode_hp_regen_per_sec(value)
+		elif family == UpgradeCatalog.FAMILY_HEALTH:
+			var amount := UpgradeCatalog.clamp_god_mode_int(family, value)
+			max_health_bonus = amount
+			var health := get_tree().get_first_node_in_group("player_health") as PlayerHealth
+			if health != null:
+				health.add_bonus_health(amount)
+		elif family == UpgradeCatalog.FAMILY_LUCK:
+			luck_bonus = UpgradeCatalog.clamp_god_mode_int(family, value)
+		elif family == UpgradeCatalog.FAMILY_MOMENTUM_RETENTION:
+			momentum_retention = UpgradeCatalog.god_mode_percent_to_fraction(family, value)
+		elif family == UpgradeCatalog.FAMILY_CRIT:
+			crit_chance = UpgradeCatalog.god_mode_percent_to_fraction(family, value)
+		elif family == UpgradeCatalog.FAMILY_DURATION:
+			duration_bonus = UpgradeCatalog.god_mode_percent_to_fraction(family, value)
+		elif family == UpgradeCatalog.FAMILY_PUSHBACK:
+			pushback_bonus = UpgradeCatalog.god_mode_percent_to_fraction(family, value)
+		elif family == UpgradeCatalog.FAMILY_BOUNCE:
+			bounce_count = UpgradeCatalog.clamp_god_mode_int(family, value)
+		elif family == UpgradeCatalog.FAMILY_RANGE:
+			range_bonus = UpgradeCatalog.god_mode_percent_to_fraction(family, value)
+
+
 func grant_weapon(family: StringName) -> void:
 	if owns_weapon(family):
 		return
@@ -452,6 +516,221 @@ func hud_bounce_count() -> int:
 	if has_shotgun:
 		best = maxi(best, bounce_count_for(UpgradeCatalog.FAMILY_SHOTGUN))
 	return best
+
+
+func death_upgrade_summary() -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	_append_death_summary_int(
+		entries,
+		UpgradeCatalog.FAMILY_PROJECTILE,
+		_total_extra_projectiles()
+	)
+	_append_death_summary_float(
+		entries,
+		UpgradeCatalog.FAMILY_ATTACK_SPEED,
+		_total_attack_speed_reduction()
+	)
+	_append_death_summary_float(
+		entries,
+		UpgradeCatalog.FAMILY_DAMAGE,
+		_total_damage_bonus()
+	)
+	_append_death_summary_float(
+		entries,
+		UpgradeCatalog.FAMILY_PROJECTILE_SPEED,
+		_total_projectile_speed_bonus()
+	)
+	_append_death_summary_float(
+		entries,
+		UpgradeCatalog.FAMILY_GLIDER_SPEED,
+		glider_speed_bonus
+	)
+	_append_death_summary_float(
+		entries,
+		UpgradeCatalog.FAMILY_GLIDE,
+		clampf(glide_bonus, 0.0, UpgradeCatalog.GLIDE_CAP)
+	)
+	_append_death_summary_float(
+		entries,
+		UpgradeCatalog.FAMILY_STEERING,
+		clampf(steering_bonus, 0.0, UpgradeCatalog.STEERING_CAP)
+	)
+	if health_regen_per_sec > 0.0:
+		entries.append(_death_summary_entry(
+			UpgradeCatalog.FAMILY_HP_REGEN,
+			"HP Regen +%s" % UpgradeCatalog.hp_regen_period_text(health_regen_per_sec)
+		))
+	if max_health_bonus > 0:
+		entries.append(_death_summary_entry(
+			UpgradeCatalog.FAMILY_HEALTH,
+			"Health +%d" % max_health_bonus
+		))
+	if luck_bonus > 0:
+		entries.append(_death_summary_entry(
+			UpgradeCatalog.FAMILY_LUCK,
+			"Luck +%d" % luck_bonus
+		))
+	_append_death_summary_float(
+		entries,
+		UpgradeCatalog.FAMILY_MOMENTUM_RETENTION,
+		clampf(momentum_retention, 0.0, UpgradeCatalog.MOMENTUM_RETENTION_CAP)
+	)
+	_append_death_summary_float(
+		entries,
+		UpgradeCatalog.FAMILY_CRIT,
+		clampf(_total_crit_chance(), 0.0, UpgradeCatalog.CRIT_CAP)
+	)
+	_append_death_summary_float(
+		entries,
+		UpgradeCatalog.FAMILY_DURATION,
+		_total_duration_bonus()
+	)
+	_append_death_summary_float(
+		entries,
+		UpgradeCatalog.FAMILY_PUSHBACK,
+		_total_pushback_bonus()
+	)
+	_append_death_summary_int(
+		entries,
+		UpgradeCatalog.FAMILY_BOUNCE,
+		_total_bounce_count()
+	)
+	_append_death_summary_float(
+		entries,
+		UpgradeCatalog.FAMILY_RANGE,
+		_total_range_bonus()
+	)
+	return entries
+
+
+func _total_extra_projectiles() -> int:
+	var total := extra_projectiles
+	for weapon in owned_weapon_ids():
+		total += _bundle(StringName(weapon)).extra_projectiles
+	return total
+
+
+func _total_attack_speed_reduction() -> float:
+	var total := attack_speed_reduction
+	for weapon in owned_weapon_ids():
+		total += _bundle(StringName(weapon)).attack_speed
+	return total
+
+
+func _total_damage_bonus() -> float:
+	var total := damage_bonus
+	for weapon in owned_weapon_ids():
+		total += _bundle(StringName(weapon)).damage
+	return total
+
+
+func _total_projectile_speed_bonus() -> float:
+	var total := projectile_speed_bonus
+	for weapon in owned_weapon_ids():
+		total += _bundle(StringName(weapon)).projectile_speed
+	return total
+
+
+func _total_crit_chance() -> float:
+	var total := crit_chance
+	for weapon in owned_weapon_ids():
+		total += _bundle(StringName(weapon)).crit
+	return total
+
+
+func _total_duration_bonus() -> float:
+	var total := duration_bonus
+	for weapon in owned_weapon_ids():
+		total += _bundle(StringName(weapon)).duration
+	return total
+
+
+func _total_pushback_bonus() -> float:
+	var total := pushback_bonus
+	for weapon in owned_weapon_ids():
+		total += _bundle(StringName(weapon)).pushback
+	return total
+
+
+func _total_bounce_count() -> int:
+	var total := bounce_count
+	for weapon in owned_weapon_ids():
+		total += _bundle(StringName(weapon)).bounce
+	return total
+
+
+func _total_range_bonus() -> float:
+	var total := range_bonus
+	for weapon in owned_weapon_ids():
+		total += _bundle(StringName(weapon)).range
+	return total
+
+
+func _append_death_summary_int(
+	entries: Array[Dictionary],
+	family: StringName,
+	value: int
+) -> void:
+	if value <= 0:
+		return
+	entries.append(_death_summary_entry(family, _death_summary_label_int(family, value)))
+
+
+func _append_death_summary_float(
+	entries: Array[Dictionary],
+	family: StringName,
+	value: float
+) -> void:
+	if value <= 0.0:
+		return
+	entries.append(_death_summary_entry(family, _death_summary_label_float(family, value)))
+
+
+func _death_summary_entry(family: StringName, label: String) -> Dictionary:
+	return {
+		"family": family,
+		"label": label,
+		"icon": UpgradeCatalog.icon_for(
+			UpgradeCatalog.make_id(family, UpgradeCatalog.RARITY_COMMON)
+		),
+	}
+
+
+func _death_summary_label_int(family: StringName, value: int) -> String:
+	if family == UpgradeCatalog.FAMILY_PROJECTILE:
+		if value == 1:
+			return "+1 projectile"
+		return "+%d projectiles" % value
+	if family == UpgradeCatalog.FAMILY_BOUNCE:
+		return "Bounce +%d" % value
+	return str(value)
+
+
+func _death_summary_label_float(family: StringName, value: float) -> String:
+	var pct := int(roundf(value * 100.0))
+	if family == UpgradeCatalog.FAMILY_ATTACK_SPEED:
+		return "Attack Speed −%d%%" % pct
+	if family == UpgradeCatalog.FAMILY_DAMAGE:
+		return "Damage +%d%%" % pct
+	if family == UpgradeCatalog.FAMILY_PROJECTILE_SPEED:
+		return "Projectile Speed +%d%%" % pct
+	if family == UpgradeCatalog.FAMILY_GLIDER_SPEED:
+		return "Glider Speed +%d%%" % pct
+	if family == UpgradeCatalog.FAMILY_GLIDE:
+		return "Glide +%d%%" % pct
+	if family == UpgradeCatalog.FAMILY_STEERING:
+		return "Steering +%d%%" % pct
+	if family == UpgradeCatalog.FAMILY_MOMENTUM_RETENTION:
+		return "Momentum Retention +%d%%" % pct
+	if family == UpgradeCatalog.FAMILY_CRIT:
+		return "Crit +%d%%" % pct
+	if family == UpgradeCatalog.FAMILY_DURATION:
+		return "Duration +%d%%" % pct
+	if family == UpgradeCatalog.FAMILY_PUSHBACK:
+		return "Pushback +%d%%" % pct
+	if family == UpgradeCatalog.FAMILY_RANGE:
+		return "Range +%d%%" % pct
+	return "%.0f%%" % (value * 100.0)
 
 
 func add_extra_projectile(amount: int = 1) -> void:

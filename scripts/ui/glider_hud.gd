@@ -14,6 +14,8 @@ const BATTERY_COLOR_EMPTY := Color(0.85, 0.28, 0.22)
 const GliderInputScript = preload("res://scripts/input/glider_input.gd")
 const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 const LaserTargetReticleUIScript = preload("res://scripts/ui/laser_target_reticle_ui.gd")
+const DeathStatsPanelScript = preload("res://scripts/ui/death_stats_panel.gd")
+const RunDamageStatsScript = preload("res://scripts/game/run_damage_stats.gd")
 
 const LASER_HIT_HUE_COLOR := Color(0.92, 0.1, 0.06, 1.0)
 const LASER_HIT_HUE_PEAK_ALPHA := 0.42
@@ -28,7 +30,7 @@ const LASER_HIT_HUE_FADE_SEC := 2.0
 @onready var _stopped_overlay: PanelContainer = %StoppedOverlay
 @onready var _fail_fade: ColorRect = %FailFade
 @onready var _laser_hit_hue: ColorRect = %LaserHitHue
-@onready var _stopped_title: Label = %StoppedTitle
+@onready var _death_stats_panel: DeathStatsPanelScript = %DeathStatsPanel
 @onready var _stopped_distance: Label = %StoppedDistance
 @onready var _death_buttons: HBoxContainer = %DeathButtons
 @onready var _try_again_button: Button = %TryAgainButton
@@ -92,6 +94,7 @@ var _night_warning_timer := 0.0
 var _safe_pulse_time := 0.0
 var _fail_fade_tween: Tween
 var _fail_fade_active := false
+var _death_board_populated := false
 var _laser_hit_hue_tween: Tween
 var _fail_overlay_style: StyleBoxEmpty
 
@@ -108,7 +111,8 @@ func _ready() -> void:
 			_camera = _rig.get_node_or_null("Glider/Camera3D") as GliderCamera
 	else:
 		_player = get_parent() as GliderPlayer
-		_input = _player.get_node_or_null("GliderInput") as GliderInputScript
+		if _player != null:
+			_input = _player.get_node_or_null("GliderInput") as GliderInputScript
 	_run_score = get_tree().get_first_node_in_group("run_score") as RunScore
 	_expedition = get_tree().get_first_node_in_group("expedition_state") as ExpeditionState
 	_director = get_tree().get_first_node_in_group("eon_director") as EonDirectorScript
@@ -271,6 +275,8 @@ func _process(delta: float) -> void:
 	_update_rifle_debug()
 
 	var show_death_overlay := _is_death_overlay_active()
+	if not show_death_overlay:
+		_death_board_populated = false
 	if show_death_overlay:
 		_stopped_overlay.visible = true
 		_update_death_overlay()
@@ -304,6 +310,7 @@ func _on_integrity_changed(value: int) -> void:
 
 
 func _on_run_started() -> void:
+	_death_board_populated = false
 	_update_integrity_panel_visibility()
 
 
@@ -358,13 +365,19 @@ func _update_death_overlay() -> void:
 	if _stopped_overlay != null:
 		_stopped_overlay.add_theme_stylebox_override("panel", _fail_overlay_style)
 	var can_retry := _director != null and _director.can_try_again()
-	if _stopped_title != null:
-		if can_retry:
-			_stopped_title.text = "You have failed your mission. Fix it."
-		else:
-			_stopped_title.text = (
-				"You have failed your mission. The eternals condemn you for all eternity."
-			)
+	var flavor := (
+		"You have failed your mission. Fix it."
+		if can_retry
+		else "You have failed your mission. The eternals condemn you for all eternity."
+	)
+	if _death_stats_panel != null:
+		_death_stats_panel.set_flavor_text(flavor)
+		if not _death_board_populated:
+			var terrain := get_tree().get_first_node_in_group("terrain_manager") as TerrainManager
+			var upgrade_state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
+			var damage_stats := get_tree().get_first_node_in_group("run_damage_stats") as RunDamageStatsScript
+			_death_stats_panel.populate(_director, terrain, upgrade_state, damage_stats)
+			_death_board_populated = true
 	if _stopped_distance != null:
 		_stopped_distance.visible = false
 	if _stopped_summary != null:
@@ -537,8 +550,9 @@ func _update_safe_chip(delta: float) -> void:
 func _update_stopped_overlay() -> void:
 	if _stopped_overlay != null:
 		_stopped_overlay.remove_theme_stylebox_override("panel")
-	if _stopped_title != null:
-		_stopped_title.text = "Stopped"
+	if _death_stats_panel != null:
+		_death_stats_panel.set_flavor_text("Stopped")
+		_death_stats_panel.set_sections_visible(false)
 	if _death_buttons != null:
 		_death_buttons.visible = false
 	if _stopped_distance != null:

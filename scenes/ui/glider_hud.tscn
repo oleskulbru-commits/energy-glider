@@ -1,9 +1,10 @@
-[gd_scene load_steps=5 format=3 uid="uid://cglider_hud001"]
+[gd_scene load_steps=6 format=3 uid="uid://cglider_hud001"]
 
 [ext_resource type="Script" path="res://scripts/ui/glider_hud.gd" id="1_hud"]
 [ext_resource type="Theme" path="res://themes/hud_theme.tres" id="2_theme"]
 [ext_resource type="Script" path="res://scripts/ui/compass_bar.gd" id="3_compass"]
 [ext_resource type="Script" path="res://scripts/ui/laser_target_reticle_ui.gd" id="4_laser_reticle"]
+[ext_resource type="PackedScene" path="res://scenes/ui/death_stats_panel.tscn" id="5_death_stats"]
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_night"]
 
@@ -279,51 +280,67 @@ grow_vertical = 2
 mouse_filter = 0
 theme_type_variation = &"HudOverlay"
 
-[node name="Center" type="CenterContainer" parent="StoppedOverlay"]
+[node name="Margin" type="MarginContainer" parent="StoppedOverlay"]
 layout_mode = 2
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 24
 
-[node name="VBox" type="VBoxContainer" parent="StoppedOverlay/Center"]
+[node name="VBox" type="VBoxContainer" parent="StoppedOverlay/Margin"]
 layout_mode = 2
 theme_override_constants/separation = 16
-custom_minimum_size = Vector2(480, 0)
 
-[node name="StoppedTitle" type="Label" parent="StoppedOverlay/Center/VBox"]
+[node name="Scroll" type="ScrollContainer" parent="StoppedOverlay/Margin/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Center" type="CenterContainer" parent="StoppedOverlay/Margin/VBox/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Stack" type="VBoxContainer" parent="StoppedOverlay/Margin/VBox/Scroll/Center"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="DeathStatsPanel" parent="StoppedOverlay/Margin/VBox/Scroll/Center/Stack" instance=ExtResource("5_death_stats")]
 unique_name_in_owner = true
-theme_type_variation = &"HudStoppedTitle"
-text = "You have failed your mission. Fix it."
-horizontal_alignment = 1
-autowrap_mode = 2
+layout_mode = 2
 
-[node name="StoppedDistance" type="Label" parent="StoppedOverlay/Center/VBox"]
+[node name="StoppedDistance" type="Label" parent="StoppedOverlay/Margin/VBox/Scroll/Center/Stack"]
 unique_name_in_owner = true
 visible = false
+layout_mode = 2
 theme_type_variation = &"HudStoppedDistance"
 text = "0 m"
 horizontal_alignment = 1
 
-[node name="StoppedSummary" type="Label" parent="StoppedOverlay/Center/VBox"]
+[node name="StoppedSummary" type="Label" parent="StoppedOverlay/Margin/VBox/Scroll/Center/Stack"]
 unique_name_in_owner = true
 visible = false
+layout_mode = 2
 theme_type_variation = &"HudLabel"
 text = ""
 horizontal_alignment = 1
 
-[node name="DeathButtons" type="HBoxContainer" parent="StoppedOverlay/Center/VBox"]
+[node name="DeathButtons" type="HBoxContainer" parent="StoppedOverlay/Margin/VBox"]
 unique_name_in_owner = true
 theme_override_constants/separation = 16
 alignment = 1
 
-[node name="TryAgainButton" type="Button" parent="StoppedOverlay/Center/VBox/DeathButtons"]
+[node name="TryAgainButton" type="Button" parent="StoppedOverlay/Margin/VBox/DeathButtons"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(140, 36)
 text = "Try again"
 
-[node name="RestartButton" type="Button" parent="StoppedOverlay/Center/VBox/DeathButtons"]
+[node name="RestartButton" type="Button" parent="StoppedOverlay/Margin/VBox/DeathButtons"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(140, 36)
 text = "New game"

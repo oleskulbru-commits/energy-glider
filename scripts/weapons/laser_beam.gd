@@ -288,7 +288,7 @@ func _hurt_living(
 	var is_crit := AutoRifle.roll_crit(crit_chance, rng)
 	var amount := AutoRifle.crit_damage_for(AutoLaser.damage_for(damage_bonus), is_crit)
 	var at := pill.global_position + Vector3(0.0, AIM_UP_M, 0.0)
-	pill.take_damage(amount, Vector3.ZERO, is_crit)
+	pill.take_damage(amount, Vector3.ZERO, is_crit, SwarmPill.HIT_KNOCKBACK_SPEED, UpgradeCatalog.FAMILY_LASER)
 	if pop_burst:
 		_pop_burst_at(at)
 
