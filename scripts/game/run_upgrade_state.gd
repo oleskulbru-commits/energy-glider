@@ -145,6 +145,70 @@ func grant_starter(family: StringName) -> void:
 	_refill_weapon_holes()
 
 
+func apply_god_mode_loadout(weapons: PackedStringArray, enabled_stats: Dictionary) -> void:
+	has_rifle = false
+	has_laser = false
+	has_tesla = false
+	has_rocket = false
+	has_shotgun = false
+	_owned_order = PackedStringArray()
+	_rifle_level = 0
+	_laser_level = 0
+	_tesla_level = 0
+	_rocket_level = 0
+	_shotgun_level = 0
+	for family_name in weapons:
+		var family := StringName(family_name)
+		if at_weapon_cap():
+			break
+		grant_weapon(family)
+	_refill_weapon_holes()
+	_apply_god_mode_stats(enabled_stats)
+	extra_projectiles_changed.emit(extra_projectiles)
+	weapons_changed.emit()
+
+
+func _apply_god_mode_stats(enabled_stats: Dictionary) -> void:
+	for family in enabled_stats.keys():
+		var value := int(enabled_stats[family])
+		if family == UpgradeCatalog.FAMILY_PROJECTILE:
+			extra_projectiles = UpgradeCatalog.clamp_god_mode_int(family, value)
+		elif family == UpgradeCatalog.FAMILY_ATTACK_SPEED:
+			attack_speed_reduction = UpgradeCatalog.god_mode_percent_to_fraction(family, value)
+		elif family == UpgradeCatalog.FAMILY_DAMAGE:
+			damage_bonus = UpgradeCatalog.god_mode_percent_to_fraction(family, value)
+		elif family == UpgradeCatalog.FAMILY_PROJECTILE_SPEED:
+			projectile_speed_bonus = UpgradeCatalog.god_mode_percent_to_fraction(family, value)
+		elif family == UpgradeCatalog.FAMILY_GLIDER_SPEED:
+			glider_speed_bonus = UpgradeCatalog.god_mode_percent_to_fraction(family, value)
+		elif family == UpgradeCatalog.FAMILY_GLIDE:
+			glide_bonus = UpgradeCatalog.god_mode_percent_to_fraction(family, value)
+		elif family == UpgradeCatalog.FAMILY_STEERING:
+			steering_bonus = UpgradeCatalog.god_mode_percent_to_fraction(family, value)
+		elif family == UpgradeCatalog.FAMILY_HP_REGEN:
+			health_regen_per_sec = UpgradeCatalog.god_mode_hp_regen_per_sec(value)
+		elif family == UpgradeCatalog.FAMILY_HEALTH:
+			var amount := UpgradeCatalog.clamp_god_mode_int(family, value)
+			max_health_bonus = amount
+			var health := get_tree().get_first_node_in_group("player_health") as PlayerHealth
+			if health != null:
+				health.add_bonus_health(amount)
+		elif family == UpgradeCatalog.FAMILY_LUCK:
+			luck_bonus = UpgradeCatalog.clamp_god_mode_int(family, value)
+		elif family == UpgradeCatalog.FAMILY_MOMENTUM_RETENTION:
+			momentum_retention = UpgradeCatalog.god_mode_percent_to_fraction(family, value)
+		elif family == UpgradeCatalog.FAMILY_CRIT:
+			crit_chance = UpgradeCatalog.god_mode_percent_to_fraction(family, value)
+		elif family == UpgradeCatalog.FAMILY_DURATION:
+			duration_bonus = UpgradeCatalog.god_mode_percent_to_fraction(family, value)
+		elif family == UpgradeCatalog.FAMILY_PUSHBACK:
+			pushback_bonus = UpgradeCatalog.god_mode_percent_to_fraction(family, value)
+		elif family == UpgradeCatalog.FAMILY_BOUNCE:
+			bounce_count = UpgradeCatalog.clamp_god_mode_int(family, value)
+		elif family == UpgradeCatalog.FAMILY_RANGE:
+			range_bonus = UpgradeCatalog.god_mode_percent_to_fraction(family, value)
+
+
 func grant_weapon(family: StringName) -> void:
 	if owns_weapon(family):
 		return

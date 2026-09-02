@@ -8,12 +8,17 @@ const IDLE_MODULATE := Color(0.92, 0.88, 0.8, 1.0)
 const VOICE_DELAY_SEC := 1.0
 
 @onready var _root: Control = %Root
+@onready var _overlay_dim: ColorRect = _root.get_node("Dim") as ColorRect
+@onready var _overlay_center: CenterContainer = _root.get_node("Center") as CenterContainer
+@onready var _main_panel: PanelContainer = %MainPanel
 @onready var _rifle_button: Button = %RifleButton
 @onready var _laser_button: Button = %LaserButton
 @onready var _tesla_button: Button = %TeslaButton
 @onready var _rocket_button: Button = %RocketButton
 @onready var _shotgun_button: Button = %ShotgunButton
 @onready var _start_button: Button = %StartButton
+@onready var _god_mode_button: Button = %GodModeButton
+@onready var _god_mode_menu: GodModeMenu = %GodModeMenu
 @onready var _choose_voice: AudioStreamPlayer = %ChooseWeaponVoice
 @onready var _eon_voice: AudioStreamPlayer = %GetTheEonVoice
 
@@ -35,6 +40,10 @@ func _ready() -> void:
 	_rocket_button.pressed.connect(_on_weapon_pressed.bind(UpgradeCatalog.FAMILY_ROCKET))
 	_shotgun_button.pressed.connect(_on_weapon_pressed.bind(UpgradeCatalog.FAMILY_SHOTGUN))
 	_start_button.pressed.connect(_on_start_pressed)
+	_god_mode_button.pressed.connect(_on_god_mode_pressed)
+	if _god_mode_menu != null:
+		_god_mode_menu.back_requested.connect(_on_god_mode_back)
+		_god_mode_menu.started.connect(_on_god_mode_started)
 	_rifle_button.icon = UpgradeCatalog.icon_for(UpgradeCatalog.ID_UNLOCK_RIFLE)
 	_laser_button.icon = UpgradeCatalog.icon_for(UpgradeCatalog.ID_UNLOCK_LASER)
 	_tesla_button.icon = UpgradeCatalog.icon_for(UpgradeCatalog.ID_UNLOCK_TESLA)
@@ -48,6 +57,8 @@ func _bind_and_open() -> void:
 	var health := get_tree().get_first_node_in_group("player_health") as PlayerHealth
 	if health != null:
 		_rig = health.get_parent() as PlayerRig
+	if _god_mode_menu != null:
+		_god_mode_menu.bind_state(_state)
 	var director := get_tree().get_first_node_in_group("eon_director") as EonDirector
 	if director != null and director.has_signal("attempt_started"):
 		if not director.attempt_started.is_connected(_on_attempt_started):
@@ -113,14 +124,45 @@ func _on_start_pressed() -> void:
 	_close()
 
 
+func _on_god_mode_pressed() -> void:
+	if _main_panel != null:
+		_main_panel.visible = false
+	_set_weapon_overlay_input_blocked(true)
+	if _god_mode_menu != null:
+		_god_mode_menu.open()
+
+
+func _on_god_mode_back() -> void:
+	_set_weapon_overlay_input_blocked(false)
+	if _main_panel != null:
+		_main_panel.visible = true
+
+
+func _on_god_mode_started() -> void:
+	_close()
+
+
 func _close() -> void:
 	_cancel_choose_voice()
+	_set_weapon_overlay_input_blocked(false)
+	if _god_mode_menu != null:
+		_god_mode_menu.close()
+	if _main_panel != null:
+		_main_panel.visible = true
 	visible = false
 	_root.visible = false
 	get_tree().paused = false
 	if _rig != null:
 		_rig.capture_look_mouse()
 	_schedule_eon_voice()
+
+
+func _set_weapon_overlay_input_blocked(blocked: bool) -> void:
+	var filter := Control.MOUSE_FILTER_IGNORE if blocked else Control.MOUSE_FILTER_STOP
+	if _overlay_dim != null:
+		_overlay_dim.mouse_filter = filter
+	if _overlay_center != null:
+		_overlay_center.mouse_filter = filter
 
 
 func _schedule_choose_voice() -> void:
