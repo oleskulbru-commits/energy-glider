@@ -51,14 +51,14 @@ func _reset_defaults() -> void:
 		var check: Button = _weapon_checks[family]
 		check.button_pressed = false
 		check.disabled = false
-		_update_toggle_visual(check, false)
+		_update_toggle_visual(false, check)
 	for family in _upgrade_rows_by_family.keys():
 		var row: Dictionary = _upgrade_rows_by_family[family]
 		var check: Button = row.get("check")
 		var spin: SpinBox = row.get("spin")
 		if check != null:
 			check.button_pressed = false
-			_update_toggle_visual(check, false)
+			_update_toggle_visual(false, check)
 		if spin != null:
 			spin.value = 0
 			spin.editable = false
@@ -118,7 +118,7 @@ func _make_toggle_button() -> Button:
 	return btn
 
 
-func _update_toggle_visual(btn: Button, pressed: bool) -> void:
+func _update_toggle_visual(pressed: bool, btn: Button) -> void:
 	btn.text = "✓" if pressed else ""
 
 

@@ -2,6 +2,8 @@ extends SceneTree
 
 const RunUpgradeStateScript = preload("res://scripts/game/run_upgrade_state.gd")
 const UpgradeCatalogScript = preload("res://scripts/game/upgrade_catalog.gd")
+const GodModeMenuScript = preload("res://scripts/ui/god_mode_menu.gd")
+const GodModeMenuScene = preload("res://scenes/ui/god_mode_menu.tscn")
 
 var _failed := false
 
@@ -14,7 +16,9 @@ func _run() -> void:
 	_verify_percent_clamps()
 	_verify_apply_loadout()
 	_verify_weapon_cap()
+	await _verify_toggle_checkmark_from_signal()
 	if _failed:
+		quit(1)
 		return
 	print("God mode menu verification passed.")
 	quit(0)
@@ -68,6 +72,31 @@ func _verify_apply_loadout() -> void:
 		"God mode should set attack speed reduction from percent input"
 	)
 	state.queue_free()
+
+
+func _verify_toggle_checkmark_from_signal() -> void:
+	var menu: GodModeMenuScript = GodModeMenuScene.instantiate() as GodModeMenuScript
+	root.add_child(menu)
+	await process_frame
+	menu.open()
+	var weapon_rows: VBoxContainer = menu.get_node("%WeaponRows")
+	var upgrade_rows: VBoxContainer = menu.get_node("%UpgradeRows")
+	_fail_unless(weapon_rows.get_child_count() > 0, "God mode should build weapon rows")
+	_fail_unless(upgrade_rows.get_child_count() > 0, "God mode should build upgrade rows")
+	if _failed:
+		menu.queue_free()
+		return
+	var weapon_check: Button = weapon_rows.get_child(0).get_child(0)
+	weapon_check.button_pressed = true
+	_fail_unless(weapon_check.text == "✓", "Toggling a weapon should draw a checkmark")
+	weapon_check.button_pressed = false
+	_fail_unless(weapon_check.text == "", "Untoggling a weapon should clear the checkmark")
+	var upgrade_check: Button = upgrade_rows.get_child(0).get_child(0)
+	upgrade_check.button_pressed = true
+	_fail_unless(upgrade_check.text == "✓", "Toggling an upgrade should draw a checkmark")
+	upgrade_check.button_pressed = false
+	_fail_unless(upgrade_check.text == "", "Untoggling an upgrade should clear the checkmark")
+	menu.queue_free()
 
 
 func _verify_weapon_cap() -> void:

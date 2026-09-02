@@ -306,20 +306,26 @@ layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 
-[node name="DeathStatsPanel" parent="StoppedOverlay/Margin/VBox/Scroll/Center" instance=ExtResource("5_death_stats")]
+[node name="Stack" type="VBoxContainer" parent="StoppedOverlay/Margin/VBox/Scroll/Center"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="DeathStatsPanel" parent="StoppedOverlay/Margin/VBox/Scroll/Center/Stack" instance=ExtResource("5_death_stats")]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="StoppedDistance" type="Label" parent="StoppedOverlay/Margin/VBox/Scroll/Center"]
+[node name="StoppedDistance" type="Label" parent="StoppedOverlay/Margin/VBox/Scroll/Center/Stack"]
 unique_name_in_owner = true
 visible = false
+layout_mode = 2
 theme_type_variation = &"HudStoppedDistance"
 text = "0 m"
 horizontal_alignment = 1
 
-[node name="StoppedSummary" type="Label" parent="StoppedOverlay/Margin/VBox/Scroll/Center"]
+[node name="StoppedSummary" type="Label" parent="StoppedOverlay/Margin/VBox/Scroll/Center/Stack"]
 unique_name_in_owner = true
 visible = false
+layout_mode = 2
 theme_type_variation = &"HudLabel"
 text = ""
 horizontal_alignment = 1
