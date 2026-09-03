@@ -49,9 +49,14 @@ func configure(terrain: TerrainManager, target: Node3D, speed: float = BASE_MOVE
 	_snap_to_cruise_height(true, 0.0)
 
 
-func bind_garrison(anchor: Vector3) -> void:
-	super.bind_garrison(anchor)
+func bind_garrison(anchor: Vector3, tower_index: int = -1, shield: Node3D = null) -> void:
+	super.bind_garrison(anchor, tower_index, shield)
 	never_despawn = true
+	collision_mask = 0
+
+
+func _garrison_idle_goal_xz() -> Vector3:
+	return garrison_home
 
 
 func _ensure_cube_visual() -> void:
@@ -186,14 +191,25 @@ func _snap_to_cruise_height(instant: bool, delta: float = 0.016) -> void:
 func _face_target() -> void:
 	if _target == null or not is_instance_valid(_target):
 		return
-	var flat := Vector3(
-		_target.global_position.x - global_position.x,
-		0.0,
-		_target.global_position.z - global_position.z
-	)
-	if flat.length_squared() < 0.0001:
+	var look := _target.global_position
+	if garrisoned and not _garrison_aggroed:
+		look = _shield_siege_aim()
+	var to := look - global_position
+	if to.length_squared() < 0.0001:
 		return
-	look_at(global_position + flat.normalized(), Vector3.UP)
+	if absf(to.normalized().dot(Vector3.UP)) > 0.98:
+		to.y = 0.0
+		if to.length_squared() < 0.0001:
+			return
+		look = global_position + to.normalized()
+	look_at(look, Vector3.UP)
+
+
+func _shield_siege_aim() -> Vector3:
+	var shield := garrison_shield()
+	if shield != null and shield.has_method("aim_mid_from"):
+		return shield.aim_mid_from(global_position)
+	return Vector3(garrison_anchor.x, global_position.y + 25.0, garrison_anchor.z)
 
 
 ## Subclasses implement weapons. Base is a no-op.

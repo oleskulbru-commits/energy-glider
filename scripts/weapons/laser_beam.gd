@@ -3,6 +3,8 @@ extends Node3D
 
 ## Solid red beam. Clock keeps running with no target.
 
+const SwarmPillScript := preload("res://scripts/enemies/swarm_pill.gd")
+
 const AIM_UP_M := 0.7
 const RADIUS_CORE := 0.13
 const RADIUS_GLOW := 0.22
@@ -282,13 +284,28 @@ func _hurt_living(
 ) -> void:
 	if not _is_living(node):
 		return
-	var pill := node as SwarmPill
+	_hurt_pill(node as SwarmPillScript, damage_bonus, crit_chance, rng, pop_burst)
+
+
+func _hurt_pill(
+	pill: SwarmPillScript,
+	damage_bonus: float,
+	crit_chance: float,
+	rng: RandomNumberGenerator,
+	pop_burst: bool
+) -> void:
 	if pill == null:
 		return
 	var is_crit := AutoRifle.roll_crit(crit_chance, rng)
 	var amount := AutoRifle.crit_damage_for(AutoLaser.damage_for(damage_bonus), is_crit)
 	var at := pill.global_position + Vector3(0.0, AIM_UP_M, 0.0)
-	pill.take_damage(amount, Vector3.ZERO, is_crit, SwarmPill.HIT_KNOCKBACK_SPEED, UpgradeCatalog.FAMILY_LASER)
+	pill.take_damage(
+		amount,
+		Vector3.ZERO,
+		is_crit,
+		SwarmPillScript.HIT_KNOCKBACK_SPEED,
+		UpgradeCatalog.FAMILY_LASER
+	)
 	if pop_burst:
 		_pop_burst_at(at)
 

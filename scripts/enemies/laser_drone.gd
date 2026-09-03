@@ -15,8 +15,10 @@ const TELEGRAPH_TOTAL_SEC := (
 )
 const BLAST_DAMAGE := 35
 const RELOAD_SEC := 5.0
-## Inside this radius the drone kites away; between here and lock-on is engage (hold).
-const ENGAGE_INNER_M := 35.0
+## Inside this radius the drone flees; between here and chase range is engage (hold).
+const ENGAGE_INNER_M := 50.0
+## Chase the player until this XZ distance, then hold.
+const CHASE_UNTIL_M := 150.0
 ## Reticle countdown starts once the player closes within this XZ distance.
 const LOCK_ON_RANGE_M := 180.0
 
@@ -60,7 +62,7 @@ static func is_within_lock_on_range(dist_m: float) -> bool:
 
 
 static func movement_zone_for_distance(dist_m: float) -> String:
-	if dist_m > LOCK_ON_RANGE_M:
+	if dist_m > CHASE_UNTIL_M:
 		return "acquire"
 	if dist_m >= ENGAGE_INNER_M:
 		return "engage"
@@ -162,12 +164,37 @@ func _update_weapons(delta: float) -> void:
 		return
 	if _stun_left > 0.0:
 		return
+	if garrisoned and not _garrison_aggroed:
+		_tick_shield_siege(delta)
+		return
 
 	match _attack_phase:
 		AttackPhase.RELOAD:
 			_tick_reload(delta)
 		_:
 			_tick_charge(delta)
+
+
+func reset_garrison_weapons() -> void:
+	_attack_phase = AttackPhase.CHARGE
+	_telegraph_armed = false
+	_telegraph_elapsed = 0.0
+	_reload_left = 0.0
+	_clear_reticle()
+
+
+func _tick_shield_siege(delta: float) -> void:
+	_clear_reticle()
+	_telegraph_armed = false
+	_update_flare()
+	_reload_left = maxf(_reload_left - delta, 0.0)
+	if _reload_left > 0.0:
+		return
+	if garrison_shield() == null:
+		return
+	if _fire_blast_at_point(_shield_siege_aim()):
+		_reload_left = RELOAD_SEC
+		_attack_phase = AttackPhase.RELOAD
 
 
 func _tick_reload(delta: float) -> void:
@@ -261,7 +288,11 @@ func _update_flare() -> void:
 
 
 func _fire_blast() -> bool:
-	if _target == null or not is_instance_valid(_target):
+	return _fire_blast_at(_target)
+
+
+func _fire_blast_at(aim: Node3D) -> bool:
+	if aim == null or not is_instance_valid(aim):
 		return false
 	var tree := get_tree()
 	if tree == null:
@@ -269,8 +300,18 @@ func _fire_blast() -> bool:
 	if _active_blast != null and is_instance_valid(_active_blast):
 		_active_blast.queue_free()
 	_active_blast = DroneLaserBlastScript.fire(
-		tree, global_position, _target, _terrain, BLAST_DAMAGE
+		tree, global_position, aim, _terrain, BLAST_DAMAGE
 	)
+	return true
+
+
+func _fire_blast_at_point(impact: Vector3) -> bool:
+	var tree := get_tree()
+	if tree == null:
+		return false
+	if _active_blast != null and is_instance_valid(_active_blast):
+		_active_blast.queue_free()
+	_active_blast = DroneLaserBlastScript.fire_at_point(tree, global_position, impact, BLAST_DAMAGE)
 	return true
 
 

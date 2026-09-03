@@ -16,8 +16,10 @@ const PLAN_SEED := 3301
 const TIER_SEED := 7919
 const OFFER_SEED := 17
 const GARRISON_SEED := 5513
+const SCAN_FAIL_SEED := 9029
+const SCAN_FAIL_CHANCE := 0.35
 const GARRISON_DRONE_MIN_LEVEL := 5
-const GARRISON_CHARGER_CHANCE := 1.0 / 6.0
+const GARRISON_CHARGER_CHANCE := 1.0 / 7.0
 const KIND_GROUND := "ground"
 const KIND_DRONE := "drone"
 
@@ -43,8 +45,74 @@ static func spawn_chance(misses: int) -> float:
 
 
 static func radar_text(north: bool) -> String:
-	var dir := "north-west" if north else "south-west"
-	return "Your radar has picked up a bonus tower to the %s." % dir
+	return "Your radar has picked up a bonus tower to the %s." % direction_text(north)
+
+
+static func direction_text(north: bool) -> String:
+	return "north-west" if north else "south-west"
+
+
+static func distance_label(tier: int) -> String:
+	if tier <= 2:
+		return "Close"
+	if tier <= 4:
+		return "Distant"
+	return "Far away"
+
+
+static func attacker_label(kind: String) -> String:
+	if kind == KIND_DRONE:
+		return "Rebels"
+	return "Monsters"
+
+
+static func scan_failed(world_seed: int, level: int) -> bool:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(world_seed) * SCAN_FAIL_SEED + index_for_level(level) * 2711
+	return rng.randf() < SCAN_FAIL_CHANCE
+
+
+
+static func scan_report_lines(world_seed: int, entry: Dictionary, failed: bool) -> PackedStringArray:
+	var lines := PackedStringArray()
+	lines.append("Tower under attack: YES")
+	if failed:
+		lines.append("By: No data")
+		lines.append("Upgrades: No data")
+		lines.append("Distance: No data")
+		return lines
+	var level := int(entry.get("level", 0))
+	var garrison := garrison_plan(world_seed, level)
+	var offers := int(entry.get("offer_count", 0))
+	lines.append("By: %s" % attacker_label(String(garrison.get("kind", KIND_GROUND))))
+	lines.append("Upgrades: %d" % offers)
+	lines.append("Distance: %s" % distance_label(int(entry.get("tier", 1))))
+	return lines
+
+
+static func scan_report_text(world_seed: int, entry: Dictionary, failed: bool) -> String:
+	return "\n".join(scan_report_lines(world_seed, entry, failed))
+
+
+static func bonus_objective_text(north: bool, distance: String, upgrades: int, failed: bool) -> String:
+	var dist_s := "No data" if failed else distance
+	var up_s := "No data" if failed else str(upgrades)
+	return "Get to the upgrade tower to the %s.\nDistance: %s\nUpgrades: %s" % [
+		direction_text(north),
+		dist_s,
+		up_s,
+	]
+
+
+static func scanning_dots(step: int) -> String:
+	var cycle := posmod(step, 4)
+	if cycle <= 0:
+		return "."
+	if cycle == 1:
+		return ".."
+	if cycle == 2:
+		return "..."
+	return ""
 
 
 static func max_unlocked_tier(level: int) -> int:
@@ -229,10 +297,22 @@ static func should_spawn_garrison(player_pos: Vector3, tower_pos: Vector3, spawn
 	return Vector2(player_pos.x - tower_pos.x, player_pos.z - tower_pos.z).length() <= range_m
 
 
+static func xz_distance(a: Vector3, b: Vector3) -> float:
+	return Vector2(a.x - b.x, a.z - b.z).length()
+
+
 static func should_skip_despawn(player_pos: Vector3, tower_pos: Vector3) -> bool:
 	if player_pos.x >= tower_pos.x - 200.0:
 		return false
-	return Vector2(player_pos.x - tower_pos.x, player_pos.z - tower_pos.z).length() > 300.0
+	return xz_distance(player_pos, tower_pos) > 300.0
+
+
+static func should_leave_despawn(player_pos: Vector3, tower_pos: Vector3, range_m: float = 500.0) -> bool:
+	return xz_distance(player_pos, tower_pos) > range_m
+
+
+static func should_reset_camp(player_pos: Vector3, tower_pos: Vector3, range_m: float = 500.0) -> bool:
+	return should_skip_despawn(player_pos, tower_pos) or should_leave_despawn(player_pos, tower_pos, range_m)
 
 
 static func ring_offset(index: int, count: int, radius: float) -> Vector3:

@@ -7,6 +7,11 @@ const UpgradeTowerScript := preload("res://scripts/world/upgrade_tower.gd")
 const TowerVisitControllerScript := preload("res://scripts/game/tower_visit_controller.gd")
 const OutpostSpawnerScript := preload("res://scripts/world/outpost_spawner.gd")
 const BonusTowerGarrisonScript := preload("res://scripts/world/bonus_tower_garrison.gd")
+const BonusTowerShieldScript := preload("res://scripts/world/bonus_tower_shield.gd")
+const SwarmPillScript := preload("res://scripts/enemies/swarm_pill.gd")
+const CombatDroneScript := preload("res://scripts/enemies/combat_drone.gd")
+const LaserDroneScript := preload("res://scripts/enemies/laser_drone.gd")
+const MissileDroneScript := preload("res://scripts/enemies/missile_drone.gd")
 
 var _failed := false
 
@@ -23,9 +28,11 @@ func _run() -> void:
 	_verify_placement_and_tiers()
 	_verify_offer_counts()
 	_verify_radar_copy()
+	_verify_scan_copy()
 	_verify_tower_flags()
 	_verify_garrison_plan()
 	await _verify_garrison_visit_lock()
+	await _verify_shield_and_pack_aggro()
 	await _verify_spawner_bonus_flags()
 	if _failed:
 		quit(1)
@@ -163,6 +170,75 @@ func _verify_radar_copy() -> void:
 	)
 
 
+func _verify_scan_copy() -> void:
+	_fail_unless(BonusTowerPlannerScript.distance_label(1) == "Close", "Tier 1 should be Close")
+	_fail_unless(BonusTowerPlannerScript.distance_label(2) == "Close", "Tier 2 should be Close")
+	_fail_unless(BonusTowerPlannerScript.distance_label(3) == "Distant", "Tier 3 should be Distant")
+	_fail_unless(BonusTowerPlannerScript.distance_label(4) == "Distant", "Tier 4 should be Distant")
+	_fail_unless(BonusTowerPlannerScript.distance_label(5) == "Far away", "Tier 5 should be Far away")
+	_fail_unless(BonusTowerPlannerScript.distance_label(6) == "Far away", "Tier 6 should be Far away")
+	_fail_unless(
+		BonusTowerPlannerScript.attacker_label(BonusTowerPlannerScript.KIND_GROUND) == "Monsters",
+		"Ground camps should scan as Monsters"
+	)
+	_fail_unless(
+		BonusTowerPlannerScript.attacker_label(BonusTowerPlannerScript.KIND_DRONE) == "Rebels",
+		"Drone camps should scan as Rebels"
+	)
+	_fail_unless(
+		BonusTowerPlannerScript.scan_failed(42, 8) == BonusTowerPlannerScript.scan_failed(42, 8),
+		"Same seed and level should keep the same scan fail result"
+	)
+	var fails := 0
+	var samples := 400
+	for world_seed in range(1, samples + 1):
+		if BonusTowerPlannerScript.scan_failed(world_seed, 10):
+			fails += 1
+	var rate := float(fails) / float(samples)
+	_fail_unless(
+		rate > 0.25 and rate < 0.45,
+		"Scan fail rate should be near 35%%, got %.3f" % rate
+	)
+	var fail_seed := -1
+	var ok_seed := -1
+	for world_seed in range(1, 200):
+		if BonusTowerPlannerScript.scan_failed(world_seed, 10):
+			if fail_seed < 0:
+				fail_seed = world_seed
+		elif ok_seed < 0:
+			ok_seed = world_seed
+		if fail_seed >= 0 and ok_seed >= 0:
+			break
+	_fail_unless(fail_seed >= 0 and ok_seed >= 0, "Should find both failed and successful scan seeds")
+	var entry := {
+		"level": 10,
+		"tier": 2,
+		"offer_count": 4,
+		"north": true,
+	}
+	var failed_lines := BonusTowerPlannerScript.scan_report_lines(fail_seed, entry, true)
+	_fail_unless(failed_lines.size() == 4, "Failed scan should still type four report lines")
+	_fail_unless(failed_lines[0] == "Tower under attack: YES", "Failed scan should still report the tower")
+	_fail_unless(failed_lines[1] == "By: No data", "Failed scan By should be No data")
+	_fail_unless(failed_lines[2] == "Upgrades: No data", "Failed scan Upgrades should be No data")
+	_fail_unless(failed_lines[3] == "Distance: No data", "Failed scan Distance should be No data")
+	var ok_lines := BonusTowerPlannerScript.scan_report_lines(ok_seed, entry, false)
+	var plan: Dictionary = BonusTowerPlannerScript.garrison_plan(ok_seed, 10)
+	var expected_by := "By: %s" % BonusTowerPlannerScript.attacker_label(String(plan.get("kind", "")))
+	_fail_unless(ok_lines[0] == "Tower under attack: YES", "Successful scan should report the tower")
+	_fail_unless(ok_lines[1] == expected_by, "Successful scan By should match garrison kind")
+	_fail_unless(ok_lines[2] == "Upgrades: 4", "Successful scan should use offer_count")
+	_fail_unless(ok_lines[3] == "Distance: Close", "Successful scan should use distance_label")
+	var north_obj := BonusTowerPlannerScript.bonus_objective_text(true, "Close", 4, false)
+	_fail_unless(north_obj.contains("north-west"), "Bonus objective should name north-west")
+	_fail_unless(north_obj.contains("Distance: Close"), "Successful objective should keep distance")
+	_fail_unless(north_obj.contains("Upgrades: 4"), "Successful objective should keep upgrades")
+	var south_fail := BonusTowerPlannerScript.bonus_objective_text(false, "Distant", 3, true)
+	_fail_unless(south_fail.contains("south-west"), "Bonus objective should name south-west")
+	_fail_unless(south_fail.contains("Distance: No data"), "Failed objective distance should be No data")
+	_fail_unless(south_fail.contains("Upgrades: No data"), "Failed objective upgrades should be No data")
+
+
 func _verify_tower_flags() -> void:
 	var tower: UpgradeTower = UpgradeTowerScript.new()
 	tower.is_bonus = true
@@ -261,8 +337,32 @@ func _verify_garrison_plan() -> void:
 		not BonusTowerPlannerScript.should_skip_despawn(Vector3(-50.0, 0.0, 0.0), Vector3(0.0, 0.0, 0.0)),
 		"Still near the tower should not skip-despawn"
 	)
+	_fail_unless(
+		BonusTowerPlannerScript.should_leave_despawn(Vector3(600.0, 0.0, 0.0), Vector3.ZERO),
+		"Leaving the 500 m bubble should despawn the pack"
+	)
+	_fail_unless(
+		not BonusTowerPlannerScript.should_leave_despawn(Vector3(100.0, 0.0, 0.0), Vector3.ZERO),
+		"Inside 500 m should not leave-despawn"
+	)
+	_fail_unless(
+		BonusTowerPlannerScript.should_reset_camp(Vector3(-400.0, 0.0, 0.0), Vector3.ZERO),
+		"Skip-west should reset the camp"
+	)
+	_fail_unless(
+		BonusTowerPlannerScript.should_reset_camp(Vector3(0.0, 0.0, 600.0), Vector3.ZERO),
+		"Far in Z should reset the camp"
+	)
 	var ring := BonusTowerPlannerScript.ring_offset(0, 4, 32.0)
 	_fail_unless(is_equal_approx(ring.length(), 32.0), "Ring offset should sit on the spawn radius")
+	_fail_unless(
+		is_equal_approx(BonusTowerGarrisonScript.DRONE_RING_RADIUS_M, 20.0),
+		"Drone packs should ring 20 m from the tower"
+	)
+	var drone_a := BonusTowerPlannerScript.ring_offset(0, 4, BonusTowerGarrisonScript.DRONE_RING_RADIUS_M)
+	var drone_b := BonusTowerPlannerScript.ring_offset(1, 4, BonusTowerGarrisonScript.DRONE_RING_RADIUS_M)
+	_fail_unless(is_equal_approx(drone_a.length(), 20.0), "Even drone ring should be 20 m out")
+	_fail_unless(is_equal_approx(drone_a.dot(drone_b), 0.0), "Even drone ring should space drones around the tower")
 
 
 func _verify_garrison_bands() -> void:
@@ -355,6 +455,138 @@ func _verify_garrison_visit_lock() -> void:
 		TowerVisitControllerScript.find_visit_tower(self, bonus.global_position) == bonus,
 		"Cleared garrison should allow the 20 m bonus visit"
 	)
+	root_node.queue_free()
+	await process_frame
+	await process_frame
+
+
+func _verify_shield_and_pack_aggro() -> void:
+	_fail_unless(is_equal_approx(SwarmPillScript.GARRISON_AGGRO_M, 30.0), "Garrison aggro should be 30 m")
+	_fail_unless(is_equal_approx(SwarmPillScript.GARRISON_LEASH_M, 180.0), "Garrison leash should stay 180 m")
+	var root_node := Node.new()
+	root_node.name = "ShieldAggroRoot"
+	root.add_child(root_node)
+	var tower: UpgradeTower = UpgradeTowerScript.new()
+	tower.is_bonus = true
+	tower.tower_index = BonusTowerPlannerScript.index_for_level(7)
+	tower.source_level = 7
+	root_node.add_child(tower)
+	var shield = BonusTowerShieldScript.ensure_on(tower)
+	await process_frame
+	_fail_unless(shield != null, "Bonus towers should get a laser shield")
+	_fail_unless(is_equal_approx(shield.position.y, BonusTowerShieldScript.CENTER_Y_M), "Shield should be centered on the tower shaft")
+	var mid := shield.aim_mid_from(Vector3(20.0, 8.0, 0.0))
+	_fail_unless(
+		is_equal_approx(mid.y, shield.global_position.y),
+		"Siege aim should hit halfway up the sphere"
+	)
+	_fail_unless(
+		is_equal_approx(
+			Vector2(mid.x - shield.global_position.x, mid.z - shield.global_position.z).length(),
+			BonusTowerShieldScript.RADIUS_M
+		),
+		"Siege aim should sit on the dome equator facing the shooter"
+	)
+	_fail_unless(is_equal_approx(BonusTowerShieldScript.RADIUS_M, 52.0), "Shield radius should cover the 100 m tower")
+	_fail_unless(shield.is_shield_active(), "Uncleared bonus should keep the shield up")
+	var mesh: MeshInstance3D = shield.get_node_or_null("Visual") as MeshInstance3D
+	_fail_unless(mesh != null and mesh.mesh is SphereMesh, "Shield should be a sphere")
+	var sphere := mesh.mesh as SphereMesh
+	_fail_unless(is_equal_approx(sphere.radius, BonusTowerShieldScript.RADIUS_M), "Shield mesh radius should match collision")
+	var mat := mesh.material_override as StandardMaterial3D
+	_fail_unless(mat != null and mat.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA, "Shield should be transparent")
+	_fail_unless(mat.albedo_color.a < 0.5, "Shield should be see-through")
+	_fail_unless(mat.cull_mode == BaseMaterial3D.CULL_DISABLED, "Shield should show the tower inside")
+	var body: StaticBody3D = shield.get_node_or_null("Collision") as StaticBody3D
+	_fail_unless(body != null, "Shield should have collision")
+	_fail_unless(body.collision_layer == BonusTowerShieldScript.COLLISION_LAYER, "Shield collision should use layer 16")
+	_fail_unless(body.collision_mask == 0, "Shield should not scan other bodies")
+	shield.set_shield_active(false)
+	_fail_unless(not shield.is_shield_active(), "Cleared camps should drop the shield")
+	_fail_unless(body.collision_layer == 0, "Dropped shield should not block")
+	shield.set_shield_active(true)
+
+	var dummy_player := Node3D.new()
+	root_node.add_child(dummy_player)
+	dummy_player.global_position = Vector3(1000.0, 0.0, 0.0)
+	var crawler: SwarmPillScript = SwarmPillScript.new()
+	root_node.add_child(crawler)
+	crawler.global_position = Vector3(32.0, 0.0, 0.0)
+	crawler.configure(null, dummy_player)
+	crawler.bind_garrison(Vector3.ZERO, tower.tower_index, shield)
+	await process_frame
+	var crawler_dot := crawler.get_node_or_null("GarrisonLockDot") as Sprite3D
+	_fail_unless(crawler_dot != null, "Garrison units should show a red lock dot")
+	_fail_unless(crawler_dot.billboard == BaseMaterial3D.BILLBOARD_ENABLED, "Lock dot should face the camera")
+	_fail_unless(crawler_dot.no_depth_test, "Lock dot should stay readable through the shield")
+	_fail_unless(
+		crawler_dot.global_position.y > crawler.global_position.y + 0.5,
+		"Lock dot should sit above the enemy"
+	)
+	_fail_unless((crawler.collision_mask & BonusTowerShieldScript.COLLISION_LAYER) != 0, "Crawlers should collide with the shield")
+	var idle := crawler._garrison_goal_xz()
+	_fail_unless(
+		is_equal_approx(idle.x, 0.0) and is_equal_approx(idle.z, 0.0),
+		"Unaggroed crawlers should walk into the tower/shield"
+	)
+
+	var drone: CombatDroneScript = CombatDroneScript.new()
+	root_node.add_child(drone)
+	drone.global_position = Vector3(32.0, 8.0, 0.0)
+	drone.configure(null, dummy_player)
+	drone.bind_garrison(Vector3.ZERO, tower.tower_index, shield)
+	await process_frame
+	_fail_unless(drone.collision_mask == 0, "Drones should not physically collide with the shield")
+	var drone_dot := drone.get_node_or_null("GarrisonLockDot") as Sprite3D
+	_fail_unless(drone_dot != null, "Garrison drones should show a red lock dot")
+	_fail_unless(
+		drone_dot.global_position.y > drone.global_position.y + 0.5,
+		"Drone lock dot should sit above the cube"
+	)
+	var drone_idle := drone._garrison_idle_goal_xz()
+	_fail_unless(
+		is_equal_approx(drone_idle.x, 32.0) and is_equal_approx(drone_idle.z, 0.0),
+		"Unaggroed drones should hold the spawn ring"
+	)
+
+	var garrison = BonusTowerGarrisonScript.new()
+	garrison.name = "BonusTowerGarrison"
+	root_node.add_child(garrison)
+	await process_frame
+	var other: SwarmPillScript = SwarmPillScript.new()
+	root_node.add_child(other)
+	other.global_position = Vector3(-32.0, 0.0, 0.0)
+	other.configure(null, dummy_player)
+	other.bind_garrison(Vector3.ZERO, tower.tower_index, shield)
+	garrison._camps[tower.tower_index] = {
+		"cleared": false,
+		"spawned": true,
+		"units": [crawler, other],
+	}
+	_fail_unless(not crawler.is_garrison_aggroed() and not other.is_garrison_aggroed(), "Pack should start in shield-attack")
+	crawler.take_damage(1)
+	_fail_unless(crawler.is_garrison_aggroed() and other.is_garrison_aggroed(), "Damaging one unit should aggro the pack")
+	garrison._set_pack_aggro(garrison._camps[tower.tower_index], false)
+	dummy_player.global_position = Vector3(40.0, 0.0, 0.0)
+	garrison._tick_pack_combat(garrison._camps[tower.tower_index], dummy_player.global_position, Vector3.ZERO)
+	_fail_unless(crawler.is_garrison_aggroed() and other.is_garrison_aggroed(), "Closing within 30 m should aggro the pack")
+	garrison._tick_pack_combat(garrison._camps[tower.tower_index], Vector3(0.0, 0.0, 200.0), Vector3.ZERO)
+	_fail_unless(not crawler.is_garrison_aggroed() and not other.is_garrison_aggroed(), "Leash should return the pack to the shield")
+
+	var laser: LaserDroneScript = LaserDroneScript.new()
+	laser._reload_left = 4.0
+	laser._telegraph_armed = true
+	laser.reset_garrison_weapons()
+	_fail_unless(is_equal_approx(laser._reload_left, 0.0), "Laser cooldown should reset on player aggro")
+	_fail_unless(not laser._telegraph_armed, "Laser telegraph should clear on player aggro")
+	var missile: MissileDroneScript = MissileDroneScript.new()
+	missile._cooldown_left = 6.0
+	missile._firing_hail = true
+	missile.reset_garrison_weapons()
+	_fail_unless(is_equal_approx(missile._cooldown_left, 0.0), "Missile cooldown should reset on player aggro")
+	_fail_unless(not missile._firing_hail, "Missile hail should stop when resetting for the player")
+	laser.free()
+	missile.free()
 	root_node.queue_free()
 	await process_frame
 	await process_frame

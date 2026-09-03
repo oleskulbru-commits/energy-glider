@@ -125,5 +125,5 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 20, 0)
 terrain_manager_path = NodePath("../TerrainManager")
 
 [node name="Glider" parent="PlayerRig" index="0"]
-collision_mask = 0
+collision_mask = 16
 terrain_manager_path = NodePath("../../TerrainManager")

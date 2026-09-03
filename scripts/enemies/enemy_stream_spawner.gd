@@ -18,8 +18,8 @@ const LevelRunScript := preload("res://scripts/game/level_run.gd")
 
 const SPAWN_GRACE_SEC := 3.0
 const DAWN_SPAWN_GRACE_SEC := 2.0
-## 1 charger per 5 crawlers → one sixth of spawns.
-const CHARGER_SPAWN_CHANCE := 1.0 / 6.0
+## 1 charger per 6 crawlers → one seventh of spawns.
+const CHARGER_SPAWN_CHANCE := 1.0 / 7.0
 ## Chargers unlock after crossing tower 3 (level 4+).
 const CHARGER_MIN_LEVEL := 4
 ## Drones unlock after crossing tower 4 (level 5+).

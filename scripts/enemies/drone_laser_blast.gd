@@ -20,6 +20,8 @@ var _life := 0.0
 var _spent := false
 var _impacting := false
 var _impact_left := 0.0
+var _air_mode := false
+var _air_impact := Vector3.ZERO
 var _core: MeshInstance3D
 var _glow: MeshInstance3D
 var _wake: MeshInstance3D
@@ -33,6 +35,23 @@ static func fire(
 	terrain: TerrainManager = null,
 	damage: int = DAMAGE
 ) -> DroneLaserBlast:
+	var blast := _spawn(tree)
+	blast.configure(origin, target, terrain, damage)
+	return blast
+
+
+static func fire_at_point(
+	tree: SceneTree,
+	origin: Vector3,
+	impact: Vector3,
+	damage: int = DAMAGE
+) -> DroneLaserBlast:
+	var blast := _spawn(tree)
+	blast.configure_air(origin, impact, damage)
+	return blast
+
+
+static func _spawn(tree: SceneTree) -> DroneLaserBlast:
 	var blast := DroneLaserBlast.new()
 	if tree != null:
 		var parent := tree.current_scene
@@ -40,7 +59,6 @@ static func fire(
 			parent = tree.root
 		if parent != null:
 			parent.add_child(blast)
-	blast.configure(origin, target, terrain, damage)
 	return blast
 
 
@@ -80,6 +98,7 @@ func configure(
 	terrain: TerrainManager,
 	damage: int = DAMAGE
 ) -> void:
+	_air_mode = false
 	_terrain = terrain
 	_target = target
 	_damage = damage
@@ -92,6 +111,23 @@ func configure(
 	_update_visual_scale(1.0)
 	set_process(true)
 	_try_impact_if_close()
+
+
+func configure_air(origin: Vector3, impact: Vector3, damage: int = DAMAGE) -> void:
+	_air_mode = true
+	_air_impact = impact
+	_terrain = null
+	_target = null
+	_damage = damage
+	_spent = false
+	_impacting = false
+	_impact_left = 0.0
+	_life = 0.0
+	_ensure_visuals()
+	global_position = origin
+	_update_visual_scale(1.0)
+	_face_toward(impact - origin)
+	set_process(true)
 
 
 func is_finished() -> bool:
@@ -122,6 +158,9 @@ func _process(delta: float) -> void:
 		return
 	if _spent:
 		return
+	if _air_mode:
+		_process_air(delta)
+		return
 
 	var aim := _current_target_ground()
 	var flat := Vector3(global_position.x, 0.0, global_position.z)
@@ -150,6 +189,27 @@ func _process(delta: float) -> void:
 		_wake.scale = Vector3.ONE * (1.0 + sin(_life * 18.0) * 0.08)
 
 
+func _process_air(delta: float) -> void:
+	var to := _air_impact - global_position
+	var dist := to.length()
+	if dist <= IMPACT_RADIUS_M:
+		global_position = _air_impact
+		_trigger_impact()
+		return
+	var step := SPEED_MPS * delta
+	if step >= dist:
+		global_position = _air_impact
+		_face_toward(to)
+		_trigger_impact()
+		return
+	var dir := to / dist
+	global_position += dir * step
+	_face_toward(dir)
+	if _light != null:
+		_light.light_energy = 8.0 + sin(_life * 32.0) * 3.0
+	_update_visual_scale(1.0 + sin(_life * 18.0) * 0.06)
+
+
 func _current_target_ground() -> Vector3:
 	if _target == null or not is_instance_valid(_target):
 		return global_position
@@ -171,11 +231,15 @@ func _trigger_impact() -> void:
 	_spent = true
 	_impacting = true
 	_impact_left = IMPACT_FLASH_SEC
-	global_position = _current_target_ground()
+	if _air_mode:
+		global_position = _air_impact
+	else:
+		global_position = _current_target_ground()
 	var tree := get_tree()
-	if tree != null and _target != null and is_instance_valid(_target):
-		apply_damage(tree, _damage, _target)
-		_trigger_hit_hue(tree)
+	if not _air_mode and tree != null and _target != null and is_instance_valid(_target):
+		if find_player_health(tree, _target) != null:
+			apply_damage(tree, _damage, _target)
+			_trigger_hit_hue(tree)
 	_update_visual_scale(3.0)
 	if _light != null:
 		_light.light_energy = 24.0
@@ -190,10 +254,13 @@ func _trigger_hit_hue(tree: SceneTree) -> void:
 
 
 func _face_toward(dir: Vector3) -> void:
-	var flat := Vector3(dir.x, 0.0, dir.z)
-	if flat.length_squared() < 0.0001:
+	if dir.length_squared() < 0.0001:
 		return
-	look_at(global_position + flat.normalized(), Vector3.UP)
+	var look := dir.normalized()
+	if absf(look.dot(Vector3.UP)) > 0.98:
+		look_at(global_position + look, Vector3.FORWARD)
+		return
+	look_at(global_position + look, Vector3.UP)
 
 
 func _ensure_visuals() -> void:
@@ -258,9 +325,13 @@ func _ensure_visuals() -> void:
 
 
 func _update_visual_scale(mult: float) -> void:
-	var core_scale := Vector3(1.0, 0.55, 1.0) * mult
-	var glow_scale := Vector3(1.0, 0.35, 1.0) * mult * 1.12
-	var wake_scale := Vector3(1.0, 0.22, 1.0) * mult * 1.25
+	var core_scale := Vector3.ONE * mult
+	var glow_scale := Vector3.ONE * mult * 1.12
+	var wake_scale := Vector3.ONE * mult * 1.25
+	if not _air_mode:
+		core_scale = Vector3(1.0, 0.55, 1.0) * mult
+		glow_scale = Vector3(1.0, 0.35, 1.0) * mult * 1.12
+		wake_scale = Vector3(1.0, 0.22, 1.0) * mult * 1.25
 	if _core != null:
 		_core.scale = core_scale
 	if _glow != null:

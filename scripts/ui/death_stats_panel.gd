@@ -88,11 +88,13 @@ func _populate_damage_rows(upgrade_state: RunUpgradeState, damage_stats: RunDama
 	for family in ranked:
 		max_damage = maxi(max_damage, damage_stats.damage_for(StringName(family)))
 	for family in ranked:
+		var id := StringName(family)
 		_damage_rows.add_child(_make_damage_row(
-			StringName(family),
+			id,
 			upgrade_state,
-			damage_stats.damage_for(StringName(family)),
-			float(damage_stats.damage_for(StringName(family))) / float(max_damage)
+			damage_stats.damage_for(id),
+			float(damage_stats.damage_for(id)) / float(max_damage),
+			damage_stats.kills_for(id)
 		))
 
 
@@ -128,10 +130,11 @@ func _damage_content_key(upgrade_state: RunUpgradeState, damage_stats: RunDamage
 	var parts: PackedStringArray = []
 	for family in damage_stats.ranked_weapons(owned):
 		var id := StringName(family)
-		parts.append("%s:%d:%d" % [
+		parts.append("%s:%d:%d:%d" % [
 			family,
 			upgrade_state.weapon_level(id),
-			damage_stats.damage_for(id)
+			damage_stats.damage_for(id),
+			damage_stats.kills_for(id)
 		])
 	return ",".join(parts)
 
@@ -154,7 +157,8 @@ func _make_damage_row(
 	family: StringName,
 	upgrade_state: RunUpgradeState,
 	damage: int,
-	ratio: float
+	ratio: float,
+	kills: int
 ) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
@@ -194,6 +198,14 @@ func _make_damage_row(
 	damage_label.custom_minimum_size.x = 96
 	damage_label.theme_type_variation = &"HudLabel"
 	row.add_child(damage_label)
+
+	var kills_label := Label.new()
+	kills_label.name = "KillsLabel"
+	kills_label.text = "kills: %d" % kills
+	kills_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	kills_label.custom_minimum_size.x = 80
+	kills_label.theme_type_variation = &"HudLabel"
+	row.add_child(kills_label)
 	return row
 
 
