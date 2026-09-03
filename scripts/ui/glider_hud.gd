@@ -644,11 +644,11 @@ func _update_bonus_radar(delta: float) -> void:
 	_bonus_radar_phase_t += delta
 	match _bonus_radar_phase:
 		RADAR_PING:
-			_set_bonus_radar_text(_bonus_radar_ping_line, false)
+			_set_bonus_radar_text(_bonus_radar_ping_line)
 			if _bonus_radar_phase_t >= BONUS_RADAR_PING_SEC:
 				_begin_bonus_radar_scan()
 		RADAR_SCAN:
-			_set_bonus_radar_text("%s\n\n%s" % [_bonus_radar_ping_line, _scanning_line(_bonus_radar_phase_t)], true)
+			_set_bonus_radar_text("%s\n\n%s" % [_bonus_radar_ping_line, _scanning_line(_bonus_radar_phase_t)])
 			if _bonus_radar_phase_t >= BONUS_RADAR_SCAN_SEC:
 				_bonus_radar_phase = RADAR_TYPE
 				_bonus_radar_phase_t = 0.0
@@ -656,12 +656,12 @@ func _update_bonus_radar(delta: float) -> void:
 		RADAR_TYPE:
 			_bonus_radar_typed += delta * BONUS_RADAR_TYPE_CPS
 			var typed_n := mini(int(_bonus_radar_typed), _bonus_radar_report.length())
-			_set_bonus_radar_text("%s\n\n%s" % [_bonus_radar_ping_line, _bonus_radar_report.substr(0, typed_n)], true)
+			_set_bonus_radar_text("%s\n\n%s" % [_bonus_radar_ping_line, _bonus_radar_report.substr(0, typed_n)])
 			if typed_n >= _bonus_radar_report.length():
 				_bonus_radar_phase = RADAR_HOLD
 				_bonus_radar_phase_t = 0.0
 		RADAR_HOLD:
-			_set_bonus_radar_text("%s\n\n%s" % [_bonus_radar_ping_line, _bonus_radar_report], true)
+			_set_bonus_radar_text("%s\n\n%s" % [_bonus_radar_ping_line, _bonus_radar_report])
 			if _bonus_radar_phase_t >= BONUS_RADAR_HOLD_SEC:
 				_finish_bonus_radar_toast()
 
@@ -682,10 +682,10 @@ func _scanning_line(elapsed: float) -> String:
 	return "Scanning %s" % dots
 
 
-func _set_bonus_radar_text(text: String, left_align: bool) -> void:
+func _set_bonus_radar_text(text: String) -> void:
 	if _bonus_radar_label == null:
 		return
-	_bonus_radar_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT if left_align else HORIZONTAL_ALIGNMENT_CENTER
+	_bonus_radar_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_bonus_radar_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	_bonus_radar_label.text = text
 
@@ -755,7 +755,7 @@ func _try_show_bonus_radar(level: int) -> void:
 	_bonus_radar_phase = RADAR_PING
 	_bonus_radar_phase_t = 0.0
 	_bonus_radar_typed = 0.0
-	_set_bonus_radar_text(_bonus_radar_ping_line, false)
+	_set_bonus_radar_text(_bonus_radar_ping_line)
 	if _bonus_radar_panel != null:
 		_bonus_radar_panel.visible = true
 		_bonus_radar_panel.modulate = Color.WHITE
