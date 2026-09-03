@@ -455,6 +455,16 @@ func _verify_garrison_visit_lock() -> void:
 		TowerVisitControllerScript.find_visit_tower(self, bonus.global_position) == bonus,
 		"Cleared garrison should allow the 20 m bonus visit"
 	)
+	garrison._camps[bonus.tower_index] = {
+		"cleared": true,
+		"spawned": true,
+		"units": [],
+	}
+	_fail_unless(not garrison.is_visit_locked(bonus), "Cleared flag should keep the visit open this life")
+	garrison.reset_camps()
+	_fail_unless(garrison.is_visit_locked(bonus), "Try Again should restore the garrison lock")
+	var restored = BonusTowerShieldScript.ensure_on(bonus)
+	_fail_unless(restored != null and restored.is_shield_active(), "Try Again should restore the bonus shield")
 	root_node.queue_free()
 	await process_frame
 	await process_frame

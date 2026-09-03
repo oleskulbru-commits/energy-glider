@@ -38,6 +38,16 @@ func _ready() -> void:
 		_terrain = get_node_or_null(terrain_manager_path) as TerrainManager
 	if eon_director_path != NodePath():
 		_director = get_node_or_null(eon_director_path) as EonDirectorScript
+	call_deferred("_bind_director")
+
+
+func _bind_director() -> void:
+	if _director == null:
+		_director = get_tree().get_first_node_in_group("eon_director") as EonDirectorScript
+	if _director == null or not _director.has_signal("attempt_started"):
+		return
+	if not _director.attempt_started.is_connected(reset_camps):
+		_director.attempt_started.connect(reset_camps)
 
 
 func _process(_delta: float) -> void:
@@ -78,6 +88,21 @@ func alert_from_unit(unit: Node) -> void:
 
 func alert_pack(camp: Dictionary) -> void:
 	_set_pack_aggro(camp, true)
+
+
+func reset_camps() -> void:
+	for camp in _camps.values():
+		_despawn_camp(camp)
+	_camps.clear()
+	if not is_inside_tree():
+		return
+	for node in get_tree().get_nodes_in_group("upgrade_tower"):
+		var tower := node as UpgradeTower
+		if tower == null or not tower.is_bonus:
+			continue
+		var shield = BonusTowerShieldScript.ensure_on(tower)
+		if shield != null:
+			shield.set_shield_active(true)
 
 
 func _tick_tower(tower: UpgradeTower, player_pos: Vector3) -> void:
