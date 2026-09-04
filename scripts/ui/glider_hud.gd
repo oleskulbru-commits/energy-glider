@@ -2,6 +2,17 @@ class_name GliderHUD
 extends CanvasLayer
 
 const POWER_LOW_THRESHOLD := 0.20
+const BONUS_RADAR_DELAY_SEC := 2.0
+const BONUS_RADAR_PING_SEC := 1.0
+const BONUS_RADAR_SCAN_SEC := 3.0
+const BONUS_RADAR_DOT_SEC := 0.28
+const BONUS_RADAR_TYPE_CPS := 40.0
+const BONUS_RADAR_HOLD_SEC := 4.0
+const RADAR_IDLE := 0
+const RADAR_PING := 1
+const RADAR_SCAN := 2
+const RADAR_TYPE := 3
+const RADAR_HOLD := 4
 const POWER_COLOR_NORMAL := Color(0.35, 0.88, 0.95)
 const POWER_COLOR_LOW := Color(0.98, 0.78, 0.18)
 const POWER_COLOR_EMPTY := Color(0.85, 0.28, 0.22)
@@ -43,6 +54,8 @@ const LASER_HIT_HUE_FADE_SEC := 2.0
 @onready var _eon_tracker_label: Label = %EonTrackerLabel
 @onready var _objective_panel: PanelContainer = %ObjectivePanel
 @onready var _objective_label: Label = %ObjectiveLabel
+@onready var _bonus_objective_title: Label = %BonusObjectiveTitle
+@onready var _bonus_objective_label: Label = %BonusObjectiveLabel
 @onready var _stop_chip: PanelContainer = %StopChip
 @onready var _stop_label: Label = %StopLabel
 @onready var _sail_chip: PanelContainer = %SailChip
@@ -52,6 +65,8 @@ const LASER_HIT_HUE_FADE_SEC := 2.0
 @onready var _stopped_summary: Label = %StoppedSummary
 @onready var _night_warning_panel: PanelContainer = %NightWarningPanel
 @onready var _night_warning_label: Label = %NightWarningLabel
+@onready var _bonus_radar_panel: PanelContainer = %BonusRadarPanel
+@onready var _bonus_radar_label: Label = %BonusRadarLabel
 @onready var _safe_chip: PanelContainer = %SafeChip
 @onready var _safe_label: Label = %SafeLabel
 @onready var _outpost_board: PanelContainer = %OutpostBoard
@@ -91,6 +106,18 @@ var _battery_fill: StyleBoxFlat
 var _solar_pulse_time := 0.0
 var _day_summary_timer := 0.0
 var _night_warning_timer := 0.0
+var _bonus_radar_delay := 0.0
+var _bonus_radar_pending_level := 0
+var _bonus_radar_pinged: Dictionary = {}
+var _bonus_radar_phase := 0
+var _bonus_radar_phase_t := 0.0
+var _bonus_radar_typed := 0.0
+var _bonus_radar_failed := false
+var _bonus_radar_ping_line := ""
+var _bonus_radar_report := ""
+var _bonus_radar_entry: Dictionary = {}
+var _bonus_objective_index := -1
+var _level_progress: Node
 var _safe_pulse_time := 0.0
 var _fail_fade_tween: Tween
 var _fail_fade_active := false
@@ -123,6 +150,8 @@ func _ready() -> void:
 		_director.integrity_changed.connect(_on_integrity_changed)
 		_director.objective_changed.connect(_on_objective_changed)
 		_director.run_started.connect(_on_run_started)
+		if not _director.attempt_started.is_connected(_on_attempt_started):
+			_director.attempt_started.connect(_on_attempt_started)
 		_on_integrity_changed(_director.integrity)
 		_on_objective_changed(_director.get_objective_text())
 		_update_integrity_panel_visibility()
@@ -135,6 +164,10 @@ func _ready() -> void:
 		_day_night.dawn.connect(_clear_night_warning)
 	if _night_warning_panel != null:
 		_night_warning_panel.visible = false
+	if _bonus_radar_panel != null:
+		_bonus_radar_panel.visible = false
+	_hide_bonus_objective()
+	call_deferred("_bind_level_progress")
 	if _safe_chip != null:
 		_safe_chip.visible = false
 	if _try_again_button != null:
@@ -268,6 +301,7 @@ func _process(delta: float) -> void:
 	_update_compass()
 	_update_outpost_board()
 	_update_night_warning(delta)
+	_update_bonus_radar(delta)
 	_update_safe_chip(delta)
 	_update_integrity_bar()
 	_update_eon_tracker()
@@ -312,6 +346,12 @@ func _on_integrity_changed(value: int) -> void:
 func _on_run_started() -> void:
 	_death_board_populated = false
 	_update_integrity_panel_visibility()
+
+
+func _on_attempt_started() -> void:
+	_clear_bonus_radar_pings()
+	_bind_level_progress()
+	_arm_bonus_radar_for_level(_current_level())
 
 
 func _on_objective_changed(text: String) -> void:
@@ -529,6 +569,219 @@ func _update_night_warning(delta: float) -> void:
 		_clear_night_warning()
 
 
+func _on_level_changed(level: int) -> void:
+	_arm_bonus_radar_for_level(level)
+
+
+func _bind_level_progress() -> void:
+	if _level_progress != null and is_instance_valid(_level_progress):
+		return
+	var progress := get_tree().get_first_node_in_group("level_progress")
+	if progress == null or not progress.has_signal("level_changed"):
+		return
+	_level_progress = progress
+	if not progress.level_changed.is_connected(_on_level_changed):
+		progress.level_changed.connect(_on_level_changed)
+	_arm_bonus_radar_for_level(_current_level())
+
+
+func _current_level() -> int:
+	if _level_progress != null and is_instance_valid(_level_progress) and _level_progress.has_method("get_current_level"):
+		return int(_level_progress.get_current_level())
+	return 0
+
+
+func _clear_bonus_radar_pings() -> void:
+	_bonus_radar_pinged.clear()
+	_bonus_radar_pending_level = 0
+	_bonus_radar_delay = 0.0
+	_bonus_radar_entry = {}
+	_bonus_radar_report = ""
+	_bonus_radar_ping_line = ""
+	_hide_bonus_objective()
+	_clear_bonus_radar()
+
+
+func _clear_bonus_radar() -> void:
+	_bonus_radar_phase = RADAR_IDLE
+	_bonus_radar_phase_t = 0.0
+	_bonus_radar_typed = 0.0
+	if _bonus_radar_panel != null:
+		_bonus_radar_panel.visible = false
+
+
+func _arm_bonus_radar_for_level(level: int) -> void:
+	_bonus_radar_pending_level = 0
+	_bonus_radar_delay = 0.0
+	if level < BonusTowerPlanner.MIN_LEVEL:
+		return
+	if _bonus_radar_pinged.get(level, false):
+		return
+	if _bonus_radar_info_for_level(level).is_empty():
+		return
+	_bonus_radar_pending_level = level
+	_bonus_radar_delay = BONUS_RADAR_DELAY_SEC
+
+
+func _update_bonus_radar(delta: float) -> void:
+	_bind_level_progress()
+	_update_bonus_objective_visit()
+	if _bonus_radar_delay > 0.0:
+		if _current_level() != _bonus_radar_pending_level:
+			_bonus_radar_pending_level = 0
+			_bonus_radar_delay = 0.0
+		else:
+			_bonus_radar_delay = maxf(_bonus_radar_delay - delta, 0.0)
+			if _bonus_radar_delay <= 0.0:
+				var pending := _bonus_radar_pending_level
+				_bonus_radar_pending_level = 0
+				if pending == _current_level():
+					_try_show_bonus_radar(pending)
+	if _bonus_radar_phase == RADAR_IDLE:
+		if _bonus_radar_panel != null:
+			_bonus_radar_panel.visible = false
+		return
+	_bonus_radar_phase_t += delta
+	match _bonus_radar_phase:
+		RADAR_PING:
+			_set_bonus_radar_text(_bonus_radar_ping_line)
+			if _bonus_radar_phase_t >= BONUS_RADAR_PING_SEC:
+				_begin_bonus_radar_scan()
+		RADAR_SCAN:
+			_set_bonus_radar_text("%s\n\n%s" % [_bonus_radar_ping_line, _scanning_line(_bonus_radar_phase_t)])
+			if _bonus_radar_phase_t >= BONUS_RADAR_SCAN_SEC:
+				_bonus_radar_phase = RADAR_TYPE
+				_bonus_radar_phase_t = 0.0
+				_bonus_radar_typed = 0.0
+		RADAR_TYPE:
+			_bonus_radar_typed += delta * BONUS_RADAR_TYPE_CPS
+			var typed_n := mini(int(_bonus_radar_typed), _bonus_radar_report.length())
+			_set_bonus_radar_text("%s\n\n%s" % [_bonus_radar_ping_line, _bonus_radar_report.substr(0, typed_n)])
+			if typed_n >= _bonus_radar_report.length():
+				_bonus_radar_phase = RADAR_HOLD
+				_bonus_radar_phase_t = 0.0
+		RADAR_HOLD:
+			_set_bonus_radar_text("%s\n\n%s" % [_bonus_radar_ping_line, _bonus_radar_report])
+			if _bonus_radar_phase_t >= BONUS_RADAR_HOLD_SEC:
+				_finish_bonus_radar_toast()
+
+
+func _begin_bonus_radar_scan() -> void:
+	var world_seed := LevelRun.world_seed()
+	var level := int(_bonus_radar_entry.get("level", 0))
+	_bonus_radar_failed = BonusTowerPlanner.scan_failed(world_seed, level)
+	_bonus_radar_report = BonusTowerPlanner.scan_report_text(world_seed, _bonus_radar_entry, _bonus_radar_failed)
+	_bonus_radar_phase = RADAR_SCAN
+	_bonus_radar_phase_t = 0.0
+
+
+func _scanning_line(elapsed: float) -> String:
+	var dots := BonusTowerPlanner.scanning_dots(int(elapsed / BONUS_RADAR_DOT_SEC))
+	if dots.is_empty():
+		return ""
+	return "Scanning %s" % dots
+
+
+func _set_bonus_radar_text(text: String) -> void:
+	if _bonus_radar_label == null:
+		return
+	_bonus_radar_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_bonus_radar_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_bonus_radar_label.text = text
+
+
+func _finish_bonus_radar_toast() -> void:
+	_show_bonus_objective_from_scan()
+	_clear_bonus_radar()
+
+
+func _show_bonus_objective_from_scan() -> void:
+	var north := bool(_bonus_radar_entry.get("north", true))
+	var distance := BonusTowerPlanner.distance_label(int(_bonus_radar_entry.get("tier", 1)))
+	var upgrades := int(_bonus_radar_entry.get("offer_count", 0))
+	var text := BonusTowerPlanner.bonus_objective_text(north, distance, upgrades, _bonus_radar_failed)
+	_bonus_objective_index = int(_bonus_radar_entry.get("tower_index", -1))
+	if _bonus_objective_title != null:
+		_bonus_objective_title.visible = true
+	if _bonus_objective_label != null:
+		_bonus_objective_label.text = text
+		_bonus_objective_label.visible = true
+
+
+func _hide_bonus_objective() -> void:
+	_bonus_objective_index = -1
+	if _bonus_objective_title != null:
+		_bonus_objective_title.visible = false
+	if _bonus_objective_label != null:
+		_bonus_objective_label.visible = false
+		_bonus_objective_label.text = ""
+
+
+func _update_bonus_objective_visit() -> void:
+	if _bonus_objective_index < 0:
+		return
+	var state := get_tree().get_first_node_in_group("run_upgrade_state") as RunUpgradeState
+	if state == null:
+		return
+	if state.has_visited_this_life(_bonus_objective_index):
+		_hide_bonus_objective()
+		return
+	var west_index := BonusTowerPlanner.source_level_for_index(_bonus_objective_index)
+	if west_index >= 1 and state.has_visited_this_life(west_index):
+		_hide_bonus_objective()
+		return
+	var current := _current_level()
+	for later_west in range(west_index + 1, maxi(current, west_index) + 1):
+		if state.has_visited_this_life(later_west):
+			_hide_bonus_objective()
+			return
+
+
+func _try_show_bonus_radar(level: int) -> void:
+	if level < BonusTowerPlanner.MIN_LEVEL:
+		return
+	if _bonus_radar_pinged.get(level, false):
+		return
+	if level != _current_level():
+		return
+	var info := _bonus_radar_info_for_level(level)
+	if info.is_empty():
+		return
+	_bonus_radar_pinged[level] = true
+	_bonus_radar_entry = info.duplicate()
+	_bonus_radar_ping_line = BonusTowerPlanner.radar_text(bool(info.get("north", true)))
+	_bonus_radar_report = ""
+	_bonus_radar_failed = false
+	_bonus_radar_phase = RADAR_PING
+	_bonus_radar_phase_t = 0.0
+	_bonus_radar_typed = 0.0
+	_set_bonus_radar_text(_bonus_radar_ping_line)
+	if _bonus_radar_panel != null:
+		_bonus_radar_panel.visible = true
+		_bonus_radar_panel.modulate = Color.WHITE
+
+
+func _bonus_radar_info_for_level(level: int) -> Dictionary:
+	var world_seed := LevelRun.world_seed()
+	if world_seed < 0:
+		return {}
+	var entry := BonusTowerPlanner.entry_for_level(world_seed, level)
+	if entry.is_empty():
+		return {}
+	var origin_z := 0.0
+	var terrain := get_tree().get_first_node_in_group("terrain_manager") as TerrainManager
+	if terrain != null:
+		origin_z = terrain.run_origin.y
+	for node in get_tree().get_nodes_in_group("upgrade_tower"):
+		var tower := node as UpgradeTower
+		if tower == null or not tower.is_bonus:
+			continue
+		if tower.source_level == level:
+			entry["north"] = tower.global_position.z >= origin_z
+			break
+	return entry
+
+
 func _on_night_safe_changed(is_safe: bool) -> void:
 	if _safe_chip == null:
 		return
@@ -620,13 +873,13 @@ func _find_next_objective_tower() -> Node3D:
 	var best: Node3D = null
 	var best_dx := INF
 	for node in get_tree().get_nodes_in_group("upgrade_tower"):
-		var spatial := node as Node3D
-		if spatial == null or not is_instance_valid(spatial):
+		var tower := node as UpgradeTower
+		if tower == null or not is_instance_valid(tower) or tower.is_bonus:
 			continue
-		var dx := absf(spatial.global_position.x - target_x)
+		var dx := absf(tower.global_position.x - target_x)
 		if dx < best_dx:
 			best_dx = dx
-			best = spatial
+			best = tower
 	# Towers are pinned to planned X; allow small float / snap slack.
 	if best == null or best_dx > 50.0:
 		return null

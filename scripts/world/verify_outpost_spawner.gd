@@ -19,6 +19,7 @@ func _run() -> void:
 	var terrain: TerrainManager = TerrainManagerScript.new()
 	terrain.sand_material = SandMaterial
 	terrain.name = "TerrainManager"
+	terrain.stream_chunks = false
 	root_node.add_child(terrain)
 	await process_frame
 
@@ -38,6 +39,13 @@ func _run() -> void:
 		absf(tower.global_position.y - expected_y) < 0.05,
 		"Tower should snap Y to terrain height"
 	)
+
+	# Drop live terrain before the 41-tower layout check. Chunk workers race the
+	# static dune cache and can abort the headless process.
+	tower.queue_free()
+	terrain.queue_free()
+	await process_frame
+	await process_frame
 
 	var LevelRunScript = preload("res://scripts/game/level_run.gd")
 	var LevelRunGeneratorScript = preload("res://scripts/game/level_run_generator.gd")
@@ -59,9 +67,9 @@ func _run() -> void:
 
 	var spawner: Node = OutpostSpawnerScript.new()
 	spawner.name = "OutpostSpawner"
-	root_node.add_child(spawner)
-	spawner.set("terrain_manager_path", spawner.get_path_to(terrain))
 	spawner.set("include_home", true)
+	spawner.set("include_bonus", false)
+	root_node.add_child(spawner)
 	await process_frame
 	await process_frame
 	await process_frame
@@ -69,15 +77,19 @@ func _run() -> void:
 	var spawned := 0
 	var home_found := false
 	var west_ok := 0
+	var bonus_ok := 0
 	var matched_offsets: Dictionary = {}
 	var hub_r := AntennaState.HUB_RADIUS_M
 	for node in get_nodes_in_group("upgrade_tower"):
-		var s := node as Node3D
-		if s == null or s == tower:
+		var west_tower := node as UpgradeTower
+		if west_tower == null or not is_instance_valid(west_tower):
+			continue
+		if west_tower.is_bonus:
+			bonus_ok += 1
 			continue
 		spawned += 1
-		var dx := s.global_position.x - terrain.run_origin.x
-		var dz := s.global_position.z - terrain.run_origin.y
+		var dx := west_tower.global_position.x
+		var dz := west_tower.global_position.z
 		if absf(dx) < 1.0 and absf(dz) < 1.0:
 			home_found = true
 			continue
@@ -95,11 +107,12 @@ func _run() -> void:
 	_fail_unless(home_found, "Expected home tower at run origin")
 	_fail_unless(spawned == 41, "Expected home+40 west towers, got %d spawned" % spawned)
 	_fail_unless(west_ok == 40, "Expected 40 west towers on planned X, got %d" % west_ok)
+	_fail_unless(bonus_ok == 0, "Westbound layout check should skip bonus towers")
 
 	var seen_indexes: Dictionary = {}
 	for node in get_nodes_in_group("upgrade_tower"):
 		var west := node as UpgradeTower
-		if west == null or west == tower:
+		if west == null or not is_instance_valid(west) or west.is_bonus:
 			continue
 		if west.is_home:
 			_fail_unless(west.tower_index == 0, "Home tower index should be 0")
@@ -113,13 +126,16 @@ func _run() -> void:
 
 	# Planned westbound line (Z=0) must still be inside hub for deposit / night safety.
 	for offset_x in expected_offsets:
-		var line_pos := Vector3(terrain.run_origin.x + offset_x, 0.0, terrain.run_origin.y)
+		var line_pos := Vector3(offset_x, 0.0, 0.0)
 		var nearest_hub := INF
 		for node in get_nodes_in_group("upgrade_tower"):
-			var s := node as Node3D
-			if s == null or s == tower:
+			var hub_tower := node as UpgradeTower
+			if hub_tower == null or not is_instance_valid(hub_tower) or hub_tower.is_bonus:
 				continue
-			var xz := Vector2(line_pos.x - s.global_position.x, line_pos.z - s.global_position.z)
+			var xz := Vector2(
+				line_pos.x - hub_tower.global_position.x,
+				line_pos.z - hub_tower.global_position.z
+			)
 			nearest_hub = minf(nearest_hub, xz.length())
 		_fail_unless(
 			nearest_hub <= hub_r,

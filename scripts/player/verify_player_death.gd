@@ -10,6 +10,7 @@ const EonDirectorScript := preload("res://scripts/game/eon_director.gd")
 const PlayerRigScript := preload("res://scripts/player/player_rig.gd")
 const GliderInputScript := preload("res://scripts/input/glider_input.gd")
 const SandMaterial := preload("res://assets/materials/sand.tres")
+const BonusTowerShieldScript := preload("res://scripts/world/bonus_tower_shield.gd")
 const GROUND_PEN_TOLERANCE := 0.05
 const GROUND_CONTACT_FRAMES := 120
 
@@ -140,7 +141,7 @@ func _verify_respawn_restore() -> void:
 	_fail_unless(not glider.is_run_ended(), "Respawn should clear run ended")
 	_fail_unless(not glider.is_death_physics_active(), "Respawn should disable death physics")
 	_fail_unless(is_equal_approx(glider.gravity_scale, 0.0), "Respawn should restore zero gravity")
-	_fail_unless(glider.collision_mask == 0, "Respawn should restore collision mask")
+	_fail_unless(glider.collision_mask == BonusTowerShieldScript.COLLISION_LAYER, "Respawn should restore shield collision mask")
 	_fail_unless(glider.axis_lock_angular_x, "Respawn should restore pitch lock")
 	_fail_unless(glider.axis_lock_angular_z, "Respawn should restore roll lock")
 	glider.queue_free()

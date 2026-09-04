@@ -21,6 +21,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/upgrade_tower_menu.tscn" id="21_upgrade_menu"]
 [ext_resource type="PackedScene" path="res://scenes/ui/weapon_select_menu.tscn" id="22_weapon_select"]
 [ext_resource type="PackedScene" path="res://scenes/ui/pause_menu.tscn" id="23_pause_menu"]
+[ext_resource type="Script" path="res://scripts/world/bonus_tower_garrison.gd" id="24_garrison"]
 
 [node name="GameWorld" type="Node3D"]
 
@@ -92,6 +93,12 @@ track_node_path = NodePath("../PlayerRig/Glider")
 script = ExtResource("8_outpost_spawner")
 terrain_manager_path = NodePath("../TerrainManager")
 
+[node name="BonusTowerGarrison" type="Node3D" parent="."]
+script = ExtResource("24_garrison")
+player_rig_path = NodePath("../PlayerRig")
+terrain_manager_path = NodePath("../TerrainManager")
+eon_director_path = NodePath("../EonDirector")
+
 [node name="RunUpgradeState" type="Node" parent="."]
 script = ExtResource("19_upgrades")
 
@@ -118,5 +125,5 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 20, 0)
 terrain_manager_path = NodePath("../TerrainManager")
 
 [node name="Glider" parent="PlayerRig" index="0"]
-collision_mask = 0
+collision_mask = 16
 terrain_manager_path = NodePath("../../TerrainManager")

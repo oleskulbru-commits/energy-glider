@@ -31,6 +31,13 @@ const MAX_HEALTH := 20
 const HIT_KNOCKBACK_SPEED := 12.0
 const HIT_KNOCKBACK_DECAY_SEC := 0.3
 const DAMAGE_FLOAT_HEIGHT_M := 1.55
+const GARRISON_AGGRO_M := 30.0
+const GARRISON_LEASH_M := 180.0
+const GARRISON_SHIELD_LAYER := 16
+const LOCK_DOT_TEX_PX := 64
+const LOCK_DOT_PIXEL_SIZE := 0.015
+const LOCK_DOT_CLEARANCE_M := 0.85
+const LOCK_DOT_COLOR := Color(1.0, 0.12, 0.1)
 
 var move_speed := DEFAULT_SPEED
 var contact_damage := CONTACT_DAMAGE
@@ -51,6 +58,13 @@ var _anim: CrawlerAnimController
 var _collision_bottom_y := 0.0
 var _rng := RandomNumberGenerator.new()
 var _stun_left := 0.0
+var garrisoned := false
+var garrison_anchor := Vector3.ZERO
+var garrison_home := Vector3.ZERO
+var garrison_tower_index := -1
+var _garrison_aggroed := false
+var _garrison_shield: Node3D
+var _lock_dot: Sprite3D
 
 
 func _ready() -> void:
@@ -66,6 +80,11 @@ func _ready() -> void:
 	_rng.randomize()
 
 
+func _process(_delta: float) -> void:
+	if garrisoned:
+		_place_lock_dot()
+
+
 func configure(terrain: TerrainManager, target: Node3D, speed: float = DEFAULT_SPEED) -> void:
 	_terrain = terrain
 	_target = target
@@ -79,6 +98,36 @@ func set_target(target: Node3D) -> void:
 
 func set_move_speed(speed: float) -> void:
 	move_speed = speed
+
+
+func bind_garrison(anchor: Vector3, tower_index: int = -1, shield: Node3D = null) -> void:
+	garrisoned = true
+	garrison_anchor = Vector3(anchor.x, 0.0, anchor.z)
+	garrison_home = Vector3(global_position.x, 0.0, global_position.z)
+	garrison_tower_index = tower_index
+	_garrison_shield = shield
+	_garrison_aggroed = false
+	collision_mask |= GARRISON_SHIELD_LAYER
+	_ensure_lock_dot()
+
+
+func is_garrison_aggroed() -> bool:
+	return _garrison_aggroed
+
+
+func set_garrison_aggroed(on: bool) -> void:
+	var was := _garrison_aggroed
+	_garrison_aggroed = on
+	if on and not was:
+		reset_garrison_weapons()
+
+
+func reset_garrison_weapons() -> void:
+	pass
+
+
+func garrison_shield() -> Node3D:
+	return _garrison_shield
 
 
 func get_health() -> int:
@@ -121,14 +170,19 @@ func take_damage(
 	if amount <= 0 or _hp <= 0:
 		return false
 	var dealt := mini(amount, _hp)
+	var stats: RunDamageStatsScript = null
 	if weapon_family != StringName():
-		var stats := RunDamageStatsScript.find_in_tree(get_tree())
+		stats = RunDamageStatsScript.find_in_tree(get_tree())
 		if stats != null:
 			stats.record(weapon_family, dealt)
 	_hp = maxi(_hp - amount, 0)
 	# Show rolled hit damage (incl. crit / overkill), not HP remaining.
 	_spawn_damage_float(amount, is_crit)
+	if garrisoned:
+		_alert_garrison_pack()
 	if _hp <= 0:
+		if stats != null:
+			stats.record_kill(weapon_family)
 		var from_pos := global_position
 		if hit_dir.length_squared() > 0.0001:
 			from_pos = global_position - hit_dir.normalized()
@@ -158,10 +212,10 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 		return
 
-	var to_target := _target.global_position - global_position
+	var to_target := _seek_offset_xz()
 	to_target.y = 0.0
 	# Fallen behind the player's facing past margin — despawn.
-	if is_behind_facing(_target.global_position, _target_facing_xz(), global_position):
+	if not garrisoned and is_behind_facing(_target.global_position, _target_facing_xz(), global_position):
 		queue_free()
 		return
 
@@ -278,11 +332,123 @@ func _orient_to_velocity() -> void:
 
 
 func _flat_seek_to_target() -> Vector3:
+	return _seek_offset_xz()
+
+
+func _seek_offset_xz() -> Vector3:
 	if _target == null or not is_instance_valid(_target):
 		return Vector3.ZERO
-	var to_target := _target.global_position - global_position
+	var goal := _target.global_position
+	if garrisoned:
+		goal = _garrison_goal_xz()
+	var to_target := goal - global_position
 	to_target.y = 0.0
 	return to_target
+
+
+func _garrison_goal_xz() -> Vector3:
+	tick_garrison_aggro(_target.global_position)
+	if _garrison_aggroed:
+		return Vector3(_target.global_position.x, 0.0, _target.global_position.z)
+	return _garrison_idle_goal_xz()
+
+
+func _garrison_idle_goal_xz() -> Vector3:
+	return garrison_anchor
+
+
+func tick_garrison_aggro(player_pos: Vector3) -> void:
+	if not garrisoned:
+		return
+	var to_me := Vector2(player_pos.x - global_position.x, player_pos.z - global_position.z).length()
+	if to_me <= GARRISON_AGGRO_M:
+		_alert_garrison_pack()
+
+
+func _alert_garrison_pack() -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	var garrison := tree.get_first_node_in_group("bonus_tower_garrison")
+	if garrison != null and garrison.has_method("alert_from_unit"):
+		garrison.alert_from_unit(self)
+
+
+func _ensure_lock_dot() -> void:
+	if _lock_dot != null and is_instance_valid(_lock_dot):
+		_place_lock_dot()
+		return
+	_lock_dot = Sprite3D.new()
+	_lock_dot.name = "GarrisonLockDot"
+	_lock_dot.texture = _lock_dot_texture()
+	_lock_dot.pixel_size = LOCK_DOT_PIXEL_SIZE
+	_lock_dot.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_lock_dot.shaded = false
+	_lock_dot.no_depth_test = true
+	_lock_dot.double_sided = true
+	_lock_dot.alpha_cut = SpriteBase3D.ALPHA_CUT_DISABLED
+	_lock_dot.modulate = LOCK_DOT_COLOR
+	_lock_dot.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_lock_dot.top_level = true
+	add_child(_lock_dot)
+	_place_lock_dot()
+
+
+func _place_lock_dot() -> void:
+	if _lock_dot == null or not is_instance_valid(_lock_dot) or not is_inside_tree():
+		return
+	_lock_dot.global_position = global_position + Vector3(0.0, _lock_dot_world_height(), 0.0)
+
+
+func _lock_dot_world_height() -> float:
+	var visual_top := _visual_top_offset_y()
+	if visual_top > 0.2:
+		return visual_top + LOCK_DOT_CLEARANCE_M
+	return _collision_top_offset_y() + LOCK_DOT_CLEARANCE_M
+
+
+func _visual_top_offset_y() -> float:
+	var model := _get_crawler_model()
+	if model != null and is_inside_tree():
+		var aabb := CrawlerScaleUtil.combined_mesh_global_aabb(model)
+		if aabb.size.y > 0.05:
+			return aabb.position.y + aabb.size.y - global_position.y
+	var cube := get_node_or_null("Cube") as MeshInstance3D
+	if cube != null and cube.mesh is BoxMesh:
+		return cube.position.y + (cube.mesh as BoxMesh).size.y * 0.5 * cube.scale.y
+	return 0.0
+
+
+func _collision_top_offset_y() -> float:
+	var col := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col == null or col.shape == null:
+		return 1.6
+	if col.shape is CapsuleShape3D:
+		var capsule := col.shape as CapsuleShape3D
+		return col.position.y + capsule.height * 0.5
+	if col.shape is BoxShape3D:
+		var box := col.shape as BoxShape3D
+		return col.position.y + box.size.y * 0.5
+	return col.position.y + 1.2
+
+
+static var _lock_dot_tex: Texture2D
+
+
+static func _lock_dot_texture() -> Texture2D:
+	if _lock_dot_tex != null:
+		return _lock_dot_tex
+	var img := Image.create(LOCK_DOT_TEX_PX, LOCK_DOT_TEX_PX, false, Image.FORMAT_RGBA8)
+	var center := Vector2((LOCK_DOT_TEX_PX - 1) * 0.5, (LOCK_DOT_TEX_PX - 1) * 0.5)
+	var radius := float(LOCK_DOT_TEX_PX) * 0.42
+	var feather := float(LOCK_DOT_TEX_PX) * 0.08
+	for y in LOCK_DOT_TEX_PX:
+		for x in LOCK_DOT_TEX_PX:
+			var dist := Vector2(x, y).distance_to(center)
+			var alpha := clampf(1.0 - (dist - radius) / maxf(feather, 0.001), 0.0, 1.0)
+			img.set_pixel(x, y, Color(1.0, 0.12, 0.08, alpha))
+	_lock_dot_tex = ImageTexture.create_from_image(img)
+	return _lock_dot_tex
 
 
 func _target_facing_xz() -> Vector3:

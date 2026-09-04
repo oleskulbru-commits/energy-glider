@@ -992,20 +992,24 @@ static func roll_shop(
 	has_tesla: bool = false,
 	has_rocket: bool = false,
 	has_shotgun: bool = false,
-	unlock_pity_steps: int = 0
+	unlock_pity_steps: int = 0,
+	slot_count: int = -1
 ) -> PackedStringArray:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = world_seed * SHOP_SEED_WORLD + tower_index * SHOP_SEED_TOWER
 	var families := eligible_shop_families(has_rifle, has_laser, has_tesla, has_rocket, has_shotgun)
+	var count := SLOTS_PER_TOWER
+	if slot_count >= 2:
+		count = clampi(slot_count, 2, 6)
 	var slots := PackedStringArray()
 	var used: Dictionary = {}
-	for _i in SLOTS_PER_TOWER:
+	for _i in count:
 		var id := _roll_unique_id(rng, used, luck, families)
 		used[String(weapon_base_id(StringName(id)))] = true
 		slots.append(id)
 	var unlock := missing_unlock_id(has_rifle, has_laser, has_tesla, has_rocket, has_shotgun, rng)
 	if unlock != &"" and rng.randf() < unlock_chance(unlock_pity_steps, families.size()):
-		var slot := rng.randi_range(0, SLOTS_PER_TOWER - 1)
+		var slot := rng.randi_range(0, count - 1)
 		slots[slot] = String(unlock)
 	return slots
 

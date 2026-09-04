@@ -2,10 +2,13 @@ class_name UpgradeTower
 extends Node3D
 
 const GROUND_OFFSET := 0.05
+const BonusTowerPlannerScript := preload("res://scripts/game/bonus_tower_planner.gd")
 
 @export var terrain_manager_path: NodePath
 @export var tower_index := 0
 @export var is_home := false
+@export var is_bonus := false
+@export var source_level := 0
 
 
 func _ready() -> void:
@@ -15,6 +18,17 @@ func _ready() -> void:
 
 func is_upgrade_stop() -> bool:
 	return not is_home and tower_index >= 1
+
+
+## West tower N and a bonus that appears on level N both heal N * 5.
+func visit_heal_level() -> int:
+	if is_home:
+		return 0
+	if is_bonus or BonusTowerPlannerScript.is_bonus_index(tower_index):
+		if source_level > 0:
+			return source_level
+		return BonusTowerPlannerScript.source_level_for_index(tower_index)
+	return maxi(tower_index, 0)
 
 
 func snap_to_terrain() -> void:

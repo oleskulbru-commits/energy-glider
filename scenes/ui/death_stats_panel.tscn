@@ -4,7 +4,7 @@
 
 [node name="DeathStatsPanel" type="VBoxContainer"]
 theme_override_constants/separation = 12
-custom_minimum_size = Vector2(560, 0)
+custom_minimum_size = Vector2(640, 0)
 script = ExtResource("1_panel")
 
 [node name="StoppedTitle" type="Label" parent="."]
