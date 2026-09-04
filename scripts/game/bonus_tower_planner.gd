@@ -137,31 +137,32 @@ static func offer_count_for(world_seed: int, tower_index: int) -> int:
 	return clampi(heads + MIN_OFFERS, MIN_OFFERS, MAX_OFFERS)
 
 
+static func count_in_span(planned: Array[Dictionary], start_level: int, end_level: int) -> int:
+	var n := 0
+	for entry in planned:
+		var level := int(entry.get("level", 0))
+		if level >= start_level and level <= end_level:
+			n += 1
+	return n
+
+
 static func plan(world_seed: int) -> Array[Dictionary]:
 	LevelRun.ensure(world_seed)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(world_seed) * PLAN_SEED + TIER_SEED
 	var planned: Array[Dictionary] = []
 	var misses := 0
-	var spawned_in_window := 0
-	var last_window := -1
 	var levels := LevelRun.segment_count()
 	for level in range(1, levels + 1):
-		var window := int(floor(float(level - 1) / float(WINDOW_SIZE)))
-		if window != last_window:
-			misses = 0
-			spawned_in_window = 0
-			last_window = window
 		if level < MIN_LEVEL:
 			continue
-		if spawned_in_window >= MAX_PER_WINDOW:
+		if count_in_span(planned, level - WINDOW_SIZE + 1, level) >= MAX_PER_WINDOW:
 			continue
 		var p := spawn_chance(misses)
 		if rng.randf() >= p:
 			misses += 1
 			continue
 		misses = 0
-		spawned_in_window += 1
 		planned.append(_entry_for_level(world_seed, level, rng))
 	return planned
 

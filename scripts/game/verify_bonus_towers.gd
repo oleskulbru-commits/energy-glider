@@ -25,6 +25,7 @@ func _run() -> void:
 	_verify_no_early_levels()
 	_verify_deterministic()
 	_verify_window_cap()
+	_verify_pity_carries_across_windows()
 	_verify_placement_and_tiers()
 	_verify_offer_counts()
 	_verify_radar_copy()
@@ -85,23 +86,51 @@ func _verify_deterministic() -> void:
 
 
 func _verify_window_cap() -> void:
+	LevelRunScript.ensure(1)
+	var levels := LevelRunScript.segment_count()
+	var span := BonusTowerPlannerScript.WINDOW_SIZE
+	var cap := BonusTowerPlannerScript.MAX_PER_WINDOW
 	for seed in range(1, 81):
 		var planned: Array[Dictionary] = BonusTowerPlannerScript.plan(seed)
-		var counts: Dictionary = {}
 		for entry in planned:
 			var level := int(entry.get("level", 0))
-			var window := int(floor(float(level - 1) / float(BonusTowerPlannerScript.WINDOW_SIZE)))
-			counts[window] = int(counts.get(window, 0)) + 1
 			if level < 25:
 				_fail_unless(
 					int(entry.get("tier", 0)) < 6,
 					"Tier 6 should not appear before level 25 (seed %d level %d)" % [seed, level]
 				)
-		for window in counts.keys():
+		for start in range(1, levels - span + 2):
+			var n := BonusTowerPlannerScript.count_in_span(planned, start, start + span - 1)
 			_fail_unless(
-				int(counts[window]) <= BonusTowerPlannerScript.MAX_PER_WINDOW,
-				"Window %d seed %d exceeded max bonus towers" % [window, seed]
+				n <= cap,
+				"Sliding window [%d, %d] seed %d had %d bonus towers" % [start, start + span - 1, seed, n]
 			)
+
+
+func _verify_pity_carries_across_windows() -> void:
+	_fail_unless(
+		is_equal_approx(BonusTowerPlannerScript.spawn_chance(5), 0.52),
+		"Five misses (levels 4-8) should raise spawn chance to 52%"
+	)
+	var empty_then_nine := 0
+	var samples := 400
+	for world_seed in range(1, samples + 1):
+		var planned: Array[Dictionary] = BonusTowerPlannerScript.plan(world_seed)
+		var first_window := 0
+		var spawned_nine := false
+		for entry in planned:
+			var level := int(entry.get("level", 0))
+			if level <= BonusTowerPlannerScript.WINDOW_SIZE:
+				first_window += 1
+			if level == BonusTowerPlannerScript.WINDOW_SIZE + 1:
+				spawned_nine = true
+		if first_window == 0 and spawned_nine:
+			empty_then_nine += 1
+	_fail_unless(
+		empty_then_nine >= 20,
+		"Pity should carry into the next window so level 9 can spawn after a dry first window (%d of %d)"
+		% [empty_then_nine, samples]
+	)
 
 
 func _verify_placement_and_tiers() -> void:
