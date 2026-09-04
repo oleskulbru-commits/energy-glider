@@ -1,0 +1,54 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://assets/materials/vfx/sand_particle.tres" id="1_sand_mat"]
+
+[sub_resource type="QuadMesh" id="QuadMesh_burst"]
+material = ExtResource("1_sand_mat")
+size = Vector2(5, 5)
+
+[sub_resource type="Curve" id="Curve_scale"]
+_data = [Vector2(0, 0.5), 0.0, 0.0, 0, 0, Vector2(0.3, 0.78), 0.0, 0.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_scale"]
+curve = SubResource("Curve_scale")
+
+[sub_resource type="Gradient" id="Gradient_fade"]
+offsets = PackedFloat32Array(0, 0.18, 0.45, 1, 1)
+colors = PackedColorArray(1, 1, 1, 0.72, 1, 1, 1, 0.58, 1, 1, 1, 0.28, 1, 1, 1, 1, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_fade"]
+gradient = SubResource("Gradient_fade")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_burst"]
+emission_shape = 1
+emission_sphere_radius = 0.14
+direction = Vector3(0, 1, 0)
+spread = 48.0
+initial_velocity_min = 2.4
+initial_velocity_max = 7.0
+gravity = Vector3(0, -2.4, 0)
+tangential_accel_min = 0.8
+tangential_accel_max = 1.6
+damping_min = 0.8
+damping_max = 1.2
+angle_max = 24.0
+scale_min = 0.65
+scale_max = 1.1
+scale_curve = SubResource("CurveTexture_scale")
+color = Color(1, 1, 1, 0.42)
+color_ramp = SubResource("GradientTexture1D_fade")
+
+[node name="SandBurstHeavyGpu" type="Node3D"]
+
+[node name="SandBurst" type="GPUParticles3D" parent="."]
+emitting = false
+amount = 30
+lifetime = 3.0
+one_shot = true
+explosiveness = 0.92
+randomness = 0.58
+visibility_aabb = AABB(-4, -2, -4, 8, 4, 8)
+local_coords = false
+process_material = SubResource("ParticleProcessMaterial_burst")
+draw_pass_1 = SubResource("QuadMesh_burst")

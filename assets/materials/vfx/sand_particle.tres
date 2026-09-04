@@ -1,0 +1,23 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://dbpjm468hekkg"]
+
+[ext_resource type="Texture2D" uid="uid://8kipaftkan41" path="res://assets/vfx/noise_textures/radial_smoke_puff.png" id="1_puff"]
+[ext_resource type="Texture2D" uid="uid://8msqhuanvs4b" path="res://assets/vfx/noise_textures/radial_smoke_puff_normal.png" id="2_normal"]
+[ext_resource type="Texture2D" uid="uid://bf8fg4lbexwyk" path="res://assets/vfx/noise_textures/radial_smoke_puff_v2.png" id="3_detail"]
+
+[resource]
+transparency = 1
+cull_mode = 2
+diffuse_mode = 2
+albedo_color = Color(0.75, 0.40899998, 0.285, 1)
+albedo_texture = ExtResource("1_puff")
+normal_enabled = true
+normal_texture = ExtResource("2_normal")
+detail_enabled = true
+detail_blend_mode = 3
+detail_albedo = ExtResource("3_detail")
+texture_filter = 0
+billboard_mode = 3
+billboard_keep_scale = true
+particles_anim_h_frames = 1
+particles_anim_v_frames = 1
+particles_anim_loop = false

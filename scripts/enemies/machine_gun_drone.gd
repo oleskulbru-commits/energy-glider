@@ -11,8 +11,8 @@ const CHARGE_SPEED_MPS := 28.0
 const CHARGE_TURN_RATE_DEG := 36.0
 const MG_FIRE_INTERVAL_SEC := 0.05
 const PASS_DAMAGE := 15
-const PASS_HIT_HALF_XZ_M := CUBE_SIZE_M * 0.5
-const PASS_HIT_ABOVE_M := CUBE_SIZE_M * 0.5
+const PASS_HIT_HALF_XZ_M := CUBE_SIZE_M * DRONE_SIZE_MULT * 0.5
+const PASS_HIT_ABOVE_M := CUBE_SIZE_M * DRONE_SIZE_MULT * 0.5
 ## Drone cruises above the player; reach down through that gap for overhead passes.
 const PASS_HIT_BELOW_M := CRUISE_HEIGHT_M + 2.0
 const DESPAWN_BEHIND_M := 40.0

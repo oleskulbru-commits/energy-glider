@@ -1,76 +1,29 @@
 class_name HoverDust
 extends Node3D
 
+## Hover sand trail. Tune the Stream CPUParticles3D child in glider.tscn — script only handles surface follow and intensity.
+
 const GliderPhysicsScript = preload("res://scripts/player/glider_physics.gd")
 
 const GROUND_OFFSET := 0.05
 const RAY_LENGTH := 24.0
-const BASE_AMOUNT := 28
-const BASE_LIFETIME := 0.65
-const BASE_VELOCITY_MIN := 0.6
-const BASE_VELOCITY_MAX := 1.8
-const BASE_ALPHA := 0.45
 
-var _particles: CPUParticles3D
+@onready var _particles: CPUParticles3D = $Stream
 
-
-static func configure_sand_mesh(particles: CPUParticles3D) -> void:
-	SandParticleVfx.apply_to(particles, SandParticleVfx.GLIDER_QUAD_SIZE)
-
-
-static func configure_hover_stream(particles: CPUParticles3D) -> void:
-	configure_sand_mesh(particles)
-	var fade_ramp: Gradient = SandParticleVfx.make_fade_ramp()
-	particles.emitting = false
-	particles.amount = BASE_AMOUNT
-	particles.lifetime = BASE_LIFETIME
-	particles.explosiveness = 0.12
-	particles.randomness = 0.45
-	particles.direction = Vector3(0.0, 1.0, 0.0)
-	particles.spread = 75.0
-	particles.gravity = Vector3(0.0, -1.2, 0.0)
-	particles.initial_velocity_min = BASE_VELOCITY_MIN
-	particles.initial_velocity_max = BASE_VELOCITY_MAX
-	particles.scale_amount_min = 0.15
-	particles.scale_amount_max = 0.35
-	particles.color = Color(1.0, 1.0, 1.0, BASE_ALPHA)
-	particles.color_ramp = fade_ramp
-	particles.local_coords = false
-	particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
-	particles.emission_box_extents = Vector3(0.425, 0.025, 0.85)
-
-
-static func configure_impact_burst(particles: CPUParticles3D, intensity: float = 1.15) -> void:
-	configure_sand_mesh(particles)
-	var fade_ramp: Gradient = SandParticleVfx.make_fade_ramp()
-	var clamped := clampf(intensity, 0.5, 2.0)
-	particles.emitting = true
-	particles.one_shot = true
-	particles.amount = int(round(lerpf(float(BASE_AMOUNT), 56.0, clamped - 0.5)))
-	particles.lifetime = BASE_LIFETIME
-	particles.explosiveness = 0.92
-	particles.randomness = 0.45
-	particles.direction = Vector3(0.0, 1.0, 0.0)
-	particles.spread = 75.0
-	particles.gravity = Vector3(0.0, -1.2, 0.0)
-	var velocity_scale := lerpf(2.4, 4.8, clamped - 0.5)
-	particles.initial_velocity_min = BASE_VELOCITY_MIN * velocity_scale
-	particles.initial_velocity_max = BASE_VELOCITY_MAX * velocity_scale
-	particles.scale_amount_min = 0.15
-	particles.scale_amount_max = 0.35
-	var alpha := lerpf(0.55, 0.82, clamped - 0.5)
-	particles.color = Color(1.0, 1.0, 1.0, alpha)
-	particles.color_ramp = fade_ramp
-	particles.local_coords = false
-	particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-	particles.emission_sphere_radius = 0.08
+var _velocity_min_base := 0.6
+var _velocity_max_base := 1.8
+var _alpha_base := 0.32
 
 
 func _ready() -> void:
 	top_level = true
-	_particles = CPUParticles3D.new()
-	configure_hover_stream(_particles)
-	add_child(_particles)
+	if _particles == null:
+		push_error("HoverDust requires a CPUParticles3D child named Stream.")
+		return
+	_velocity_min_base = _particles.initial_velocity_min
+	_velocity_max_base = _particles.initial_velocity_max
+	_alpha_base = _particles.color.a
+	_particles.emitting = false
 
 
 func _sample_surface_contact(player: GliderPlayer) -> Dictionary:
@@ -94,8 +47,10 @@ func _sample_surface_contact(player: GliderPlayer) -> Dictionary:
 
 
 func _physics_process(_delta: float) -> void:
+	if _particles == null:
+		return
 	var player := get_parent() as GliderPlayer
-	if player == null or _particles == null:
+	if player == null:
 		return
 
 	if player.is_run_ended():
@@ -135,6 +90,7 @@ func _physics_process(_delta: float) -> void:
 		return
 
 	_particles.emitting = true
-	_particles.initial_velocity_min = BASE_VELOCITY_MIN * lerpf(0.7, 1.15, intensity)
-	_particles.initial_velocity_max = BASE_VELOCITY_MAX * lerpf(0.75, 1.25, intensity)
-	_particles.color = Color(1.0, 1.0, 1.0, BASE_ALPHA * intensity)
+	_particles.initial_velocity_min = _velocity_min_base * lerpf(0.7, 1.15, intensity)
+	_particles.initial_velocity_max = _velocity_max_base * lerpf(0.75, 1.25, intensity)
+	var alpha := _alpha_base * intensity
+	_particles.color = Color(_particles.color.r, _particles.color.g, _particles.color.b, alpha)

@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://bl8piqivuffqx"]
 
 [ext_resource type="Script" uid="uid://bftq7m2gapulr" path="res://scripts/enemies/swarm_pill.gd" id="1_pill"]
-[ext_resource type="PackedScene" path="res://scenes/enemies/crawler_skin.tscn" id="2_skin"]
+[ext_resource type="PackedScene" uid="uid://chqjbyfsqqnww" path="res://scenes/enemies/crawler_skin.tscn" id="2_skin"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.3

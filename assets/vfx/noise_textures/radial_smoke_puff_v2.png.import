@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://8kipaftkan41"
-path.s3tc="res://.godot/imported/radial_smoke_puff.png-8c87280e24ee42687a6b668c89b9bffa.s3tc.ctex"
+uid="uid://bf8fg4lbexwyk"
+path.s3tc="res://.godot/imported/radial_smoke_puff_v2.png-e274327d26665184f12d3d2d8ad72b56.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://assets/vfx/noise_textures/radial_smoke_puff.png"
-dest_files=["res://.godot/imported/radial_smoke_puff.png-8c87280e24ee42687a6b668c89b9bffa.s3tc.ctex"]
+source_file="res://assets/vfx/noise_textures/radial_smoke_puff_v2.png"
+dest_files=["res://.godot/imported/radial_smoke_puff_v2.png-e274327d26665184f12d3d2d8ad72b56.s3tc.ctex"]
 
 [params]
 

@@ -2,6 +2,8 @@ extends SceneTree
 
 const SwarmPillScene := preload("res://scenes/enemies/swarm_pill.tscn")
 const TerrainManagerScript := preload("res://scripts/terrain/terrain_manager.gd")
+const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
+const CrawlerSandFootstepsScript := preload("res://scripts/enemies/crawler_sand_footsteps.gd")
 
 
 func _init() -> void:
@@ -26,6 +28,12 @@ func _run() -> void:
 
 	var anim := pill.get_node_or_null("Visual/CrawlerAnimController") as CrawlerAnimController
 	_fail_unless(anim != null, "Missing CrawlerAnimController on swarm pill")
+
+	var footsteps := pill.get_node_or_null("Visual/CrawlerSandFootsteps") as CrawlerSandFootstepsScript
+	_fail_unless(footsteps != null, "Missing CrawlerSandFootsteps on swarm pill")
+
+	SandParticleVfxScript.spawn_burst(self, pill.global_position, terrain, SandParticleVfxScript.BurstPreset.LIGHT)
+	await process_frame
 
 	var player := pill.get_node_or_null("Visual/Model/AnimationPlayer") as AnimationPlayer
 	_fail_unless(player != null, "Missing crawler AnimationPlayer")

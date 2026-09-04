@@ -20,6 +20,8 @@ const WeaponTargetingScript = preload("res://scripts/weapons/weapon_targeting.gd
 const GliderPhysicsScript = preload("res://scripts/player/glider_physics.gd")
 const PlayerHealthScript = preload("res://scripts/player/player_health.gd")
 const LevelRunScript = preload("res://scripts/game/level_run.gd")
+const DroneDeathBurstScript = preload("res://scripts/enemies/drone_death_burst.gd")
+const LaserDroneSkinScene = preload("res://scenes/enemies/laser_drone_skin.tscn")
 
 var _failed := false
 
@@ -58,6 +60,9 @@ func _run() -> void:
 	if _failed:
 		return
 	_verify_smoke_ai()
+	if _failed:
+		return
+	await _verify_drone_death_debris()
 	if _failed:
 		return
 	print("Combat drone verification passed.")
@@ -1103,6 +1108,31 @@ func _verify_smoke_ai() -> void:
 	missile.queue_free()
 	health.queue_free()
 	player.queue_free()
+
+
+func _verify_drone_death_debris() -> void:
+	var container := Node3D.new()
+	root.add_child(container)
+	var visual: Node3D = LaserDroneSkinScene.instantiate() as Node3D
+	container.add_child(visual)
+	visual.global_position = Vector3(0.0, 8.0, 0.0)
+	var wrapper := DroneDeathBurstScript.spawn(
+		self,
+		visual.global_transform,
+		visual,
+		Vector3.ZERO,
+		null
+	)
+	await process_frame
+	_fail_unless(wrapper != null, "DroneDeathBurst.spawn should return a wrapper")
+	_fail_unless(
+		wrapper.get_debris_bodies().size() == 2,
+		"Drone death debris should spawn body and weapon rigid bodies (got %d)"
+		% wrapper.get_debris_bodies().size()
+	)
+	wrapper.queue_free()
+	visual.queue_free()
+	container.queue_free()
 
 
 func _fail_unless(ok: bool, message: String) -> void:

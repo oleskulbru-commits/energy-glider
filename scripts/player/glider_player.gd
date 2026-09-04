@@ -191,7 +191,9 @@ func _ready() -> void:
 		_camera = get_node_or_null("Camera3D") as GliderCameraScript
 	_contact_dust = get_node_or_null("ContactDust") as CPUParticles3D
 	_impact_dust = get_node_or_null("ImpactDust") as CPUParticles3D
-	_setup_sand_particles()
+	if _impact_dust != null and not _impact_dust.finished.is_connected(_on_impact_dust_finished):
+		_impact_dust.finished.connect(_on_impact_dust_finished)
+		_impact_dust.visible = false
 	_setup_contact_sparks()
 	_yaw = rotation.y
 
@@ -846,22 +848,6 @@ func _enforce_floor_contact(state: PhysicsDirectBodyState3D) -> void:
 	state.transform = xf
 	# Soft settle: nudge origin only — killing normal speed here tugs crest momentum.
 
-func _setup_sand_particles() -> void:
-	var fade_ramp: Gradient = SandParticleVfx.make_fade_ramp()
-	if _contact_dust != null:
-		SandParticleVfx.apply_to(_contact_dust, SandParticleVfx.GLIDER_QUAD_SIZE)
-		_contact_dust.color = Color(1.0, 1.0, 1.0, 0.65)
-		_contact_dust.color_ramp = fade_ramp
-		_contact_dust.scale_amount_min = 0.15
-		_contact_dust.scale_amount_max = 0.35
-	if _impact_dust != null:
-		SandParticleVfx.apply_to(_impact_dust, SandParticleVfx.GLIDER_QUAD_SIZE)
-		_impact_dust.color = Color(1.0, 1.0, 1.0, 0.75)
-		_impact_dust.color_ramp = fade_ramp
-		_impact_dust.scale_amount_min = 0.25
-		_impact_dust.scale_amount_max = 0.55
-
-
 func _setup_contact_sparks() -> void:
 	_contact_sparks = CPUParticles3D.new()
 	_contact_sparks.name = "ContactSparks"
@@ -1171,11 +1157,18 @@ func _play_touchdown_juice(approach: float, keep: float) -> void:
 	if approach < 3.0 and keep >= 0.995:
 		return
 	if _impact_dust != null:
+		_impact_dust.visible = true
 		_impact_dust.restart()
 		_impact_dust.emitting = true
 	if keep < 0.995 and _contact_sparks != null:
 		_contact_sparks.restart()
 		_contact_sparks.emitting = true
+
+
+func _on_impact_dust_finished() -> void:
+	if _impact_dust != null:
+		_impact_dust.emitting = false
+		_impact_dust.visible = false
 
 
 func _apply_steering(delta: float) -> void:

@@ -25,6 +25,8 @@ func _initialize() -> void:
 		quit(1)
 		return
 
+	_ensure_state_loop_linear(OUT_PATH, ["grounded", "glide", "sail_up"])
+
 	print("Saved ", OUT_PATH)
 	quit(0)
 
@@ -52,7 +54,7 @@ func _build_body_state_machine(
 	ease: Curve
 ) -> AnimationNodeStateMachine:
 	var sm := AnimationNodeStateMachine.new()
-	sm.add_node("grounded", _make_clip("Eve_Idle"), Vector2(0, 0))
+	sm.add_node("grounded", _make_loop_clip("Eve_Idle"), Vector2(0, 0))
 	sm.add_node("locomotion", locomotion, Vector2(280, 0))
 	sm.add_node("jump_charge", _make_seek_timescaled_clip("Eve_Jump"), Vector2(560, -280))
 	sm.add_node("jump", _make_seek_timescaled_clip("Eve_Jump"), Vector2(560, -160))
@@ -289,3 +291,46 @@ func _make_auto_end_transition(xfade: float, curve: Curve = null) -> AnimationNo
 	transition.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_AT_END
 	transition.advance_mode = AnimationNodeStateMachineTransition.ADVANCE_MODE_AUTO
 	return transition
+
+
+func _ensure_state_loop_linear(file_path: String, state_names: Array) -> void:
+	var content := FileAccess.get_file_as_string(file_path)
+	for state_name in state_names:
+		var key := 'states/%s/node = SubResource("' % state_name
+		var key_pos := content.find(key)
+		if key_pos == -1:
+			push_warning("build_glider_anim_tree: missing state node line for %s" % state_name)
+			continue
+		var id_start := key_pos + key.length()
+		var id_end := content.find('"', id_start)
+		if id_end == -1:
+			continue
+		var sub_id := content.substr(id_start, id_end - id_start)
+		content = _insert_loop_mode_for_subresource(content, sub_id)
+	var file := FileAccess.open(file_path, FileAccess.WRITE)
+	if file == null:
+		push_error("Failed to patch loop_mode in %s" % file_path)
+		return
+	file.store_string(content)
+
+
+func _insert_loop_mode_for_subresource(content: String, sub_id: String) -> String:
+	var header := '[sub_resource type="AnimationNodeAnimation" id="%s"]' % sub_id
+	var pos := content.find(header)
+	if pos == -1:
+		push_warning("build_glider_anim_tree: missing AnimationNodeAnimation subresource %s" % sub_id)
+		return content
+	var anim_key := "animation = "
+	var anim_pos := content.find(anim_key, pos)
+	if anim_pos == -1:
+		return content
+	var line_end := content.find("\n", anim_pos)
+	if line_end == -1:
+		return content
+	var block_end := content.find("\n\n", pos)
+	if block_end == -1:
+		block_end = content.length()
+	var block := content.substr(pos, block_end - pos)
+	if "loop_mode" in block:
+		return content
+	return content.insert(line_end + 1, "loop_mode = 1\n")

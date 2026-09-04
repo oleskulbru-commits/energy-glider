@@ -1,14 +1,34 @@
 [gd_scene format=3 uid="uid://dvblpji1vy3ao"]
 
 [ext_resource type="Script" uid="uid://cbood8bo63qaw" path="res://scripts/player/glider_player.gd" id="1_glider"]
+[ext_resource type="Material" uid="uid://dbpjm468hekkg" path="res://assets/materials/vfx/sand_particle.tres" id="2_sand_mat"]
 [ext_resource type="Script" uid="uid://ri1o7e2s8hwd" path="res://scripts/player/hover_dust.gd" id="9_hover_dust"]
 [ext_resource type="PackedScene" path="res://scenes/player/player_health_bar.tscn" id="13_hp_bar"]
-[ext_resource type="PackedScene" uid="uid://cc4m2a3lbllwj" path="res://scenes/player/the_glider_skin.tscn" id="13_skin"]
+[ext_resource type="PackedScene" uid="uid://xl8sa2wcaqiu" path="res://scenes/player/the_glider_skin.tscn" id="13_skin"]
 [ext_resource type="Script" uid="uid://dcybugjnwyvfp" path="res://scripts/player/glider_camera.gd" id="14_camera"]
 [ext_resource type="Script" uid="uid://c0biw70j6y763" path="res://scripts/player/player_death_sequence.gd" id="15_death"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_glider"]
 size = Vector3(0.8, 0.15, 2)
+
+[sub_resource type="QuadMesh" id="QuadMesh_hover"]
+material = ExtResource("2_sand_mat")
+size = Vector2(2, 2)
+
+[sub_resource type="QuadMesh" id="QuadMesh_contact"]
+material = ExtResource("2_sand_mat")
+
+[sub_resource type="QuadMesh" id="QuadMesh_impact"]
+material = ExtResource("2_sand_mat")
+size = Vector2(2, 2)
+
+[sub_resource type="Curve" id="Curve_impact_scale"]
+_data = [Vector2(0, 0.55), 0.0, 0.0, 0, 0, Vector2(0.25, 0.82), 0.0, 0.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="Gradient" id="Gradient_impact_fade"]
+offsets = PackedFloat32Array(0, 0.2, 0.5, 1)
+colors = PackedColorArray(1, 1, 1, 0.72, 1, 1, 1, 0.55, 1, 1, 1, 0.22, 1, 1, 1, 0)
 
 [node name="Glider" type="RigidBody3D" unique_id=1591013784]
 collision_layer = 2
@@ -36,13 +56,37 @@ script = ExtResource("14_camera")
 [node name="HoverDust" type="Node3D" parent="." unique_id=1087170788]
 script = ExtResource("9_hover_dust")
 
+[node name="Stream" type="CPUParticles3D" parent="HoverDust" unique_id=1847291051]
+emitting = false
+amount = 200
+lifetime = 0.65
+explosiveness = 0.12
+randomness = 1.0
+visibility_aabb = AABB(-4, -2, -4, 8, 4, 8)
+mesh = SubResource("QuadMesh_hover")
+emission_shape = 3
+emission_box_extents = Vector3(0.425, 0.025, 0.85)
+particle_flag_align_y = true
+particle_flag_rotate_y = true
+direction = Vector3(0, 1, 0)
+spread = 75.0
+gravity = Vector3(0, -1.2, 0)
+initial_velocity_min = 0.6
+initial_velocity_max = 1.8
+angle_min = 90.0
+angle_max = 360.0
+scale_amount_min = 0.4
+scale_amount_max = 0.75
+color = Color(1, 1, 1, 0.32)
+
 [node name="ContactDust" type="CPUParticles3D" parent="." unique_id=765132060]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.04, -0.2)
 emitting = false
 amount = 10
-lifetime = 0.35
 explosiveness = 0.15
 randomness = 0.4
+visibility_aabb = AABB(-4, -2, -4, 8, 4, 8)
+mesh = SubResource("QuadMesh_contact")
 direction = Vector3(0, 1, 0.2)
 spread = 35.0
 gravity = Vector3(0, -4, 0)
@@ -56,18 +100,23 @@ color = Color(1, 1, 1, 0.65)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, 0)
 emitting = false
 amount = 24
-lifetime = 0.45
 one_shot = true
 explosiveness = 0.9
 randomness = 0.55
+visibility_aabb = AABB(-4, -2, -4, 8, 4, 8)
+mesh = SubResource("QuadMesh_impact")
+emission_shape = 1
+emission_sphere_radius = 0.12
 direction = Vector3(0, 1, 0)
 spread = 55.0
 gravity = Vector3(0, -6, 0)
 initial_velocity_min = 2.0
 initial_velocity_max = 5.5
-scale_amount_min = 0.25
-scale_amount_max = 0.55
+scale_amount_min = 0.35
+scale_amount_max = 0.65
+scale_amount_curve = SubResource("Curve_impact_scale")
 color = Color(1, 1, 1, 0.75)
+color_ramp = SubResource("Gradient_impact_fade")
 
 [node name="PlayerHealthBar" parent="." unique_id=112739311 instance=ExtResource("13_hp_bar")]
 player_health_path = NodePath("../../PlayerHealth")

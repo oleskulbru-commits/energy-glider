@@ -4,6 +4,7 @@ extends SwarmPill
 ## Flying cube enemy. Kites ahead of the player; no melee contact.
 
 const AutoRifleScript = preload("res://scripts/weapons/auto_rifle.gd")
+const DroneDeathBurstScript := preload("res://scripts/enemies/drone_death_burst.gd")
 
 const DRONE_MAX_HEALTH := 40
 const WEAPON_RANGE_M := 40.0
@@ -12,6 +13,7 @@ const CRUISE_HEIGHT_M := 8.0
 const HEIGHT_FOLLOW_RATE := 4.0
 const KITE_HOLD_M := 40.0
 const CUBE_SIZE_M := 1.4
+const DRONE_SIZE_MULT := 2.0
 const BASE_MOVE_SPEED_MPS := 15.0
 const DRONE_MIN_LEVEL := 5
 const AIR_TARGETING_ENTER_SEC := 1.0
@@ -39,6 +41,8 @@ func _ready() -> void:
 	_hp = get_max_health()
 	_ensure_cube_visual()
 	_ensure_box_hitbox()
+	_apply_visual_scale()
+	_apply_hitbox_scale()
 	_collision_bottom_y = _compute_collision_bottom_y()
 	_rng.randomize()
 
@@ -79,7 +83,7 @@ func _ensure_box_hitbox() -> void:
 		col.name = "CollisionShape3D"
 		add_child(col)
 	var box := BoxShape3D.new()
-	box.size = Vector3.ONE * CUBE_SIZE_M
+	box.size = Vector3.ONE * body_size_m()
 	col.shape = box
 	col.position = Vector3.ZERO
 
@@ -246,19 +250,31 @@ func _die(from_pos: Vector3) -> void:
 	if collision != null:
 		collision.disabled = true
 	if _visual != null:
+		DroneDeathBurstScript.spawn(get_tree(), global_transform, _visual, from_pos, _terrain)
 		_visual.visible = false
 	elif _cube != null:
 		_cube.visible = false
+		KillSparks.spawn(get_tree(), global_position)
+	else:
+		KillSparks.spawn(get_tree(), global_position)
 	died.emit()
 	queue_free()
 
 
 func _apply_visual_scale() -> void:
-	pass
+	if _visual != null:
+		_visual.scale = Vector3.ONE * DRONE_SIZE_MULT
+		return
+	if _cube != null and _cube.mesh is BoxMesh:
+		(_cube.mesh as BoxMesh).size = Vector3.ONE * body_size_m()
 
 
 func _apply_hitbox_scale() -> void:
-	pass
+	var col := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col == null or col.shape == null:
+		return
+	if col.shape is BoxShape3D:
+		(col.shape as BoxShape3D).size = Vector3.ONE * body_size_m()
 
 
 func _sync_anim_speed() -> void:
@@ -287,3 +303,7 @@ static func move_speed_for_drone_level(level: int) -> float:
 
 static func spawn_ahead_m() -> float:
 	return SPAWN_AHEAD_M
+
+
+static func body_size_m() -> float:
+	return CUBE_SIZE_M * DRONE_SIZE_MULT

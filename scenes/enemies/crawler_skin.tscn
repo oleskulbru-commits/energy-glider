@@ -2,6 +2,7 @@
 
 [ext_resource type="PackedScene" uid="uid://dgocvkdsp6jhu" path="res://assets/3dmodels/enemies/crawler/crawler_animated_v001.glb" id="1_crawler"]
 [ext_resource type="Script" uid="uid://gkw488qdpgi3" path="res://scripts/enemies/crawler_anim_controller.gd" id="2_anim"]
+[ext_resource type="Script" path="res://scripts/enemies/crawler_sand_footsteps.gd" id="3_footsteps"]
 
 [node name="CrawlerSkin" type="Node3D" unique_id=215302053]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.022922814, 0)
@@ -9,5 +10,24 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.022922814, 0)
 [node name="Model" parent="." unique_id=1663528737 instance=ExtResource("1_crawler")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, -0.006, 0)
 
+[node name="DigDustAnchor" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.04, 0)
+
+[node name="FootFrontLeft" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.18, 0.02, 0.22)
+
+[node name="FootFrontRight" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.18, 0.02, 0.22)
+
+[node name="FootRearLeft" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.18, 0.02, -0.22)
+
+[node name="FootRearRight" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.18, 0.02, -0.22)
+
 [node name="CrawlerAnimController" type="Node" parent="." unique_id=742856492]
 script = ExtResource("2_anim")
+
+[node name="CrawlerSandFootsteps" type="Node" parent="."]
+script = ExtResource("3_footsteps")
+foot_markers = Array[NodePath]([NodePath("FootFrontLeft"), NodePath("FootFrontRight"), NodePath("FootRearLeft"), NodePath("FootRearRight")])

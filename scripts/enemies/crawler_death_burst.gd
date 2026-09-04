@@ -7,6 +7,7 @@ const FRACTURED_SCENE := preload(
 	"res://assets/3dmodels/enemies/crawler/crawler_fractured_v001.glb"
 )
 const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
+const CrawlerDebrisSandScript := preload("res://scripts/enemies/crawler_debris_sand.gd")
 
 const LIFETIME_SEC := 3.0
 const IMPULSE_MIN := 5.0
@@ -19,12 +20,15 @@ const MIN_MESH_VOLUME := 0.00008
 const DEBRIS_COLLISION_LAYER := 1
 const DEBRIS_COLLISION_MASK := 1
 
+var _terrain: TerrainManager
+
 
 static func spawn(
 	tree: SceneTree,
 	xf: Transform3D,
 	hit_pos: Vector3,
-	scale: float = CrawlerScaleUtil.death_burst_scale()
+	scale: float = CrawlerScaleUtil.death_burst_scale(),
+	terrain: TerrainManager = null
 ) -> void:
 	if tree == null:
 		return
@@ -37,6 +41,7 @@ static func spawn(
 	wrapper.global_transform = xf
 	wrapper.add_child(burst)
 	burst.scale = Vector3.ONE * scale
+	wrapper._terrain = terrain
 	wrapper._build_shards(burst, hit_pos)
 	KillSparks.spawn(tree, xf.origin)
 	wrapper._schedule_cleanup()
@@ -98,7 +103,8 @@ func _promote_to_rigid_body(mesh_inst: MeshInstance3D, hit_pos: Vector3) -> void
 	body.collision_mask = DEBRIS_COLLISION_MASK
 	body.gravity_scale = 1.0
 	body.continuous_cd = true
-	body.contact_monitor = false
+	body.contact_monitor = true
+	body.max_contacts_reported = 1
 	body.add_child(_duplicate_mesh(mesh_inst))
 	body.add_child(_collision_for_mesh(mesh))
 
@@ -107,6 +113,7 @@ func _promote_to_rigid_body(mesh_inst: MeshInstance3D, hit_pos: Vector3) -> void
 	mesh_inst.queue_free()
 
 	_apply_burst_impulse(body, hit_pos)
+	CrawlerDebrisSandScript.attach(body, _terrain)
 
 
 func _duplicate_mesh(source: MeshInstance3D) -> MeshInstance3D:

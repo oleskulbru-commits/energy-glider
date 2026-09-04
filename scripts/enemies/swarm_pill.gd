@@ -6,6 +6,7 @@ signal died
 ## Stream enemy: animated crawler that chases the player and deals contact damage.
 
 const CrawlerDeathBurstScript := preload("res://scripts/enemies/crawler_death_burst.gd")
+const CrawlerSandFootstepsScript := preload("res://scripts/enemies/crawler_sand_footsteps.gd")
 const RunDamageStatsScript := preload("res://scripts/game/run_damage_stats.gd")
 
 ## Fine-tune below 1.0 if the Blender-sized import still reads large in-game.
@@ -48,6 +49,7 @@ var _max_health := MAX_HEALTH
 var _hp := MAX_HEALTH
 var _hit_velocity := Vector3.ZERO
 var _anim: CrawlerAnimController
+var _sand_footsteps: CrawlerSandFootstepsScript
 var _collision_bottom_y := 0.0
 var _rng := RandomNumberGenerator.new()
 var _stun_left := 0.0
@@ -61,6 +63,7 @@ func _ready() -> void:
 	_apply_hitbox_scale()
 	_collision_bottom_y = _compute_collision_bottom_y()
 	_anim = _find_anim_controller()
+	_sand_footsteps = _find_sand_footsteps()
 	if _anim != null and not _anim.spawn_finished.is_connected(_on_spawn_finished):
 		_anim.spawn_finished.connect(_on_spawn_finished)
 	_rng.randomize()
@@ -70,7 +73,15 @@ func configure(terrain: TerrainManager, target: Node3D, speed: float = DEFAULT_S
 	_terrain = terrain
 	_target = target
 	move_speed = speed
+	_configure_sand_vfx()
 	_snap_to_terrain()
+
+
+func _configure_sand_vfx() -> void:
+	if _anim != null:
+		_anim.configure_sand(_terrain, self)
+	if _sand_footsteps != null:
+		_sand_footsteps.configure(_terrain, self)
 
 
 func set_target(target: Node3D) -> void:
@@ -259,6 +270,13 @@ func _find_anim_controller() -> CrawlerAnimController:
 	return skin.find_child("CrawlerAnimController", true, false) as CrawlerAnimController
 
 
+func _find_sand_footsteps() -> CrawlerSandFootstepsScript:
+	var skin := get_node_or_null("Visual")
+	if skin == null:
+		return null
+	return skin.find_child("CrawlerSandFootsteps", true, false) as CrawlerSandFootstepsScript
+
+
 func _on_spawn_finished() -> void:
 	_sync_anim_speed()
 
@@ -351,7 +369,7 @@ func _die(from_pos: Vector3) -> void:
 	var visual := get_node_or_null("Visual")
 	if visual != null:
 		visual.visible = false
-	CrawlerDeathBurstScript.spawn(get_tree(), burst_xf, from_pos, burst_scale)
+	CrawlerDeathBurstScript.spawn(get_tree(), burst_xf, from_pos, burst_scale, _terrain)
 	died.emit()
 	queue_free()
 
