@@ -76,6 +76,7 @@ var _land_recover_pitch_latch := 0.0
 var _land_recover_vel_dir := Vector3.FORWARD
 var _land_recover_look_blend := 0.0
 var _hard_snap := false
+var _orbit_hold := false
 var _handheld_time := 0.0
 var _handheld_rot := Vector3.ZERO
 var _handheld_rot_noise: FastNoiseLite
@@ -146,7 +147,7 @@ func follow(
 	if snap:
 		_orbit_yaw = body_yaw
 
-	if _mouse_look_enabled and not snap:
+	if _mouse_look_enabled and not snap and not _orbit_hold:
 		_update_orbit_recenter(body_yaw, delta)
 
 	_update_zoom_distance(delta, snap)
@@ -219,6 +220,12 @@ func apply_look_input(rel_x: float, rel_y: float) -> void:
 		rest_pitch - max_pitch,
 		rest_pitch + max_pitch
 	)
+
+
+func set_orbit_hold(held: bool) -> void:
+	_orbit_hold = held
+	if held:
+		_look_idle_time = 0.0
 
 
 func set_mouse_look_enabled(enabled: bool) -> void:

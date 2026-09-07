@@ -28,8 +28,9 @@ theme_override_constants/separation = 4
 
 [node name="DayLabel" type="Label" parent="TopCenter/VBox"]
 unique_name_in_owner = true
+visible = false
 theme_type_variation = &"HudLabel"
-text = "DAY 1"
+text = ""
 horizontal_alignment = 1
 
 [node name="CompassBar" type="Control" parent="TopCenter/VBox"]
@@ -94,7 +95,7 @@ text = "Kill button - press k"
 anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
-offset_top = -220.0
+offset_top = -268.0
 offset_right = 280.0
 grow_vertical = 0
 theme_override_constants/margin_left = 24
@@ -102,6 +103,28 @@ theme_override_constants/margin_bottom = 24
 
 [node name="BottomLeftVBox" type="VBoxContainer" parent="BottomLeft"]
 theme_override_constants/separation = 8
+
+[node name="AimChip" type="PanelContainer" parent="BottomLeft/BottomLeftVBox"]
+unique_name_in_owner = true
+mouse_filter = 2
+theme_type_variation = &"HudPanel"
+
+[node name="AimRow" type="HBoxContainer" parent="BottomLeft/BottomLeftVBox/AimChip"]
+theme_override_constants/separation = 8
+mouse_filter = 2
+
+[node name="AimLabel" type="Label" parent="BottomLeft/BottomLeftVBox/AimChip/AimRow"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "Aim"
+vertical_alignment = 1
+
+[node name="AimHint" type="Label" parent="BottomLeft/BottomLeftVBox/AimChip/AimRow"]
+unique_name_in_owner = true
+theme_type_variation = &"HudMuted"
+theme_override_font_sizes/font_size = 12
+text = "Hold right-click"
+vertical_alignment = 1
 
 [node name="WeaponTray" type="HBoxContainer" parent="BottomLeft/BottomLeftVBox"]
 unique_name_in_owner = true
@@ -388,7 +411,7 @@ theme_type_variation = &"HudOverlay"
 [node name="DaySummaryLabel" type="Label" parent="DaySummaryPanel"]
 unique_name_in_owner = true
 theme_type_variation = &"HudStoppedTitle"
-text = "DAY COMPLETE"
+text = ""
 horizontal_alignment = 1
 vertical_alignment = 1
 

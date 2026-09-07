@@ -18,10 +18,10 @@ const LevelRunScript := preload("res://scripts/game/level_run.gd")
 
 const SPAWN_GRACE_SEC := 3.0
 const DAWN_SPAWN_GRACE_SEC := 2.0
-## 1 charger per 5 crawlers → one sixth of spawns.
-const CHARGER_SPAWN_CHANCE := 1.0 / 6.0
 ## Chargers unlock after crossing tower 3 (level 4+).
 const CHARGER_MIN_LEVEL := 4
+const CHARGER_CAP_MIN := 2
+const CHARGER_CAP_MAX := 12
 ## Drones unlock after crossing tower 4 (level 5+).
 const DRONE_MIN_LEVEL := CombatDroneScript.DRONE_MIN_LEVEL
 const LASER_KILL_COOLDOWN_SEC := 45.0
@@ -113,8 +113,18 @@ func _physics_process(delta: float) -> void:
 	_try_spawn_test_mg_drone(level)
 	_try_spawn_drones(level)
 
-	var cap := SwarmPillScript.active_cap_for_level(level)
-	if _active.size() >= cap:
+	var crawler_cap := SwarmPillScript.active_cap_for_level(level)
+	var charger_cap := charger_cap_for_level(level)
+	var crawler_alive := _count_crawlers()
+	var charger_alive := _count_chargers()
+	var spawns := ground_spawns_this_tick(
+		crawler_alive,
+		crawler_cap,
+		charger_alive,
+		charger_cap,
+		spawns_per_tick_max
+	)
+	if spawns.x <= 0 and spawns.y <= 0:
 		return
 	if _spawn_cooldown > 0.0:
 		return
@@ -126,9 +136,10 @@ func _physics_process(delta: float) -> void:
 	var ahead := SwarmPillScript.ahead_range_for_level(level)
 	var spread := SwarmPillScript.z_spread_for_level(level)
 	var speed := SwarmPillScript.move_speed_for_level(level)
-	var to_spawn := mini(spawns_per_tick_max, cap - _active.size())
-	for _i in to_spawn:
-		_spawn_one(track, ahead, spread, speed, level)
+	for _i in spawns.x:
+		_spawn_one(track, ahead, spread, speed, level, SwarmPillScene)
+	for _i in spawns.y:
+		_spawn_one(track, ahead, spread, speed, level, ChargerPillScene)
 
 	_spawn_cooldown = spawn_interval_sec
 
@@ -344,6 +355,35 @@ func _current_level() -> int:
 	return 1
 
 
+static func charger_cap_for_level(level: int) -> int:
+	if level < CHARGER_MIN_LEVEL:
+		return 0
+	var t := clampf(float(level - CHARGER_MIN_LEVEL) / 36.0, 0.0, 1.0)
+	return int(roundf(lerpf(float(CHARGER_CAP_MIN), float(CHARGER_CAP_MAX), t)))
+
+
+## Crawlers in x, chargers in y. Both short → one of each; one short → up to tick_max of that type.
+static func ground_spawns_this_tick(
+	crawler_alive: int,
+	crawler_cap: int,
+	charger_alive: int,
+	charger_cap: int,
+	tick_max: int
+) -> Vector2i:
+	var crawler_need := maxi(crawler_cap - crawler_alive, 0)
+	var charger_need := maxi(charger_cap - charger_alive, 0)
+	var slots := maxi(tick_max, 0)
+	if slots <= 0 or (crawler_need <= 0 and charger_need <= 0):
+		return Vector2i.ZERO
+	if crawler_need > 0 and charger_need > 0:
+		var crawlers := mini(1, slots)
+		var chargers := mini(1, slots - crawlers)
+		return Vector2i(crawlers, chargers)
+	if crawler_need > 0:
+		return Vector2i(mini(slots, crawler_need), 0)
+	return Vector2i(0, mini(slots, charger_need))
+
+
 func _track_body() -> Node3D:
 	if _rig == null:
 		return null
@@ -356,7 +396,14 @@ func _get_glider() -> GliderPlayer:
 	return _rig.get_glider()
 
 
-func _spawn_one(track: Node3D, ahead: Vector2, spread: float, speed: float, level: int) -> void:
+func _spawn_one(
+	track: Node3D,
+	ahead: Vector2,
+	spread: float,
+	speed: float,
+	level: int,
+	scene: PackedScene
+) -> void:
 	var offset := spawn_offset_along_facing(ahead.x, ahead.y, spread, _rng, _facing_xz())
 	var world_x := track.global_position.x + offset.x
 	var world_z := track.global_position.z + offset.y
@@ -364,9 +411,6 @@ func _spawn_one(track: Node3D, ahead: Vector2, spread: float, speed: float, leve
 	if _terrain != null:
 		world_y = _terrain.sample_height(world_x, world_z)
 
-	var scene: PackedScene = SwarmPillScene
-	if level >= CHARGER_MIN_LEVEL and _rng.randf() < CHARGER_SPAWN_CHANCE:
-		scene = ChargerPillScene
 	var pill: SwarmPillScript = scene.instantiate() as SwarmPillScript
 	add_child(pill)
 	pill.global_position = Vector3(world_x, world_y, world_z)
@@ -619,6 +663,18 @@ static func spawn_offset_along_facing(
 	var lat := rng.randf_range(-spread_m, spread_m)
 	var world := fwd * ahead_m + right * lat
 	return Vector2(world.x, world.z)
+
+
+func _count_chargers() -> int:
+	var count := 0
+	for node in _active:
+		if node != null and node.is_in_group("charger_pill"):
+			count += 1
+	return count
+
+
+func _count_crawlers() -> int:
+	return maxi(_active.size() - _count_chargers(), 0)
 
 
 func _cull_active() -> void:

@@ -172,10 +172,9 @@ func _muzzle_origin() -> Vector3:
 
 
 func _facing_xz() -> Vector3:
-	var glider := _rig.get_glider() if _rig != null else null
-	if glider == null:
-		return Vector3.ZERO
-	return MathUtil.yaw_forward(glider.get_yaw())
+	if _rig != null:
+		return _rig.weapon_facing_xz()
+	return Vector3.ZERO
 
 
 func _pills() -> Array:

@@ -32,7 +32,7 @@ func _run() -> void:
 func _verify_stats() -> void:
 	_fail_unless(AutoRocketScript.DAMAGE == 28, "Rocket damage should be 28")
 	_fail_unless(is_equal_approx(AutoRocketScript.RANGE_M, 75.0), "Rocket acquire range should be 75 m")
-	_fail_unless(is_equal_approx(AutoRocketScript.FIRE_INTERVAL_SEC, 4.0), "Rocket interval should be 4 s")
+	_fail_unless(is_equal_approx(AutoRocketScript.FIRE_INTERVAL_SEC, 3.3), "Rocket interval should be 3.3 s")
 	_fail_unless(is_equal_approx(AutoRocketScript.BURST_GAP_SEC, 0.12), "Rocket burst gap should be 0.12 s")
 	_fail_unless(is_equal_approx(AutoRocketScript.KNOCKBACK_SPEED, 20.0), "Rocket base knockback should be 20")
 	_fail_unless(is_equal_approx(RocketMissileScript.SPEED_MPS, 35.0), "Rocket cruise should be 35 m/s")
@@ -46,20 +46,20 @@ func _verify_stats() -> void:
 		"4% Damage should round 29.12 to 29"
 	)
 	_fail_unless(
-		is_equal_approx(AutoRocketScript.fire_interval_for(0.0), 4.0),
-		"Base rocket wait should stay 4 s"
+		is_equal_approx(AutoRocketScript.fire_interval_for(0.0), 3.3),
+		"Base rocket wait should stay 3.3 s"
 	)
 	_fail_unless(
-		is_equal_approx(AutoRocketScript.fire_interval_for(0.13), 4.0 * 0.87),
-		"4% + 9% Attack Speed should wait 4.0 × 0.87"
+		is_equal_approx(AutoRocketScript.fire_interval_for(0.13), 3.3 * 0.87),
+		"4% + 9% Attack Speed should wait 3.3 × 0.87"
 	)
 	_fail_unless(
-		is_equal_approx(AutoRocketScript.fire_interval_for(0.80), 0.80),
-		"80% CDR should wait 0.80 s"
+		is_equal_approx(AutoRocketScript.fire_interval_for(0.80), 0.66),
+		"80% CDR should wait 0.66 s"
 	)
 	_fail_unless(
-		is_equal_approx(AutoRocketScript.fire_interval_for(0.95), 0.80),
-		"Over-cap CDR should still wait 0.80 s"
+		is_equal_approx(AutoRocketScript.fire_interval_for(0.95), 0.66),
+		"Over-cap CDR should still wait 0.66 s"
 	)
 	_fail_unless(
 		is_equal_approx(AutoRifleScript.range_for(AutoRocketScript.RANGE_M, 0.0), 75.0),

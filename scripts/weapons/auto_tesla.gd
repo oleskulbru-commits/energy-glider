@@ -5,7 +5,7 @@ extends Node
 
 const DAMAGE := 37
 const RANGE_M := 20.0
-const FIRE_INTERVAL_SEC := 3.0
+const FIRE_INTERVAL_SEC := 3.5
 const BURST_GAP_SEC := 0.12
 const STUN_SEC := 1.0
 
@@ -144,10 +144,9 @@ func _muzzle_origin() -> Vector3:
 
 
 func _facing_xz() -> Vector3:
-	var glider := _rig.get_glider() if _rig != null else null
-	if glider == null:
-		return Vector3.ZERO
-	return MathUtil.yaw_forward(glider.get_yaw())
+	if _rig != null:
+		return _rig.weapon_facing_xz()
+	return Vector3.ZERO
 
 
 func _pills() -> Array:

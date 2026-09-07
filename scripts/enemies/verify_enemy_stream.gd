@@ -132,13 +132,33 @@ func _verify_spawn_grace() -> void:
 
 func _verify_charger() -> void:
 	_fail_unless(
-		is_equal_approx(EnemyStreamSpawnerScript.CHARGER_SPAWN_CHANCE, 1.0 / 6.0),
-		"Charger spawn chance should be 1/6 (1:5 vs crawlers)"
+		EnemyStreamSpawnerScript.charger_cap_for_level(3) == 0,
+		"Chargers should not spawn before level 4"
+	)
+	_fail_unless(
+		EnemyStreamSpawnerScript.charger_cap_for_level(4) == 2,
+		"Level 4 charger cap should be 2"
+	)
+	_fail_unless(
+		EnemyStreamSpawnerScript.charger_cap_for_level(10) == 4,
+		"Level 10 charger cap should be 4"
+	)
+	_fail_unless(
+		EnemyStreamSpawnerScript.charger_cap_for_level(40) == 12,
+		"Level 40 charger cap should be 12"
 	)
 	_fail_unless(
 		EnemyStreamSpawnerScript.CHARGER_MIN_LEVEL == 4,
 		"Chargers should unlock at level 4 (after tower 3)"
 	)
+	var both_short := EnemyStreamSpawnerScript.ground_spawns_this_tick(10, 12, 0, 2, 2)
+	_fail_unless(both_short == Vector2i(1, 1), "Both pools short should spawn one crawler and one charger")
+	var crawlers_only := EnemyStreamSpawnerScript.ground_spawns_this_tick(6, 12, 2, 2, 2)
+	_fail_unless(crawlers_only == Vector2i(2, 0), "Only crawlers short should spawn up to 2 crawlers")
+	var chargers_only := EnemyStreamSpawnerScript.ground_spawns_this_tick(12, 12, 0, 2, 2)
+	_fail_unless(chargers_only == Vector2i(0, 2), "Only chargers short should spawn up to 2 chargers")
+	var full := EnemyStreamSpawnerScript.ground_spawns_this_tick(12, 12, 2, 2, 2)
+	_fail_unless(full == Vector2i.ZERO, "Full pools should spawn nothing")
 	_fail_unless(
 		is_equal_approx(ChargerPillScript.AGGRO_RANGE_M, 15.0),
 		"Charger aggro range should be 15 m"

@@ -7,7 +7,7 @@ const RocketMissileScene := preload("res://scenes/weapons/rocket_missile.tscn")
 
 const DAMAGE := 28
 const RANGE_M := 75.0
-const FIRE_INTERVAL_SEC := 4.0
+const FIRE_INTERVAL_SEC := 3.3
 const BURST_GAP_SEC := 0.12
 const KNOCKBACK_SPEED := 20.0
 const AIM_AHEAD_BIAS := 0.35
@@ -158,10 +158,9 @@ func _muzzle_origin() -> Vector3:
 
 
 func _facing_xz() -> Vector3:
-	var glider := _rig.get_glider() if _rig != null else null
-	if glider == null:
-		return Vector3.ZERO
-	return MathUtil.yaw_forward(glider.get_yaw())
+	if _rig != null:
+		return _rig.weapon_facing_xz()
+	return Vector3.ZERO
 
 
 func _fire(origin: Vector3, target: Node3D, facing: Vector3) -> void:

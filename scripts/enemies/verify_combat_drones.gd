@@ -741,6 +741,10 @@ func _verify_machine_gun_drone() -> void:
 	)
 	_fail_unless(MachineGunDroneScript.PASS_DAMAGE == 15, "MG pass-by damage should be 15")
 	_fail_unless(
+		is_equal_approx(MachineGunDroneScript.PASS_HIT_HALF_XZ_M, 2.5),
+		"MG pass hitbox should be 2.5 m half-width"
+	)
+	_fail_unless(
 		MachineGunDroneScript.should_begin_charge(100.0),
 		"MG drone should begin charge at 100 m ahead on lane"
 	)
@@ -805,11 +809,15 @@ func _verify_machine_gun_drone() -> void:
 
 	_fail_unless(
 		MachineGunDroneScript.player_in_pass_hitbox(Vector3(0.4, 0.0, 0.0), Vector3.ZERO),
-		"Pass damage should require overlap with the drone cube on XZ"
+		"Pass damage should hit when the drone overlaps the player"
 	)
 	_fail_unless(
 		MachineGunDroneScript.player_in_pass_hitbox(Vector3(0.0, 8.0, 0.0), Vector3(0.0, 1.0, 0.0)),
 		"Pass damage should hit when the drone passes overhead above the player"
+	)
+	_fail_unless(
+		MachineGunDroneScript.player_in_pass_hitbox(Vector3(0.0, 0.0, 1.8), Vector3.ZERO),
+		"Pass damage should hit a near-miss beside the cube"
 	)
 	_fail_unless(
 		not MachineGunDroneScript.player_in_pass_hitbox(
