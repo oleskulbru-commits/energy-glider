@@ -1,14 +1,14 @@
 class_name MachineGunDrone
 extends "res://scripts/enemies/combat_drone.gd"
 
-## Invulnerable green cube. Align: locked X, mirrors player Z. Charge: steers toward player with a turn cap.
+## Green cube. Align: locked X, mirrors player Z. Charge: steers toward player with a turn cap.
 
 const DroneLaserBlastScript = preload("res://scripts/enemies/drone_laser_blast.gd")
 const DroneMgRoundScript = preload("res://scripts/enemies/drone_mg_round.gd")
 
 const CHARGE_TRIGGER_M := 100.0
 const CHARGE_SPEED_MPS := 28.0
-const CHARGE_TURN_RATE_DEG := 36.0
+const CHARGE_TURN_RATE_DEG := 72.0
 const MG_FIRE_INTERVAL_SEC := 0.05
 const PASS_DAMAGE := 15
 ## Wider than the cube so a near-miss flyby still counts as a hit.
@@ -33,7 +33,6 @@ var _mg_cooldown := 0.0
 
 func _ready() -> void:
 	_cube_color = Color(0.22, 0.82, 0.32)
-	invulnerable = true
 	super._ready()
 	add_to_group("machine_gun_drone")
 
