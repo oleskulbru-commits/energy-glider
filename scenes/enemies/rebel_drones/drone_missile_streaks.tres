@@ -1,6 +1,6 @@
 [gd_resource type="VisualShader" format=3 uid="uid://bnqlopp1isdwy"]
 
-[ext_resource type="Texture2D" uid="uid://8kipaftkan41" path="res://assets/vfx/noise_textures/radial_smoke_puff.png" id="1_f1myi"]
+[ext_resource type="Texture2D" uid="uid://8kipaftkan41" path="res://assets/vfx/effect_textures/radial_smoke_puff.png" id="1_f1myi"]
 
 [sub_resource type="VisualShaderNodeTexture2DParameter" id="VisualShaderNodeTexture2DParameter_3jblp"]
 parameter_name = "Streak_Mask"

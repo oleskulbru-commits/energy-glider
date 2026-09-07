@@ -2,17 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cyis07q31klnl"
-path.s3tc="res://.godot/imported/radial_smoke_puff_v2_normal.png-a1dda30865008cdec5ecdd19ac37a07d.s3tc.ctex"
+uid="uid://huhnicqh71kv"
+path.s3tc="res://.godot/imported/drone_machinegun_module_v001_autocannon_module_basecolor.jpg-146056296fe3061678de154014fc697d.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
+generator_parameters={
+"md5": "3b423a4526c16025aa0dcf85b76198b3"
+}
 
 [deps]
 
-source_file="res://assets/vfx/noise_textures/radial_smoke_puff_v2_normal.png"
-dest_files=["res://.godot/imported/radial_smoke_puff_v2_normal.png-a1dda30865008cdec5ecdd19ac37a07d.s3tc.ctex"]
+source_file="res://assets/3dmodels/enemies/drones/drone_machinegun_module_v001_autocannon_module_basecolor.jpg"
+dest_files=["res://.godot/imported/drone_machinegun_module_v001_autocannon_module_basecolor.jpg-146056296fe3061678de154014fc697d.s3tc.ctex"]
 
 [params]
 
@@ -22,9 +25,9 @@ compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=1
+compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=false
+mipmaps/generate=true
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""

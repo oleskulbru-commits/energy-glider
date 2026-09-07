@@ -22,10 +22,10 @@ shadow_enabled = true
 transform = Transform3D(1, 0, 0, 0, 0.866025, 0.5, 0, -0.5, 0.866025, 0, 2.5, 4.5)
 
 [node name="LaserDroneSkin" parent="." instance=ExtResource("2_laser_skin")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.5, 0, 0)
+transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, -3, 0, 0)
 
 [node name="MissileDroneSkin" parent="." instance=ExtResource("3_missile_skin")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, 0)
+transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, 3, 0, 0)
 
 [node name="GunDroneSkin" parent="." instance=ExtResource("4_gun_skin")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 0, 0)
+transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, 9, 0, 0)

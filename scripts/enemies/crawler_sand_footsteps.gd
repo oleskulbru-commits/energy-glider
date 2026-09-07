@@ -91,5 +91,32 @@ func _spawn_at_marker(marker: Node3D) -> void:
 		tree,
 		world_pos,
 		_terrain,
-		SandParticleVfxScript.BurstPreset.LIGHT
+		_get_walk_dust_preset(),
+		_get_walk_dust_scale_mult(),
+		_get_walk_dust_shake_strength(),
+		_get_walk_dust_shake_radius_m()
 	)
+
+
+func _get_walk_dust_shake_strength() -> float:
+	if _host != null and _host.has_method(&"get_walk_dust_shake_strength"):
+		return _host.call(&"get_walk_dust_shake_strength") as float
+	return 0.0
+
+
+func _get_walk_dust_shake_radius_m() -> float:
+	if _host != null and _host.has_method(&"get_walk_dust_shake_radius_m"):
+		return _host.call(&"get_walk_dust_shake_radius_m") as float
+	return 0.0
+
+
+func _get_walk_dust_preset() -> SandParticleVfx.BurstPreset:
+	if _host != null and _host.has_method(&"get_walk_dust_preset"):
+		return _host.call(&"get_walk_dust_preset") as SandParticleVfx.BurstPreset
+	return SandParticleVfxScript.BurstPreset.HEAVY
+
+
+func _get_walk_dust_scale_mult() -> float:
+	if _host != null and _host.has_method(&"get_sand_burst_scale_mult"):
+		return _host.call(&"get_sand_burst_scale_mult") as float
+	return 1.0

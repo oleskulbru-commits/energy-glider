@@ -23,6 +23,7 @@ var _spawn_pose_ready := false
 
 
 func _ready() -> void:
+	add_to_group("player_rig")
 	_glider = get_node_or_null("Glider") as GliderPlayer
 	_input = get_node_or_null("GliderInput") as GliderInputScript
 

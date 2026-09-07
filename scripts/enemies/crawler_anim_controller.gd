@@ -55,12 +55,12 @@ func begin_spawn() -> void:
 			"CrawlerAnimController: '%s' missing from AnimationPlayer; skipping spawn gate"
 			% ANIM_CLIMB
 		)
-		_spawn_dust(SandParticleVfxScript.BurstPreset.HEAVY)
+		_spawn_climb_dust()
 		_finish_spawn()
 		return
 	_used_climb_anim = true
 	_player.play(ANIM_CLIMB)
-	_spawn_dust(SandParticleVfxScript.BurstPreset.HEAVY)
+	_spawn_climb_dust()
 	_dig_dust_timer = dig_dust_interval_sec
 
 
@@ -81,7 +81,7 @@ func _process(delta: float) -> void:
 	if _dig_dust_timer > 0.0:
 		return
 	_dig_dust_timer = dig_dust_interval_sec
-	_spawn_dust(SandParticleVfxScript.BurstPreset.LIGHT)
+	_spawn_climb_dust()
 
 
 func _on_animation_finished(anim_name: StringName) -> void:
@@ -100,11 +100,29 @@ func _finish_spawn() -> void:
 	spawn_finished.emit()
 
 
-func _spawn_dust(preset: SandParticleVfx.BurstPreset) -> void:
+func _spawn_climb_dust() -> void:
 	var tree := get_tree()
 	if tree == null:
 		return
 	var anchor: Node3D = _dig_anchor if _dig_anchor != null else _host
 	if anchor == null:
 		return
-	SandImpactDustScript.spawn(tree, anchor.global_position, _terrain, preset)
+	var preset := SandParticleVfxScript.BurstPreset.DEATH
+	var scale_mult := 1.0
+	var shake_strength := 0.0
+	var shake_radius_m := 0.0
+	if _host is SwarmPill:
+		var pill := _host as SwarmPill
+		preset = pill.get_climb_dust_preset()
+		scale_mult = pill.get_sand_burst_scale_mult()
+		shake_strength = pill.get_climb_dust_shake_strength()
+		shake_radius_m = pill.get_climb_dust_shake_radius_m()
+	SandImpactDustScript.spawn(
+		tree,
+		anchor.global_position,
+		_terrain,
+		preset,
+		scale_mult,
+		shake_strength,
+		shake_radius_m
+	)

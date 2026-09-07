@@ -9,15 +9,16 @@ const DroneRocketScript = preload("res://scripts/enemies/drone_rocket.gd")
 const ROCKET_COUNT_MIN := 30
 const ROCKET_COUNT_MAX := 40
 const ROCKET_DAMAGE := 10
-const LEAD_SEC := DroneRocketScript.FLIGHT_SEC
+const LEAD_SEC := DroneRocketScript.STRAIGHT_SEC + DroneRocketScript.FLIGHT_SEC
 const SPREAD_RADIUS_GROUND_M := 4.0
 const SPREAD_RADIUS_AIR_M := 4.0
 const AIR_VOLLEY_CENTER_JITTER_MIN_M := 2.0
 const AIR_VOLLEY_CENTER_JITTER_MAX_M := 4.0
 const HAIL_COOLDOWN_SEC := 7.0
-const FALL_TELEGRAPH_SEC := DroneRocketScript.FLIGHT_SEC
+const FALL_TELEGRAPH_SEC := DroneRocketScript.STRAIGHT_SEC + DroneRocketScript.FLIGHT_SEC
 const STAGGER_SEC := 0.1
 const SPAWN_SLOT_COUNT := 6
+const AIM_FACE_XFADE_SEC := 0.4
 
 var _cooldown_left := 1.5
 var _rng_hail := RandomNumberGenerator.new()
@@ -26,6 +27,8 @@ var _stagger_left := 0.0
 var _firing_hail := false
 var _hail_center_bias := Vector3.ZERO
 var _hail_rockets_fired := 0
+var _aim_face_xfade_left := 0.0
+var _aim_face_from_basis := Basis.IDENTITY
 
 
 func _ready() -> void:
@@ -59,9 +62,9 @@ func _begin_hail() -> void:
 	)
 	_hail_center_bias = Vector3(cos(bias_angle) * bias_dist, 0.0, sin(bias_angle) * bias_dist)
 	_firing_hail = true
-	_stagger_left = 0.0
+	_stagger_left = AIM_FACE_XFADE_SEC
 	_hail_rockets_fired = 0
-	_fire_next_rocket()
+	_begin_aim_face_xfade()
 
 
 func _tick_stagger(delta: float) -> void:
@@ -117,11 +120,14 @@ func _fire_next_rocket() -> void:
 
 
 func _get_spawn_slot(slot_index: int) -> Node3D:
+	var slot_name := "Missile %d" % (slot_index + 1)
+	var slot := find_child(slot_name, true, false) as Node3D
+	if slot != null:
+		return slot
 	var visual := get_node_or_null("Visual")
 	if visual == null:
 		return null
-	var slot_name := "Missile_Projectile_%d" % (slot_index + 1)
-	return visual.find_child(slot_name, true, false) as Node3D
+	return visual.find_child("Missile_Projectile_%d" % (slot_index + 1), true, false) as Node3D
 
 
 func _get_spawn_slot_transform(slot_index: int) -> Transform3D:
@@ -129,6 +135,48 @@ func _get_spawn_slot_transform(slot_index: int) -> Transform3D:
 	if slot != null:
 		return slot.global_transform
 	return global_transform
+
+
+func _face_heading(delta: float) -> void:
+	if _firing_hail:
+		_apply_aim_facing(delta)
+		return
+	super._face_heading(delta)
+
+
+func _begin_aim_face_xfade() -> void:
+	_aim_face_from_basis = global_transform.basis
+	_aim_face_xfade_left = AIM_FACE_XFADE_SEC
+
+
+func _apply_aim_facing(delta: float) -> void:
+	var forward := _aim_forward_xz()
+	if forward.length_squared() < 0.0001:
+		super._face_heading(delta)
+		return
+	var target_basis := Basis.looking_at(forward, Vector3.UP).orthonormalized()
+	if _aim_face_xfade_left > 0.0:
+		_aim_face_xfade_left = maxf(_aim_face_xfade_left - maxf(delta, 0.0), 0.0)
+		var weight := 1.0 - (_aim_face_xfade_left / AIM_FACE_XFADE_SEC)
+		global_transform.basis = _aim_face_from_basis.slerp(
+			target_basis,
+			smoothstep(0.0, 1.0, weight)
+		)
+		return
+	global_transform.basis = global_transform.basis.slerp(
+		target_basis,
+		minf(FACE_SLERP_RATE * maxf(delta, 0.0), 1.0)
+	)
+
+
+func _aim_forward_xz() -> Vector3:
+	if _target == null or not is_instance_valid(_target):
+		return Vector3.ZERO
+	var aim := _lead_point_3d() if uses_air_targeting() else _lead_point()
+	var to := Vector3(aim.x - global_position.x, 0.0, aim.z - global_position.z)
+	if to.length_squared() < 0.0001:
+		return Vector3.ZERO
+	return to.normalized()
 
 
 func _target_velocity() -> Vector3:

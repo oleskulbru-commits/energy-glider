@@ -8,6 +8,15 @@ signal died
 const CrawlerDeathBurstScript := preload("res://scripts/enemies/crawler_death_burst.gd")
 const CrawlerSandFootstepsScript := preload("res://scripts/enemies/crawler_sand_footsteps.gd")
 const RunDamageStatsScript := preload("res://scripts/game/run_damage_stats.gd")
+const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
+
+const SAND_MARKER_NAMES := [
+	"DigDustAnchor",
+	"FootFrontLeft",
+	"FootFrontRight",
+	"FootRearLeft",
+	"FootRearRight",
+]
 
 ## Fine-tune below 1.0 if the Blender-sized import still reads large in-game.
 const CRAWLER_SIZE_MULT := 0.85
@@ -53,6 +62,7 @@ var _sand_footsteps: CrawlerSandFootstepsScript
 var _collision_bottom_y := 0.0
 var _rng := RandomNumberGenerator.new()
 var _stun_left := 0.0
+var _sand_marker_base_positions: Dictionary = {}
 
 
 func _ready() -> void:
@@ -225,15 +235,59 @@ func _is_spawn_active() -> bool:
 	return _anim != null and _anim.is_spawn_active()
 
 
+func get_sand_burst_scale_mult() -> float:
+	return _get_crawler_visual_scale_mult()
+
+
+func get_climb_dust_preset() -> SandParticleVfx.BurstPreset:
+	return SandParticleVfx.BurstPreset.DEATH
+
+
+func get_walk_dust_preset() -> SandParticleVfx.BurstPreset:
+	return SandParticleVfx.BurstPreset.HEAVY
+
+
+func get_walk_dust_shake_strength() -> float:
+	return 0.035
+
+
+func get_walk_dust_shake_radius_m() -> float:
+	return 8.0
+
+
+func get_climb_dust_shake_strength() -> float:
+	return 0.22
+
+
+func get_climb_dust_shake_radius_m() -> float:
+	return 18.0
+
+
 func _get_crawler_visual_scale_mult() -> float:
 	return 1.0
 
 
 func _apply_visual_scale() -> void:
 	var model := _get_crawler_model()
+	var mult := _get_crawler_visual_scale_mult()
 	if model != null:
 		var base := CrawlerScaleUtil.animated_model_scale(CRAWLER_LIVING_SCALE)
-		model.scale = Vector3.ONE * base * _get_crawler_visual_scale_mult()
+		model.scale = Vector3.ONE * base * mult
+	_apply_sand_marker_positions(mult)
+
+
+func _apply_sand_marker_positions(mult: float) -> void:
+	var skin := get_node_or_null("Visual") as Node3D
+	if skin == null:
+		return
+	for marker_name in SAND_MARKER_NAMES:
+		var marker := skin.get_node_or_null(marker_name) as Node3D
+		if marker == null:
+			continue
+		var key := marker.get_instance_id()
+		if not _sand_marker_base_positions.has(key):
+			_sand_marker_base_positions[key] = marker.position
+		marker.position = _sand_marker_base_positions[key] * mult
 
 
 func _apply_hitbox_scale() -> void:

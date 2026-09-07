@@ -1,0 +1,131 @@
+[gd_scene format=3 uid="uid://x801bq8u8wb5"]
+
+[ext_resource type="PackedScene" uid="uid://dpfc3r14weqc3" path="res://scenes/enemies/rebel_drones/drone_body_skin.tscn" id="1_body_skin"]
+[ext_resource type="Texture2D" uid="uid://huhnicqh71kv" path="res://assets/3dmodels/enemies/drones/drone_machinegun_module_v001_autocannon_module_basecolor.jpg" id="2_basecolor"]
+[ext_resource type="PackedScene" uid="uid://cpiaejmolvejb" path="res://assets/3dmodels/enemies/drones/drone_machinegun_module_v001.glb" id="2_gun_module"]
+[ext_resource type="Texture2D" uid="uid://brnw52guruea1" path="res://assets/3dmodels/enemies/drones/drone_machinegun_module_v001_autocannon_module_metallic.JPEG-autocannon_module_roughness.png" id="3_metallic_roughness"]
+[ext_resource type="Texture2D" uid="uid://cgf1fypteu7w" path="res://assets/3dmodels/enemies/drones/drone_machinegun_module_v001_autocannon_module_normal.jpg" id="4_normal"]
+[ext_resource type="PackedScene" uid="uid://m6el2htscaob" path="res://scenes/effects/muzzle_flash.tscn" id="5_muzzle"]
+[ext_resource type="Texture2D" uid="uid://q0ilybhppgao" path="res://assets/vfx/effect_textures/muzzle_flash_2.png" id="7_8vy1p"]
+[ext_resource type="ArrayMesh" uid="uid://dlljgpkviwwp1" path="res://assets/vfx/meshes/muzzle_cone.obj" id="7_fvrwa"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gun"]
+resource_name = "Autocannon_Materials"
+cull_mode = 2
+albedo_texture = ExtResource("2_basecolor")
+metallic = 1.0
+metallic_texture = ExtResource("3_metallic_roughness")
+metallic_texture_channel = 2
+roughness_texture = ExtResource("3_metallic_roughness")
+roughness_texture_channel = 1
+normal_enabled = true
+normal_texture = ExtResource("4_normal")
+texture_filter = 2
+metadata/_gltf_primary_texture_coord = 0
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_fqqya"]
+radius = 0.008300781
+height = 0.4074707
+
+[sub_resource type="Curve" id="Curve_3be1u"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), -2.9442136, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_5wh4c"]
+curve = SubResource("Curve_3be1u")
+
+[sub_resource type="Curve" id="Curve_8vy1p"]
+_limits = [-360.0, 360.0, 0.0, 1.0]
+_data = [Vector2(0, -360), 0.0, 0.0, 0, 0, Vector2(1, 327.27277), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_8vy1p"]
+curve = SubResource("Curve_8vy1p")
+
+[sub_resource type="Curve" id="Curve_c1ixb"]
+_limits = [0.0, 7.05, 0.0, 1.0]
+_data = [Vector2(0, 5.7281246), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_mllv2"]
+curve = SubResource("Curve_c1ixb")
+
+[sub_resource type="Curve" id="Curve_mllv2"]
+_data = [Vector2(0, 0.02272737), 0.0, 1.0440339, 0, 0, Vector2(1, 1), 1.1859791, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_fvrwa"]
+curve = SubResource("Curve_mllv2")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_mllv2"]
+angular_velocity_curve = SubResource("CurveTexture_8vy1p")
+gravity = Vector3(0, 0, 0)
+scale_min = 0.5
+scale_curve = SubResource("CurveTexture_fvrwa")
+color = Color(1, 0.76666665, 0.6, 1)
+alpha_curve = SubResource("CurveTexture_5wh4c")
+emission_curve = SubResource("CurveTexture_mllv2")
+turbulence_noise_strength = 6.55
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fpjjk"]
+transparency = 1
+blend_mode = 1
+cull_mode = 2
+shading_mode = 0
+vertex_color_use_as_albedo = true
+vertex_color_is_srgb = true
+albedo_texture = ExtResource("7_8vy1p")
+texture_filter = 0
+
+[node name="GunDroneSkin" type="Node3D" unique_id=672632487]
+
+[node name="Body" parent="." unique_id=487950166 instance=ExtResource("1_body_skin")]
+
+[node name="CSGCylinder3D" type="CSGCylinder3D" parent="Body" unique_id=1459974807]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0046526417, 0.3507992)
+material_override = SubResource("StandardMaterial3D_gun")
+radius = 0.03125
+height = 0.23700929
+
+[node name="Weapon_Pivot" type="Node3D" parent="Body/CSGCylinder3D" unique_id=1944316593]
+transform = Transform3D(0.45, 0, 0, 0, 0.45, 0, 0, 0, 0.45, 0, -0.015617151, 0.0013711452)
+
+[node name="WeaponModule" parent="Body/CSGCylinder3D/Weapon_Pivot" unique_id=625755394 instance=ExtResource("2_gun_module")]
+transform = Transform3D(-5.363388e-08, 0, 1.2270001, 0, 1.2270001, 0, -1.2270001, 0, -5.363387e-08, 0, -0.44360486, -0.13787162)
+
+[node name="tripo_node_2ed2b918" parent="Body/CSGCylinder3D/Weapon_Pivot/WeaponModule" index="0" unique_id=1957342271]
+transform = Transform3D(0.9999997, 0, 0, 0, 0.9999997, 0, 3.5527137e-15, 0, 0.9999997, -0.18686932, 0, -8.168316e-09)
+
+[node name="GunBarrel" type="Node3D" parent="Body/CSGCylinder3D/Weapon_Pivot/WeaponModule/tripo_node_2ed2b918" index="0" unique_id=1784639660]
+transform = Transform3D(1.0000002, 0, 1.4210855e-14, 0, 1.0000002, 0, -3.5527137e-15, 0, 1.0000002, -0.47643155, 0.226305, -2.0825471e-08)
+
+[node name="TracerSizeReference" type="MeshInstance3D" parent="Body/CSGCylinder3D/Weapon_Pivot/WeaponModule/tripo_node_2ed2b918/GunBarrel" unique_id=1411067654]
+transform = Transform3D(-7.916581e-08, -1.8111023, 7.9165794e-08, 0, -7.9165794e-08, -1.8111023, 1.8111023, -7.916581e-08, 3.4604517e-15, -0.38070726, 0.00070494413, -1.6641259e-08)
+mesh = SubResource("CapsuleMesh_fqqya")
+
+[node name="MuzzleFlash" parent="Body/CSGCylinder3D/Weapon_Pivot/WeaponModule/tripo_node_2ed2b918/GunBarrel" unique_id=267961920 instance=ExtResource("5_muzzle")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.039131522, 0.0109677315, -1.710486e-09)
+
+[node name="MuzzlePlanes" parent="Body/CSGCylinder3D/Weapon_Pivot/WeaponModule/tripo_node_2ed2b918/GunBarrel/MuzzleFlash" index="0" unique_id=1779938887]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 0, 0, 0)
+emitting = true
+amount = 1
+lifetime = 0.1
+randomness = 1.0
+fixed_fps = 60
+local_coords = true
+process_material = SubResource("ParticleProcessMaterial_mllv2")
+
+[node name="MuzzleCone" type="GPUParticles3D" parent="Body/CSGCylinder3D/Weapon_Pivot/WeaponModule/tripo_node_2ed2b918/GunBarrel/MuzzleFlash" unique_id=762280675]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 0, 0, 0)
+material_override = SubResource("StandardMaterial3D_fpjjk")
+amount = 1
+lifetime = 0.1
+randomness = 1.0
+fixed_fps = 60
+local_coords = true
+process_material = SubResource("ParticleProcessMaterial_mllv2")
+draw_pass_1 = ExtResource("7_fvrwa")
+
+[editable path="Body/CSGCylinder3D/Weapon_Pivot/WeaponModule"]
+[editable path="Body/CSGCylinder3D/Weapon_Pivot/WeaponModule/tripo_node_2ed2b918/GunBarrel/MuzzleFlash"]

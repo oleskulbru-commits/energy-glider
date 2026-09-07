@@ -8,6 +8,7 @@ const FRACTURED_SCENE := preload(
 )
 const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 const CrawlerDebrisSandScript := preload("res://scripts/enemies/crawler_debris_sand.gd")
+const CameraImpactShakeScript := preload("res://scripts/player/camera_impact_shake.gd")
 
 const LIFETIME_SEC := 3.0
 const IMPULSE_MIN := 5.0
@@ -44,6 +45,7 @@ static func spawn(
 	wrapper._terrain = terrain
 	wrapper._build_shards(burst, hit_pos)
 	KillSparks.spawn(tree, xf.origin)
+	CameraImpactShakeScript.request(tree, xf.origin, 0.25, 15.0)
 	wrapper._schedule_cleanup()
 
 

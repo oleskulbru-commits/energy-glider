@@ -7,6 +7,7 @@ const GliderInputScript = preload("res://scripts/input/glider_input.gd")
 const TerrainManagerScript = preload("res://scripts/terrain/terrain_manager.gd")
 const GliderScene = preload("res://scenes/player/glider.tscn")
 const GliderCameraScript = preload("res://scripts/player/glider_camera.gd")
+const CameraImpactShakeScript = preload("res://scripts/player/camera_impact_shake.gd")
 const GliderAnimControllerScript = preload("res://scripts/player/glider_anim_controller.gd")
 const DayNightCycleScript = preload("res://scripts/world/day_night_cycle.gd")
 const SandMaterial = preload("res://assets/materials/sand.tres")
@@ -126,6 +127,7 @@ func _run_tests() -> void:
 	await _verify_fall_pitch_moves_camera()
 	_verify_brake_boost_time_scale()
 	_verify_handheld_camera()
+	_verify_impact_camera_shake()
 	_verify_boost_climb_target_speed()
 	_verify_ground_boost_accel_rate()
 	_verify_glider_speed_caps()
@@ -638,6 +640,32 @@ func _verify_handheld_camera() -> void:
 			absf(sample_rot.x) <= rot_limit and absf(sample_rot.y) <= rot_limit and absf(sample_rot.z) <= rot_limit,
 			"Handheld rotation offset should stay within amplitude bounds"
 		)
+
+
+func _verify_impact_camera_shake() -> void:
+	_fail_unless(
+		is_equal_approx(CameraImpactShakeScript.compute_falloff(0.0, 20.0), 1.0),
+		"Impact falloff at zero distance should be 1.0"
+	)
+	_fail_unless(
+		is_equal_approx(CameraImpactShakeScript.compute_falloff(20.0, 20.0), 0.0),
+		"Impact falloff at max radius should be 0.0"
+	)
+	_fail_unless(
+		CameraImpactShakeScript.compute_trauma(1.0, 10.0, 20.0)
+			< CameraImpactShakeScript.compute_trauma(1.0, 0.0, 20.0),
+		"Impact trauma should decrease with distance"
+	)
+
+	var cam := GliderCameraScript.new()
+	_fail_unless(is_equal_approx(cam.get_impact_trauma(), 0.0), "Impact trauma should start at zero")
+	cam.add_impact_trauma(0.4)
+	cam.add_impact_trauma(0.4)
+	_fail_unless(
+		cam.get_impact_trauma() <= cam.max_impact_trauma + 0.001,
+		"Impact trauma should clamp to max_impact_trauma"
+	)
+	cam.queue_free()
 
 
 func _verify_hover_rest() -> void:

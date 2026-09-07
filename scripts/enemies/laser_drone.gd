@@ -7,7 +7,6 @@ const GliderHUDScript = preload("res://scripts/ui/glider_hud.gd")
 const GliderPhysicsScript = preload("res://scripts/player/glider_physics.gd")
 const LaserDroneTelegraphScript = preload("res://scripts/enemies/laser_drone_telegraph.gd")
 const DroneLaserBlastScript = preload("res://scripts/enemies/drone_laser_blast.gd")
-const LaserDroneFlareScript = preload("res://scripts/enemies/laser_drone_flare.gd")
 
 const LASER_MAX_HEALTH := 15
 const TELEGRAPH_TOTAL_SEC := (
@@ -37,7 +36,7 @@ func _ready() -> void:
 	super._ready()
 	_max_health = LASER_MAX_HEALTH
 	_hp = LASER_MAX_HEALTH
-	_ensure_flare()
+	_flare = get_type_flare()
 	add_to_group("laser_drone")
 
 
@@ -119,7 +118,13 @@ func _steer(delta: float) -> void:
 		velocity = Vector3(velocity.x, 0.0, velocity.z).lerp(Vector3.ZERO, minf(delta * 6.0, 1.0))
 		velocity.y = 0.0
 		return
-	velocity = desired
+	var desired_dir := desired.normalized()
+	var target_speed := desired.length()
+	var turn_rate := FLIGHT_TURN_RATE_DEG
+	if movement_zone_for_distance(xz_distance_to_target()) == "flee":
+		turn_rate *= 1.25
+	_steer_heading_toward(desired_dir, turn_rate, delta)
+	_apply_flight_velocity(target_speed, delta)
 
 
 func _update_weapons(delta: float) -> void:
@@ -192,37 +197,19 @@ func _update_reticle(delta: float) -> void:
 	hud.update_laser_target_telegraph(_telegraph_elapsed, delta)
 
 
-func _ensure_flare() -> void:
-	if _visual != null:
-		if _flare != null and is_instance_valid(_flare):
-			_flare.queue_free()
-			_flare = null
-		return
-	if _flare != null and is_instance_valid(_flare):
-		return
-	_flare = LaserDroneFlareScript.new()
-	_flare.name = "TargetFlare"
-	add_child(_flare)
-
-
 func _update_flare() -> void:
-	if _visual != null:
-		return
-	_ensure_flare()
 	if _flare == null or not is_instance_valid(_flare):
-		return
-	if not _flare.has_method("set_charge_phase"):
+		_flare = get_type_flare()
+	if _flare == null:
 		return
 	if _attack_phase == AttackPhase.RELOAD:
 		_flare.set_reload_phase(true)
 		return
 	_flare.set_reload_phase(false)
 	if not _telegraph_armed:
-		if _flare.has_method("set_acquire_phase"):
-			_flare.set_acquire_phase(true)
+		_flare.set_acquire_phase(true)
 		return
-	if _flare.has_method("set_acquire_phase"):
-		_flare.set_acquire_phase(false)
+	_flare.set_acquire_phase(false)
 	var ratio := clampf(_telegraph_elapsed / TELEGRAPH_TOTAL_SEC, 0.0, 1.0)
 	_flare.set_charge_phase(true, ratio)
 

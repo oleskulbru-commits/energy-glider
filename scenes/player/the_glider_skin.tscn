@@ -8,7 +8,7 @@
 [ext_resource type="ArrayMesh" path="res://resources/meshes/glider_skin/gliderboard.res" id="2_m50yr"]
 [ext_resource type="Script" uid="uid://ccres3l856a06" path="res://scripts/player/glider_thruster_vfx.gd" id="2_thruster_vfx"]
 [ext_resource type="Texture2D" uid="uid://32caip4qxsom" path="res://assets/vfx/glider/fbx_boost_fbx/boost_loop/boost_loop_clip/glider_boost_loop0010.png" id="3_sfwho"]
-[ext_resource type="AnimationNodeBlendTree" uid="uid://b2ef72xdydc34" path="res://resources/anims/glider_anim_state_machine.tres" id="3_state_machine"]
+[ext_resource type="AnimationNodeBlendTree" uid="uid://bu685kyxu6cib" path="res://resources/anims/glider_anim_state_machine.tres" id="3_state_machine"]
 [ext_resource type="Script" uid="uid://di0wixewh5h62" path="res://scripts/player/sail_anim_controller.gd" id="4_sail_anim"]
 [ext_resource type="Texture2D" uid="uid://boip0revrqqan" path="res://assets/vfx/glider/fbx_thruster/thruster_clip/glider_thruster_flames0000.png" id="5_27tmn"]
 [ext_resource type="ArrayMesh" path="res://resources/meshes/glider_skin/glider_headlight_module.res" id="5_lwd6e"]
@@ -39,13 +39,16 @@
 [ext_resource type="AnimationLibrary" path="res://resources/anims/glider_skin_anim_library.res" id="34_1rext"]
 [ext_resource type="Script" uid="uid://15ranw7vmmrj" path="res://scripts/player/glider_hover_thruster_vfx.gd" id="35_hover_thruster_vfx"]
 
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_y3yyn"]
+shading_mode = 0
+
 [sub_resource type="QuadMesh" id="QuadMesh_fqqya"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lwd6e"]
 albedo_color = Color(1, 0.38039216, 0, 1)
 emission_enabled = true
 emission = Color(1, 0.38039216, 0, 1)
-emission_energy_multiplier = 0.0390625
+emission_energy_multiplier = 0.01953125
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_n5jpn"]
 resource_name = "boost_cylinder"
@@ -64,18 +67,18 @@ uv1_offset = Vector3(0, -0.745, 0)
 albedo_color = Color(1, 0.38039216, 0, 1)
 emission_enabled = true
 emission = Color(1, 0.38039216, 0, 1)
-emission_energy_multiplier = 0.0390625
+emission_energy_multiplier = 0.01953125
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_u7krr"]
 resource_name = "thruster_cylinder"
 transparency = 1
 blend_mode = 1
 cull_mode = 2
-albedo_color = Color(1, 0.38333333, 0, 0.125)
+albedo_color = Color(0.7101052, 0.8638905, 1, 1)
 albedo_texture = ExtResource("5_27tmn")
 emission_enabled = true
 emission = Color(0.30694196, 0.49831033, 1, 1)
-emission_energy_multiplier = 0.125
+emission_energy_multiplier = 0.0625
 emission_texture = ExtResource("5_27tmn")
 uv1_scale = Vector3(1, 0.75, 1)
 uv1_offset = Vector3(0, -0.745, 0)
@@ -88,31 +91,51 @@ uv1_offset = Vector3(0, -0.745, 0)
 transform = Transform3D(1.2185017, 0, 0, 0, 1.2185022, 0, 0, 0, 1.2185022, 0, 0, 0)
 mesh = ExtResource("2_m50yr")
 
-[node name="HoverThruster1" type="MeshInstance3D" parent="Model/GliderRoot/GliderBoard" index="0" unique_id=1868377990]
-transform = Transform3D(0.0038095817, -1.197477e-09, -0.2079651, -3.1407126e-08, -0.433, 4.713652e-16, -0.20796508, 6.53702e-08, -0.003809582, 0.20881326, -0.30406317, 0.62040967)
+[node name="Hover_Emit" type="CSGBox3D" parent="Model/GliderRoot/GliderBoard" index="0" unique_id=1252983995]
+transform = Transform3D(0.9996283, 0, -0.027262473, 0, 1, 0, 0.027262477, 0, 0.99962837, 0.20644195, -0.09924317, 0.62247825)
+material_override = SubResource("StandardMaterial3D_y3yyn")
+size = Vector3(0.044036865, 0.0017089844, 0.21359634)
+
+[node name="Hover_Emit2" type="CSGBox3D" parent="Model/GliderRoot/GliderBoard" index="1" unique_id=1796617571]
+transform = Transform3D(0.9998713, 0, 0.016042665, 0, 1, 0, -0.016042683, 0, 0.99987125, -0.20195425, -0.09924317, 0.6218747)
+material_override = SubResource("StandardMaterial3D_y3yyn")
+size = Vector3(0.044036865, 0.0017089844, 0.21238899)
+
+[node name="Hover_Emit3" type="CSGBox3D" parent="Model/GliderRoot/GliderBoard" index="2" unique_id=363049898]
+transform = Transform3D(0.9962839, 0.0846337, 0.015985105, -0.0848225, 0.99632937, 0.01152515, -0.014951039, -0.012838217, 0.9998058, -0.057645388, -0.15650386, 0.002846701)
+material_override = SubResource("StandardMaterial3D_y3yyn")
+size = Vector3(0.019371033, 0.0017089844, 0.28698397)
+
+[node name="Hover_Emit4" type="CSGBox3D" parent="Model/GliderRoot/GliderBoard" index="3" unique_id=1465377417]
+transform = Transform3D(0.9963703, 0.084731385, 0.00817615, -0.084822506, 0.99632937, 0.01152515, -0.0071696243, -0.012176841, 0.9999002, 0.06368163, -0.15650386, 0.002846701)
+material_override = SubResource("StandardMaterial3D_y3yyn")
+size = Vector3(0.019371033, 0.0017089844, 0.28698397)
+
+[node name="HoverThruster1" type="MeshInstance3D" parent="Model/GliderRoot/GliderBoard" index="4" unique_id=1868377990]
+transform = Transform3D(0.00380958, -1.3827675e-09, -0.2079651, -3.140713e-08, -0.5, 6.582534e-16, -0.20796514, 7.548524e-08, -0.0038095803, 0.20881326, -0.34129292, 0.62040967)
 material_override = ExtResource("7_thruster_cylinder")
 mesh = SubResource("QuadMesh_fqqya")
 
-[node name="HoverThruster2" type="MeshInstance3D" parent="Model/GliderRoot/GliderBoard" index="1" unique_id=19551629]
-transform = Transform3D(-0.0030050396, 9.445806e-10, -0.20797825, -3.140713e-08, -0.43300006, 4.8798664e-16, -0.20797822, 6.5374344e-08, 0.0030050399, -0.19819507, -0.30406317, 0.62040967)
+[node name="HoverThruster2" type="MeshInstance3D" parent="Model/GliderRoot/GliderBoard" index="5" unique_id=19551629]
+transform = Transform3D(-0.0030050306, 1.0907364e-09, -0.2079783, -3.140713e-08, -0.5, 6.6192115e-16, -0.2079783, 7.549002e-08, 0.0030050306, -0.19819507, -0.34660777, 0.62040967)
 material_override = ExtResource("7_thruster_cylinder")
 mesh = SubResource("QuadMesh_fqqya")
 
-[node name="HoverThruster3" type="MeshInstance3D" parent="Model/GliderRoot/GliderBoard" index="2" unique_id=1206872410]
-transform = Transform3D(-0.0057851207, 1.3133253e-09, -0.20795804, -4.34868e-08, -0.43300006, 7.2743126e-16, -0.28794184, 6.5368e-08, 0.0041781417, -0.056795888, -0.35256732, 0.0032477442)
+[node name="HoverThruster3" type="MeshInstance3D" parent="Model/GliderRoot/GliderBoard" index="6" unique_id=1206872410]
+transform = Transform3D(-0.0057851356, 1.5165456e-09, -0.20795804, -4.348679e-08, -0.5, 7.1632533e-16, -0.28794187, 7.548267e-08, 0.004178154, -0.056795888, -0.3967355, 0.0032477442)
 material_override = ExtResource("7_thruster_cylinder")
 mesh = SubResource("QuadMesh_fqqya")
 
-[node name="HoverThruster4" type="MeshInstance3D" parent="Model/GliderRoot/GliderBoard" index="3" unique_id=1261118551]
-transform = Transform3D(-0.00022809117, 5.1779327e-11, -0.20799991, -4.3486796e-08, -0.433, 7.3484465e-16, -0.28799984, 6.538116e-08, 0.00016473107, 0.05818958, -0.35256732, 0.0032477442)
+[node name="HoverThruster4" type="MeshInstance3D" parent="Model/GliderRoot/GliderBoard" index="7" unique_id=1261118551]
+transform = Transform3D(-0.000228091, 5.979132e-11, -0.20799991, -0.0055164434, -0.4999083, 3.1553134e-06, -0.28794703, 0.009577162, 0.00016470219, 0.05818958, -0.39966312, 0.0032477442)
 material_override = ExtResource("7_thruster_cylinder")
 mesh = SubResource("QuadMesh_fqqya")
 
-[node name="HoverThrusterVfx" type="Node3D" parent="Model/GliderRoot/GliderBoard" index="4" unique_id=1988377991]
+[node name="HoverThrusterVfx" type="Node3D" parent="Model/GliderRoot/GliderBoard" index="8" unique_id=1988377991]
 script = ExtResource("35_hover_thruster_vfx")
 shading_material = ExtResource("7_thruster_cylinder")
 
-[node name="Glider_Headlights" parent="Model/GliderRoot/GliderBoard" index="5" unique_id=1960585129 instance=ExtResource("2_27tmn")]
+[node name="Glider_Headlights" parent="Model/GliderRoot/GliderBoard" index="9" unique_id=1960585129 instance=ExtResource("2_27tmn")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.011, -0.295, 0.095)
 script = ExtResource("2_headlights")
 
@@ -154,6 +177,7 @@ fade_out_duration = 0.25
 
 [node name="CylinderMesh2" type="MeshInstance3D" parent="Model/GliderRoot/GliderBoard/ThrusterSocket/BoostVfxPivot/BoostVfx" unique_id=812345602]
 transform = Transform3D(1.0000001, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+visible = false
 material_override = SubResource("StandardMaterial3D_n5jpn")
 cast_shadow = 0
 mesh = ExtResource("10_n5jpn")
@@ -190,7 +214,7 @@ mesh = ExtResource("15_u7krr")
 [node name="OmniLight3D" type="OmniLight3D" parent="Model/GliderRoot/GliderBoard/ThrusterSocket/ThrusterVfxPivot/ThrusterVfx" unique_id=305950188]
 transform = Transform3D(0.01120673, 0, 0, 0, 0.011206725, 1.6653345e-16, 0, -2.7755576e-16, 0.011206727, 0, -0.009264071, -2.1827873e-11)
 light_color = Color(1, 0.38039216, 0, 1)
-light_energy = 0.04775
+light_energy = 0.023875
 light_indirect_energy = 0.0
 shadow_enabled = true
 shadow_blur = 10.0

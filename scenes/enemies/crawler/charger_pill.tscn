@@ -1,0 +1,18 @@
+[gd_scene format=3 uid="uid://cbeg1udf41nmb"]
+
+[ext_resource type="Script" uid="uid://drsdbw2j5pxfi" path="res://scripts/enemies/charger_pill.gd" id="1_charger"]
+[ext_resource type="PackedScene" uid="uid://chqjbyfsqqnww" path="res://scenes/enemies/crawler/crawler_skin.tscn" id="2_skin"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+radius = 0.3
+height = 0.6
+
+[node name="ChargerPill" type="CharacterBody3D" unique_id=691195268]
+collision_layer = 8
+script = ExtResource("1_charger")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=725465032]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.32, 0)
+shape = SubResource("CapsuleShape3D_body")
+
+[node name="Visual" parent="." unique_id=51260804 instance=ExtResource("2_skin")]

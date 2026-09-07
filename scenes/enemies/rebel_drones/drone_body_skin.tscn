@@ -1,0 +1,105 @@
+[gd_scene format=3 uid="uid://dpfc3r14weqc3"]
+
+[ext_resource type="PackedScene" uid="uid://bthxxa63biywm" path="res://assets/3dmodels/enemies/drones/Rebel_Drone_Body_v001.glb" id="1_body"]
+[ext_resource type="Material" path="res://assets/materials/enemies/rebel_drone_body.tres" id="2_drone_mat"]
+[ext_resource type="Material" path="res://assets/materials/enemies/rebel_drone_blue_emissives.tres" id="3_blue_emissives"]
+[ext_resource type="Material" uid="uid://do1m0atj6ifse" path="res://assets/materials/enemies/rebel_drone_thruster.tres" id="4_thruster_mat"]
+[ext_resource type="Material" uid="uid://cufp6md5ikht" path="res://assets/materials/enemies/rebel_drone_streak_blue.tres" id="5_streak_blue"]
+[ext_resource type="Script" uid="uid://b34inyxwl88d1" path="res://scripts/enemies/drone_streak_vfx.gd" id="6_streak_vfx"]
+[ext_resource type="PackedScene" path="res://scenes/effects/drone_type_flare.tscn" id="7_type_flare"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_byvr0"]
+top_radius = 0.032226563
+bottom_radius = 0.032226563
+height = 0.37534332
+cap_top = false
+cap_bottom = false
+
+[node name="DroneBodySkin" type="Node3D" unique_id=647530971]
+script = ExtResource("6_streak_vfx")
+
+[node name="Body" parent="." unique_id=238682451 instance=ExtResource("1_body")]
+
+[node name="Rebel_Drone" parent="Body" index="0" unique_id=253652569]
+surface_material_override/0 = ExtResource("2_drone_mat")
+surface_material_override/1 = ExtResource("3_blue_emissives")
+surface_material_override/2 = ExtResource("4_thruster_mat")
+
+[node name="ThrusterStreaks" type="Node3D" parent="Body/Rebel_Drone" index="0" unique_id=1439854078]
+
+[node name="Streak" type="MeshInstance3D" parent="Body/Rebel_Drone/ThrusterStreaks" unique_id=2089117518]
+transform = Transform3D(-1, -1.5099579e-07, -6.6002357e-15, 0, -4.3711385e-08, 0.99999994, -2.475341e-07, 1.6393441, 7.165801e-08, 0.204235, 0.14799996, -0.6927212)
+material_override = ExtResource("5_streak_blue")
+cast_shadow = 0
+mesh = SubResource("CylinderMesh_byvr0")
+
+[node name="Streak2" type="MeshInstance3D" parent="Body/Rebel_Drone/ThrusterStreaks" unique_id=925561649]
+transform = Transform3D(-0.679, -2.4748212e-07, -3.3397194e-15, 0, -7.1642965e-08, 0.506, -1.0252615e-07, 1.639, 2.2117963e-08, 0.006, 0.162, -0.693)
+material_override = ExtResource("5_streak_blue")
+cast_shadow = 0
+mesh = SubResource("CylinderMesh_byvr0")
+
+[node name="Streak3" type="MeshInstance3D" parent="Body/Rebel_Drone/ThrusterStreaks" unique_id=1903183343]
+transform = Transform3D(0.043653965, 4.1943682e-08, 0.3157789, -0.36741573, 2.5420627e-07, 0.03751881, 5.5868448e-08, 1.639, -1.3900222e-08, 0.078768045, 0.14157945, -0.693)
+material_override = ExtResource("5_streak_blue")
+cast_shadow = 0
+mesh = SubResource("CylinderMesh_byvr0")
+
+[node name="Streak4" type="MeshInstance3D" parent="Body/Rebel_Drone/ThrusterStreaks" unique_id=1229098540]
+transform = Transform3D(0.37, -2.4748212e-07, -2.098875e-15, 0, -7.1642965e-08, 0.318, 5.5868448e-08, 1.639, 1.3900221e-08, -0.06729552, 0.14157945, -0.693)
+material_override = ExtResource("5_streak_blue")
+cast_shadow = 0
+mesh = SubResource("CylinderMesh_byvr0")
+
+[node name="Streak5" type="MeshInstance3D" parent="Body/Rebel_Drone/ThrusterStreaks" unique_id=611266181]
+transform = Transform3D(-0.2794479, 2.5485917e-07, 0.046578277, -0.03785324, -3.7774736e-08, -0.34385967, 4.258082e-08, 1.639, -1.5167851e-08, -0.13316698, 0.14157945, -0.693)
+material_override = ExtResource("5_streak_blue")
+cast_shadow = 0
+mesh = SubResource("CylinderMesh_byvr0")
+
+[node name="HoverStreaks" type="Node3D" parent="Body/Rebel_Drone" index="1" unique_id=1112572797]
+
+[node name="Streak" type="MeshInstance3D" parent="Body/Rebel_Drone/HoverStreaks" unique_id=551086313]
+transform = Transform3D(-1.17, -1.2545965e-07, 1.9775477e-07, -2.895421e-07, 0.49987432, 0.02936903, -1.83158e-07, 0.011209554, -1.3096707, 0.21035177, -0.028, -0.1744392)
+material_override = ExtResource("5_streak_blue")
+cast_shadow = 0
+mesh = SubResource("CylinderMesh_byvr0")
+
+[node name="Streak2" type="MeshInstance3D" parent="Body/Rebel_Drone/HoverStreaks" unique_id=1600303485]
+transform = Transform3D(-1.17, -1.2545965e-07, 1.9775477e-07, -2.895421e-07, 0.49987432, 0.02936903, -1.83158e-07, 0.011209554, -1.3096707, -0.21195745, -0.028, -0.1744392)
+material_override = ExtResource("5_streak_blue")
+cast_shadow = 0
+mesh = SubResource("CylinderMesh_byvr0")
+
+[node name="Streak3" type="MeshInstance3D" parent="Body/Rebel_Drone/HoverStreaks" unique_id=1263154691]
+transform = Transform3D(-0.745639, 0.0035860296, -0.4189884, -0.010847272, 0.49895266, 0.082799934, 0.2515424, 0.03214631, -1.2384235, -0.25159577, -0.028, 0.28937563)
+material_override = ExtResource("5_streak_blue")
+cast_shadow = 0
+mesh = SubResource("CylinderMesh_byvr0")
+
+[node name="Streak4" type="MeshInstance3D" parent="Body/Rebel_Drone/HoverStreaks" unique_id=1339115544]
+transform = Transform3D(-0.763881, -0.014269048, 0.3129635, -0.0108472705, 0.49895266, 0.08279992, -0.18904278, 0.029028246, -1.2693689, 0.25257987, -0.028, 0.30392268)
+material_override = ExtResource("5_streak_blue")
+cast_shadow = 0
+mesh = SubResource("CylinderMesh_byvr0")
+
+[node name="OmniLight3D" type="OmniLight3D" parent="Body" unique_id=1188658130]
+transform = Transform3D(-1, -2.475341e-07, -6.600238e-15, -1.2705493e-21, -2.666395e-08, 1, -2.475341e-07, 1, 2.666395e-08, 0.0046669245, 0.14799996, -0.7445227)
+light_color = Color(0.455, 0.798, 1.6, 1)
+shadow_enabled = true
+
+[node name="OmniLight3D2" type="OmniLight3D" parent="Body" unique_id=596761465]
+transform = Transform3D(-1, -2.475341e-07, -6.600238e-15, -1.2705493e-21, -2.666395e-08, 1, -2.475341e-07, 1, 2.666395e-08, 0.0067375153, -0.32047045, 0.11894524)
+light_color = Color(0.455, 0.798, 1.6, 1)
+light_energy = 0.5
+light_indirect_energy = 0.0
+shadow_enabled = true
+
+[node name="SpotLight3D" type="SpotLight3D" parent="." unique_id=1530463159]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0, 0.08288761, 0.51549256)
+light_color = Color(0.455, 0.798, 1.6, 1)
+
+[node name="TypeFlare" parent="." instance=ExtResource("7_type_flare")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0, 0.08288761, 0.51549256)
+
+[editable path="Body"]

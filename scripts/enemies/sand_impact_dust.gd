@@ -4,6 +4,8 @@ extends Node3D
 ## World-spawned sand burst. Tuning lives in sand_burst_*_gpu.tscn — this script only places and plays.
 
 const SandImpactDustScene := preload("res://scenes/effects/sand_impact_dust.tscn")
+const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
+const CameraImpactShakeScript := preload("res://scripts/player/camera_impact_shake.gd")
 
 const GROUND_LIFT := 0.05
 
@@ -12,7 +14,10 @@ static func spawn(
 	tree: SceneTree,
 	impact: Vector3,
 	terrain: TerrainManager = null,
-	preset: SandParticleVfx.BurstPreset = SandParticleVfx.BurstPreset.HEAVY
+	preset: SandParticleVfx.BurstPreset = SandParticleVfx.BurstPreset.HEAVY,
+	scale_mult: float = 1.0,
+	shake_strength: float = 0.0,
+	shake_radius_m: float = 0.0
 ) -> void:
 	if tree == null:
 		return
@@ -28,7 +33,11 @@ static func spawn(
 		dust.add_child(burst_root)
 	parent.add_child(dust)
 	dust._place_on_surface(impact, terrain, tree)
+	if scale_mult > 0.0 and not is_equal_approx(scale_mult, 1.0):
+		dust.scale = Vector3.ONE * scale_mult
 	dust._play_burst()
+	if shake_strength > 0.0 and shake_radius_m > 0.0:
+		CameraImpactShakeScript.request(tree, impact, shake_strength, shake_radius_m)
 
 
 func _ready() -> void:
@@ -40,6 +49,7 @@ func _play_burst() -> void:
 	if burst == null:
 		queue_free()
 		return
+	SandParticleVfxScript.configure_gpu_burst(burst)
 	burst.restart()
 	burst.emitting = true
 	var timer := get_tree().create_timer(burst.lifetime + SandParticleVfx.FREE_BUFFER_SEC)

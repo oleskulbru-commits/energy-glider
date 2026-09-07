@@ -15,8 +15,9 @@ size = Vector3(0.8, 0.15, 2)
 material = ExtResource("2_sand_mat")
 size = Vector2(2, 2)
 
-[sub_resource type="QuadMesh" id="QuadMesh_contact"]
-material = ExtResource("2_sand_mat")
+[sub_resource type="Gradient" id="Gradient_hover_fade"]
+offsets = PackedFloat32Array(0, 0.16612378, 0.3159609)
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0.35, 1, 1, 1, 0)
 
 [sub_resource type="QuadMesh" id="QuadMesh_impact"]
 material = ExtResource("2_sand_mat")
@@ -78,23 +79,7 @@ angle_max = 360.0
 scale_amount_min = 0.4
 scale_amount_max = 0.75
 color = Color(1, 1, 1, 0.32)
-
-[node name="ContactDust" type="CPUParticles3D" parent="." unique_id=765132060]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.04, -0.2)
-emitting = false
-amount = 10
-explosiveness = 0.15
-randomness = 0.4
-visibility_aabb = AABB(-4, -2, -4, 8, 4, 8)
-mesh = SubResource("QuadMesh_contact")
-direction = Vector3(0, 1, 0.2)
-spread = 35.0
-gravity = Vector3(0, -4, 0)
-initial_velocity_min = 0.8
-initial_velocity_max = 2.2
-scale_amount_min = 0.15
-scale_amount_max = 0.35
-color = Color(1, 1, 1, 0.65)
+color_ramp = SubResource("Gradient_hover_fade")
 
 [node name="ImpactDust" type="CPUParticles3D" parent="." unique_id=131676693]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, 0)

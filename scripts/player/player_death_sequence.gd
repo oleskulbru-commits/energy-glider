@@ -4,6 +4,8 @@ extends Node
 ## Orchestrates death VFX: board tumble, sail retract, hero ragdoll detach.
 
 const HeroRagdollScript := preload("res://scripts/player/hero_ragdoll.gd")
+const CrawlerDebrisSandScript := preload("res://scripts/enemies/crawler_debris_sand.gd")
+const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
 
 const TERRAIN_COLLISION_MASK := 1
 const HERO_RIG_PATH := NodePath("Visual/GliderSkin/Model/GliderRoot/Hero_Rig")
@@ -24,6 +26,9 @@ var _saved_visual_basis := Basis.IDENTITY
 var _hero_rig: Node3D
 var _hero_hidden := false
 var _ragdoll: Node
+var _glider_sand: Node
+var _saved_contact_monitor := false
+var _saved_max_contacts := 0
 
 
 func _ready() -> void:
@@ -67,6 +72,7 @@ func cleanup() -> void:
 	_settle_left = 0.0
 	_detach_left = -1.0
 	_cleanup_ragdoll()
+	_cleanup_glider_sand()
 	_show_hero_rig()
 	_restore_physics_state()
 
@@ -161,6 +167,35 @@ func _enable_death_physics() -> void:
 	_glider.axis_lock_angular_x = false
 	_glider.axis_lock_angular_z = false
 	_glider.set_death_physics_active(true)
+	_attach_glider_sand()
+
+
+func _attach_glider_sand() -> void:
+	if not _glider is RigidBody3D:
+		return
+	var body := _glider as RigidBody3D
+	_saved_contact_monitor = body.contact_monitor
+	_saved_max_contacts = body.max_contacts_reported
+	body.contact_monitor = true
+	body.max_contacts_reported = 1
+	var terrain: TerrainManager = null
+	if _glider.has_method("get_terrain_manager"):
+		terrain = _glider.get_terrain_manager()
+	_glider_sand = CrawlerDebrisSandScript.attach(
+		body,
+		terrain,
+		SandParticleVfxScript.BurstPreset.DEATH
+	)
+
+
+func _cleanup_glider_sand() -> void:
+	if _glider_sand != null and is_instance_valid(_glider_sand):
+		_glider_sand.queue_free()
+	_glider_sand = null
+	if _glider is RigidBody3D:
+		var body := _glider as RigidBody3D
+		body.contact_monitor = _saved_contact_monitor
+		body.max_contacts_reported = _saved_max_contacts
 
 
 func _force_sail_retract() -> void:
@@ -189,7 +224,10 @@ func _spawn_hero_ragdoll() -> void:
 		_glider.global_transform.basis.y * 2.5 + _glider.global_transform.basis.z * 1.5
 	)
 	var skel := hero.get_node_or_null("Skeleton3D") as Skeleton3D
-	_ragdoll = HeroRagdollScript.spawn(tree, xf, velocity, impulse, skel)
+	var terrain: TerrainManager = null
+	if _glider.has_method("get_terrain_manager"):
+		terrain = _glider.get_terrain_manager()
+	_ragdoll = HeroRagdollScript.spawn(tree, xf, velocity, impulse, skel, terrain)
 	if _ragdoll != null and _ragdoll.has_method("disable_auto_expire"):
 		_ragdoll.disable_auto_expire()
 	hero.visible = false

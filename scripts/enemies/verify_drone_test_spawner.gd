@@ -2,6 +2,7 @@ extends SceneTree
 
 const ArenaScene := preload("res://scenes/test/crawler_test_arena.tscn")
 const DroneTestSpawnerScript := preload("res://scripts/enemies/drone_test_spawner.gd")
+const CombatDroneScript := preload("res://scripts/enemies/combat_drone.gd")
 const MachineGunDroneScript := preload("res://scripts/enemies/machine_gun_drone.gd")
 const LaserDroneScript := preload("res://scripts/enemies/laser_drone.gd")
 const MissileDroneScript := preload("res://scripts/enemies/missile_drone.gd")
@@ -67,6 +68,19 @@ func _assert_drone_spawned(drone: CombatDrone, label: String, type_ok: bool) -> 
 	_fail_unless(is_instance_valid(drone), "%s drone invalid" % label.capitalize())
 	_fail_unless(type_ok, "Active drone should be %s" % label)
 	_fail_unless(drone.get_node_or_null("Visual") != null, "%s drone missing Visual skin" % label.capitalize())
+	var visual := drone.get_node("Visual") as Node3D
+	_fail_unless(
+		is_equal_approx(visual.scale.x, CombatDroneScript.DRONE_SIZE_MULT),
+		"%s drone Visual should scale to DRONE_SIZE_MULT (got %.2f, expected %.2f)"
+		% [label, visual.scale.x, CombatDroneScript.DRONE_SIZE_MULT]
+	)
+	var col := drone.get_node("CollisionShape3D") as CollisionShape3D
+	var box := col.shape as BoxShape3D
+	_fail_unless(
+		is_equal_approx(box.size.x, CombatDroneScript.body_size_m()),
+		"%s drone hitbox should match body_size_m (got %.2f, expected %.2f)"
+		% [label, box.size.x, CombatDroneScript.body_size_m()]
+	)
 
 
 func _await_respawn(get_active: Callable, first_id: int) -> CombatDrone:

@@ -3,7 +3,7 @@ extends Area3D
 
 ## Lofted hail rocket with drone missile mesh and energy streak VFX.
 
-const DroneMissileProjectileScene = preload("res://scenes/enemies/drone_missile_projectile.tscn")
+const DroneMissileProjectileScene = preload("res://scenes/enemies/rebel_drones/drone_missile_projectile.tscn")
 const DroneGroundBlastScript = preload("res://scripts/enemies/drone_ground_blast.gd")
 
 enum FlightMode { GROUND_ARC, AIR_LINEAR }
@@ -13,6 +13,8 @@ const BLAST_RADIUS_M := 2.2
 const BLAST_MAX_ABOVE_M := 4.0
 const AIR_BLAST_RADIUS_M := 2.0
 const FLIGHT_SEC := 1.2
+const STRAIGHT_SEC := 0.3
+const XFADE_SEC := 0.8
 const LOFT_PEAK_M := 8.0
 const PASS_THROUGH_SEC := 1.5
 const PASS_THROUGH_DISTANCE_M := 60.0
@@ -31,6 +33,11 @@ var _pass_vel := Vector3.ZERO
 var _pass_ttl := 0.0
 var _pass_traveled := 0.0
 var _flight_speed_mps := 0.0
+var _straight_left := 0.0
+var _xfade_left := 0.0
+var _launch_dir := Vector3.FORWARD
+var _straight_speed_mps := 0.0
+var _straight_ghost_pos := Vector3.ZERO
 
 
 func launch_from_drone(
@@ -50,10 +57,10 @@ func launch_from_drone(
 	_impact = Vector3(impact.x, ground_y, impact.z)
 	_flight_t = 0.0
 	_spent = false
+	_launch_dir = Vector3.ZERO
 	_apply_spawn_transform(spawn_transform, origin)
-	_dir = arc_velocity(_origin, _impact, 0.0)
 	_attach_projectile_visual(visual_template)
-	_orient()
+	_begin_straight_phase()
 
 
 func launch_to_air_point(
@@ -69,24 +76,42 @@ func launch_to_air_point(
 	_impact = impact_3d
 	_flight_t = 0.0
 	_spent = false
+	_launch_dir = Vector3.ZERO
 	_apply_spawn_transform(spawn_transform, origin)
-	var delta := _impact - _origin
-	if delta.length_squared() < 0.0001:
-		_dir = Vector3.FORWARD
+	var travel := _impact - _origin
+	if travel.length_squared() < 0.0001:
 		_flight_speed_mps = 0.0
 	else:
-		_dir = delta.normalized()
-		_flight_speed_mps = delta.length() / FLIGHT_SEC
+		_flight_speed_mps = travel.length() / FLIGHT_SEC
 	_attach_projectile_visual(visual_template)
-	_orient()
+	_begin_straight_phase()
 
 
 func _apply_spawn_transform(spawn_transform: Transform3D, origin: Vector3) -> void:
 	if spawn_transform != Transform3D.IDENTITY:
 		global_position = spawn_transform.origin
 		_origin = global_position
+		var barrel_forward := spawn_transform.basis.z
+		if barrel_forward.length_squared() > 0.0001:
+			_launch_dir = barrel_forward.normalized()
 	else:
 		global_position = origin
+
+
+func _begin_straight_phase() -> void:
+	if _launch_dir.length_squared() < 0.0001:
+		_launch_dir = -global_transform.basis.z
+		if _launch_dir.length_squared() < 0.0001:
+			_launch_dir = -Vector3.FORWARD
+		else:
+			_launch_dir = _launch_dir.normalized()
+	_dir = _launch_dir
+	_straight_left = STRAIGHT_SEC
+	_xfade_left = 0.0
+	_straight_speed_mps = _flight_speed_mps
+	if _straight_speed_mps <= 0.0:
+		_straight_speed_mps = maxf(_origin.distance_to(_impact) / FLIGHT_SEC, 12.0)
+	_orient()
 
 
 func uses_drone_missile_visual() -> bool:
@@ -106,9 +131,21 @@ func _physics_process(delta: float) -> void:
 	if _pass_through:
 		_tick_pass_through(delta)
 		return
+	if _straight_left > 0.0:
+		delta = _consume_straight(delta)
+		if delta <= 0.0 or _spent:
+			return
+	if _xfade_left > 0.0:
+		delta = _consume_xfade(delta)
+		if delta <= 0.0 or _spent:
+			return
 	if _flight_mode == FlightMode.AIR_LINEAR:
 		_physics_process_air(delta)
 		return
+	_physics_process_ground(delta)
+
+
+func _physics_process_ground(delta: float) -> void:
 	_flight_t += delta / FLIGHT_SEC
 	if _flight_t >= 1.0:
 		global_position = _impact
@@ -117,6 +154,85 @@ func _physics_process(delta: float) -> void:
 	global_position = arc_position(_origin, _impact, _flight_t)
 	_dir = arc_velocity(_origin, _impact, _flight_t)
 	_orient()
+
+
+func _consume_straight(delta: float) -> float:
+	var step := minf(delta, _straight_left)
+	global_position += _launch_dir * _straight_speed_mps * step
+	_straight_left = maxf(_straight_left - step, 0.0)
+	if _flight_mode == FlightMode.AIR_LINEAR and _try_air_hit_at(global_position):
+		return 0.0
+	if _straight_left > 0.0:
+		return 0.0
+	_begin_homing()
+	return maxf(delta - step, 0.0)
+
+
+func _begin_homing() -> void:
+	_origin = global_position
+	_straight_ghost_pos = global_position
+	_flight_t = 0.0
+	_xfade_left = XFADE_SEC
+	_dir = _launch_dir
+	if _flight_mode == FlightMode.AIR_LINEAR:
+		var travel := _impact - _origin
+		if travel.length_squared() < 0.0001:
+			_flight_speed_mps = 0.0
+		else:
+			_flight_speed_mps = travel.length() / FLIGHT_SEC
+
+
+func _consume_xfade(delta: float) -> float:
+	var step := minf(delta, _xfade_left)
+	_xfade_left = maxf(_xfade_left - step, 0.0)
+	_straight_ghost_pos += _launch_dir * _straight_speed_mps * step
+	_flight_t += step / FLIGHT_SEC
+	var home := _sample_homing(_flight_t)
+	var home_pos: Vector3 = home[0]
+	var home_dir: Vector3 = home[1]
+	var weight := smoothstep(0.0, 1.0, (XFADE_SEC - _xfade_left) / XFADE_SEC)
+	global_position = _straight_ghost_pos.lerp(home_pos, weight)
+	_dir = _blend_dir(_launch_dir, home_dir, weight)
+	_orient()
+	if _flight_mode == FlightMode.AIR_LINEAR and _try_air_hit_at(global_position):
+		return 0.0
+	if _xfade_left > 0.0:
+		return 0.0
+	return maxf(delta - step, 0.0)
+
+
+func _sample_homing(flight_t: float) -> Array:
+	if _flight_mode == FlightMode.AIR_LINEAR:
+		var travel := _impact - _origin
+		var dir := _launch_dir
+		if travel.length_squared() > 0.0001:
+			dir = travel.normalized()
+		if flight_t >= 1.0:
+			return [_impact, dir]
+		return [_origin.lerp(_impact, flight_t), dir]
+	if flight_t >= 1.0:
+		return [_impact, arc_velocity(_origin, _impact, 1.0)]
+	return [
+		arc_position(_origin, _impact, flight_t),
+		arc_velocity(_origin, _impact, flight_t)
+	]
+
+
+func _blend_dir(from_dir: Vector3, to_dir: Vector3, weight: float) -> Vector3:
+	var from := from_dir
+	var to := to_dir
+	if from.length_squared() < 0.0001:
+		return to.normalized() if to.length_squared() > 0.0001 else Vector3.FORWARD
+	if to.length_squared() < 0.0001:
+		return from.normalized()
+	from = from.normalized()
+	to = to.normalized()
+	var align := from.dot(to)
+	if align > 0.999:
+		return from
+	if align < -0.999:
+		return from.lerp(to, weight).normalized()
+	return from.slerp(to, weight)
 
 
 func _physics_process_air(delta: float) -> void:

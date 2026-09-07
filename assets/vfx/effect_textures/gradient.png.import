@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bx1nlmtb8xbbw"
-path.s3tc="res://.godot/imported/full_smoke_puff.png-96aaa460cc41d4cad92fb00d85ced578.s3tc.ctex"
+uid="uid://dyc3jwmvtu852"
+path.s3tc="res://.godot/imported/gradient.png-1c0dde34075fb240af5d7c419ac75215.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://assets/vfx/noise_textures/full_smoke_puff.png"
-dest_files=["res://.godot/imported/full_smoke_puff.png-96aaa460cc41d4cad92fb00d85ced578.s3tc.ctex"]
+source_file="res://assets/vfx/effect_textures/gradient.png"
+dest_files=["res://.godot/imported/gradient.png-1c0dde34075fb240af5d7c419ac75215.s3tc.ctex"]
 
 [params]
 

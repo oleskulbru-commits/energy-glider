@@ -1,0 +1,10 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://do1m0atj6ifse"]
+
+[resource]
+resource_name = "Thruster_Mat"
+cull_mode = 2
+albedo_color = Color(0.9063, 0.5853, 0, 1)
+roughness = 0.5
+emission_enabled = true
+emission = Color(1, 0.6006, 0.0373, 1)
+emission_energy_multiplier = 16.0

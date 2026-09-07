@@ -5,6 +5,7 @@ extends SwarmPill
 
 const AutoRifleScript = preload("res://scripts/weapons/auto_rifle.gd")
 const DroneDeathBurstScript := preload("res://scripts/enemies/drone_death_burst.gd")
+const DroneTypeFlareScript := preload("res://scripts/vfx/drone_type_flare.gd")
 
 const DRONE_MAX_HEALTH := 40
 const WEAPON_RANGE_M := 40.0
@@ -18,6 +19,9 @@ const BASE_MOVE_SPEED_MPS := 15.0
 const DRONE_MIN_LEVEL := 5
 const AIR_TARGETING_ENTER_SEC := 1.0
 const AIR_TARGETING_EXIT_SEC := 0.35
+const FLIGHT_TURN_RATE_DEG := 72.0
+const FLIGHT_SPEED_ACCEL_MPS2 := 40.0
+const FACE_SLERP_RATE := 10.0
 
 enum FlyState { APPROACH, KITE, CATCH_UP }
 
@@ -27,6 +31,7 @@ var _cube: MeshInstance3D
 var _cube_color := Color(0.85, 0.15, 0.12)
 var _airborne_time := 0.0
 var _grounded_time := 0.0
+var _flight_heading := Vector3(-1.0, 0.0, 0.0)
 var invulnerable := false
 var never_despawn := false
 
@@ -52,6 +57,7 @@ func configure(terrain: TerrainManager, target: Node3D, speed: float = BASE_MOVE
 	_target = target
 	move_speed = speed
 	_snap_to_cruise_height(true, 0.0)
+	_init_flight_heading_from_transform()
 
 
 func _ensure_cube_visual() -> void:
@@ -114,7 +120,7 @@ func _physics_process(delta: float) -> void:
 	)
 	move_and_slide()
 	_snap_to_cruise_height(false, delta)
-	_face_target()
+	_face_heading(delta)
 	_update_weapons(delta)
 
 
@@ -140,10 +146,10 @@ func _steer(delta: float) -> void:
 		return
 	var dir := to.normalized()
 	var speed := _get_move_speed()
-	# Soft arrive near kite hold so we don't overshoot forever.
 	if fly_state == FlyState.KITE:
 		speed = minf(speed, to.length() * 2.5)
-	velocity = dir * speed
+	_steer_heading_toward(dir, FLIGHT_TURN_RATE_DEG, delta)
+	_apply_flight_velocity(speed, delta)
 
 
 func _desired_xz() -> Vector3:
@@ -158,6 +164,67 @@ func _desired_xz() -> Vector3:
 			return Vector3(player.x, 0.0, player.z) + facing * KITE_HOLD_M
 
 
+func _steer_heading_toward(desired_dir: Vector3, turn_rate_deg: float, delta: float) -> void:
+	var flat := Vector3(desired_dir.x, 0.0, desired_dir.z)
+	if flat.length_squared() < 0.0001:
+		return
+	_flight_heading = rotate_heading_toward(_flight_heading, flat, turn_rate_deg, delta)
+
+
+func _apply_flight_velocity(target_speed: float, delta: float) -> void:
+	var current_speed := Vector3(velocity.x, 0.0, velocity.z).length()
+	var new_speed := move_toward(
+		current_speed,
+		maxf(target_speed, 0.0),
+		FLIGHT_SPEED_ACCEL_MPS2 * maxf(delta, 0.0)
+	)
+	if _flight_heading.length_squared() < 0.0001:
+		velocity = Vector3.ZERO
+		velocity.y = 0.0
+		return
+	velocity = _flight_heading * new_speed
+	velocity.y = 0.0
+
+
+func _face_heading(delta: float) -> void:
+	if _flight_heading.length_squared() < 0.0001:
+		return
+	var forward := Vector3(_flight_heading.x, 0.0, _flight_heading.z).normalized()
+	var target_basis := Basis.looking_at(forward, Vector3.UP).orthonormalized()
+	global_transform.basis = global_transform.basis.slerp(
+		target_basis,
+		minf(FACE_SLERP_RATE * maxf(delta, 0.0), 1.0)
+	)
+
+
+func _init_flight_heading_from_transform() -> void:
+	var forward := -global_transform.basis.z
+	forward.y = 0.0
+	if forward.length_squared() > 0.0001:
+		_flight_heading = forward.normalized()
+
+
+static func rotate_heading_toward(
+	current: Vector3,
+	target: Vector3,
+	max_turn_deg: float,
+	delta: float
+) -> Vector3:
+	var cur := Vector3(current.x, 0.0, current.z)
+	var tgt := Vector3(target.x, 0.0, target.z)
+	if cur.length_squared() < 0.0001:
+		cur = Vector3(-1.0, 0.0, 0.0)
+	else:
+		cur = cur.normalized()
+	if tgt.length_squared() < 0.0001:
+		return cur
+	tgt = tgt.normalized()
+	var max_rad := deg_to_rad(maxf(max_turn_deg, 0.0)) * maxf(delta, 0.0)
+	var angle := cur.signed_angle_to(tgt, Vector3.UP)
+	var turn := clampf(angle, -max_rad, max_rad)
+	return cur.rotated(Vector3.UP, turn).normalized()
+
+
 func _snap_to_cruise_height(instant: bool, delta: float = 0.016) -> void:
 	var ground := 0.0
 	if _terrain != null:
@@ -170,19 +237,6 @@ func _snap_to_cruise_height(instant: bool, delta: float = 0.016) -> void:
 		global_position.y = target_y
 		return
 	global_position.y = move_toward(global_position.y, target_y, HEIGHT_FOLLOW_RATE * delta)
-
-
-func _face_target() -> void:
-	if _target == null or not is_instance_valid(_target):
-		return
-	var flat := Vector3(
-		_target.global_position.x - global_position.x,
-		0.0,
-		_target.global_position.z - global_position.z
-	)
-	if flat.length_squared() < 0.0001:
-		return
-	look_at(global_position + flat.normalized(), Vector3.UP)
 
 
 ## Subclasses implement weapons. Base is a no-op.
@@ -250,6 +304,9 @@ func _die(from_pos: Vector3) -> void:
 	if collision != null:
 		collision.disabled = true
 	if _visual != null:
+		var streak_vfx := _visual.get_node_or_null("Body") as DroneStreakVfx
+		if streak_vfx != null:
+			streak_vfx.prepare_for_death()
 		DroneDeathBurstScript.spawn(get_tree(), global_transform, _visual, from_pos, _terrain)
 		_visual.visible = false
 	elif _cube != null:
@@ -267,6 +324,15 @@ func _apply_visual_scale() -> void:
 		return
 	if _cube != null and _cube.mesh is BoxMesh:
 		(_cube.mesh as BoxMesh).size = Vector3.ONE * body_size_m()
+
+
+func get_type_flare() -> Node3D:
+	if _visual == null:
+		return null
+	var flare := _visual.find_child("TypeFlare", true, false)
+	if flare != null and flare.get_script() == DroneTypeFlareScript:
+		return flare
+	return null
 
 
 func _apply_hitbox_scale() -> void:

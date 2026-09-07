@@ -2,17 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dyc3jwmvtu852"
-path.s3tc="res://.godot/imported/gradient.png-1b3558794bc3ffab8346107a7796c2dd.s3tc.ctex"
+uid="uid://brnw52guruea1"
+path.s3tc="res://.godot/imported/drone_machinegun_module_v001_autocannon_module_metallic.JPEG-autocannon_module_roughness.png-5e514ab2c7bd45c517c4ea7b32b254eb.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
+generator_parameters={
+"md5": "5af7b3542cfd192a84aeb4d5cbf27deb"
+}
 
 [deps]
 
-source_file="res://assets/vfx/noise_textures/gradient.png"
-dest_files=["res://.godot/imported/gradient.png-1b3558794bc3ffab8346107a7796c2dd.s3tc.ctex"]
+source_file="res://assets/3dmodels/enemies/drones/drone_machinegun_module_v001_autocannon_module_metallic.JPEG-autocannon_module_roughness.png"
+dest_files=["res://.godot/imported/drone_machinegun_module_v001_autocannon_module_metallic.JPEG-autocannon_module_roughness.png-5e514ab2c7bd45c517c4ea7b32b254eb.s3tc.ctex"]
 
 [params]
 

@@ -6,4 +6,4 @@
 [node name="SandImpactDust" type="Node3D" unique_id=816318249]
 script = ExtResource("1_script")
 
-[node name="BurstRoot" parent="." instance=ExtResource("2_heavy")]
+[node name="BurstRoot" parent="." unique_id=343550513 instance=ExtResource("2_heavy")]

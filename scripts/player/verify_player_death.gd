@@ -31,6 +31,7 @@ func _run() -> void:
 	await _verify_death_ragdoll_respawn_cleanup()
 	await _verify_death_camera_follow()
 	await _verify_death_ragdoll_persistence()
+	await _verify_player_death_ground_sand()
 	await _verify_death_overlay_delay()
 	print("Player death verification passed.")
 	quit(0)
@@ -68,6 +69,7 @@ func _verify_death_overlay_releases_look() -> void:
 	)
 
 	director.queue_free()
+	glider.reset_for_respawn()
 	rig.queue_free()
 
 
@@ -78,7 +80,8 @@ func _verify_death_tumble() -> void:
 	root.add_child(glider)
 	glider.global_position = Vector3(0.0, _hover_y(terrain), 0.0)
 	glider.linear_velocity = Vector3(8.0, 2.0, 4.0)
-	await process_frame
+	for _i in 10:
+		await process_frame
 	var pre_speed := glider.linear_velocity.length()
 	glider.end_run("death")
 	_fail_unless(glider.is_run_ended(), "Death should end the run")
@@ -94,6 +97,8 @@ func _verify_death_tumble() -> void:
 	)
 	var visual: Node3D = glider.get_node("Visual") as Node3D
 	_fail_unless(visual.basis.is_equal_approx(Basis.IDENTITY), "Death should reset visual basis for tumble")
+	glider.reset_for_respawn()
+	await process_frame
 	glider.queue_free()
 	terrain.queue_free()
 
@@ -122,6 +127,8 @@ func _verify_sail_retract_on_death() -> void:
 		state == &"deploy_reverse" or state == &"sail_down",
 		"Death sequence should keep sail retracting (state=%s)" % state
 	)
+	glider.reset_for_respawn()
+	await process_frame
 	glider.queue_free()
 	terrain.queue_free()
 
@@ -503,6 +510,40 @@ func _verify_death_ragdoll_persistence() -> void:
 	_fail_unless(_find_hero_ragdoll(root) == null, "Respawn should cleanup persisted ragdoll")
 	glider.queue_free()
 	terrain.queue_free()
+
+
+func _verify_player_death_ground_sand() -> void:
+	var death_seq_source := FileAccess.get_file_as_string(
+		"res://scripts/player/player_death_sequence.gd"
+	)
+	_fail_unless(
+		death_seq_source.find("CrawlerDebrisSand") != -1,
+		"PlayerDeathSequence should attach CrawlerDebrisSand to glider on death"
+	)
+	_fail_unless(
+		death_seq_source.find("BurstPreset.DEATH") != -1,
+		"PlayerDeathSequence should use DEATH sand preset for glider impacts"
+	)
+	var hero_source := FileAccess.get_file_as_string("res://scripts/player/hero_ragdoll.gd")
+	_fail_unless(
+		hero_source.find("RagdollGroundSand") != -1,
+		"HeroRagdoll should attach RagdollGroundSand when terrain is available"
+	)
+	_fail_unless(
+		hero_source.find("get_simulation_skeleton") != -1,
+		"HeroRagdoll should expose simulation skeleton for ground sand wiring"
+	)
+	var ragdoll_sand_source := FileAccess.get_file_as_string(
+		"res://scripts/player/ragdoll_ground_sand.gd"
+	)
+	_fail_unless(
+		ragdoll_sand_source.find("GROUND_OFFSET_M") != -1,
+		"RagdollGroundSand should detect ground contact via terrain proximity"
+	)
+	_fail_unless(
+		ragdoll_sand_source.find("BurstPreset.MG") != -1,
+		"RagdollGroundSand should use MG preset for bounce impacts"
+	)
 
 
 func _verify_death_overlay_delay() -> void:

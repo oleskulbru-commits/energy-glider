@@ -2,26 +2,27 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bg60ifg35jv7p"
-path="res://.godot/imported/lens_flare.png-d9de3f3380865aa9f89dd28998b25b75.ctex"
+uid="uid://8msqhuanvs4b"
+path.s3tc="res://.godot/imported/radial_smoke_puff_normal.png-11be9f51961216b603111acb058b1570.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
-source_file="res://assets/vfx/noise_textures/lens_flare.png"
-dest_files=["res://.godot/imported/lens_flare.png-d9de3f3380865aa9f89dd28998b25b75.ctex"]
+source_file="res://assets/vfx/effect_textures/radial_smoke_puff_normal.png"
+dest_files=["res://.godot/imported/radial_smoke_puff_normal.png-11be9f51961216b603111acb058b1570.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=0
+compress/normal_map=1
 compress/channel_pack=0
 mipmaps/generate=false
 mipmaps/limit=-1
@@ -37,4 +38,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

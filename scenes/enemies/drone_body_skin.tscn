@@ -1,7 +1,17 @@
-[gd_scene format=3 uid="uid://dpfc3r14weqc3"]
+[gd_scene format=3 uid="uid://qncnlvo2kh1q"]
 
 [ext_resource type="PackedScene" uid="uid://bthxxa63biywm" path="res://assets/3dmodels/enemies/drones/Rebel_Drone_Body_v001.glb" id="1_body"]
+[ext_resource type="Material" path="res://assets/materials/enemies/rebel_drone_body.tres" id="2_drone_mat"]
+[ext_resource type="Material" path="res://assets/materials/enemies/rebel_drone_blue_emissives.tres" id="3_blue_emissives"]
+[ext_resource type="Material" uid="uid://do1m0atj6ifse" path="res://assets/materials/enemies/rebel_drone_thruster.tres" id="4_thruster_mat"]
 
-[node name="DroneBodySkin" type="Node3D"]
+[node name="DroneBodySkin" type="Node3D" unique_id=647530971]
 
-[node name="Body" parent="." instance=ExtResource("1_body")]
+[node name="Body" parent="." unique_id=238682451 instance=ExtResource("1_body")]
+
+[node name="Rebel_Drone" parent="Body" index="0" unique_id=166991328]
+surface_material_override/0 = ExtResource("2_drone_mat")
+surface_material_override/1 = ExtResource("3_blue_emissives")
+surface_material_override/2 = ExtResource("4_thruster_mat")
+
+[editable path="Body"]

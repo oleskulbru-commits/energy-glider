@@ -5,6 +5,9 @@ extends Node3D
 
 const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 const CrawlerDebrisSandScript := preload("res://scripts/enemies/crawler_debris_sand.gd")
+const DroneDebrisThrusterVfxScript := preload("res://scripts/enemies/drone_debris_thruster_vfx.gd")
+const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
+const CameraImpactShakeScript := preload("res://scripts/player/camera_impact_shake.gd")
 
 const BODY_PIECE_PATH := NodePath("Body/Body")
 const WEAPON_PIECE_PATH := NodePath("Body/CSGCylinder3D/Weapon_Pivot/WeaponModule")
@@ -40,6 +43,7 @@ static func spawn(
 	wrapper._terrain = terrain
 	wrapper._spawn_pieces(visual, hit_pos)
 	KillSparks.spawn(tree, drone_xf.origin)
+	CameraImpactShakeScript.request(tree, drone_xf.origin, 0.25, 15.0)
 	wrapper._schedule_cleanup()
 	return wrapper
 
@@ -64,6 +68,11 @@ func _spawn_pieces(visual: Node3D, hit_pos: Vector3) -> void:
 
 
 func _promote_piece(piece_root: Node3D, hit_pos: Vector3) -> void:
+	var thruster_streaks := piece_root.find_child("ThrusterStreaks", true, false) as Node3D
+	var hover_streaks := piece_root.find_child("HoverStreaks", true, false) as Node3D
+	if hover_streaks != null:
+		hover_streaks.visible = false
+
 	var mesh_entries := _collect_mesh_entries(piece_root)
 	if mesh_entries.is_empty():
 		return
@@ -96,8 +105,12 @@ func _promote_piece(piece_root: Node3D, hit_pos: Vector3) -> void:
 		body.queue_free()
 		return
 
+	if thruster_streaks != null:
+		thruster_streaks.reparent(body, true)
+		DroneDebrisThrusterVfxScript.attach(body, thruster_streaks)
+
 	_apply_burst_impulse(body, hit_pos)
-	CrawlerDebrisSandScript.attach(body, _terrain)
+	CrawlerDebrisSandScript.attach(body, _terrain, SandParticleVfxScript.BurstPreset.DEATH)
 
 
 func _collect_mesh_entries(piece_root: Node3D) -> Array:
@@ -109,13 +122,25 @@ func _collect_mesh_entries(piece_root: Node3D) -> Array:
 func _collect_mesh_entries_recursive(node: Node, piece_root: Node3D, out: Array) -> void:
 	if node is MeshInstance3D:
 		var mesh_inst := node as MeshInstance3D
-		if mesh_inst.mesh != null:
+		if mesh_inst.mesh != null and not _should_skip_debris_mesh(mesh_inst, piece_root):
 			out.append({
 				"inst": mesh_inst,
 				"local_xf": piece_root.global_transform.affine_inverse() * mesh_inst.global_transform,
 			})
 	for child in node.get_children():
 		_collect_mesh_entries_recursive(child, piece_root, out)
+
+
+func _should_skip_debris_mesh(mesh_inst: MeshInstance3D, piece_root: Node3D) -> bool:
+	var node: Node = mesh_inst
+	while node != null and node != piece_root:
+		var node_name := node.name
+		if node_name == "ThrusterStreaks" or node_name == "HoverStreaks":
+			return true
+		if node is OmniLight3D:
+			return true
+		node = node.get_parent()
+	return false
 
 
 func _duplicate_mesh(source: MeshInstance3D) -> MeshInstance3D:

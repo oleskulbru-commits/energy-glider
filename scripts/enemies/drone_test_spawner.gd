@@ -5,9 +5,9 @@ extends Node3D
 
 enum DroneKind { MG, LASER, MISSILE }
 
-const MachineGunDroneScene := preload("res://scenes/enemies/machine_gun_drone.tscn")
-const LaserDroneScene := preload("res://scenes/enemies/laser_drone.tscn")
-const MissileDroneScene := preload("res://scenes/enemies/missile_drone.tscn")
+const MachineGunDroneScene := preload("res://scenes/enemies/rebel_drones/machine_gun_drone.tscn")
+const LaserDroneScene := preload("res://scenes/enemies/rebel_drones/laser_drone.tscn")
+const MissileDroneScene := preload("res://scenes/enemies/rebel_drones/missile_drone.tscn")
 const CombatDroneScript := preload("res://scripts/enemies/combat_drone.gd")
 
 @export var player_rig_path: NodePath
