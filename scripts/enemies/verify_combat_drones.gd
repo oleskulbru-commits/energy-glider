@@ -618,6 +618,20 @@ func _player_x_at_segment_progress(level: int, progress: float) -> float:
 
 
 func _verify_missile_hail() -> void:
+	var drone_rocket_source := FileAccess.get_file_as_string("res://scripts/enemies/drone_rocket.gd")
+	_fail_unless(
+		drone_rocket_source.find("create_missile_smoke_trail") != -1,
+		"DroneRocket should create sand-texture smoke trail"
+	)
+	_fail_unless(
+		drone_rocket_source.find("material_for_drone_missile_trail") != -1,
+		"DroneRocket should use blue drone missile smoke material"
+	)
+	var missile_drone_source := FileAccess.get_file_as_string("res://scripts/enemies/missile_drone.gd")
+	_fail_unless(
+		missile_drone_source.find("SceneUtilScript.world_parent") != -1,
+		"MissileDrone should spawn rockets into the SubViewport world"
+	)
 	_fail_unless(MissileDroneScript.ROCKET_COUNT_MIN == 30, "Hail min should be 30")
 	_fail_unless(MissileDroneScript.ROCKET_COUNT_MAX == 40, "Hail max should be 40")
 	_fail_unless(

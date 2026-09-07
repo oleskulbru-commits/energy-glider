@@ -8,6 +8,7 @@ const TerrainManagerScript = preload("res://scripts/terrain/terrain_manager.gd")
 const GliderScene = preload("res://scenes/player/glider.tscn")
 const GliderCameraScript = preload("res://scripts/player/glider_camera.gd")
 const CameraImpactShakeScript = preload("res://scripts/player/camera_impact_shake.gd")
+const SpeedWindStreaksScript = preload("res://scripts/player/speed_wind_streaks.gd")
 const GliderAnimControllerScript = preload("res://scripts/player/glider_anim_controller.gd")
 const DayNightCycleScript = preload("res://scripts/world/day_night_cycle.gd")
 const SandMaterial = preload("res://assets/materials/sand.tres")
@@ -128,6 +129,7 @@ func _run_tests() -> void:
 	_verify_brake_boost_time_scale()
 	_verify_handheld_camera()
 	_verify_impact_camera_shake()
+	_verify_speed_wind_streaks()
 	_verify_boost_climb_target_speed()
 	_verify_ground_boost_accel_rate()
 	_verify_glider_speed_caps()
@@ -664,6 +666,55 @@ func _verify_impact_camera_shake() -> void:
 	_fail_unless(
 		cam.get_impact_trauma() <= cam.max_impact_trauma + 0.001,
 		"Impact trauma should clamp to max_impact_trauma"
+	)
+	cam.queue_free()
+
+	var camera_source := FileAccess.get_file_as_string("res://scripts/player/glider_camera.gd")
+	_fail_unless(
+		camera_source.find("impact_shake_smoothing") != -1,
+		"GliderCamera should export impact_shake_smoothing"
+	)
+	_fail_unless(
+		camera_source.find("_impact_rot.lerp") != -1,
+		"Impact shake should lerp _impact_rot for smoother motion"
+	)
+
+
+func _verify_speed_wind_streaks() -> void:
+	var cap := GliderPhysicsScript.flat_max_speed(false, 0.0)
+	_fail_unless(
+		is_equal_approx(SpeedWindStreaksScript.compute_speed_streak_blend(cap * 0.5, cap), 0.0),
+		"Speed streak blend should be zero below threshold"
+	)
+	_fail_unless(
+		is_equal_approx(SpeedWindStreaksScript.compute_speed_streak_blend(cap, cap), 1.0),
+		"Speed streak blend should reach full strength at cap"
+	)
+	_fail_unless(
+		SpeedWindStreaksScript.compute_speed_streak_blend(cap * 0.94, cap)
+			< SpeedWindStreaksScript.compute_speed_streak_blend(cap * 0.97, cap),
+		"Speed streak blend should increase monotonically near cap"
+	)
+
+	var streak_source := FileAccess.get_file_as_string("res://scripts/player/speed_wind_streaks.gd")
+	_fail_unless(
+		streak_source.find("flat_max_speed") != -1,
+		"SpeedWindStreaks should use mode speed cap"
+	)
+	var glider_scene := FileAccess.get_file_as_string("res://scenes/player/glider.tscn")
+	_fail_unless(
+		glider_scene.find("SpeedWindStreaks") != -1,
+		"Glider scene should include SpeedWindStreaks under camera"
+	)
+
+	var cam := GliderCameraScript.new()
+	_fail_unless(
+		cam.handheld_rot_amplitude_deg >= 1.2,
+		"Handheld shake amplitude should be increased"
+	)
+	_fail_unless(
+		cam.impact_rot_amplitude_deg >= 3.5,
+		"Impact shake amplitude should be increased"
 	)
 	cam.queue_free()
 

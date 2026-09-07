@@ -1,9 +1,12 @@
 class_name RocketMissile
 extends Area3D
 
-## Lofted homing capsule. Boosts up, then dives at the locked enemy.
+## Lofted homing missile with drone mesh visual and sand-texture smoke trail.
 
 const AutoRocketScript := preload("res://scripts/weapons/auto_rocket.gd")
+const DroneMissileProjectileScene := preload("res://scenes/enemies/rebel_drones/drone_missile_projectile.tscn")
+const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
+const AerialExplosionVfxScript := preload("res://scripts/vfx/aerial_explosion_vfx.gd")
 
 const SPEED_MPS := 35.0
 const LIFETIME_SEC := 8.0
@@ -13,6 +16,9 @@ const HOMING := 0.85
 const DAMAGE := 18
 const KNOCKBACK_SPEED := 20.0
 const AIM_UP_M := 0.7
+
+const STREAK_COLOR := Color(1.0, 0.55, 0.15, 0.85)
+const STREAK_GLOW := 3.2
 
 
 var _target: Node3D
@@ -27,12 +33,16 @@ var _speed := SPEED_MPS
 var _crit_chance := 0.0
 var _knockback_speed := KNOCKBACK_SPEED
 var _rng := RandomNumberGenerator.new()
+var _smoke_trail: CPUParticles3D
 
 
 func _ready() -> void:
 	monitoring = true
 	monitorable = false
 	body_entered.connect(_on_body_entered)
+	_smoke_trail = get_node_or_null("SmokeTrail") as CPUParticles3D
+	_setup_visual()
+	_setup_trail()
 
 
 func launch(
@@ -57,6 +67,52 @@ func launch(
 	_launch_facing = _resolve_launch_facing(origin, target, facing_xz)
 	_rng.randomize()
 	_orient()
+	if _smoke_trail != null:
+		_smoke_trail.emitting = true
+
+
+func _setup_visual() -> void:
+	if get_node_or_null("ProjectileVisual") != null:
+		return
+	var visual_root := Node3D.new()
+	visual_root.name = "ProjectileVisual"
+	visual_root.basis = Basis.from_euler(Vector3(0.0, PI, 0.0))
+	add_child(visual_root)
+	move_child(visual_root, 0)
+	var projectile: Node3D = DroneMissileProjectileScene.instantiate()
+	visual_root.add_child(projectile)
+	_tint_streak_orange(visual_root)
+
+
+func _setup_trail() -> void:
+	if _smoke_trail == null:
+		return
+	SandParticleVfxScript.configure_missile_smoke_trail(
+		_smoke_trail,
+		SandParticleVfxScript.material_for_rocket_trail(),
+		SandParticleVfxScript.ROCKET_TRAIL_COLOR
+	)
+	_smoke_trail.emitting = false
+
+
+func _tint_streak_orange(root: Node) -> void:
+	var streak := root.find_child("Streak", true, false) as MeshInstance3D
+	if streak == null:
+		return
+	var mat := streak.material_override
+	if mat is ShaderMaterial:
+		var shader_mat := (mat as ShaderMaterial).duplicate()
+		shader_mat.set_shader_parameter(
+			"ColorParameter",
+			Color(STREAK_COLOR.r * 1.6, STREAK_COLOR.g * 1.4, STREAK_COLOR.b * 1.6, STREAK_COLOR.a)
+		)
+		shader_mat.set_shader_parameter("GlowStrength", STREAK_GLOW)
+		streak.material_override = shader_mat
+	elif mat is StandardMaterial3D:
+		var std_mat := (mat as StandardMaterial3D).duplicate()
+		std_mat.albedo_color = Color(STREAK_COLOR.r, STREAK_COLOR.g, STREAK_COLOR.b, 0.65)
+		std_mat.emission = Color(STREAK_COLOR.r, STREAK_COLOR.g * 0.7, STREAK_COLOR.b * 0.4, 1.0)
+		streak.material_override = std_mat
 
 
 func _resolve_launch_facing(origin: Vector3, target: Node3D, facing_xz: Vector3) -> Vector3:
@@ -151,8 +207,11 @@ func _on_body_entered(body: Node) -> void:
 		return
 	var hit := _resolve_hit()
 	pill.take_damage(hit.damage, _dir, hit.is_crit, _knockback_speed, UpgradeCatalog.FAMILY_ROCKET)
+	AerialExplosionVfxScript.spawn(get_tree(), global_position)
 	RocketExplosion.spawn(get_tree(), global_position)
 	_spent = true
+	if _smoke_trail != null:
+		_smoke_trail.emitting = false
 	queue_free()
 
 

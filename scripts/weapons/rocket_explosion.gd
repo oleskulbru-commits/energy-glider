@@ -3,6 +3,8 @@ extends CPUParticles3D
 
 ## Orange blast. Parent to the world so it outlives the missile.
 
+const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
+
 const LIFETIME_SEC := 0.45
 const FREE_BUFFER_SEC := 0.2
 
@@ -10,7 +12,7 @@ const FREE_BUFFER_SEC := 0.2
 static func spawn(tree: SceneTree, origin: Vector3) -> void:
 	if tree == null:
 		return
-	var parent := tree.current_scene
+	var parent := SceneUtilScript.world_parent(tree)
 	if parent == null:
 		return
 	var burst := RocketExplosion.new()

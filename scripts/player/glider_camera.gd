@@ -30,15 +30,16 @@ extends Camera3D
 @export var land_recover_min_sec: float = 0.35
 @export var land_recover_max_sec: float = 0.85
 @export var speed_shake_enabled: bool = true
-@export var speed_shake_strength_at_max: float = 1.0
-@export var handheld_rot_amplitude_deg: float = 0.8
-@export var handheld_rot_frequency: float = 0.85
-@export var handheld_smoothing: float = 10.0
+@export var speed_shake_strength_at_max: float = 1.55
+@export var handheld_rot_amplitude_deg: float = 1.25
+@export var handheld_rot_frequency: float = 0.58
+@export var handheld_smoothing: float = 18.0
 @export var impact_shake_enabled: bool = true
-@export var max_impact_trauma: float = 1.15
-@export var impact_trauma_decay: float = 1.8
-@export var impact_rot_amplitude_deg: float = 2.4
-@export var impact_shake_frequency: float = 1.35
+@export var max_impact_trauma: float = 1.35
+@export var impact_trauma_decay: float = 1.35
+@export var impact_rot_amplitude_deg: float = 3.6
+@export var impact_shake_frequency: float = 0.85
+@export var impact_shake_smoothing: float = 16.0
 
 const MIN_VELOCITY_YAW_SPEED := 1.5
 const SPEED_BLEND_START := 5.0
@@ -86,6 +87,7 @@ var _handheld_rot := Vector3.ZERO
 var _handheld_rot_noise: FastNoiseLite
 var _impact_trauma := 0.0
 var _impact_time := 0.0
+var _impact_rot := Vector3.ZERO
 var _impact_rot_noise: FastNoiseLite
 
 
@@ -272,6 +274,7 @@ func reset_follow_state() -> void:
 	_reset_handheld()
 	_impact_trauma = 0.0
 	_impact_time = 0.0
+	_impact_rot = Vector3.ZERO
 	fov = camera_fov
 
 
@@ -361,21 +364,30 @@ func _apply_impact_offset(delta: float, snap: bool) -> void:
 	if snap or not impact_shake_enabled:
 		_impact_trauma = 0.0
 		_impact_time = 0.0
+		_impact_rot = Vector3.ZERO
 		return
 	_impact_trauma = maxf(_impact_trauma - impact_trauma_decay * delta, 0.0)
 	if _impact_trauma <= 0.001:
-		return
-	_impact_time += delta
-	var amp := deg_to_rad(impact_rot_amplitude_deg) * _impact_trauma * _impact_trauma
-	var sample_rot := sample_handheld_rotation(
-		_impact_time,
-		_impact_rot_noise,
-		amp,
-		1.0
-	)
-	rotate_object_local(Vector3.UP, sample_rot.y)
-	rotate_object_local(Vector3.RIGHT, sample_rot.x)
-	rotate_object_local(Vector3.FORWARD, sample_rot.z)
+		_impact_rot = _impact_rot.lerp(Vector3.ZERO, clampf(impact_shake_smoothing * delta, 0.0, 1.0))
+		if _impact_rot.length_squared() <= 0.000001:
+			_impact_rot = Vector3.ZERO
+		if _impact_rot == Vector3.ZERO:
+			return
+	else:
+		_impact_time += delta
+		var amp := deg_to_rad(impact_rot_amplitude_deg) * _impact_trauma * _impact_trauma
+		var sample_rot := sample_handheld_rotation(
+			_impact_time,
+			_impact_rot_noise,
+			amp,
+			1.0
+		)
+		var smooth_t := clampf(impact_shake_smoothing * delta, 0.0, 1.0)
+		_impact_rot = _impact_rot.lerp(sample_rot, smooth_t)
+
+	rotate_object_local(Vector3.UP, _impact_rot.y)
+	rotate_object_local(Vector3.RIGHT, _impact_rot.x)
+	rotate_object_local(Vector3.FORWARD, _impact_rot.z)
 
 
 func _reset_landing_recovery() -> void:

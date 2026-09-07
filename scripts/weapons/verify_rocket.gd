@@ -30,6 +30,29 @@ func _run() -> void:
 
 
 func _verify_stats() -> void:
+	var missile_source := FileAccess.get_file_as_string("res://scripts/weapons/rocket_missile.gd")
+	_fail_unless(
+		missile_source.find("DroneMissileProjectileScene") != -1,
+		"RocketMissile should use drone missile projectile visual"
+	)
+	_fail_unless(
+		missile_source.find("material_for_rocket_trail") != -1,
+		"RocketMissile should configure sand-texture smoke trail"
+	)
+	_fail_unless(
+		missile_source.find("AerialExplosionVfxScript.spawn") != -1,
+		"RocketMissile should spawn aerial explosion VFX on impact"
+	)
+	var rocket_explosion_source := FileAccess.get_file_as_string("res://scripts/weapons/rocket_explosion.gd")
+	_fail_unless(
+		rocket_explosion_source.find("SceneUtilScript.world_parent") != -1,
+		"RocketExplosion should parent into the SubViewport world"
+	)
+	var auto_rocket_source := FileAccess.get_file_as_string("res://scripts/weapons/auto_rocket.gd")
+	_fail_unless(
+		auto_rocket_source.find("SceneUtilScript.world_parent") != -1,
+		"AutoRocket should spawn missiles into the SubViewport world"
+	)
 	_fail_unless(AutoRocketScript.DAMAGE == 18, "Rocket damage should be 18")
 	_fail_unless(is_equal_approx(AutoRocketScript.RANGE_M, 75.0), "Rocket acquire range should be 75 m")
 	_fail_unless(is_equal_approx(AutoRocketScript.FIRE_INTERVAL_SEC, 4.0), "Rocket interval should be 4 s")

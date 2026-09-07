@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://cl4kvva86sbbd"]
+
+[ext_resource type="Script" uid="uid://b4qxy8cst8ak4" path="res://scripts/vfx/aerial_explosion_vfx.gd" id="1_script"]
+
+[node name="AerialExplosion" type="Node3D" unique_id=1011543625]
+script = ExtResource("1_script")

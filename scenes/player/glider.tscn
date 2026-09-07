@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" path="res://scenes/player/player_health_bar.tscn" id="13_hp_bar"]
 [ext_resource type="PackedScene" uid="uid://xl8sa2wcaqiu" path="res://scenes/player/the_glider_skin.tscn" id="13_skin"]
 [ext_resource type="Script" uid="uid://dcybugjnwyvfp" path="res://scripts/player/glider_camera.gd" id="14_camera"]
+[ext_resource type="Script" path="res://scripts/player/speed_wind_streaks.gd" id="16_speed_streaks"]
 [ext_resource type="Script" uid="uid://c0biw70j6y763" path="res://scripts/player/player_death_sequence.gd" id="15_death"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_glider"]
@@ -53,6 +54,9 @@ shape = SubResource("BoxShape3D_glider")
 transform = Transform3D(1, 0, 0, 0, 0.9659258, 0.25881904, 0, -0.25881904, 0.9659258, 0, 4, 10)
 top_level = true
 script = ExtResource("14_camera")
+
+[node name="SpeedWindStreaks" type="Node3D" parent="Camera3D"]
+script = ExtResource("16_speed_streaks")
 
 [node name="HoverDust" type="Node3D" parent="." unique_id=1087170788]
 script = ExtResource("9_hover_dust")

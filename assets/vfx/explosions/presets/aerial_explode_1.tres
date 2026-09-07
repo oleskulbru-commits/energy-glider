@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="AerialExplosionPreset" format=3 uid="uid://bo0prg4nrupay"]
+
+[ext_resource type="Script" uid="uid://daujcnywstycf" path="res://scripts/vfx/aerial_explosion_preset.gd" id="1_preset"]
+[ext_resource type="Material" path="res://assets/materials/vfx/aerial_explosion_material.tres" id="2_material"]
+
+[resource]
+script = ExtResource("1_preset")
+fps = 25.0
+material = ExtResource("2_material")
+emission_strength = 5.0

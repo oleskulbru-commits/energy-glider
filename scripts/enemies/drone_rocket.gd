@@ -5,6 +5,8 @@ extends Area3D
 
 const DroneMissileProjectileScene = preload("res://scenes/enemies/rebel_drones/drone_missile_projectile.tscn")
 const DroneGroundBlastScript = preload("res://scripts/enemies/drone_ground_blast.gd")
+const AerialExplosionVfxScript = preload("res://scripts/vfx/aerial_explosion_vfx.gd")
+const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
 
 enum FlightMode { GROUND_ARC, AIR_LINEAR }
 
@@ -38,6 +40,7 @@ var _xfade_left := 0.0
 var _launch_dir := Vector3.FORWARD
 var _straight_speed_mps := 0.0
 var _straight_ghost_pos := Vector3.ZERO
+var _smoke_trail: CPUParticles3D
 
 
 func launch_from_drone(
@@ -60,6 +63,7 @@ func launch_from_drone(
 	_launch_dir = Vector3.ZERO
 	_apply_spawn_transform(spawn_transform, origin)
 	_attach_projectile_visual(visual_template)
+	_begin_smoke_trail()
 	_begin_straight_phase()
 
 
@@ -84,6 +88,7 @@ func launch_to_air_point(
 	else:
 		_flight_speed_mps = travel.length() / FLIGHT_SEC
 	_attach_projectile_visual(visual_template)
+	_begin_smoke_trail()
 	_begin_straight_phase()
 
 
@@ -249,6 +254,7 @@ func _physics_process_air(delta: float) -> void:
 	global_position = _impact
 	if _try_air_hit_at(_impact):
 		return
+	_spawn_impact_vfx(_impact)
 	_begin_pass_through()
 
 
@@ -259,6 +265,7 @@ func _tick_pass_through(delta: float) -> void:
 	_pass_ttl -= delta
 	_orient()
 	if _pass_ttl <= 0.0 or _pass_traveled >= PASS_THROUGH_DISTANCE_M:
+		_stop_smoke_trail()
 		queue_free()
 
 
@@ -284,6 +291,8 @@ func _try_air_hit_at(point: Vector3) -> bool:
 	var health := get_tree().get_first_node_in_group("player_health")
 	if health != null and health.has_method("take_damage"):
 		health.take_damage(DAMAGE)
+	_spawn_impact_vfx(point)
+	_stop_smoke_trail()
 	queue_free()
 	return true
 
@@ -338,9 +347,30 @@ func _detonate() -> void:
 				var health := get_tree().get_first_node_in_group("player_health")
 				if health != null and health.has_method("take_damage"):
 					health.take_damage(DAMAGE)
+	_spawn_impact_vfx(_impact)
 	if _flight_mode == FlightMode.GROUND_ARC:
 		DroneGroundBlastScript.spawn(get_tree(), _impact, _terrain)
+	_stop_smoke_trail()
 	queue_free()
+
+
+func _spawn_impact_vfx(at: Vector3) -> void:
+	AerialExplosionVfxScript.spawn(get_tree(), at)
+
+
+func _begin_smoke_trail() -> void:
+	if _smoke_trail == null:
+		_smoke_trail = SandParticleVfxScript.create_missile_smoke_trail(
+			self,
+			SandParticleVfxScript.material_for_drone_missile_trail(),
+			SandParticleVfxScript.DRONE_TRAIL_COLOR
+		)
+	_smoke_trail.emitting = true
+
+
+func _stop_smoke_trail() -> void:
+	if _smoke_trail != null:
+		_smoke_trail.emitting = false
 
 
 func _find_player_body() -> Node3D:

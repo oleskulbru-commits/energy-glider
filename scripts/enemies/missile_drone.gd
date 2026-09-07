@@ -5,6 +5,7 @@ extends "res://scripts/enemies/combat_drone.gd"
 
 const GroundReticleScript = preload("res://scripts/enemies/ground_reticle.gd")
 const DroneRocketScript = preload("res://scripts/enemies/drone_rocket.gd")
+const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 
 const ROCKET_COUNT_MIN := 30
 const ROCKET_COUNT_MAX := 40
@@ -82,9 +83,7 @@ func _fire_next_rocket() -> void:
 		_firing_hail = false
 		return
 	var offset: Vector3 = _pending_offsets.pop_front()
-	var parent := get_tree().current_scene
-	if parent == null:
-		parent = self
+	var parent := SceneUtilScript.world_parent(get_tree(), self)
 	var rocket = DroneRocketScript.new()
 	parent.add_child(rocket)
 	var slot_index := _hail_rockets_fired % SPAWN_SLOT_COUNT

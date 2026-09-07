@@ -8,6 +8,7 @@ const CrawlerDebrisSandScript := preload("res://scripts/enemies/crawler_debris_s
 const DroneDebrisThrusterVfxScript := preload("res://scripts/enemies/drone_debris_thruster_vfx.gd")
 const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
 const CameraImpactShakeScript := preload("res://scripts/player/camera_impact_shake.gd")
+const AerialExplosionVfxScript := preload("res://scripts/vfx/aerial_explosion_vfx.gd")
 
 const BODY_PIECE_PATH := NodePath("Body/Body")
 const WEAPON_PIECE_PATH := NodePath("Body/CSGCylinder3D/Weapon_Pivot/WeaponModule")
@@ -42,6 +43,7 @@ static func spawn(
 	wrapper.global_transform = drone_xf
 	wrapper._terrain = terrain
 	wrapper._spawn_pieces(visual, hit_pos)
+	AerialExplosionVfxScript.spawn(tree, drone_xf.origin)
 	KillSparks.spawn(tree, drone_xf.origin)
 	CameraImpactShakeScript.request(tree, drone_xf.origin, 0.25, 15.0)
 	wrapper._schedule_cleanup()

@@ -1,0 +1,14 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" uid="uid://vih5amegvtb4" path="res://assets/vfx/shaders/aerial_explosion.gdshader" id="1_shader"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_shader")
+shader_parameter/light_dir = Vector3(0.3, 0.85, 0.4)
+shader_parameter/normal_strength = 0.65
+shader_parameter/emission_strength = 5.0
+shader_parameter/color_tint = Vector3(1, 1, 1)
+shader_parameter/alpha_scale = 1.0
+shader_parameter/lighting_dark = 0.85
+shader_parameter/lighting_bright = 1.15
