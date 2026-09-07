@@ -5,7 +5,7 @@ extends Node
 
 const ShotgunPelletScene := preload("res://scenes/weapons/shotgun_pellet.tscn")
 
-const DAMAGE := 17
+const DAMAGE := 32
 const RANGE_M := 15.0
 const FIRE_INTERVAL_SEC := 2.5
 const BURST_GAP_SEC := 0.5

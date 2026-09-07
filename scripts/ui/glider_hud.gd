@@ -389,7 +389,10 @@ func _update_death_overlay() -> void:
 		_try_again_button.disabled = not can_retry
 		if can_retry and _director != null:
 			var pct := int(round(_director.next_try_again_bonus() * 100.0))
-			_try_again_button.text = "Try again (+%d%% difficulty)" % pct
+			if pct > 0:
+				_try_again_button.text = "Try again (+%d%% difficulty)" % pct
+			else:
+				_try_again_button.text = "Try again"
 		else:
 			_try_again_button.text = "Try again"
 		_try_again_button.modulate = (

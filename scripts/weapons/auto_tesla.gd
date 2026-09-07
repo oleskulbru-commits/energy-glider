@@ -3,7 +3,7 @@ extends Node
 
 ## Instant sky-strikes. Chamber clock matches the shotgun; hops are lightning-fast.
 
-const DAMAGE := 23
+const DAMAGE := 37
 const RANGE_M := 20.0
 const FIRE_INTERVAL_SEC := 3.0
 const BURST_GAP_SEC := 0.12

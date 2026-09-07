@@ -89,6 +89,54 @@ func get_max_health() -> int:
 	return _max_health
 
 
+## Extra HP percent added when entering this level (L1=0, L7+=8%).
+static func hp_increment_for_level(level: int) -> float:
+	match maxi(level, 0):
+		0, 1:
+			return 0.0
+		2:
+			return 0.01
+		3:
+			return 0.02
+		4:
+			return 0.03
+		5:
+			return 0.05
+		6:
+			return 0.07
+		_:
+			return 0.08
+
+
+## Running HP bonus at `level` (L6=18%, then +8% of base per level).
+static func hp_bonus_for_level(level: int) -> float:
+	var lv := maxi(level, 1)
+	if lv <= 1:
+		return 0.0
+	if lv >= 6:
+		return 0.18 + 0.08 * float(lv - 6)
+	var total := 0.0
+	for n in range(2, lv + 1):
+		total += hp_increment_for_level(n)
+	return total
+
+
+static func scaled_health_for_level(base: int, level: int) -> int:
+	var scaled := roundf(float(base) * (1.0 + hp_bonus_for_level(level)))
+	if base > 0:
+		return maxi(int(scaled), 1)
+	return 0
+
+
+## Scale current max HP by the run level curve. No-op at level 1.
+func apply_level_hp(level: int) -> void:
+	var scaled := scaled_health_for_level(_max_health, level)
+	if scaled == _max_health:
+		return
+	_max_health = scaled
+	_hp = _max_health
+
+
 ## Scale speed / contact damage / HP by retry difficulty (floor). No-op at 0%.
 func apply_difficulty(bonus: float) -> void:
 	if bonus <= 0.0:

@@ -6,7 +6,7 @@ extends Area3D
 const SPEED_MPS := 60.0
 const LIFETIME_SEC := 2.4
 const HOMING := 0.35
-const DAMAGE := 10
+const DAMAGE := 20
 
 var _target: Node3D
 var _dir := Vector3.FORWARD

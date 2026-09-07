@@ -2205,8 +2205,8 @@ func _verify_crit_stacking() -> void:
 		"A non-crit should keep base damage"
 	)
 	_fail_unless(
-		AutoRifleScript.crit_damage_for(AutoRifleScript.damage_for(0.13), true) == 22,
-		"Crit should double after Damage rounding (11 -> 22)"
+		AutoRifleScript.crit_damage_for(AutoRifleScript.damage_for(0.13), true) == 46,
+		"Crit should double after Damage rounding (23 -> 46)"
 	)
 	state.reset_run()
 	_fail_unless(

@@ -371,11 +371,18 @@ func _spawn_one(track: Node3D, ahead: Vector2, spread: float, speed: float, leve
 	add_child(pill)
 	pill.global_position = Vector3(world_x, world_y, world_z)
 	pill.configure(_terrain, track, speed)
+	_apply_enemy_scaling(pill, level)
+	_active.append(pill)
+
+
+func _apply_enemy_scaling(unit: Node, level: int) -> void:
+	if unit != null and unit.has_method("apply_level_hp"):
+		unit.apply_level_hp(level)
 	var bonus := 0.0
 	if _director != null:
 		bonus = _director.difficulty_bonus()
-	pill.apply_difficulty(bonus)
-	_active.append(pill)
+	if unit != null and unit.has_method("apply_difficulty"):
+		unit.apply_difficulty(bonus)
 
 
 func _try_spawn_drones(level: int) -> void:
@@ -504,10 +511,7 @@ func _spawn_test_mg_drone(track: Node3D) -> void:
 	add_child(drone)
 	drone.global_position = world
 	(drone as MachineGunDroneScript).configure(_terrain, track, CombatDroneScript.move_speed_for_drone_level(DRONE_MIN_LEVEL))
-	var bonus := 0.0
-	if _director != null:
-		bonus = _director.difficulty_bonus()
-	drone.apply_difficulty(bonus)
+	_apply_enemy_scaling(drone, DRONE_MIN_LEVEL)
 	_active_mg_drone = drone
 	_active_drones.append(drone)
 
@@ -518,10 +522,7 @@ func _spawn_laser_drone(track: Node3D, level: int) -> void:
 	add_child(drone)
 	drone.global_position = world
 	drone.configure(_terrain, track, CombatDroneScript.move_speed_for_drone_level(level))
-	var bonus := 0.0
-	if _director != null:
-		bonus = _director.difficulty_bonus()
-	drone.apply_difficulty(bonus)
+	_apply_enemy_scaling(drone, level)
 	if not drone.died.is_connected(_on_laser_killed):
 		drone.died.connect(_on_laser_killed)
 	if not drone.tree_exited.is_connected(_on_laser_tree_exited):
@@ -536,10 +537,7 @@ func _spawn_missile_drone(track: Node3D, level: int) -> void:
 	add_child(drone)
 	drone.global_position = world
 	drone.configure(_terrain, track, CombatDroneScript.move_speed_for_drone_level(level))
-	var bonus := 0.0
-	if _director != null:
-		bonus = _director.difficulty_bonus()
-	drone.apply_difficulty(bonus)
+	_apply_enemy_scaling(drone, level)
 	_active_drones.append(drone)
 
 
@@ -549,10 +547,7 @@ func _spawn_machine_gun_drone(track: Node3D, level: int) -> void:
 	add_child(drone)
 	drone.global_position = world
 	(drone as MachineGunDroneScript).configure(_terrain, track, CombatDroneScript.move_speed_for_drone_level(level))
-	var bonus := 0.0
-	if _director != null:
-		bonus = _director.difficulty_bonus()
-	drone.apply_difficulty(bonus)
+	_apply_enemy_scaling(drone, level)
 	_active_mg_drone = drone
 	_active_drones.append(drone)
 

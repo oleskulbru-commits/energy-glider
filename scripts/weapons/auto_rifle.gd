@@ -6,7 +6,7 @@ extends Node
 const RifleBulletScene := preload("res://scenes/weapons/rifle_bullet.tscn")
 const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 
-const DAMAGE := 10
+const DAMAGE := 20
 const RANGE_M := 75.0
 const RANGE_ABSOLUTE_MAX := 200.0
 const FIRE_INTERVAL_SEC := 2.3

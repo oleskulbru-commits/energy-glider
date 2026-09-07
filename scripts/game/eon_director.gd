@@ -182,10 +182,9 @@ func next_try_again_bonus() -> float:
 	return difficulty_bonus_for_retry_count(retry_count + 1)
 
 
-static func difficulty_bonus_for_retry_count(count: int) -> float:
-	if count <= 0:
-		return 0.0
-	return DIFFICULTY_FIRST_BONUS + float(count - 1) * DIFFICULTY_STEP
+## Retry combat/day-night scaling is off; kept so Try Again can restore it later.
+static func difficulty_bonus_for_retry_count(_count: int) -> float:
+	return 0.0
 
 
 ## Floor-scaled combat stat. Keeps at least 1 when the base is positive.

@@ -7,6 +7,8 @@ const ChargerPillScene = preload("res://scenes/enemies/charger_pill.tscn")
 const EnemyStreamSpawnerScript = preload("res://scripts/enemies/enemy_stream_spawner.gd")
 const AutoRifleScript = preload("res://scripts/weapons/auto_rifle.gd")
 const DamageFloatScript = preload("res://scripts/ui/damage_float.gd")
+const CombatDroneScript = preload("res://scripts/enemies/combat_drone.gd")
+const LaserDroneScript = preload("res://scripts/enemies/laser_drone.gd")
 
 
 func _init() -> void:
@@ -20,6 +22,7 @@ func _run() -> void:
 	_verify_spawn_grace()
 	_verify_charger()
 	_verify_pill_health()
+	_verify_level_hp_curve()
 	_verify_damage_floats()
 	_verify_hit_knockback()
 	_verify_crawler_death()
@@ -187,12 +190,12 @@ func _verify_charger() -> void:
 func _verify_pill_health() -> void:
 	_fail_unless(SwarmPillScript.MAX_HEALTH == 20, "Crawler HP should be 20")
 	_fail_unless(ChargerPillScript.CHARGER_MAX_HEALTH == 33, "Charger HP should be 33")
-	_fail_unless(AutoRifleScript.DAMAGE == 10, "Rifle damage should be 10")
-	_fail_unless(AutoRifleScript.damage_for(0.0) == 10, "Base rifle damage should stay 10")
-	_fail_unless(AutoRifleScript.damage_for(0.04) == 10, "4% more damage should round 10.4 down to 10")
-	_fail_unless(AutoRifleScript.damage_for(0.13) == 11, "4% + 9% should deal 11")
-	_fail_unless(AutoRifleScript.damage_for(0.15) == 12, "15% more damage should deal 12")
-	_fail_unless(AutoRifleScript.damage_for(0.75) == 18, "Damage bonus should have no cap")
+	_fail_unless(AutoRifleScript.DAMAGE == 20, "Rifle damage should be 20")
+	_fail_unless(AutoRifleScript.damage_for(0.0) == 20, "Base rifle damage should stay 20")
+	_fail_unless(AutoRifleScript.damage_for(0.04) == 21, "4% more damage should round 20.8 to 21")
+	_fail_unless(AutoRifleScript.damage_for(0.13) == 23, "4% + 9% should deal 23")
+	_fail_unless(AutoRifleScript.damage_for(0.15) == 23, "15% more damage should deal 23")
+	_fail_unless(AutoRifleScript.damage_for(0.75) == 35, "Damage bonus should have no cap")
 
 	var red: SwarmPill = SwarmPillScript.new()
 	root.add_child(red)
@@ -239,6 +242,51 @@ func _verify_pill_health() -> void:
 		"15% of 6 speed should floor to 6"
 	)
 	scaled_green.free()
+
+
+func _verify_level_hp_curve() -> void:
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_increment_for_level(1), 0.0), "Level 1 increment is 0%")
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_increment_for_level(2), 0.01), "Level 2 increment is 1%")
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_increment_for_level(3), 0.02), "Level 3 increment is 2%")
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_increment_for_level(4), 0.03), "Level 4 increment is 3%")
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_increment_for_level(5), 0.05), "Level 5 increment is 5%")
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_increment_for_level(6), 0.07), "Level 6 increment is 7%")
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_increment_for_level(7), 0.08), "Level 7 increment is 8%")
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_bonus_for_level(1), 0.0), "Level 1 bonus is 0%")
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_bonus_for_level(4), 0.06), "Level 4 bonus is 6%")
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_bonus_for_level(5), 0.11), "Level 5 bonus is 11%")
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_bonus_for_level(6), 0.18), "Level 6 bonus is 18%")
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_bonus_for_level(10), 0.50), "Level 10 bonus is 50%")
+	_fail_unless(
+		SwarmPillScript.scaled_health_for_level(SwarmPillScript.MAX_HEALTH, 1) == 20,
+		"Level 1 crawler HP should stay 20"
+	)
+	_fail_unless(
+		SwarmPillScript.scaled_health_for_level(SwarmPillScript.MAX_HEALTH, 3) == 21,
+		"Level 3 crawler HP should round to 21"
+	)
+	_fail_unless(
+		SwarmPillScript.scaled_health_for_level(ChargerPillScript.CHARGER_MAX_HEALTH, 4) == 35,
+		"Level 4 charger HP should round to 35"
+	)
+	_fail_unless(
+		SwarmPillScript.scaled_health_for_level(LaserDroneScript.LASER_MAX_HEALTH, 5) == 17,
+		"Level 5 laser drone HP should round to 17"
+	)
+	_fail_unless(
+		SwarmPillScript.scaled_health_for_level(CombatDroneScript.DRONE_MAX_HEALTH, 5) == 44,
+		"Level 5 missile drone HP should round to 44"
+	)
+	_fail_unless(
+		SwarmPillScript.scaled_health_for_level(SwarmPillScript.MAX_HEALTH, 10) == 30,
+		"Level 10 crawler HP should round to 30"
+	)
+	var scaled_level: SwarmPill = SwarmPillScript.new()
+	root.add_child(scaled_level)
+	scaled_level.apply_level_hp(10)
+	_fail_unless(scaled_level.get_max_health() == 30, "apply_level_hp should set crawler HP to 30 at level 10")
+	_fail_unless(scaled_level.get_health() == 30, "apply_level_hp should refill to scaled max")
+	scaled_level.free()
 
 
 func _verify_damage_floats() -> void:
