@@ -134,7 +134,7 @@ expand_icon = true
 [node name="RocketName" type="Label" parent="Root/Center/MainPanel/VBox/Cards/RocketCard"]
 layout_mode = 2
 theme_type_variation = &"HudValue"
-text = "R.L."
+text = "Rocket Launcher"
 horizontal_alignment = 1
 
 [node name="ShotgunCard" type="VBoxContainer" parent="Root/Center/MainPanel/VBox/Cards"]

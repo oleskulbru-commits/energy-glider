@@ -2555,6 +2555,14 @@ func _verify_weapon_cards() -> void:
 		"Rocket cards should be labeled Rocket Launcher"
 	)
 	_fail_unless(
+		UpgradeCatalogScript.hud_weapon_name(UpgradeCatalogScript.ID_UNLOCK_ROCKET) == "R.L.",
+		"HUD rocket square should be labeled R.L."
+	)
+	_fail_unless(
+		UpgradeCatalogScript.hud_weapon_name(UpgradeCatalogScript.ID_UNLOCK_RIFLE) == "Rifle",
+		"HUD rifle square should keep the full name"
+	)
+	_fail_unless(
 		UpgradeCatalogScript.display_name(
 			UpgradeCatalogScript.make_id(
 				UpgradeCatalogScript.FAMILY_SHOTGUN,

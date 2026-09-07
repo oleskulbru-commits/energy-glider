@@ -5,7 +5,10 @@ extends Area3D
 
 const SPEED_MPS := 60.0
 const LIFETIME_SEC := 2.4
-const HOMING := 0.35
+const HOMING_RATE := 8.0
+const HOMING_COMMIT_M := 2.0
+const AIM_UP_M := 0.32
+const HIT_RADIUS_M := 0.7
 const DAMAGE := 20
 
 var _target: Node3D
@@ -62,10 +65,13 @@ func _physics_process(delta: float) -> void:
 	if _spent:
 		return
 	var aim := _aim_vector()
-	if aim.length_squared() > 0.0001:
-		_dir = _dir.lerp(aim.normalized(), HOMING).normalized()
+	var dist := aim.length()
+	if should_home(dist):
+		_dir = _dir.lerp(aim / dist, homing_blend(delta)).normalized()
+	var from := global_position
 	global_position += _dir * _speed * delta
 	_orient()
+	_try_proximity_hit_along(from, global_position)
 	_life -= delta
 	if _life <= 0.0:
 		queue_free()
@@ -75,7 +81,30 @@ func _aim_vector() -> Vector3:
 	if _target == null or not is_instance_valid(_target):
 		_target = null
 		return Vector3.ZERO
-	return _target.global_position + Vector3(0.0, 0.7, 0.0) - global_position
+	return aim_point_for(_target.global_position) - global_position
+
+
+static func aim_point_for(target_pos: Vector3) -> Vector3:
+	return target_pos + Vector3(0.0, AIM_UP_M, 0.0)
+
+
+static func should_home(distance_m: float) -> bool:
+	return distance_m > HOMING_COMMIT_M
+
+
+static func homing_blend(delta: float) -> float:
+	return 1.0 - exp(-HOMING_RATE * maxf(delta, 0.0))
+
+
+func _try_proximity_hit_along(from: Vector3, to: Vector3) -> void:
+	var pill := _target as SwarmPill
+	if pill == null or not pill.is_alive():
+		return
+	var aim := aim_point_for(pill.global_position)
+	var closest := Geometry3D.get_closest_point_to_segment(aim, from, to)
+	if closest.distance_to(aim) > HIT_RADIUS_M:
+		return
+	_on_body_entered(pill)
 
 
 func _orient() -> void:

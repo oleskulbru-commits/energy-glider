@@ -177,7 +177,7 @@ func _fire(origin: Vector3, target: Node3D) -> void:
 	var bullet: RifleBullet = RifleBulletScene.instantiate() as RifleBullet
 	var parent := SceneUtilScript.world_parent(get_tree(), _rig)
 	parent.add_child(bullet)
-	var aim := target.global_position + Vector3(0.0, 0.7, 0.0) - origin
+	var aim := target.global_position + Vector3(0.0, RifleBullet.AIM_UP_M, 0.0) - origin
 	bullet.launch(
 		origin,
 		target,

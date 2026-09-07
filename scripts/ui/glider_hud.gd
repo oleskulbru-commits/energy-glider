@@ -178,7 +178,9 @@ func _ready() -> void:
 	if _aim_chip != null:
 		_aim_panel = _make_aim_panel_style()
 		_aim_chip.add_theme_stylebox_override("panel", _aim_panel)
-	_stop_chip.gui_input.connect(_on_stop_chip_gui_input)
+	if _stop_chip != null:
+		_stop_chip.visible = false
+		_stop_chip.gui_input.connect(_on_stop_chip_gui_input)
 	if _sail_chip != null:
 		_sail_chip.visible = false
 	_lock_eon_tracker_layout()
@@ -236,7 +238,7 @@ func _refresh_weapon_tray() -> void:
 		if icon != null:
 			icon.texture = UpgradeCatalog.icon_for_weapon_level(family, level)
 		if name_label != null:
-			name_label.text = UpgradeCatalog.display_name(unlock)
+			name_label.text = UpgradeCatalog.hud_weapon_name(unlock)
 		var level_label := slot.get_node_or_null("Level") as Label
 		if level_label != null:
 			level_label.text = "Level %d" % level
