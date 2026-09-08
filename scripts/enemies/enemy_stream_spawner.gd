@@ -1,12 +1,14 @@
 class_name EnemyStreamSpawner
 extends Node3D
 
-## Spawns crawlers, chargers, and (from level 5) flying combat drones ahead of the glider.
+## Spawns crawlers, chargers, leapers, and (from level 5) flying combat drones ahead of the glider.
 ## New game waits for the first E.O.N. pickup. Try Again keeps spawning even
 ## before the E.O.N. is collected again.
 
 const SwarmPillScene := preload("res://scenes/enemies/swarm_pill.tscn")
 const ChargerPillScene := preload("res://scenes/enemies/charger_pill.tscn")
+const LeaperPillScene := preload("res://scenes/enemies/leaper_pill.tscn")
+const LeaperPillScript := preload("res://scripts/enemies/leaper_pill.gd")
 const LaserDroneScene := preload("res://scenes/enemies/laser_drone.tscn")
 const MissileDroneScene := preload("res://scenes/enemies/missile_drone.tscn")
 const MachineGunDroneScene := preload("res://scenes/enemies/machine_gun_drone.tscn")
@@ -20,8 +22,10 @@ const SPAWN_GRACE_SEC := 3.0
 const DAWN_SPAWN_GRACE_SEC := 2.0
 ## Chargers unlock after crossing tower 3 (level 4+).
 const CHARGER_MIN_LEVEL := 4
-const CHARGER_CAP_MIN := 2
-const CHARGER_CAP_MAX := 12
+const CHARGER_CAP_MIN := 4
+const CHARGER_CAP_MAX := 19
+## Leapers unlock after leaving level 1. Live cap is ~1/3 of crawlers.
+const LEAPER_MIN_LEVEL := 2
 ## Drones unlock after crossing tower 4 (level 5+).
 const DRONE_MIN_LEVEL := CombatDroneScript.DRONE_MIN_LEVEL
 ## Dev/test: machine gun drone on level 1, 400 m ahead (full align → charge flow).
@@ -58,6 +62,7 @@ var _drone_level := 0
 var _drones_spawned_in_level := 0
 var _drone_spawn_plan: Array = []
 var _test_mg_drone_spawned := false
+var _ground_skip_type := 0
 
 
 func _ready() -> void:
@@ -108,16 +113,21 @@ func _physics_process(delta: float) -> void:
 
 	var crawler_cap := SwarmPillScript.active_cap_for_level(level)
 	var charger_cap := charger_cap_for_level(level)
+	var leaper_cap := leaper_cap_for_level(level)
 	var crawler_alive := _count_crawlers()
 	var charger_alive := _count_chargers()
+	var leaper_alive := _count_leapers()
 	var spawns := ground_spawns_this_tick(
 		crawler_alive,
 		crawler_cap,
 		charger_alive,
 		charger_cap,
-		spawns_per_tick_max
+		spawns_per_tick_max,
+		leaper_alive,
+		leaper_cap,
+		_ground_skip_type
 	)
-	if spawns.x <= 0 and spawns.y <= 0:
+	if spawns.x <= 0 and spawns.y <= 0 and spawns.z <= 0:
 		return
 	if _spawn_cooldown > 0.0:
 		return
@@ -133,7 +143,18 @@ func _physics_process(delta: float) -> void:
 		_spawn_one(track, ahead, spread, speed, level, SwarmPillScene)
 	for _i in spawns.y:
 		_spawn_one(track, ahead, spread, speed, level, ChargerPillScene)
+	var leaper_ahead := LeaperPillScript.spawn_ahead_range()
+	for _i in spawns.z:
+		_spawn_one(
+			track,
+			leaper_ahead,
+			spread,
+			LeaperPillScript.MOVE_SPEED,
+			level,
+			LeaperPillScene
+		)
 
+	_ground_skip_type = (_ground_skip_type + 1) % 3
 	_spawn_cooldown = spawn_interval_sec
 
 
@@ -258,26 +279,87 @@ static func charger_cap_for_level(level: int) -> int:
 	return int(roundf(lerpf(float(CHARGER_CAP_MIN), float(CHARGER_CAP_MAX), t)))
 
 
-## Crawlers in x, chargers in y. Both short → one of each; one short → up to tick_max of that type.
+static func leaper_cap_for_level(level: int) -> int:
+	if level < LEAPER_MIN_LEVEL:
+		return 0
+	var crawlers := SwarmPillScript.active_cap_for_level(level)
+	return int(roundf(float(crawlers) / 3.0))
+
+
+## Crawlers in x, chargers in y, leapers in z.
+## One short → up to tick_max of that type. Two short → one of each.
+## Three short → one each for two types, skipping `skip_type` % 3 so none starve.
 static func ground_spawns_this_tick(
 	crawler_alive: int,
 	crawler_cap: int,
 	charger_alive: int,
 	charger_cap: int,
-	tick_max: int
-) -> Vector2i:
+	tick_max: int,
+	leaper_alive: int = 0,
+	leaper_cap: int = 0,
+	skip_type: int = 0
+) -> Vector3i:
 	var crawler_need := maxi(crawler_cap - crawler_alive, 0)
 	var charger_need := maxi(charger_cap - charger_alive, 0)
+	var leaper_need := maxi(leaper_cap - leaper_alive, 0)
 	var slots := maxi(tick_max, 0)
-	if slots <= 0 or (crawler_need <= 0 and charger_need <= 0):
-		return Vector2i.ZERO
-	if crawler_need > 0 and charger_need > 0:
-		var crawlers := mini(1, slots)
-		var chargers := mini(1, slots - crawlers)
-		return Vector2i(crawlers, chargers)
+	if slots <= 0 or (crawler_need <= 0 and charger_need <= 0 and leaper_need <= 0):
+		return Vector3i.ZERO
+
+	var short: Array[int] = []
 	if crawler_need > 0:
-		return Vector2i(mini(slots, crawler_need), 0)
-	return Vector2i(0, mini(slots, charger_need))
+		short.append(0)
+	if charger_need > 0:
+		short.append(1)
+	if leaper_need > 0:
+		short.append(2)
+
+	if short.size() == 1:
+		return _ground_spawn_counts(short[0], mini(slots, _ground_need_for(
+			short[0], crawler_need, charger_need, leaper_need
+		)))
+
+	if short.size() == 2:
+		var first := mini(1, slots)
+		var second := mini(1, slots - first)
+		return (
+			_ground_spawn_counts(short[0], first)
+			+ _ground_spawn_counts(short[1], second)
+		)
+
+	var skip := posmod(skip_type, 3)
+	var spawned := 0
+	var result := Vector3i.ZERO
+	for type_i in 3:
+		if type_i == skip:
+			continue
+		if spawned >= slots:
+			break
+		result += _ground_spawn_counts(type_i, 1)
+		spawned += 1
+	return result
+
+
+static func _ground_need_for(
+	type_i: int, crawler_need: int, charger_need: int, leaper_need: int
+) -> int:
+	match type_i:
+		0:
+			return crawler_need
+		1:
+			return charger_need
+		_:
+			return leaper_need
+
+
+static func _ground_spawn_counts(type_i: int, count: int) -> Vector3i:
+	match type_i:
+		0:
+			return Vector3i(count, 0, 0)
+		1:
+			return Vector3i(0, count, 0)
+		_:
+			return Vector3i(0, 0, count)
 
 
 func _track_body() -> Node3D:
@@ -529,6 +611,10 @@ static func spawn_offset_along_facing(
 	return Vector2(world.x, world.z)
 
 
+static func crawler_alive_count(active_count: int, charger_count: int, leaper_count: int) -> int:
+	return maxi(active_count - charger_count - leaper_count, 0)
+
+
 func _count_chargers() -> int:
 	var count := 0
 	for node in _active:
@@ -537,8 +623,16 @@ func _count_chargers() -> int:
 	return count
 
 
+func _count_leapers() -> int:
+	var count := 0
+	for node in _active:
+		if node != null and node.is_in_group("leaper_pill"):
+			count += 1
+	return count
+
+
 func _count_crawlers() -> int:
-	return maxi(_active.size() - _count_chargers(), 0)
+	return crawler_alive_count(_active.size(), _count_chargers(), _count_leapers())
 
 
 func _cull_active() -> void:

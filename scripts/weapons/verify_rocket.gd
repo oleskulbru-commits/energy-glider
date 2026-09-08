@@ -112,7 +112,7 @@ func _verify_stats() -> void:
 			labels.append(node)
 	_fail_unless(labels.size() == 1, "Rocket crit should spawn a damage float")
 	_fail_unless(
-		(labels[0] as Label3D).text == "-46",
+		(labels[0] as Label3D).text == "46",
 		"Rocket crit float must show 46 even when crawler HP is only 20"
 	)
 	for label in labels:

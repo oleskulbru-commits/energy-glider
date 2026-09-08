@@ -27,6 +27,9 @@ const COLLISION_CENTER_Y := 0.32
 ## Ignore hits when the player is clearly jumping/flying over the pill.
 const CONTACT_MAX_ABOVE_M := 1.2
 const DEFAULT_SPEED := 6.0
+const SPAWN_AHEAD_MIN_LEVEL_1_M := 50.0
+const SPAWN_AHEAD_MIN_LEVEL_40_M := 40.0
+const SPAWN_AHEAD_MAX_M := 200.0
 const MAX_HEALTH := 20
 const HIT_KNOCKBACK_SPEED := 12.0
 const HIT_KNOCKBACK_DECAY_SEC := 0.3
@@ -559,7 +562,7 @@ static func is_behind_facing(
 	return to.dot(fwd) < -maxf(margin_m, 0.0)
 
 
-static func active_cap_for_level(level: int, min_cap: int = 8, max_cap: int = 60) -> int:
+static func active_cap_for_level(level: int, min_cap: int = 15, max_cap: int = 108) -> int:
 	var t := clampf(float(level - 1) / 39.0, 0.0, 1.0)
 	return int(roundf(lerpf(float(min_cap), float(max_cap), t)))
 
@@ -570,9 +573,8 @@ static func move_speed_for_level(_level: int) -> float:
 
 static func ahead_range_for_level(level: int) -> Vector2:
 	var t := clampf(float(level - 1) / 39.0, 0.0, 1.0)
-	var min_ahead := lerpf(40.0, 30.0, t)
-	var max_ahead := 110.0
-	return Vector2(min_ahead, max_ahead)
+	var min_ahead := lerpf(SPAWN_AHEAD_MIN_LEVEL_1_M, SPAWN_AHEAD_MIN_LEVEL_40_M, t)
+	return Vector2(min_ahead, SPAWN_AHEAD_MAX_M)
 
 
 static func z_spread_for_level(level: int) -> float:
