@@ -89,6 +89,28 @@ func get_max_health() -> int:
 	return _max_health
 
 
+## World-space center of the hitbox. Follows the shape, not the body's yaw/tilt.
+func hit_center() -> Vector3:
+	var col := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col != null:
+		return col.global_position
+	return global_position
+
+
+## Sphere that contains the hitbox at any orientation.
+func hit_radius() -> float:
+	var col := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col == null or col.shape == null:
+		return 0.0
+	if col.shape is BoxShape3D:
+		return (col.shape as BoxShape3D).size.length() * 0.5
+	if col.shape is CapsuleShape3D:
+		return (col.shape as CapsuleShape3D).height * 0.5
+	if col.shape is SphereShape3D:
+		return (col.shape as SphereShape3D).radius
+	return 0.0
+
+
 ## Extra HP percent added when entering this level (L1=0, L7+=8%).
 static func hp_increment_for_level(level: int) -> float:
 	match maxi(level, 0):
