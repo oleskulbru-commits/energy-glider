@@ -241,7 +241,7 @@ func _verify_charger() -> void:
 func _verify_leaper() -> void:
 	_fail_unless(LeaperPillScript.MAX_HEALTH == SwarmPillScript.MAX_HEALTH, "Leaper HP should mirror crawler")
 	_fail_unless(is_equal_approx(LeaperPillScript.MOVE_SPEED, 8.0), "Leaper chase speed should be 8 m/s")
-	_fail_unless(is_equal_approx(LeaperPillScript.LEAP_RANGE_M, 50.0), "Leap range should be 50 m")
+	_fail_unless(is_equal_approx(LeaperPillScript.LEAP_RANGE_M, 15.0), "Leap range should be 15 m")
 	var leaper_ahead := LeaperPillScript.spawn_ahead_range()
 	_fail_unless(is_equal_approx(leaper_ahead.x, 120.0), "Leapers should spawn no closer than 120 m")
 	_fail_unless(
@@ -279,12 +279,63 @@ func _verify_leaper() -> void:
 	_fail_unless(is_equal_approx(predicted.z, 3.0), "Intercept Z should use 1s of XZ velocity")
 
 	_fail_unless(
-		LeaperPillScript.can_begin_charge(50.0, 0.0),
-		"A leaper at 50 m with cooldown ready should start charging"
+		LeaperPillScript.is_body_contact(
+			Vector3(0.4, 0.6, 0.0), Vector3.ZERO, SwarmPillScript.CONTACT_RADIUS_M
+		),
+		"Touching a leaper body should count as contact"
 	)
 	_fail_unless(
-		not LeaperPillScript.can_begin_charge(50.01, 0.0),
-		"A leaper past 50 m should not start a charge"
+		LeaperPillScript.is_body_contact(
+			Vector3(0.3, 4.1, 0.0), Vector3(0.0, 4.0, 0.0), SwarmPillScript.CONTACT_RADIUS_M
+		),
+		"Gliding through a leaping leaper should still contact"
+	)
+	_fail_unless(
+		not LeaperPillScript.is_body_contact(
+			Vector3(0.0, 0.8, 0.0), Vector3(0.0, 4.0, 0.0), SwarmPillScript.CONTACT_RADIUS_M
+		),
+		"A leap high overhead should not damage through empty air"
+	)
+
+	var health := PlayerHealth.new()
+	root.add_child(health)
+	var dummy := Node3D.new()
+	root.add_child(dummy)
+	dummy.global_position = Vector3(0.0, 4.0, 0.0)
+	var jumper: LeaperPill = LeaperPillScene.instantiate() as LeaperPill
+	root.add_child(jumper)
+	jumper.configure(null, dummy)
+	jumper.global_position = Vector3(0.4, 4.0, 0.0)
+	jumper.leap_state = LeaperPill.LeapState.LEAP
+	jumper.call("_update_contact", 0.05)
+	_fail_unless(
+		health.get_current() == PlayerHealth.BASE_HEALTH - SwarmPillScript.CONTACT_DAMAGE,
+		"Gliding through a leaping leaper should deal contact damage"
+	)
+	health.current = PlayerHealth.BASE_HEALTH
+	dummy.global_position = Vector3(0.0, 0.5, 0.0)
+	jumper.global_position = Vector3(0.4, 0.0, 0.0)
+	jumper.leap_state = LeaperPill.LeapState.CHARGE
+	jumper.set("_charge_left", 1.0)
+	jumper.set("_in_contact", false)
+	jumper.set("_damage_timer", 0.0)
+	jumper.call("_tick_charge", 0.05)
+	_fail_unless(
+		health.get_current() == PlayerHealth.BASE_HEALTH - SwarmPillScript.CONTACT_DAMAGE,
+		"Touching a charging leaper should deal contact damage"
+	)
+	health.free()
+	dummy.free()
+	jumper.free()
+
+
+	_fail_unless(
+		LeaperPillScript.can_begin_charge(15.0, 0.0),
+		"A leaper at 15 m with cooldown ready should start charging"
+	)
+	_fail_unless(
+		not LeaperPillScript.can_begin_charge(15.01, 0.0),
+		"A leaper past 15 m should not start a charge"
 	)
 	_fail_unless(
 		not LeaperPillScript.can_begin_charge(10.0, 1.0),
@@ -292,11 +343,23 @@ func _verify_leaper() -> void:
 	)
 	_fail_unless(
 		LeaperPillScript.charge_committed(true, 80.0),
-		"A started charge should stay committed if the player leaves 50 m"
+		"A started charge should stay committed if the player leaves 15 m"
 	)
 	_fail_unless(
 		not LeaperPillScript.can_begin_charge(80.0, 0.0),
-		"Leaving 50 m should still block a fresh charge"
+		"Leaving 15 m should still block a fresh charge"
+	)
+	_fail_unless(
+		LeaperPillScript.can_begin_charge(
+			LeaperPillScript.range_distance(Vector3(9.0, 0.0, 0.0), Vector3.ZERO), 0.0
+		),
+		"A player 9 m away on the ground should be inside the leap sphere"
+	)
+	_fail_unless(
+		not LeaperPillScript.can_begin_charge(
+			LeaperPillScript.range_distance(Vector3(0.0, 16.0, 0.0), Vector3.ZERO), 0.0
+		),
+		"A player 16 m straight up should be outside the leap sphere"
 	)
 
 	var land := Vector3.ZERO
@@ -507,6 +570,18 @@ func _verify_damage_floats() -> void:
 		or not is_equal_approx(path_a.bulge_x, path_b.bulge_x)
 		or not is_equal_approx(path_a.end_y, path_b.end_y),
 		"Each number should roll a different rise path"
+	)
+	_fail_unless(
+		DamageFloatScript.PLAYER_SCALE < 1.0,
+		"Player-hit numbers should be smaller than enemy hits"
+	)
+	_fail_unless(
+		absf(path_a.end_x) > absf(path_a.start_x),
+		"Player-hit numbers should drift farther off the glider as they rise"
+	)
+	_fail_unless(
+		absf(path_a.bulge_x) >= DamageFloatScript.BULGE_X_MIN,
+		"Player-hit numbers should bow out to the side"
 	)
 	_clear_damage_floats()
 	var red: SwarmPill = SwarmPillScript.new()

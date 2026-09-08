@@ -8,7 +8,7 @@ const GroundReticleScript := preload("res://scripts/enemies/ground_reticle.gd")
 const MOVE_SPEED := 8.0
 const PILL_COLOR := Color(0.58, 0.18, 0.92)
 const RETICLE_COLOR := Color(0.72, 0.28, 0.98, 0.9)
-const LEAP_RANGE_M := 50.0
+const LEAP_RANGE_M := 15.0
 const SPAWN_AHEAD_MIN_M := 120.0
 const CHARGE_SEC := 1.5
 const LEAP_SEC := 1.0
@@ -18,6 +18,9 @@ const SPLASH_RADIUS_M := 2.0
 const LOFT_PEAK_M := 4.0
 const PILL_MESH_RADIUS := 0.38
 const PILL_MESH_HEIGHT := 1.05
+## Vertical slop so a glider clipping the capsule still counts as a touch.
+const CONTACT_Y_BELOW_M := 1.2
+const CONTACT_Y_ABOVE_M := 1.5
 
 enum LeapState { CHASE, CHARGE, LEAP, RECOVER }
 
@@ -89,8 +92,7 @@ func _physics_process(delta: float) -> void:
 		_hit_velocity = Vector3.ZERO
 		move_and_slide()
 		_snap_to_terrain()
-		if leap_state == LeapState.CHASE:
-			_update_contact(delta)
+		_update_contact(delta)
 		return
 
 	match leap_state:
@@ -103,7 +105,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _tick_chase(delta: float) -> void:
-	if can_begin_charge(_xz_distance_to_target(), _cooldown_left):
+	if can_begin_charge(_distance_to_target(), _cooldown_left):
 		_begin_charge()
 		_tick_charge(delta)
 		return
@@ -144,6 +146,7 @@ func _tick_charge(delta: float) -> void:
 	move_and_slide()
 	_snap_to_terrain()
 	_orient_toward_target()
+	_update_contact(delta)
 	if _charge_left <= 0.0:
 		_begin_leap()
 
@@ -175,6 +178,7 @@ func _tick_leap(delta: float) -> void:
 	var along := Vector3(_leap_impact.x - _leap_origin.x, 0.0, _leap_impact.z - _leap_origin.z)
 	if along.length_squared() > 0.0001:
 		_align_airborne(along.normalized())
+	_update_contact(delta)
 
 
 func _on_landed() -> void:
@@ -192,6 +196,7 @@ func _tick_recover(delta: float) -> void:
 	move_and_slide()
 	_snap_to_terrain()
 	_orient_toward_target()
+	_update_contact(delta)
 	if _recover_left <= 0.0:
 		leap_state = LeapState.CHASE
 
@@ -214,6 +219,8 @@ func _apply_landing_hit() -> void:
 	var health := get_tree().get_first_node_in_group("player_health")
 	if health != null and health.has_method("take_damage"):
 		health.take_damage(amount)
+	_in_contact = true
+	_damage_timer = DAMAGE_INTERVAL_SEC
 
 
 func _place_landing_reticle() -> void:
@@ -263,11 +270,22 @@ func _target_velocity() -> Vector3:
 	return Vector3.ZERO
 
 
-func _xz_distance_to_target() -> float:
+func _is_touching_target() -> bool:
+	if _target == null or not is_instance_valid(_target):
+		return false
+	return is_body_contact(
+		_target.global_position,
+		global_position,
+		contact_radius_m,
+		CONTACT_Y_BELOW_M,
+		CONTACT_Y_ABOVE_M
+	)
+
+
+func _distance_to_target() -> float:
 	if _target == null or not is_instance_valid(_target):
 		return INF
-	var delta := _target.global_position - global_position
-	return Vector2(delta.x, delta.z).length()
+	return range_distance(_target.global_position, global_position)
 
 
 func _blocks_behind_despawn() -> bool:
@@ -298,6 +316,19 @@ func _is_spawn_active() -> bool:
 	return false
 
 
+static func is_body_contact(
+	player_pos: Vector3,
+	pill_pos: Vector3,
+	radius_m: float,
+	y_below_m: float = CONTACT_Y_BELOW_M,
+	y_above_m: float = CONTACT_Y_ABOVE_M
+) -> bool:
+	var delta := player_pos - pill_pos
+	if Vector2(delta.x, delta.z).length() > radius_m:
+		return false
+	return delta.y >= -y_below_m and delta.y <= y_above_m
+
+
 static func intercept_xz(player_pos: Vector3, player_vel: Vector3, lead_sec: float) -> Vector3:
 	return Vector3(
 		player_pos.x + player_vel.x * lead_sec,
@@ -321,6 +352,10 @@ static func landing_point_for(
 		land_y - collision_bottom_y + GROUND_CLEARANCE_M,
 		predicted.z
 	)
+
+
+static func range_distance(player_pos: Vector3, pill_pos: Vector3) -> float:
+	return player_pos.distance_to(pill_pos)
 
 
 static func can_begin_charge(

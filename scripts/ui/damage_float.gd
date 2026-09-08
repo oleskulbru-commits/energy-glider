@@ -9,10 +9,13 @@ const RISE_M := 0.85
 const RISE_VARIANCE_M := 0.18
 const CRIT_RISE_M := 1.4
 const CRIT_RISE_VARIANCE_M := 0.22
-const SPREAD_X_MIN := 0.22
-const SPREAD_X_MAX := 0.7
-const BULGE_X_MIN := 0.12
-const BULGE_X_MAX := 0.4
+const SPREAD_X_MIN := 1.35
+const SPREAD_X_MAX := 2.2
+const BULGE_X_MIN := 0.7
+const BULGE_X_MAX := 1.25
+const PLAYER_SCALE := 0.58
+const PLAYER_START_X_MIN := 0.55
+const PLAYER_START_X_MAX := 0.95
 const WORLD_SPREAD_X_MIN := 0.7
 const WORLD_SPREAD_X_MAX := 1.8
 const WORLD_BULGE_X_MIN := 0.35
@@ -65,10 +68,22 @@ static func roll_path(
 	var bulge_max := WORLD_BULGE_X_MAX if world else BULGE_X_MAX
 	var rise := CRIT_RISE_M if is_crit else RISE_M
 	var rise_var := CRIT_RISE_VARIANCE_M if is_crit else RISE_VARIANCE_M
+	var start_x: float
+	var end_x: float
+	var bulge_x: float
+	if world:
+		start_x = start.x + rng.randf_range(-0.25, 0.25)
+		end_x = start.x + side * rng.randf_range(spread_min, spread_max)
+		bulge_x = side * rng.randf_range(bulge_min, bulge_max)
+	else:
+		start_x = side * rng.randf_range(PLAYER_START_X_MIN, PLAYER_START_X_MAX)
+		end_x = side * rng.randf_range(spread_min, spread_max)
+		bulge_x = side * rng.randf_range(bulge_min, bulge_max)
 	return {
-		"end_x": start.x + side * rng.randf_range(spread_min, spread_max),
+		"start_x": start_x,
+		"end_x": end_x,
 		"end_y": start.y + rng.randf_range(rise - rise_var, rise + rise_var),
-		"bulge_x": side * rng.randf_range(bulge_min, bulge_max),
+		"bulge_x": bulge_x,
 	}
 
 
@@ -144,15 +159,12 @@ static func spawn(
 	label.render_priority = 10
 	label.add_to_group(GROUP)
 	label.scale = Vector3.ONE * POP_START_SCALE
-	label.position = Vector3(
-		rng.randf_range(-SPREAD_X_MIN, SPREAD_X_MIN),
-		0.12,
-		0.02
-	)
+	var origin := Vector3(0.0, 0.12, 0.02)
+	var path := roll_path(origin, rng, screen_path, is_crit)
+	label.position = Vector3(path.start_x, origin.y, origin.z)
 	parent.add_child(label)
 
 	var start := label.position
-	var path := roll_path(start, rng, screen_path, is_crit)
 	var world_origin := Vector3.ZERO
 	if parent is Node3D:
 		world_origin = (parent as Node3D).global_position
@@ -177,7 +189,11 @@ static func spawn(
 	tween.tween_property(label, "modulate:a", 0.0, DURATION_SEC).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	tween.tween_property(label, "outline_modulate:a", 0.0, DURATION_SEC).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	var pop := parent.create_tween()
-	var pop_scale := Vector3.ONE * (CRIT_SCALE if is_crit else 1.0)
+	var pop_scale := Vector3.ONE
+	if is_crit:
+		pop_scale *= CRIT_SCALE
+	elif not screen_path:
+		pop_scale *= PLAYER_SCALE
 	var pop_sec := CRIT_POP_IN_SEC if is_crit else POP_IN_SEC
 	pop.tween_property(label, "scale", pop_scale, pop_sec).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	var stop_motion := func() -> void:
