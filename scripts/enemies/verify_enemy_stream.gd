@@ -242,7 +242,7 @@ func _verify_leaper() -> void:
 	_fail_unless(LeaperPillScript.MAX_HEALTH == SwarmPillScript.MAX_HEALTH, "Leaper HP should mirror crawler")
 	_fail_unless(is_equal_approx(LeaperPillScript.MOVE_SPEED, 8.0), "Leaper chase speed should be 8 m/s")
 	_fail_unless(is_equal_approx(LeaperPillScript.LEAP_RANGE_M, 15.0), "Leap range should be 15 m")
-	_fail_unless(is_equal_approx(LeaperPillScript.LEAP_MAX_M, 40.0), "Leap travel should cap at 40 m")
+	_fail_unless(is_equal_approx(LeaperPillScript.LEAP_MAX_M, 50.0), "Leap travel should cap at 50 m")
 	var leaper_ahead := LeaperPillScript.spawn_ahead_range()
 	_fail_unless(is_equal_approx(leaper_ahead.x, 120.0), "Leapers should spawn no closer than 120 m")
 	_fail_unless(
@@ -283,8 +283,8 @@ func _verify_leaper() -> void:
 		origin, Vector3(-80.0, 2.0, 0.0), Vector3(-30.0, 0.0, 10.0)
 	)
 	_fail_unless(
-		is_equal_approx(Vector2(far_aim.x, far_aim.z).length(), 40.0),
-		"A leap at a player 80 m away should land 40 m out"
+		is_equal_approx(Vector2(far_aim.x, far_aim.z).length(), 50.0),
+		"A leap at a player 80 m away should land 50 m out"
 	)
 	_fail_unless(far_aim.x < 0.0, "A far leap should still go toward the player")
 	_fail_unless(
@@ -296,14 +296,14 @@ func _verify_leaper() -> void:
 	)
 	_fail_unless(
 		is_equal_approx(near_aim.x, -10.0),
-		"A leap inside 40 m should still intercept the player"
+		"A leap inside 50 m should still intercept the player"
 	)
 	var led_aim: Vector3 = LeaperPillScript.landing_aim_xz(
 		origin, Vector3(-10.0, 2.0, 0.0), Vector3(-80.0, 0.0, 0.0)
 	)
 	_fail_unless(
-		is_equal_approx(Vector2(led_aim.x, led_aim.z).length(), 40.0),
-		"Lead that would overshoot 40 m should clamp to 40 m"
+		is_equal_approx(Vector2(led_aim.x, led_aim.z).length(), 50.0),
+		"Lead that would overshoot 50 m should clamp to 50 m"
 	)
 
 	_fail_unless(
