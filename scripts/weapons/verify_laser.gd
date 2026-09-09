@@ -129,6 +129,14 @@ func _verify_pushback_speed() -> void:
 
 
 func _verify_bounce() -> void:
+	_fail_unless(is_equal_approx(AutoLaserScript.BOUNCE_DAMAGE_KEEP, 0.7), "Each laser bounce should keep 70% damage")
+	_fail_unless(AutoLaserScript.bounce_tick_damage(100, 0) == 100, "Primary laser tick should keep full damage")
+	_fail_unless(AutoLaserScript.bounce_tick_damage(100, 1) == 70, "First bounce should deal 70")
+	_fail_unless(AutoLaserScript.bounce_tick_damage(100, 2) == 49, "Second bounce should deal 49")
+	_fail_unless(
+		AutoRifleScript.crit_damage_for(AutoLaserScript.bounce_tick_damage(7, 1), true) == 10,
+		"A crit bounce should double the reduced hop damage"
+	)
 	_fail_unless(
 		is_equal_approx(AutoRifleScript.RANGE_M, 75.0),
 		"Rifle acquire range should be 75 m"

@@ -9,6 +9,7 @@ const FIRE_SEC := 2.0
 const CHARGE_SEC := 2.0
 const CHARGE_FLOOR := 0.5
 const TICK_SEC := 0.5
+const BOUNCE_DAMAGE_KEEP := 0.7
 
 var _rig: PlayerRig
 var _charge := 0.0
@@ -252,6 +253,14 @@ static func charge_for(reduction: float) -> float:
 
 static func damage_for(bonus: float) -> int:
 	return maxi(1, int(round(float(DAMAGE) * (1.0 + maxf(bonus, 0.0)))))
+
+
+## hop_index 0 is the primary beam. Each later hop keeps 70% of that first-tick damage.
+static func bounce_tick_damage(base: int, hop_index: int) -> int:
+	var hop := maxi(hop_index, 0)
+	if hop == 0:
+		return maxi(0, base)
+	return maxi(1, int(round(float(base) * pow(BOUNCE_DAMAGE_KEEP, hop))))
 
 
 ## Primary lock only. Bounce hops may still overlap other beams' targets.
