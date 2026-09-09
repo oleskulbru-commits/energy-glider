@@ -9,6 +9,7 @@ const MOVE_SPEED := 8.0
 const PILL_COLOR := Color(0.58, 0.18, 0.92)
 const RETICLE_COLOR := Color(0.72, 0.28, 0.98, 0.9)
 const LEAP_RANGE_M := 15.0
+const LEAP_MAX_M := 40.0
 const SPAWN_AHEAD_MIN_M := 120.0
 const CHARGE_SEC := 1.5
 const LEAP_SEC := 1.0
@@ -157,6 +158,7 @@ func _begin_leap() -> void:
 	_leap_t = 0.0
 	_leap_origin = global_position
 	_leap_impact = landing_point_for(
+		_leap_origin,
 		_target.global_position,
 		_target_velocity(),
 		_terrain,
@@ -337,20 +339,49 @@ static func intercept_xz(player_pos: Vector3, player_vel: Vector3, lead_sec: flo
 	)
 
 
+static func landing_aim_xz(
+	origin: Vector3,
+	player_pos: Vector3,
+	player_vel: Vector3,
+	max_m: float = LEAP_MAX_M,
+	lead_sec: float = LEAP_SEC
+) -> Vector3:
+	var to_player := Vector3(player_pos.x - origin.x, 0.0, player_pos.z - origin.z)
+	var player_dist := to_player.length()
+	var dir := Vector3.ZERO
+	var travel := 0.0
+	if player_dist > max_m:
+		dir = to_player / player_dist
+		travel = max_m
+	else:
+		var predicted := intercept_xz(player_pos, player_vel, lead_sec)
+		var to_pred := Vector3(predicted.x - origin.x, 0.0, predicted.z - origin.z)
+		var pred_dist := to_pred.length()
+		if pred_dist > 0.0001:
+			dir = to_pred / pred_dist
+			travel = minf(pred_dist, max_m)
+		elif player_dist > 0.0001:
+			dir = to_player / player_dist
+			travel = player_dist
+	return Vector3(origin.x + dir.x * travel, origin.y, origin.z + dir.z * travel)
+
+
 static func landing_point_for(
+	origin: Vector3,
 	player_pos: Vector3,
 	player_vel: Vector3,
 	terrain: TerrainManager,
-	collision_bottom_y: float
+	collision_bottom_y: float,
+	max_m: float = LEAP_MAX_M
 ) -> Vector3:
-	var predicted := intercept_xz(player_pos, player_vel, LEAP_SEC)
-	var land_y := predicted.y
+	var aim := landing_aim_xz(origin, player_pos, player_vel, max_m)
+	var land_y := aim.y
 	if terrain != null:
-		land_y = terrain.sample_height(predicted.x, predicted.z)
+		land_y = terrain.sample_height(aim.x, aim.z)
 	return Vector3(
-		predicted.x,
+		aim.x,
 		land_y - collision_bottom_y + GROUND_CLEARANCE_M,
-		predicted.z
+		aim.z
 	)
 
 
