@@ -3,12 +3,13 @@ extends Node
 
 ## Always-on second weapon. Independent clock from the rifle.
 
-const DAMAGE := 5
+const DAMAGE := 7
 const RANGE_M := 45.0
 const FIRE_SEC := 2.0
 const CHARGE_SEC := 2.0
 const CHARGE_FLOOR := 0.5
 const TICK_SEC := 0.5
+const BOUNCE_DAMAGE_KEEP := 0.7
 
 var _rig: PlayerRig
 var _charge := 0.0
@@ -172,10 +173,9 @@ func _muzzle_origin() -> Vector3:
 
 
 func _facing_xz() -> Vector3:
-	var glider := _rig.get_glider() if _rig != null else null
-	if glider == null:
-		return Vector3.ZERO
-	return MathUtil.yaw_forward(glider.get_yaw())
+	if _rig != null:
+		return _rig.weapon_facing_xz()
+	return Vector3.ZERO
 
 
 func _pills() -> Array:
@@ -253,6 +253,14 @@ static func charge_for(reduction: float) -> float:
 
 static func damage_for(bonus: float) -> int:
 	return maxi(1, int(round(float(DAMAGE) * (1.0 + maxf(bonus, 0.0)))))
+
+
+## hop_index 0 is the primary beam. Each later hop keeps 70% of that first-tick damage.
+static func bounce_tick_damage(base: int, hop_index: int) -> int:
+	var hop := maxi(hop_index, 0)
+	if hop == 0:
+		return maxi(0, base)
+	return maxi(1, int(round(float(base) * pow(BOUNCE_DAMAGE_KEEP, hop))))
 
 
 ## Primary lock only. Bounce hops may still overlap other beams' targets.

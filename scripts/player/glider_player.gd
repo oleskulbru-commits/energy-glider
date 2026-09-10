@@ -807,12 +807,22 @@ func _live_board_min_clearance_at(origin: Vector3, use_deck_tilt: bool) -> float
 
 
 func _enforce_floor_contact(state: PhysicsDirectBodyState3D) -> void:
+	var origin := state.transform.origin
+	var min_clearance := _live_board_min_clearance_at(origin, false)
 	if _state != State.GROUNDED:
+		if not is_nan(min_clearance) and min_clearance < 0.0:
+			var xf_air := state.transform
+			xf_air.origin.y += minf(-min_clearance, 0.5)
+			state.transform = xf_air
+			var vel_air := state.linear_velocity
+			if vel_air.y < 0.0:
+				vel_air.y = 0.0
+				state.linear_velocity = vel_air
 		return
 	var boost_climb := _is_boost_climb_active()
 	var climbing := _is_climbing(_downhill_dir(), _board_forward_on_ground())
-	var origin := state.transform.origin
-	var min_clearance := _live_board_min_clearance_at(origin, false)
+	origin = state.transform.origin
+	min_clearance = _live_board_min_clearance_at(origin, false)
 	if climbing:
 		min_clearance = minf(min_clearance, _live_board_min_clearance_at(origin, true))
 	var clip_max := (
@@ -822,15 +832,21 @@ func _enforce_floor_contact(state: PhysicsDirectBodyState3D) -> void:
 	)
 	var ny := maxf(_ground_normal.y, 0.2)
 	var max_step := (
-		BOOST_CLIMB_FLOOR_CORRECT_MAX_STEP if boost_climb else FLOOR_CORRECT_MAX_STEP
+		BOOST_CLIMB_FLOOR_CORRECT_MAX_STEP if boost_climb or climbing else FLOOR_CORRECT_MAX_STEP
 	)
 	if min_clearance < clip_max:
-		var correction := minf((clip_max - min_clearance) / ny, max_step)
+		var needed := (clip_max - min_clearance) / ny
+		var correction := needed
+		if min_clearance >= 0.0:
+			correction = minf(needed, max_step)
+		else:
+			## Sudden faces rise faster than 6 cm/frame; unbury the real penetration.
+			correction = minf(needed, 0.5)
 		var xf := state.transform
 		xf.origin += _ground_normal * correction
 		state.transform = xf
-		# Climbing: leave normal speed to hover/alignment — zeroing it bleeds crest carry.
-		if not climbing:
+		# Always kill inward speed when buried so the next step does not re-enter the sand.
+		if min_clearance < 0.0 or not climbing:
 			var vel := state.linear_velocity
 			var inward := vel.dot(_ground_normal)
 			if inward < 0.0:

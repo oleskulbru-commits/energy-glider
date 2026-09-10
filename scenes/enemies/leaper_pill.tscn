@@ -1,0 +1,15 @@
+[gd_scene format=3 uid="uid://bcrh6dkd8vvfc"]
+
+[ext_resource type="Script" path="res://scripts/enemies/leaper_pill.gd" id="1_leaper"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+radius = 0.3
+height = 0.6
+
+[node name="LeaperPill" type="CharacterBody3D"]
+collision_layer = 8
+script = ExtResource("1_leaper")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.32, 0)
+shape = SubResource("CapsuleShape3D_body")

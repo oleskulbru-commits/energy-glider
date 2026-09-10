@@ -4,9 +4,13 @@ const SwarmPillScript = preload("res://scripts/enemies/swarm_pill.gd")
 const SwarmPillScene = preload("res://scenes/enemies/swarm_pill.tscn")
 const ChargerPillScript = preload("res://scripts/enemies/charger_pill.gd")
 const ChargerPillScene = preload("res://scenes/enemies/charger_pill.tscn")
+const LeaperPillScript = preload("res://scripts/enemies/leaper_pill.gd")
+const LeaperPillScene = preload("res://scenes/enemies/leaper_pill.tscn")
 const EnemyStreamSpawnerScript = preload("res://scripts/enemies/enemy_stream_spawner.gd")
 const AutoRifleScript = preload("res://scripts/weapons/auto_rifle.gd")
 const DamageFloatScript = preload("res://scripts/ui/damage_float.gd")
+const CombatDroneScript = preload("res://scripts/enemies/combat_drone.gd")
+const LaserDroneScript = preload("res://scripts/enemies/laser_drone.gd")
 
 
 func _init() -> void:
@@ -19,7 +23,9 @@ func _run() -> void:
 	_verify_knockback()
 	_verify_spawn_grace()
 	_verify_charger()
+	_verify_leaper()
 	_verify_pill_health()
+	_verify_level_hp_curve()
 	_verify_damage_floats()
 	_verify_hit_knockback()
 	_verify_crawler_death()
@@ -34,11 +40,11 @@ func _verify_cap_curve() -> void:
 	var prev := -1
 	for level in range(1, 41):
 		var cap := SwarmPillScript.active_cap_for_level(level)
-		_fail_unless(cap >= 8 and cap <= 60, "Cap out of range at level %d: %d" % [level, cap])
+		_fail_unless(cap >= 15 and cap <= 108, "Cap out of range at level %d: %d" % [level, cap])
 		_fail_unless(cap >= prev, "Cap should be non-decreasing (%d -> %d at level %d)" % [prev, cap, level])
 		prev = cap
-	_fail_unless(SwarmPillScript.active_cap_for_level(1) == 8, "Level 1 cap should be 8")
-	_fail_unless(SwarmPillScript.active_cap_for_level(40) == 60, "Level 40 cap should be 60")
+	_fail_unless(SwarmPillScript.active_cap_for_level(1) == 15, "Level 1 cap should be 15")
+	_fail_unless(SwarmPillScript.active_cap_for_level(40) == 108, "Level 40 cap should be 108")
 
 
 func _verify_spawn_offset() -> void:
@@ -83,11 +89,14 @@ func _verify_spawn_offset() -> void:
 	)
 
 	var early := SwarmPillScript.ahead_range_for_level(1)
-	_fail_unless(is_equal_approx(early.x, 40.0), "Level 1 spawn min should stay 40 m")
-	_fail_unless(is_equal_approx(early.y, 110.0), "Level 1 spawn max should be 110 m")
+	_fail_unless(is_equal_approx(early.x, 50.0), "Level 1 spawn min should be 50 m")
+	_fail_unless(is_equal_approx(early.y, 200.0), "Level 1 spawn max should be 200 m")
 	var late := SwarmPillScript.ahead_range_for_level(40)
-	_fail_unless(is_equal_approx(late.x, 30.0), "Level 40 spawn min should stay 30 m")
-	_fail_unless(is_equal_approx(late.y, 110.0), "Spawn max should stay 110 m at every level")
+	_fail_unless(is_equal_approx(late.x, 40.0), "Level 40 spawn min should be 40 m")
+	_fail_unless(is_equal_approx(late.y, 200.0), "Spawn max should stay 200 m at every level")
+	var mid := SwarmPillScript.ahead_range_for_level(20)
+	_fail_unless(mid.x < 50.0 and mid.x > 40.0, "Mid-run spawn min should sit between 50 m and 40 m")
+	_fail_unless(is_equal_approx(mid.y, 200.0), "Mid-run spawn max should stay 200 m")
 
 
 func _verify_knockback() -> void:
@@ -129,12 +138,57 @@ func _verify_spawn_grace() -> void:
 
 func _verify_charger() -> void:
 	_fail_unless(
-		is_equal_approx(EnemyStreamSpawnerScript.CHARGER_SPAWN_CHANCE, 1.0 / 6.0),
-		"Charger spawn chance should be 1/6 (1:5 vs crawlers)"
+		EnemyStreamSpawnerScript.charger_cap_for_level(3) == 0,
+		"Chargers should not spawn before level 4"
+	)
+	_fail_unless(
+		EnemyStreamSpawnerScript.charger_cap_for_level(4) == 4,
+		"Level 4 charger cap should be 4"
+	)
+	_fail_unless(
+		EnemyStreamSpawnerScript.charger_cap_for_level(10) == 7,
+		"Level 10 charger cap should be 7"
+	)
+	_fail_unless(
+		EnemyStreamSpawnerScript.charger_cap_for_level(40) == 19,
+		"Level 40 charger cap should be 19"
 	)
 	_fail_unless(
 		EnemyStreamSpawnerScript.CHARGER_MIN_LEVEL == 4,
 		"Chargers should unlock at level 4 (after tower 3)"
+	)
+	var both_short := EnemyStreamSpawnerScript.ground_spawns_this_tick(10, 12, 0, 2, 2)
+	_fail_unless(both_short == Vector3i(1, 1, 0), "Both pools short should spawn one crawler and one charger")
+	var crawlers_only := EnemyStreamSpawnerScript.ground_spawns_this_tick(6, 12, 2, 2, 2)
+	_fail_unless(crawlers_only == Vector3i(2, 0, 0), "Only crawlers short should spawn up to 2 crawlers")
+	var chargers_only := EnemyStreamSpawnerScript.ground_spawns_this_tick(12, 12, 0, 2, 2)
+	_fail_unless(chargers_only == Vector3i(0, 2, 0), "Only chargers short should spawn up to 2 chargers")
+	var full := EnemyStreamSpawnerScript.ground_spawns_this_tick(12, 12, 2, 2, 2)
+	_fail_unless(full == Vector3i.ZERO, "Full pools should spawn nothing")
+	var leapers_only := EnemyStreamSpawnerScript.ground_spawns_this_tick(12, 12, 2, 2, 2, 0, 6)
+	_fail_unless(leapers_only == Vector3i(0, 0, 2), "Only leapers short should spawn up to 2 leapers")
+	var crawler_leaper := EnemyStreamSpawnerScript.ground_spawns_this_tick(10, 12, 2, 2, 2, 0, 6)
+	_fail_unless(crawler_leaper == Vector3i(1, 0, 1), "Crawler and leaper short should spawn one of each")
+	var all_skip_crawler := EnemyStreamSpawnerScript.ground_spawns_this_tick(
+		10, 12, 0, 2, 2, 0, 6, 0
+	)
+	_fail_unless(
+		all_skip_crawler == Vector3i(0, 1, 1),
+		"All three short skipping crawlers should spawn charger and leaper"
+	)
+	var all_skip_charger := EnemyStreamSpawnerScript.ground_spawns_this_tick(
+		10, 12, 0, 2, 2, 0, 6, 1
+	)
+	_fail_unless(
+		all_skip_charger == Vector3i(1, 0, 1),
+		"All three short skipping chargers should spawn crawler and leaper"
+	)
+	var all_skip_leaper := EnemyStreamSpawnerScript.ground_spawns_this_tick(
+		10, 12, 0, 2, 2, 0, 6, 2
+	)
+	_fail_unless(
+		all_skip_leaper == Vector3i(1, 1, 0),
+		"All three short skipping leapers should spawn crawler and charger"
 	)
 	_fail_unless(
 		is_equal_approx(ChargerPillScript.AGGRO_RANGE_M, 15.0),
@@ -184,15 +238,299 @@ func _verify_charger() -> void:
 	green.free()
 
 
+func _verify_leaper() -> void:
+	_fail_unless(LeaperPillScript.MAX_HEALTH == SwarmPillScript.MAX_HEALTH, "Leaper HP should mirror crawler")
+	_fail_unless(is_equal_approx(LeaperPillScript.MOVE_SPEED, 8.0), "Leaper chase speed should be 8 m/s")
+	_fail_unless(is_equal_approx(LeaperPillScript.LEAP_RANGE_M, 15.0), "Leap range should be 15 m")
+	_fail_unless(is_equal_approx(LeaperPillScript.LEAP_MAX_M, 50.0), "Leap travel should cap at 50 m")
+	var leaper_ahead := LeaperPillScript.spawn_ahead_range()
+	_fail_unless(is_equal_approx(leaper_ahead.x, 120.0), "Leapers should spawn no closer than 120 m")
+	_fail_unless(
+		is_equal_approx(leaper_ahead.y, SwarmPillScript.SPAWN_AHEAD_MAX_M),
+		"Leaper spawn max should match the ground-monster far edge"
+	)
+	_fail_unless(
+		leaper_ahead.x > LeaperPillScript.LEAP_RANGE_M,
+		"Leaper spawn min should be outside leap range so they crawl in first"
+	)
+	_fail_unless(is_equal_approx(LeaperPillScript.CHARGE_SEC, 1.5), "Charge should last 1.5 s")
+	_fail_unless(is_equal_approx(LeaperPillScript.LEAP_SEC, 1.0), "Leap should last 1 s")
+	_fail_unless(is_equal_approx(LeaperPillScript.RECOVER_SEC, 0.5), "Recover should last 0.5 s")
+	_fail_unless(is_equal_approx(LeaperPillScript.LEAP_COOLDOWN_SEC, 7.0), "Leap cooldown should be 7 s")
+	_fail_unless(is_equal_approx(LeaperPillScript.SPLASH_RADIUS_M, 2.0), "Splash radius should be 2 m")
+	_fail_unless(
+		LeaperPillScript.landing_damage_for(true, true, SwarmPillScript.CONTACT_DAMAGE)
+		== SwarmPillScript.CONTACT_DAMAGE,
+		"Direct landing should deal full crawler damage, not splash on top"
+	)
+	_fail_unless(
+		LeaperPillScript.landing_damage_for(false, true, SwarmPillScript.CONTACT_DAMAGE) == 2,
+		"Splash-only landing should deal half crawler damage"
+	)
+	_fail_unless(
+		LeaperPillScript.landing_damage_for(false, false, SwarmPillScript.CONTACT_DAMAGE) == 0,
+		"A miss should deal no landing damage"
+	)
+	_fail_unless(
+		LeaperPillScript.landing_owns_hit(
+			Vector3(0.4, 0.4, 0.0),
+			Vector3.ZERO,
+			SwarmPillScript.CONTACT_RADIUS_M,
+			LeaperPillScript.SPLASH_RADIUS_M,
+			SwarmPillScript.CONTACT_MAX_ABOVE_M,
+			SwarmPillScript.CONTACT_DAMAGE
+		),
+		"A player on the landing mark should be owned by the landing hit"
+	)
+	_fail_unless(
+		not LeaperPillScript.landing_owns_hit(
+			Vector3(8.0, 0.4, 0.0),
+			Vector3.ZERO,
+			SwarmPillScript.CONTACT_RADIUS_M,
+			LeaperPillScript.SPLASH_RADIUS_M,
+			SwarmPillScript.CONTACT_MAX_ABOVE_M,
+			SwarmPillScript.CONTACT_DAMAGE
+		),
+		"A player far from the landing mark should still take mid-leap contact"
+	)
+
+	var predicted: Vector3 = LeaperPillScript.intercept_xz(
+		Vector3(0.0, 2.0, 0.0), Vector3(-10.0, 4.0, 3.0), 1.0
+	)
+	_fail_unless(is_equal_approx(predicted.x, -10.0), "Intercept X should use 1s of XZ velocity")
+	_fail_unless(is_equal_approx(predicted.y, 2.0), "Intercept should keep the player's Y")
+	_fail_unless(is_equal_approx(predicted.z, 3.0), "Intercept Z should use 1s of XZ velocity")
+	var origin := Vector3.ZERO
+	var far_aim: Vector3 = LeaperPillScript.landing_aim_xz(
+		origin, Vector3(-80.0, 2.0, 0.0), Vector3(-30.0, 0.0, 10.0)
+	)
+	_fail_unless(
+		is_equal_approx(Vector2(far_aim.x, far_aim.z).length(), 50.0),
+		"A leap at a player 80 m away should land 50 m out"
+	)
+	_fail_unless(far_aim.x < 0.0, "A far leap should still go toward the player")
+	_fail_unless(
+		is_equal_approx(far_aim.z, 0.0),
+		"A far leap should aim at the player, not lead their velocity"
+	)
+	var near_aim: Vector3 = LeaperPillScript.landing_aim_xz(
+		origin, Vector3(-10.0, 2.0, 0.0), Vector3.ZERO
+	)
+	_fail_unless(
+		is_equal_approx(near_aim.x, -10.0),
+		"A leap inside 50 m should still intercept the player"
+	)
+	var led_aim: Vector3 = LeaperPillScript.landing_aim_xz(
+		origin, Vector3(-10.0, 2.0, 0.0), Vector3(-80.0, 0.0, 0.0)
+	)
+	_fail_unless(
+		is_equal_approx(Vector2(led_aim.x, led_aim.z).length(), 50.0),
+		"Lead that would overshoot 50 m should clamp to 50 m"
+	)
+
+	_fail_unless(
+		LeaperPillScript.is_body_contact(
+			Vector3(0.4, 0.6, 0.0), Vector3.ZERO, SwarmPillScript.CONTACT_RADIUS_M
+		),
+		"Touching a leaper body should count as contact"
+	)
+	_fail_unless(
+		LeaperPillScript.is_body_contact(
+			Vector3(0.3, 4.1, 0.0), Vector3(0.0, 4.0, 0.0), SwarmPillScript.CONTACT_RADIUS_M
+		),
+		"Gliding through a leaping leaper should still contact"
+	)
+	_fail_unless(
+		not LeaperPillScript.is_body_contact(
+			Vector3(0.0, 0.8, 0.0), Vector3(0.0, 4.0, 0.0), SwarmPillScript.CONTACT_RADIUS_M
+		),
+		"A leap high overhead should not damage through empty air"
+	)
+
+	var health := PlayerHealth.new()
+	root.add_child(health)
+	var dummy := Node3D.new()
+	root.add_child(dummy)
+	dummy.global_position = Vector3(0.0, 4.0, 0.0)
+	var jumper: LeaperPill = LeaperPillScene.instantiate() as LeaperPill
+	root.add_child(jumper)
+	jumper.configure(null, dummy)
+	jumper.global_position = Vector3(0.4, 4.0, 0.0)
+	jumper.leap_state = LeaperPill.LeapState.LEAP
+	jumper.call("_update_contact", 0.05)
+	_fail_unless(
+		health.get_current() == PlayerHealth.BASE_HEALTH - SwarmPillScript.CONTACT_DAMAGE,
+		"Gliding through a leaping leaper should deal contact damage"
+	)
+	health.current = PlayerHealth.BASE_HEALTH
+	dummy.global_position = Vector3(0.0, 0.5, 0.0)
+	jumper.global_position = Vector3(0.4, 0.0, 0.0)
+	jumper.leap_state = LeaperPill.LeapState.CHARGE
+	jumper.set("_charge_left", 1.0)
+	jumper.set("_in_contact", false)
+	jumper.set("_damage_timer", 0.0)
+	jumper.call("_tick_charge", 0.05)
+	_fail_unless(
+		health.get_current() == PlayerHealth.BASE_HEALTH - SwarmPillScript.CONTACT_DAMAGE,
+		"Touching a charging leaper should deal contact damage"
+	)
+	health.current = PlayerHealth.BASE_HEALTH
+	dummy.global_position = Vector3(0.4, 4.0, 0.0)
+	jumper.global_position = Vector3(0.4, 4.0, 0.0)
+	jumper.leap_state = LeaperPill.LeapState.LEAP
+	jumper.set("_leap_origin", Vector3(0.4, 4.0, 0.0))
+	jumper.set("_leap_impact", Vector3(20.0, 0.0, 0.0))
+	jumper.set("_leap_t", 0.0)
+	jumper.set("_in_contact", false)
+	jumper.set("_damage_timer", 0.0)
+	jumper.call("_tick_leap", 0.05)
+	_fail_unless(
+		health.get_current() == PlayerHealth.BASE_HEALTH - SwarmPillScript.CONTACT_DAMAGE,
+		"Gliding through a leaping leaper away from the landing mark should still deal contact"
+	)
+	health.current = PlayerHealth.BASE_HEALTH
+	dummy.global_position = Vector3(0.0, 0.4, 0.0)
+	jumper.global_position = Vector3(0.4, 0.4, 0.0)
+	jumper.leap_state = LeaperPill.LeapState.LEAP
+	jumper.set("_leap_origin", Vector3(0.4, 0.0, 0.0))
+	jumper.set("_leap_impact", Vector3.ZERO)
+	jumper.set("_leap_t", 0.9)
+	jumper.set("_in_contact", false)
+	jumper.set("_damage_timer", 0.0)
+	jumper.call("_tick_leap", 0.05)
+	_fail_unless(
+		health.get_current() == PlayerHealth.BASE_HEALTH,
+		"Descent onto the landing mark should not deal contact before the land"
+	)
+	jumper.set("_leap_t", 0.99)
+	jumper.call("_tick_leap", 0.05)
+	_fail_unless(
+		health.get_current() == PlayerHealth.BASE_HEALTH - SwarmPillScript.CONTACT_DAMAGE,
+		"A direct land should deal one 5-damage hit, not contact plus landing"
+	)
+	health.free()
+	dummy.free()
+	jumper.free()
+
+
+	_fail_unless(
+		LeaperPillScript.can_begin_charge(15.0, 0.0),
+		"A leaper at 15 m with cooldown ready should start charging"
+	)
+	_fail_unless(
+		not LeaperPillScript.can_begin_charge(15.01, 0.0),
+		"A leaper past 15 m should not start a charge"
+	)
+	_fail_unless(
+		not LeaperPillScript.can_begin_charge(10.0, 1.0),
+		"A leaper on cooldown should not start a charge"
+	)
+	_fail_unless(
+		LeaperPillScript.charge_committed(true, 80.0),
+		"A started charge should stay committed if the player leaves 15 m"
+	)
+	_fail_unless(
+		not LeaperPillScript.can_begin_charge(80.0, 0.0),
+		"Leaving 15 m should still block a fresh charge"
+	)
+	_fail_unless(
+		LeaperPillScript.can_begin_charge(
+			LeaperPillScript.range_distance(Vector3(9.0, 0.0, 0.0), Vector3.ZERO), 0.0
+		),
+		"A player 9 m away on the ground should be inside the leap sphere"
+	)
+	_fail_unless(
+		not LeaperPillScript.can_begin_charge(
+			LeaperPillScript.range_distance(Vector3(0.0, 16.0, 0.0), Vector3.ZERO), 0.0
+		),
+		"A player 16 m straight up should be outside the leap sphere"
+	)
+
+	var land := Vector3.ZERO
+	var touching := Vector3(1.0, 0.4, 0.0)
+	var splash := Vector3(1.8, 0.4, 0.0)
+	var far := Vector3(2.5, 0.4, 0.0)
+	var airborne := Vector3(0.5, 3.0, 0.0)
+	_fail_unless(
+		LeaperPillScript.is_direct_landing(touching, land, SwarmPillScript.CONTACT_RADIUS_M, 1.2),
+		"Landing on the player should count as a direct hit"
+	)
+	_fail_unless(
+		not LeaperPillScript.is_direct_landing(splash, land, SwarmPillScript.CONTACT_RADIUS_M, 1.2),
+		"1.8 m should be outside crawler contact radius"
+	)
+	_fail_unless(
+		LeaperPillScript.is_splash_landing(splash, land, 2.0, 1.2),
+		"1.8 m should still take splash damage"
+	)
+	_fail_unless(
+		not LeaperPillScript.is_splash_landing(far, land, 2.0, 1.2),
+		"Past 2 m should miss the splash"
+	)
+	_fail_unless(
+		not LeaperPillScript.is_splash_landing(airborne, land, 2.0, 1.2),
+		"Flying well above the landing point should miss splash"
+	)
+
+	_fail_unless(
+		EnemyStreamSpawnerScript.LEAPER_MIN_LEVEL == 2,
+		"Leapers should unlock at level 2"
+	)
+	_fail_unless(
+		EnemyStreamSpawnerScript.leaper_cap_for_level(1) == 0,
+		"Level 1 should spawn no leapers"
+	)
+	_fail_unless(
+		EnemyStreamSpawnerScript.leaper_cap_for_level(2) == 6,
+		"Level 2 leaper cap should be one third of crawlers (17 → 6)"
+	)
+	_fail_unless(
+		EnemyStreamSpawnerScript.leaper_cap_for_level(4) == 7,
+		"Level 4 leaper cap should be one third of crawlers (22 → 7)"
+	)
+	_fail_unless(
+		EnemyStreamSpawnerScript.leaper_cap_for_level(10) == 12,
+		"Level 10 leaper cap should be one third of crawlers (36 → 12)"
+	)
+	_fail_unless(
+		EnemyStreamSpawnerScript.leaper_cap_for_level(40) == 36,
+		"Level 40 leaper cap should be one third of crawlers (108 → 36)"
+	)
+	_fail_unless(
+		EnemyStreamSpawnerScript.crawler_alive_count(13, 2, 5) == 6,
+		"Crawler count should ignore chargers and leapers"
+	)
+	_fail_unless(
+		EnemyStreamSpawnerScript.crawler_alive_count(5, 0, 5) == 0,
+		"A pack of only leapers should not count as crawlers"
+	)
+
+	var purple: LeaperPill = LeaperPillScene.instantiate() as LeaperPill
+	root.add_child(purple)
+	_fail_unless(purple != null, "Leaper scene should instantiate")
+	_fail_unless(purple.is_in_group("leaper_pill"), "Leaper should join leaper_pill")
+	_fail_unless(purple.is_in_group("swarm_pill"), "Leaper should stay targetable as a swarm pill")
+	_fail_unless(purple.get_max_health() == 20, "Leaper should spawn with crawler HP")
+	_fail_unless(purple.contact_damage == SwarmPillScript.CONTACT_DAMAGE, "Leaper contact damage should match crawler")
+	purple.configure(null, null, SwarmPillScript.DEFAULT_SPEED)
+	_fail_unless(
+		is_equal_approx(purple.move_speed, LeaperPillScript.MOVE_SPEED),
+		"configure should keep 8 m/s even if passed crawler speed"
+	)
+	var pill := purple.get_node_or_null("Pill") as MeshInstance3D
+	_fail_unless(pill != null, "Leaper should have a purple capsule visual")
+	purple.free()
+
+
 func _verify_pill_health() -> void:
 	_fail_unless(SwarmPillScript.MAX_HEALTH == 20, "Crawler HP should be 20")
 	_fail_unless(ChargerPillScript.CHARGER_MAX_HEALTH == 33, "Charger HP should be 33")
-	_fail_unless(AutoRifleScript.DAMAGE == 10, "Rifle damage should be 10")
-	_fail_unless(AutoRifleScript.damage_for(0.0) == 10, "Base rifle damage should stay 10")
-	_fail_unless(AutoRifleScript.damage_for(0.04) == 10, "4% more damage should round 10.4 down to 10")
-	_fail_unless(AutoRifleScript.damage_for(0.13) == 11, "4% + 9% should deal 11")
-	_fail_unless(AutoRifleScript.damage_for(0.15) == 12, "15% more damage should deal 12")
-	_fail_unless(AutoRifleScript.damage_for(0.75) == 18, "Damage bonus should have no cap")
+	_fail_unless(AutoRifleScript.DAMAGE == 20, "Rifle damage should be 20")
+	_fail_unless(AutoRifleScript.damage_for(0.0) == 20, "Base rifle damage should stay 20")
+	_fail_unless(AutoRifleScript.damage_for(0.04) == 21, "4% more damage should round 20.8 to 21")
+	_fail_unless(AutoRifleScript.damage_for(0.13) == 23, "4% + 9% should deal 23")
+	_fail_unless(AutoRifleScript.damage_for(0.15) == 23, "15% more damage should deal 23")
+	_fail_unless(AutoRifleScript.damage_for(0.75) == 35, "Damage bonus should have no cap")
 
 	var red: SwarmPill = SwarmPillScript.new()
 	root.add_child(red)
@@ -241,14 +579,93 @@ func _verify_pill_health() -> void:
 	scaled_green.free()
 
 
-func _verify_damage_floats() -> void:
+func _verify_level_hp_curve() -> void:
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_increment_for_level(1), 0.0), "Level 1 increment is 0%")
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_increment_for_level(2), 0.01), "Level 2 increment is 1%")
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_increment_for_level(3), 0.02), "Level 3 increment is 2%")
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_increment_for_level(4), 0.03), "Level 4 increment is 3%")
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_increment_for_level(5), 0.05), "Level 5 increment is 5%")
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_increment_for_level(6), 0.07), "Level 6 increment is 7%")
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_increment_for_level(7), 0.08), "Level 7 increment is 8%")
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_bonus_for_level(1), 0.0), "Level 1 bonus is 0%")
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_bonus_for_level(4), 0.06), "Level 4 bonus is 6%")
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_bonus_for_level(5), 0.11), "Level 5 bonus is 11%")
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_bonus_for_level(6), 0.18), "Level 6 bonus is 18%")
+	_fail_unless(is_equal_approx(SwarmPillScript.hp_bonus_for_level(10), 0.50), "Level 10 bonus is 50%")
 	_fail_unless(
-		DamageFloatScript.text_for(10) == "-10",
-		"Enemy hits should use the same -N text as the player"
+		SwarmPillScript.scaled_health_for_level(SwarmPillScript.MAX_HEALTH, 1) == 20,
+		"Level 1 crawler HP should stay 20"
 	)
 	_fail_unless(
-		is_equal_approx(DamageFloatScript.DURATION_SEC, 0.75),
+		SwarmPillScript.scaled_health_for_level(SwarmPillScript.MAX_HEALTH, 3) == 21,
+		"Level 3 crawler HP should round to 21"
+	)
+	_fail_unless(
+		SwarmPillScript.scaled_health_for_level(ChargerPillScript.CHARGER_MAX_HEALTH, 4) == 35,
+		"Level 4 charger HP should round to 35"
+	)
+	_fail_unless(
+		SwarmPillScript.scaled_health_for_level(LaserDroneScript.LASER_MAX_HEALTH, 5) == 17,
+		"Level 5 laser drone HP should round to 17"
+	)
+	_fail_unless(
+		SwarmPillScript.scaled_health_for_level(CombatDroneScript.DRONE_MAX_HEALTH, 5) == 44,
+		"Level 5 missile drone HP should round to 44"
+	)
+	_fail_unless(
+		SwarmPillScript.scaled_health_for_level(SwarmPillScript.MAX_HEALTH, 10) == 30,
+		"Level 10 crawler HP should round to 30"
+	)
+	var scaled_level: SwarmPill = SwarmPillScript.new()
+	root.add_child(scaled_level)
+	scaled_level.apply_level_hp(10)
+	_fail_unless(scaled_level.get_max_health() == 30, "apply_level_hp should set crawler HP to 30 at level 10")
+	_fail_unless(scaled_level.get_health() == 30, "apply_level_hp should refill to scaled max")
+	scaled_level.free()
+
+
+func _verify_damage_floats() -> void:
+	_fail_unless(
+		DamageFloatScript.text_for(10) == "10",
+		"Damage numbers should show the hit amount without a minus sign"
+	)
+	_fail_unless(
+		is_equal_approx(DamageFloatScript.DURATION_SEC, 1.0),
 		"Enemy damage floats should last as long as the player numbers"
+	)
+	_fail_unless(DamageFloatScript.RISE_M > 0.0, "Damage numbers should float upward")
+	var start := Vector3(0.0, 0.12, 0.02)
+	var mid := DamageFloatScript.float_point(0.5, start, 0.8, 1.0, 0.4)
+	var top := DamageFloatScript.float_point(1.0, start, 0.8, 1.0, 0.4)
+	_fail_unless(top.y > start.y, "The float path should end higher than it started")
+	_fail_unless(mid.y < top.y, "Numbers should keep rising instead of falling")
+	_fail_unless(
+		not is_equal_approx(mid.x, lerpf(start.x, 0.8, 0.5)),
+		"The rise should bow sideways instead of traveling in a straight line"
+	)
+	var rng_a := RandomNumberGenerator.new()
+	rng_a.seed = 11
+	var rng_b := RandomNumberGenerator.new()
+	rng_b.seed = 29
+	var path_a: Dictionary = DamageFloatScript.roll_path(start, rng_a)
+	var path_b: Dictionary = DamageFloatScript.roll_path(start, rng_b)
+	_fail_unless(
+		not is_equal_approx(path_a.end_x, path_b.end_x)
+		or not is_equal_approx(path_a.bulge_x, path_b.bulge_x)
+		or not is_equal_approx(path_a.end_y, path_b.end_y),
+		"Each number should roll a different rise path"
+	)
+	_fail_unless(
+		DamageFloatScript.PLAYER_SCALE < 1.0,
+		"Player-hit numbers should be smaller than enemy hits"
+	)
+	_fail_unless(
+		absf(path_a.end_x) > absf(path_a.start_x),
+		"Player-hit numbers should drift farther off the glider as they rise"
+	)
+	_fail_unless(
+		absf(path_a.bulge_x) >= DamageFloatScript.BULGE_X_MIN,
+		"Player-hit numbers should bow out to the side"
 	)
 	_clear_damage_floats()
 	var red: SwarmPill = SwarmPillScript.new()
@@ -256,7 +673,12 @@ func _verify_damage_floats() -> void:
 	red.take_damage(10, Vector3(-2.0, 0.0, 0.0))
 	var labels := _damage_float_labels()
 	_fail_unless(labels.size() == 1, "A hit should spawn one damage float")
-	_fail_unless(labels[0].text == "-10", "Rifle hit should show -10")
+	_fail_unless(labels[0].text == "10", "Rifle hit should show 10")
+	_fail_unless(labels[0].font == DamageFloatScript.FONT, "Damage floats should use Bungee")
+	_fail_unless(
+		labels[0].scale.x < 0.5,
+		"Damage floats should pop in from a small scale"
+	)
 	_fail_unless(labels[0].get_parent() != red, "Float should not die with the pill")
 	red.take_damage(10, Vector3(-2.0, 0.0, 0.0))
 	labels = _damage_float_labels()
@@ -264,7 +686,7 @@ func _verify_damage_floats() -> void:
 	_fail_unless(red.is_queued_for_deletion(), "Second 10 dmg should kill crawler")
 	var saw_kill_text := false
 	for label in labels:
-		if label.text == "-10":
+		if label.text == "10":
 			saw_kill_text = true
 	_fail_unless(saw_kill_text, "Killing blow should show the rolled hit amount")
 	red.free()
@@ -280,8 +702,8 @@ func _verify_damage_floats() -> void:
 	var texts: Array[String] = []
 	for label in labels:
 		texts.append(label.text)
-	_fail_unless(texts.has("-10"), "Charger hits should show rolled damage, not HP left")
-	_fail_unless(not texts.has("-5"), "Overkill should not clamp the float to remaining HP")
+	_fail_unless(texts.has("10"), "Charger hits should show rolled damage, not HP left")
+	_fail_unless(not texts.has("5"), "Overkill should not clamp the float to remaining HP")
 	green.free()
 	_clear_damage_floats()
 
@@ -291,10 +713,22 @@ func _verify_damage_floats() -> void:
 	crit_target.take_damage(46, Vector3(-1.0, 0.0, 0.0), true)
 	labels = _damage_float_labels()
 	_fail_unless(labels.size() == 1, "Crit overkill should spawn one float")
-	_fail_unless(labels[0].text == "-46", "Crit float should show doubled damage, not remaining HP")
+	_fail_unless(labels[0].text == "46", "Crit float should show doubled damage, not remaining HP")
 	_fail_unless(
 		labels[0].modulate.is_equal_approx(DamageFloatScript.CRIT_COLOR),
 		"Crit float should use the yellow crit color"
+	)
+	_fail_unless(
+		DamageFloatScript.CRIT_SCALE > 1.0,
+		"Crit numbers should land bigger than normal hits"
+	)
+	_fail_unless(
+		DamageFloatScript.CRIT_RISE_M > DamageFloatScript.RISE_M,
+		"Crit numbers should float higher than normal hits"
+	)
+	_fail_unless(
+		labels[0].outline_size == DamageFloatScript.CRIT_OUTLINE_SIZE,
+		"Crit numbers should use a heavier outline"
 	)
 	crit_target.free()
 	_clear_damage_floats()

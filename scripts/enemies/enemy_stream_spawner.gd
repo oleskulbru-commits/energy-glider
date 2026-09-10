@@ -1,12 +1,14 @@
 class_name EnemyStreamSpawner
 extends Node3D
 
-## Spawns crawlers, chargers, and (from level 5) flying combat drones ahead of the glider.
+## Spawns crawlers, chargers, leapers, and (from level 5) flying combat drones ahead of the glider.
 ## New game waits for the first E.O.N. pickup. Try Again keeps spawning even
 ## before the E.O.N. is collected again.
 
 const SwarmPillScene := preload("res://scenes/enemies/swarm_pill.tscn")
 const ChargerPillScene := preload("res://scenes/enemies/charger_pill.tscn")
+const LeaperPillScene := preload("res://scenes/enemies/leaper_pill.tscn")
+const LeaperPillScript := preload("res://scripts/enemies/leaper_pill.gd")
 const LaserDroneScene := preload("res://scenes/enemies/laser_drone.tscn")
 const MissileDroneScene := preload("res://scenes/enemies/missile_drone.tscn")
 const MachineGunDroneScene := preload("res://scenes/enemies/machine_gun_drone.tscn")
@@ -18,14 +20,14 @@ const LevelRunScript := preload("res://scripts/game/level_run.gd")
 
 const SPAWN_GRACE_SEC := 3.0
 const DAWN_SPAWN_GRACE_SEC := 2.0
-## 1 charger per 5 crawlers → one sixth of spawns.
-const CHARGER_SPAWN_CHANCE := 1.0 / 6.0
 ## Chargers unlock after crossing tower 3 (level 4+).
 const CHARGER_MIN_LEVEL := 4
+const CHARGER_CAP_MIN := 4
+const CHARGER_CAP_MAX := 19
+## Leapers unlock after leaving level 1. Live cap is ~1/3 of crawlers.
+const LEAPER_MIN_LEVEL := 2
 ## Drones unlock after crossing tower 4 (level 5+).
 const DRONE_MIN_LEVEL := CombatDroneScript.DRONE_MIN_LEVEL
-const LASER_KILL_COOLDOWN_SEC := 45.0
-## After a laser drone is killed or despawns, wait this long before another can spawn.
 ## Dev/test: machine gun drone on level 1, 400 m ahead (full align → charge flow).
 const SPAWN_TEST_DRONE := false
 const TEST_DRONE_AHEAD_M := CombatDroneScript.SPAWN_AHEAD_M
@@ -59,11 +61,8 @@ var _active_drones: Array[Node] = []
 var _drone_level := 0
 var _drones_spawned_in_level := 0
 var _drone_spawn_plan: Array = []
-var _active_laser: LaserDrone = null
-var _laser_kill_cooldown_left := 0.0
-var _active_mg_drone: Node = null
 var _test_mg_drone_spawned := false
-var _pending_singleton_slots: Array = []
+var _ground_skip_type := 0
 
 
 func _ready() -> void:
@@ -101,7 +100,6 @@ func _on_run_ended() -> void:
 
 func _physics_process(delta: float) -> void:
 	_cull_active()
-	_laser_kill_cooldown_left = maxf(_laser_kill_cooldown_left - delta, 0.0)
 	_spawn_cooldown = maxf(_spawn_cooldown - delta, 0.0)
 	if _grace_left > 0.0:
 		_grace_left = maxf(_grace_left - delta, 0.0)
@@ -113,8 +111,23 @@ func _physics_process(delta: float) -> void:
 	_try_spawn_test_mg_drone(level)
 	_try_spawn_drones(level)
 
-	var cap := SwarmPillScript.active_cap_for_level(level)
-	if _active.size() >= cap:
+	var crawler_cap := SwarmPillScript.active_cap_for_level(level)
+	var charger_cap := charger_cap_for_level(level)
+	var leaper_cap := leaper_cap_for_level(level)
+	var crawler_alive := _count_crawlers()
+	var charger_alive := _count_chargers()
+	var leaper_alive := _count_leapers()
+	var spawns := ground_spawns_this_tick(
+		crawler_alive,
+		crawler_cap,
+		charger_alive,
+		charger_cap,
+		spawns_per_tick_max,
+		leaper_alive,
+		leaper_cap,
+		_ground_skip_type
+	)
+	if spawns.x <= 0 and spawns.y <= 0 and spawns.z <= 0:
 		return
 	if _spawn_cooldown > 0.0:
 		return
@@ -126,10 +139,22 @@ func _physics_process(delta: float) -> void:
 	var ahead := SwarmPillScript.ahead_range_for_level(level)
 	var spread := SwarmPillScript.z_spread_for_level(level)
 	var speed := SwarmPillScript.move_speed_for_level(level)
-	var to_spawn := mini(spawns_per_tick_max, cap - _active.size())
-	for _i in to_spawn:
-		_spawn_one(track, ahead, spread, speed, level)
+	for _i in spawns.x:
+		_spawn_one(track, ahead, spread, speed, level, SwarmPillScene)
+	for _i in spawns.y:
+		_spawn_one(track, ahead, spread, speed, level, ChargerPillScene)
+	var leaper_ahead := LeaperPillScript.spawn_ahead_range()
+	for _i in spawns.z:
+		_spawn_one(
+			track,
+			leaper_ahead,
+			spread,
+			LeaperPillScript.MOVE_SPEED,
+			level,
+			LeaperPillScene
+		)
 
+	_ground_skip_type = (_ground_skip_type + 1) % 3
 	_spawn_cooldown = spawn_interval_sec
 
 
@@ -155,11 +180,7 @@ func _reset_drone_spawn_state() -> void:
 	_drone_level = 0
 	_drones_spawned_in_level = 0
 	_drone_spawn_plan.clear()
-	_active_laser = null
-	_laser_kill_cooldown_left = 0.0
-	_active_mg_drone = null
 	_test_mg_drone_spawned = false
-	_pending_singleton_slots.clear()
 
 
 static func drone_spawn_thresholds_from_plan(plan: Array) -> Array[float]:
@@ -206,117 +227,24 @@ static func count_drone_type_slots(plan: Array, drone_type: int) -> int:
 	return count
 
 
-static func can_spawn_mg_now(has_active: bool) -> bool:
-	return not has_active
-
-
-static func is_singleton_drone_type(drone_type: int) -> bool:
-	return drone_type == DroneType.LASER or drone_type == DroneType.MACHINE_GUN
-
-
-static func can_spawn_singleton_type(
-	drone_type: int,
-	laser_cooldown_left: float,
-	has_active_laser: bool,
-	has_active_mg: bool
-) -> bool:
-	match drone_type:
-		DroneType.LASER:
-			return can_spawn_laser_now(laser_cooldown_left, has_active_laser)
-		DroneType.MACHINE_GUN:
-			return can_spawn_mg_now(has_active_mg)
-	return true
-
-
 static func collect_due_drone_spawns(
 	plan: Array,
 	cursor: int,
-	pending: Array,
 	player_x: float,
-	level: int,
-	laser_cooldown_left: float,
-	has_active_laser: bool,
-	has_active_mg: bool
+	level: int
 ) -> Dictionary:
 	var thresholds := drone_spawn_thresholds_from_plan(plan)
 	var spawns: Array = []
-	var next_pending: Array = []
-	var simulated_active_laser := has_active_laser
-	var simulated_active_mg := has_active_mg
-	var simulated_cooldown := laser_cooldown_left
-
-	for slot in pending:
-		if slot is DroneSpawnSlot and can_spawn_singleton_type(
-			slot.drone_type,
-			simulated_cooldown,
-			simulated_active_laser,
-			simulated_active_mg
-		):
-			spawns.append(slot)
-			if slot.drone_type == DroneType.LASER:
-				simulated_active_laser = true
-			elif slot.drone_type == DroneType.MACHINE_GUN:
-				simulated_active_mg = true
-		else:
-			next_pending.append(slot)
-
 	var next_cursor := cursor
 	while next_cursor < plan.size():
 		if not drone_spawn_progress_allows(player_x, level, next_cursor, thresholds):
 			break
-		var slot: DroneSpawnSlot = plan[next_cursor]
-		if is_singleton_drone_type(slot.drone_type) and not can_spawn_singleton_type(
-			slot.drone_type,
-			simulated_cooldown,
-			simulated_active_laser,
-			simulated_active_mg
-		):
-			next_pending.append(slot)
-			next_cursor += 1
-			continue
-		spawns.append(slot)
-		if slot.drone_type == DroneType.LASER:
-			simulated_active_laser = true
-		elif slot.drone_type == DroneType.MACHINE_GUN:
-			simulated_active_mg = true
+		spawns.append(plan[next_cursor])
 		next_cursor += 1
-
 	return {
 		"cursor": next_cursor,
-		"pending": next_pending,
 		"spawns": spawns,
 	}
-
-
-static func can_spawn_laser_now(cooldown_left: float, has_active: bool) -> bool:
-	if has_active:
-		return false
-	if cooldown_left > 0.0:
-		return false
-	return true
-
-
-static func should_start_laser_cooldown_on_exit(
-	active_laser: LaserDrone,
-	exiting: LaserDrone
-) -> bool:
-	return active_laser != null and exiting != null and active_laser == exiting
-
-
-static func can_spawn_laser(
-	spawned: int,
-	budget: int,
-	cooldown_left: float,
-	has_active: bool
-) -> bool:
-	# Legacy helper for tests that still pass explicit laser budgets.
-	if has_active:
-		return false
-	if spawned >= budget:
-		return false
-	if cooldown_left > 0.0:
-		return false
-	return true
 
 
 func _should_spawn() -> bool:
@@ -344,6 +272,96 @@ func _current_level() -> int:
 	return 1
 
 
+static func charger_cap_for_level(level: int) -> int:
+	if level < CHARGER_MIN_LEVEL:
+		return 0
+	var t := clampf(float(level - CHARGER_MIN_LEVEL) / 36.0, 0.0, 1.0)
+	return int(roundf(lerpf(float(CHARGER_CAP_MIN), float(CHARGER_CAP_MAX), t)))
+
+
+static func leaper_cap_for_level(level: int) -> int:
+	if level < LEAPER_MIN_LEVEL:
+		return 0
+	var crawlers := SwarmPillScript.active_cap_for_level(level)
+	return int(roundf(float(crawlers) / 3.0))
+
+
+## Crawlers in x, chargers in y, leapers in z.
+## One short → up to tick_max of that type. Two short → one of each.
+## Three short → one each for two types, skipping `skip_type` % 3 so none starve.
+static func ground_spawns_this_tick(
+	crawler_alive: int,
+	crawler_cap: int,
+	charger_alive: int,
+	charger_cap: int,
+	tick_max: int,
+	leaper_alive: int = 0,
+	leaper_cap: int = 0,
+	skip_type: int = 0
+) -> Vector3i:
+	var crawler_need := maxi(crawler_cap - crawler_alive, 0)
+	var charger_need := maxi(charger_cap - charger_alive, 0)
+	var leaper_need := maxi(leaper_cap - leaper_alive, 0)
+	var slots := maxi(tick_max, 0)
+	if slots <= 0 or (crawler_need <= 0 and charger_need <= 0 and leaper_need <= 0):
+		return Vector3i.ZERO
+
+	var short: Array[int] = []
+	if crawler_need > 0:
+		short.append(0)
+	if charger_need > 0:
+		short.append(1)
+	if leaper_need > 0:
+		short.append(2)
+
+	if short.size() == 1:
+		return _ground_spawn_counts(short[0], mini(slots, _ground_need_for(
+			short[0], crawler_need, charger_need, leaper_need
+		)))
+
+	if short.size() == 2:
+		var first := mini(1, slots)
+		var second := mini(1, slots - first)
+		return (
+			_ground_spawn_counts(short[0], first)
+			+ _ground_spawn_counts(short[1], second)
+		)
+
+	var skip := posmod(skip_type, 3)
+	var spawned := 0
+	var result := Vector3i.ZERO
+	for type_i in 3:
+		if type_i == skip:
+			continue
+		if spawned >= slots:
+			break
+		result += _ground_spawn_counts(type_i, 1)
+		spawned += 1
+	return result
+
+
+static func _ground_need_for(
+	type_i: int, crawler_need: int, charger_need: int, leaper_need: int
+) -> int:
+	match type_i:
+		0:
+			return crawler_need
+		1:
+			return charger_need
+		_:
+			return leaper_need
+
+
+static func _ground_spawn_counts(type_i: int, count: int) -> Vector3i:
+	match type_i:
+		0:
+			return Vector3i(count, 0, 0)
+		1:
+			return Vector3i(0, count, 0)
+		_:
+			return Vector3i(0, 0, count)
+
+
 func _track_body() -> Node3D:
 	if _rig == null:
 		return null
@@ -356,7 +374,14 @@ func _get_glider() -> GliderPlayer:
 	return _rig.get_glider()
 
 
-func _spawn_one(track: Node3D, ahead: Vector2, spread: float, speed: float, level: int) -> void:
+func _spawn_one(
+	track: Node3D,
+	ahead: Vector2,
+	spread: float,
+	speed: float,
+	level: int,
+	scene: PackedScene
+) -> void:
 	var offset := spawn_offset_along_facing(ahead.x, ahead.y, spread, _rng, _facing_xz())
 	var world_x := track.global_position.x + offset.x
 	var world_z := track.global_position.z + offset.y
@@ -364,18 +389,22 @@ func _spawn_one(track: Node3D, ahead: Vector2, spread: float, speed: float, leve
 	if _terrain != null:
 		world_y = _terrain.sample_height(world_x, world_z)
 
-	var scene: PackedScene = SwarmPillScene
-	if level >= CHARGER_MIN_LEVEL and _rng.randf() < CHARGER_SPAWN_CHANCE:
-		scene = ChargerPillScene
 	var pill: SwarmPillScript = scene.instantiate() as SwarmPillScript
 	add_child(pill)
 	pill.global_position = Vector3(world_x, world_y, world_z)
 	pill.configure(_terrain, track, speed)
+	_apply_enemy_scaling(pill, level)
+	_active.append(pill)
+
+
+func _apply_enemy_scaling(unit: Node, level: int) -> void:
+	if unit != null and unit.has_method("apply_level_hp"):
+		unit.apply_level_hp(level)
 	var bonus := 0.0
 	if _director != null:
 		bonus = _director.difficulty_bonus()
-	pill.apply_difficulty(bonus)
-	_active.append(pill)
+	if unit != null and unit.has_method("apply_difficulty"):
+		unit.apply_difficulty(bonus)
 
 
 func _try_spawn_drones(level: int) -> void:
@@ -389,13 +418,11 @@ func _try_spawn_drones(level: int) -> void:
 func _begin_drone_level(level: int) -> void:
 	_drone_level = level
 	_drones_spawned_in_level = 0
-	_laser_kill_cooldown_left = 0.0
-	_pending_singleton_slots.clear()
 	_drone_spawn_plan = build_drone_spawn_plan(level, _rng)
 
 
 func _try_spawn_next_drone_slot(level: int) -> void:
-	if _drones_spawned_in_level >= _drone_spawn_plan.size() and _pending_singleton_slots.is_empty():
+	if _drones_spawned_in_level >= _drone_spawn_plan.size():
 		return
 	var track := _track_body()
 	if track == null:
@@ -403,15 +430,10 @@ func _try_spawn_next_drone_slot(level: int) -> void:
 	var result := collect_due_drone_spawns(
 		_drone_spawn_plan,
 		_drones_spawned_in_level,
-		_pending_singleton_slots,
 		track.global_position.x,
-		level,
-		_laser_kill_cooldown_left,
-		_active_laser != null and is_instance_valid(_active_laser),
-		_active_mg_drone != null and is_instance_valid(_active_mg_drone)
+		level
 	)
 	_drones_spawned_in_level = int(result.cursor)
-	_pending_singleton_slots = result.pending
 	for slot in result.spawns:
 		if slot is DroneSpawnSlot:
 			_spawn_drone_slot(slot, track, level)
@@ -489,8 +511,6 @@ func _try_spawn_test_mg_drone(level: int) -> void:
 		return
 	if _test_mg_drone_spawned:
 		return
-	if _active_mg_drone != null and is_instance_valid(_active_mg_drone):
-		return
 	var track := _track_body()
 	if track == null:
 		return
@@ -504,11 +524,7 @@ func _spawn_test_mg_drone(track: Node3D) -> void:
 	add_child(drone)
 	drone.global_position = world
 	(drone as MachineGunDroneScript).configure(_terrain, track, CombatDroneScript.move_speed_for_drone_level(DRONE_MIN_LEVEL))
-	var bonus := 0.0
-	if _director != null:
-		bonus = _director.difficulty_bonus()
-	drone.apply_difficulty(bonus)
-	_active_mg_drone = drone
+	_apply_enemy_scaling(drone, DRONE_MIN_LEVEL)
 	_active_drones.append(drone)
 
 
@@ -518,15 +534,7 @@ func _spawn_laser_drone(track: Node3D, level: int) -> void:
 	add_child(drone)
 	drone.global_position = world
 	drone.configure(_terrain, track, CombatDroneScript.move_speed_for_drone_level(level))
-	var bonus := 0.0
-	if _director != null:
-		bonus = _director.difficulty_bonus()
-	drone.apply_difficulty(bonus)
-	if not drone.died.is_connected(_on_laser_killed):
-		drone.died.connect(_on_laser_killed)
-	if not drone.tree_exited.is_connected(_on_laser_tree_exited):
-		drone.tree_exited.connect(_on_laser_tree_exited.bind(drone))
-	_active_laser = drone
+	_apply_enemy_scaling(drone, level)
 	_active_drones.append(drone)
 
 
@@ -536,10 +544,7 @@ func _spawn_missile_drone(track: Node3D, level: int) -> void:
 	add_child(drone)
 	drone.global_position = world
 	drone.configure(_terrain, track, CombatDroneScript.move_speed_for_drone_level(level))
-	var bonus := 0.0
-	if _director != null:
-		bonus = _director.difficulty_bonus()
-	drone.apply_difficulty(bonus)
+	_apply_enemy_scaling(drone, level)
 	_active_drones.append(drone)
 
 
@@ -549,11 +554,7 @@ func _spawn_machine_gun_drone(track: Node3D, level: int) -> void:
 	add_child(drone)
 	drone.global_position = world
 	(drone as MachineGunDroneScript).configure(_terrain, track, CombatDroneScript.move_speed_for_drone_level(level))
-	var bonus := 0.0
-	if _director != null:
-		bonus = _director.difficulty_bonus()
-	drone.apply_difficulty(bonus)
-	_active_mg_drone = drone
+	_apply_enemy_scaling(drone, level)
 	_active_drones.append(drone)
 
 
@@ -577,22 +578,6 @@ func _drone_spawn_position(track: Node3D) -> Vector3:
 	if _terrain != null:
 		world_y = _terrain.sample_height(world.x, world.z) + CombatDroneScript.CRUISE_HEIGHT_M
 	return Vector3(world.x, world_y, world.z)
-
-
-func _on_laser_killed() -> void:
-	_active_laser = null
-	_start_laser_cooldown()
-
-
-func _on_laser_tree_exited(drone: LaserDrone) -> void:
-	if not should_start_laser_cooldown_on_exit(_active_laser, drone):
-		return
-	_active_laser = null
-	_start_laser_cooldown()
-
-
-func _start_laser_cooldown() -> void:
-	_laser_kill_cooldown_left = LASER_KILL_COOLDOWN_SEC
 
 
 func _facing_xz() -> Vector3:
@@ -626,6 +611,30 @@ static func spawn_offset_along_facing(
 	return Vector2(world.x, world.z)
 
 
+static func crawler_alive_count(active_count: int, charger_count: int, leaper_count: int) -> int:
+	return maxi(active_count - charger_count - leaper_count, 0)
+
+
+func _count_chargers() -> int:
+	var count := 0
+	for node in _active:
+		if node != null and node.is_in_group("charger_pill"):
+			count += 1
+	return count
+
+
+func _count_leapers() -> int:
+	var count := 0
+	for node in _active:
+		if node != null and node.is_in_group("leaper_pill"):
+			count += 1
+	return count
+
+
+func _count_crawlers() -> int:
+	return crawler_alive_count(_active.size(), _count_chargers(), _count_leapers())
+
+
 func _cull_active() -> void:
 	var alive: Array[Node] = []
 	for node in _active:
@@ -637,7 +646,3 @@ func _cull_active() -> void:
 		if node != null and is_instance_valid(node) and not node.is_queued_for_deletion():
 			drones.append(node)
 	_active_drones = drones
-	if _active_laser != null and (not is_instance_valid(_active_laser) or _active_laser.is_queued_for_deletion()):
-		_active_laser = null
-	if _active_mg_drone != null and (not is_instance_valid(_active_mg_drone) or _active_mg_drone.is_queued_for_deletion()):
-		_active_mg_drone = null

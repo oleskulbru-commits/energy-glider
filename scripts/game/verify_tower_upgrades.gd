@@ -2205,8 +2205,8 @@ func _verify_crit_stacking() -> void:
 		"A non-crit should keep base damage"
 	)
 	_fail_unless(
-		AutoRifleScript.crit_damage_for(AutoRifleScript.damage_for(0.13), true) == 22,
-		"Crit should double after Damage rounding (11 -> 22)"
+		AutoRifleScript.crit_damage_for(AutoRifleScript.damage_for(0.13), true) == 46,
+		"Crit should double after Damage rounding (23 -> 46)"
 	)
 	state.reset_run()
 	_fail_unless(
@@ -2553,6 +2553,14 @@ func _verify_weapon_cards() -> void:
 			)
 		) == "Rocket Launcher",
 		"Rocket cards should be labeled Rocket Launcher"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.hud_weapon_name(UpgradeCatalogScript.ID_UNLOCK_ROCKET) == "R.L.",
+		"HUD rocket square should be labeled R.L."
+	)
+	_fail_unless(
+		UpgradeCatalogScript.hud_weapon_name(UpgradeCatalogScript.ID_UNLOCK_RIFLE) == "Rifle",
+		"HUD rifle square should keep the full name"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.display_name(

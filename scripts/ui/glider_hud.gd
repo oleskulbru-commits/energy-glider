@@ -20,6 +20,10 @@ const RunDamageStatsScript = preload("res://scripts/game/run_damage_stats.gd")
 const LASER_HIT_HUE_COLOR := Color(0.92, 0.1, 0.06, 1.0)
 const LASER_HIT_HUE_PEAK_ALPHA := 0.42
 const LASER_HIT_HUE_FADE_SEC := 2.0
+const AIM_BORDER_IDLE := Color(0.85, 0.72, 0.55, 0.35)
+const AIM_BORDER_ACTIVE := Color(0.45, 0.92, 0.55, 1.0)
+const AIM_BORDER_IDLE_PX := 1
+const AIM_BORDER_ACTIVE_PX := 2
 
 @onready var _power_label: Label = %PowerLabel
 @onready var _power_percent_label: Label = %PowerPercent
@@ -75,6 +79,7 @@ const LASER_HIT_HUE_FADE_SEC := 2.0
 @onready var _range_label: Label = %RangeLabel
 @onready var _speed_label: Label = %SpeedLabel
 @onready var _weapon_tray: HBoxContainer = %WeaponTray
+@onready var _aim_chip: PanelContainer = %AimChip
 @onready var _laser_target_reticle: LaserTargetReticleUIScript = %LaserTargetReticle
 
 var _rig: PlayerRig
@@ -88,6 +93,7 @@ var _night_survival: NightSurvival
 var _day_night: DayNightCycle
 var _power_fill: StyleBoxFlat
 var _battery_fill: StyleBoxFlat
+var _aim_panel: StyleBoxFlat
 var _solar_pulse_time := 0.0
 var _day_summary_timer := 0.0
 var _night_warning_timer := 0.0
@@ -117,8 +123,6 @@ func _ready() -> void:
 	_expedition = get_tree().get_first_node_in_group("expedition_state") as ExpeditionState
 	_director = get_tree().get_first_node_in_group("eon_director") as EonDirectorScript
 	_night_survival = get_tree().get_first_node_in_group("night_survival") as NightSurvival
-	if _expedition != null:
-		_expedition.day_started.connect(_on_day_started)
 	if _director != null:
 		_director.integrity_changed.connect(_on_integrity_changed)
 		_director.objective_changed.connect(_on_objective_changed)
@@ -171,7 +175,12 @@ func _ready() -> void:
 		_battery_bar.add_theme_stylebox_override("fill", _battery_fill)
 		if _battery_fill != null:
 			_battery_fill.bg_color = BATTERY_COLOR_EMPTY
-	_stop_chip.gui_input.connect(_on_stop_chip_gui_input)
+	if _aim_chip != null:
+		_aim_panel = _make_aim_panel_style()
+		_aim_chip.add_theme_stylebox_override("panel", _aim_panel)
+	if _stop_chip != null:
+		_stop_chip.visible = false
+		_stop_chip.gui_input.connect(_on_stop_chip_gui_input)
 	if _sail_chip != null:
 		_sail_chip.visible = false
 	_lock_eon_tracker_layout()
@@ -229,7 +238,7 @@ func _refresh_weapon_tray() -> void:
 		if icon != null:
 			icon.texture = UpgradeCatalog.icon_for_weapon_level(family, level)
 		if name_label != null:
-			name_label.text = UpgradeCatalog.display_name(unlock)
+			name_label.text = UpgradeCatalog.hud_weapon_name(unlock)
 		var level_label := slot.get_node_or_null("Level") as Label
 		if level_label != null:
 			level_label.text = "Level %d" % level
@@ -265,6 +274,7 @@ func _process(delta: float) -> void:
 	_update_power_meter(delta)
 	_update_landing_feedback()
 	_update_stop_chip()
+	_update_aim_chip()
 	_update_compass()
 	_update_outpost_board()
 	_update_night_warning(delta)
@@ -389,7 +399,10 @@ func _update_death_overlay() -> void:
 		_try_again_button.disabled = not can_retry
 		if can_retry and _director != null:
 			var pct := int(round(_director.next_try_again_bonus() * 100.0))
-			_try_again_button.text = "Try again (+%d%% difficulty)" % pct
+			if pct > 0:
+				_try_again_button.text = "Try again (+%d%% difficulty)" % pct
+			else:
+				_try_again_button.text = "Try again"
 		else:
 			_try_again_button.text = "Try again"
 		_try_again_button.modulate = (
@@ -496,12 +509,6 @@ func _update_battery_meter() -> void:
 		_battery_fill.bg_color = BATTERY_COLOR_LOW
 	else:
 		_battery_fill.bg_color = BATTERY_COLOR_NORMAL
-
-
-func _on_day_started(day: int) -> void:
-	if _day_label != null:
-		_day_label.text = "DAY %d" % day
-		_day_label.visible = true
 
 
 func _on_night_warning() -> void:
@@ -714,6 +721,43 @@ func _update_stop_chip() -> void:
 		_stop_label.add_theme_color_override("font_color", Color(0.98, 0.82, 0.45, 1))
 	else:
 		_stop_label.remove_theme_color_override("font_color")
+
+
+func _update_aim_chip() -> void:
+	if _aim_panel == null:
+		return
+	var aiming := _rig != null and _rig.is_weapon_aiming()
+	_apply_aim_border(aiming)
+
+
+func _make_aim_panel_style() -> StyleBoxFlat:
+	var panel := StyleBoxFlat.new()
+	panel.content_margin_left = 12.0
+	panel.content_margin_top = 10.0
+	panel.content_margin_right = 12.0
+	panel.content_margin_bottom = 10.0
+	panel.bg_color = Color(0.04, 0.04, 0.06, 0.55)
+	panel.corner_radius_top_left = 8
+	panel.corner_radius_top_right = 8
+	panel.corner_radius_bottom_right = 8
+	panel.corner_radius_bottom_left = 8
+	_apply_aim_border_to(panel, false)
+	return panel
+
+
+func _apply_aim_border(aiming: bool) -> void:
+	_apply_aim_border_to(_aim_panel, aiming)
+
+
+static func _apply_aim_border_to(panel: StyleBoxFlat, aiming: bool) -> void:
+	if panel == null:
+		return
+	var width := AIM_BORDER_ACTIVE_PX if aiming else AIM_BORDER_IDLE_PX
+	panel.border_width_left = width
+	panel.border_width_top = width
+	panel.border_width_right = width
+	panel.border_width_bottom = width
+	panel.border_color = AIM_BORDER_ACTIVE if aiming else AIM_BORDER_IDLE
 
 
 func _update_speedometer() -> void:

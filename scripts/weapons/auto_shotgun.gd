@@ -5,7 +5,7 @@ extends Node
 
 const ShotgunPelletScene := preload("res://scenes/weapons/shotgun_pellet.tscn")
 
-const DAMAGE := 17
+const DAMAGE := 32
 const RANGE_M := 15.0
 const FIRE_INTERVAL_SEC := 2.5
 const BURST_GAP_SEC := 0.5
@@ -146,10 +146,9 @@ func _muzzle_origin() -> Vector3:
 
 
 func _facing_xz() -> Vector3:
-	var glider := _rig.get_glider() if _rig != null else null
-	if glider == null:
-		return Vector3.ZERO
-	return MathUtil.yaw_forward(glider.get_yaw())
+	if _rig != null:
+		return _rig.weapon_facing_xz()
+	return Vector3.ZERO
 
 
 func _fire_volley() -> bool:

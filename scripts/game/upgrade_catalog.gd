@@ -856,6 +856,13 @@ static func display_name(id: StringName) -> String:
 	return String(weapon_base_id(id))
 
 
+## Compact label for HUD weapon squares. Select / shop screens keep display_name.
+static func hud_weapon_name(id: StringName) -> String:
+	if id == ID_UNLOCK_ROCKET or family_of(id) == FAMILY_ROCKET:
+		return "R.L."
+	return display_name(id)
+
+
 static func rarity_display_name(id: StringName) -> String:
 	if is_empty_offer(id) or is_weapon_unlock(id):
 		return ""

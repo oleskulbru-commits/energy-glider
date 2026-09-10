@@ -180,9 +180,40 @@ func get_follow_camera() -> GliderCamera:
 	return _camera
 
 
+func is_weapon_aiming() -> bool:
+	if not _look_input_enabled or not _should_enable_look_input():
+		return false
+	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		return false
+	return Input.is_action_pressed("aim")
+
+
+func weapon_facing_xz() -> Vector3:
+	var glider := get_glider()
+	var body_forward := Vector3.ZERO
+	if glider != null:
+		body_forward = MathUtil.yaw_forward(glider.get_yaw())
+	var look_forward := body_forward
+	if _camera != null:
+		look_forward = _camera.get_forward_flat()
+	return resolve_weapon_facing_xz(body_forward, look_forward, is_weapon_aiming())
+
+
+static func resolve_weapon_facing_xz(body_forward: Vector3, look_forward: Vector3, aiming: bool) -> Vector3:
+	if aiming:
+		var look := Vector3(look_forward.x, 0.0, look_forward.z)
+		if look.length_squared() > 0.0001:
+			return look.normalized()
+	var body := Vector3(body_forward.x, 0.0, body_forward.z)
+	if body.length_squared() > 0.0001:
+		return body.normalized()
+	return Vector3.ZERO
+
+
 func _update_glider_camera(delta: float) -> void:
 	if _glider == null or _camera == null:
 		return
+	_camera.set_orbit_hold(is_weapon_aiming())
 	var steering := _input != null and _input.is_steering() and not _glider.is_run_ended()
 	_camera.follow(
 		_glider.get_camera_follow_target(),

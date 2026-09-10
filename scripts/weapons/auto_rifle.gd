@@ -6,7 +6,7 @@ extends Node
 const RifleBulletScene := preload("res://scenes/weapons/rifle_bullet.tscn")
 const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 
-const DAMAGE := 10
+const DAMAGE := 20
 const RANGE_M := 75.0
 const RANGE_ABSOLUTE_MAX := 200.0
 const FIRE_INTERVAL_SEC := 2.3
@@ -168,17 +168,16 @@ func _muzzle_origin() -> Vector3:
 
 
 func _facing_xz() -> Vector3:
-	var glider := _rig.get_glider() if _rig != null else null
-	if glider == null:
-		return Vector3.ZERO
-	return MathUtil.yaw_forward(glider.get_yaw())
+	if _rig != null:
+		return _rig.weapon_facing_xz()
+	return Vector3.ZERO
 
 
 func _fire(origin: Vector3, target: Node3D) -> void:
 	var bullet: RifleBullet = RifleBulletScene.instantiate() as RifleBullet
 	var parent := SceneUtilScript.world_parent(get_tree(), _rig)
 	parent.add_child(bullet)
-	var aim := target.global_position + Vector3(0.0, 0.7, 0.0) - origin
+	var aim := RifleBullet.aim_point_for(target) - origin
 	bullet.launch(
 		origin,
 		target,

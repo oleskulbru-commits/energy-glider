@@ -91,10 +91,10 @@ func _deal_tick(
 	crit_chance: float = 0.0,
 	rng: RandomNumberGenerator = null
 ) -> void:
-	_hurt_living(_target, damage_bonus, crit_chance, rng, true)
+	_hurt_living(_target, damage_bonus, crit_chance, rng, true, 0)
 	_drop_dead_hops()
-	for hop in _hops:
-		_hurt_living(hop, damage_bonus, crit_chance, rng, false)
+	for i in _hops.size():
+		_hurt_living(_hops[i], damage_bonus, crit_chance, rng, false, i + 1)
 
 
 func _retarget(
@@ -278,7 +278,8 @@ func _hurt_living(
 	damage_bonus: float,
 	crit_chance: float,
 	rng: RandomNumberGenerator,
-	pop_burst: bool
+	pop_burst: bool,
+	hop_index: int = 0
 ) -> void:
 	if not _is_living(node):
 		return
@@ -286,7 +287,8 @@ func _hurt_living(
 	if pill == null:
 		return
 	var is_crit := AutoRifle.roll_crit(crit_chance, rng)
-	var amount := AutoRifle.crit_damage_for(AutoLaser.damage_for(damage_bonus), is_crit)
+	var base := AutoLaser.bounce_tick_damage(AutoLaser.damage_for(damage_bonus), hop_index)
+	var amount := AutoRifle.crit_damage_for(base, is_crit)
 	var at := pill.global_position + Vector3(0.0, AIM_UP_M, 0.0)
 	pill.take_damage(amount, Vector3.ZERO, is_crit, SwarmPill.HIT_KNOCKBACK_SPEED, UpgradeCatalog.FAMILY_LASER)
 	if pop_burst:

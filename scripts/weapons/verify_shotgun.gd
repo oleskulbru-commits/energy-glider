@@ -25,7 +25,7 @@ func _run() -> void:
 
 
 func _verify_stats() -> void:
-	_fail_unless(AutoShotgunScript.DAMAGE == 17, "Shotgun damage should be 17")
+	_fail_unless(AutoShotgunScript.DAMAGE == 32, "Shotgun damage should be 32")
 	_fail_unless(is_equal_approx(AutoShotgunScript.RANGE_M, 15.0), "Shotgun acquire range should be 15 m")
 	_fail_unless(is_equal_approx(AutoShotgunScript.FIRE_INTERVAL_SEC, 2.5), "Shotgun interval should be 2.5 s")
 	_fail_unless(is_equal_approx(AutoShotgunScript.BURST_GAP_SEC, 0.5), "Extra shotgun volley should wait 0.5 s")
@@ -49,10 +49,10 @@ func _verify_stats() -> void:
 	_fail_unless(is_equal_approx(AutoShotgunScript.CONE_HALF_DEG, 22.0), "Shotgun cone half-angle should be 22 deg")
 	_fail_unless(AutoShotgunScript.PELLET_COUNT == 16, "Shotgun should spray 16 visual pellets")
 	_fail_unless(is_equal_approx(AutoShotgunScript.PELLET_TRAVEL_M, 32.0), "Pellets should fly 32 m before vanishing")
-	_fail_unless(AutoShotgunScript.damage_for(0.0) == 17, "Base shotgun should deal 17")
+	_fail_unless(AutoShotgunScript.damage_for(0.0) == 32, "Base shotgun should deal 32")
 	_fail_unless(
-		AutoShotgunScript.damage_for(0.04) == 18,
-		"4% Damage should round 17.68 to 18"
+		AutoShotgunScript.damage_for(0.04) == 33,
+		"4% Damage should round 33.28 to 33"
 	)
 	_fail_unless(
 		is_equal_approx(AutoShotgunScript.fire_interval_for(0.0), 2.5),
@@ -87,8 +87,8 @@ func _verify_stats() -> void:
 		"25% Pushback should knock back at 35"
 	)
 	_fail_unless(
-		AutoRifleScript.crit_damage_for(AutoShotgunScript.damage_for(0.0), true) == 34,
-		"Shotgun crit should double 17 to 34"
+		AutoRifleScript.crit_damage_for(AutoShotgunScript.damage_for(0.0), true) == 64,
+		"Shotgun crit should double 32 to 64"
 	)
 	_fail_unless(
 		AutoRifleScript.projectile_count_for(1) == 2,
