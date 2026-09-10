@@ -180,7 +180,8 @@ func _tick_leap(delta: float) -> void:
 	var along := Vector3(_leap_impact.x - _leap_origin.x, 0.0, _leap_impact.z - _leap_origin.z)
 	if along.length_squared() > 0.0001:
 		_align_airborne(along.normalized())
-	_update_contact(delta)
+	if not _landing_owns_hit():
+		_update_contact(delta)
 
 
 func _on_landed() -> void:
@@ -281,6 +282,19 @@ func _is_touching_target() -> bool:
 		contact_radius_m,
 		CONTACT_Y_BELOW_M,
 		CONTACT_Y_ABOVE_M
+	)
+
+
+func _landing_owns_hit() -> bool:
+	if _target == null or not is_instance_valid(_target):
+		return false
+	return landing_owns_hit(
+		_target.global_position,
+		_leap_impact,
+		contact_radius_m,
+		SPLASH_RADIUS_M,
+		contact_max_above_m,
+		contact_damage
 	)
 
 
@@ -423,6 +437,21 @@ static func landing_damage_for(direct: bool, splash: bool, contact_damage: int) 
 	if splash:
 		return contact_damage / 2
 	return 0
+
+
+static func landing_owns_hit(
+	player_pos: Vector3,
+	impact: Vector3,
+	contact_radius: float,
+	splash_radius: float,
+	max_above_m: float,
+	contact_damage: int
+) -> bool:
+	return landing_damage_for(
+		is_direct_landing(player_pos, impact, contact_radius, max_above_m),
+		is_splash_landing(player_pos, impact, splash_radius, max_above_m),
+		contact_damage
+	) > 0
 
 
 static func spawn_ahead_range() -> Vector2:

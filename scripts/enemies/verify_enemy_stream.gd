@@ -271,6 +271,28 @@ func _verify_leaper() -> void:
 		LeaperPillScript.landing_damage_for(false, false, SwarmPillScript.CONTACT_DAMAGE) == 0,
 		"A miss should deal no landing damage"
 	)
+	_fail_unless(
+		LeaperPillScript.landing_owns_hit(
+			Vector3(0.4, 0.4, 0.0),
+			Vector3.ZERO,
+			SwarmPillScript.CONTACT_RADIUS_M,
+			LeaperPillScript.SPLASH_RADIUS_M,
+			SwarmPillScript.CONTACT_MAX_ABOVE_M,
+			SwarmPillScript.CONTACT_DAMAGE
+		),
+		"A player on the landing mark should be owned by the landing hit"
+	)
+	_fail_unless(
+		not LeaperPillScript.landing_owns_hit(
+			Vector3(8.0, 0.4, 0.0),
+			Vector3.ZERO,
+			SwarmPillScript.CONTACT_RADIUS_M,
+			LeaperPillScript.SPLASH_RADIUS_M,
+			SwarmPillScript.CONTACT_MAX_ABOVE_M,
+			SwarmPillScript.CONTACT_DAMAGE
+		),
+		"A player far from the landing mark should still take mid-leap contact"
+	)
 
 	var predicted: Vector3 = LeaperPillScript.intercept_xz(
 		Vector3(0.0, 2.0, 0.0), Vector3(-10.0, 4.0, 3.0), 1.0
@@ -351,6 +373,40 @@ func _verify_leaper() -> void:
 	_fail_unless(
 		health.get_current() == PlayerHealth.BASE_HEALTH - SwarmPillScript.CONTACT_DAMAGE,
 		"Touching a charging leaper should deal contact damage"
+	)
+	health.current = PlayerHealth.BASE_HEALTH
+	dummy.global_position = Vector3(0.4, 4.0, 0.0)
+	jumper.global_position = Vector3(0.4, 4.0, 0.0)
+	jumper.leap_state = LeaperPill.LeapState.LEAP
+	jumper.set("_leap_origin", Vector3(0.4, 4.0, 0.0))
+	jumper.set("_leap_impact", Vector3(20.0, 0.0, 0.0))
+	jumper.set("_leap_t", 0.0)
+	jumper.set("_in_contact", false)
+	jumper.set("_damage_timer", 0.0)
+	jumper.call("_tick_leap", 0.05)
+	_fail_unless(
+		health.get_current() == PlayerHealth.BASE_HEALTH - SwarmPillScript.CONTACT_DAMAGE,
+		"Gliding through a leaping leaper away from the landing mark should still deal contact"
+	)
+	health.current = PlayerHealth.BASE_HEALTH
+	dummy.global_position = Vector3(0.0, 0.4, 0.0)
+	jumper.global_position = Vector3(0.4, 0.4, 0.0)
+	jumper.leap_state = LeaperPill.LeapState.LEAP
+	jumper.set("_leap_origin", Vector3(0.4, 0.0, 0.0))
+	jumper.set("_leap_impact", Vector3.ZERO)
+	jumper.set("_leap_t", 0.9)
+	jumper.set("_in_contact", false)
+	jumper.set("_damage_timer", 0.0)
+	jumper.call("_tick_leap", 0.05)
+	_fail_unless(
+		health.get_current() == PlayerHealth.BASE_HEALTH,
+		"Descent onto the landing mark should not deal contact before the land"
+	)
+	jumper.set("_leap_t", 0.99)
+	jumper.call("_tick_leap", 0.05)
+	_fail_unless(
+		health.get_current() == PlayerHealth.BASE_HEALTH - SwarmPillScript.CONTACT_DAMAGE,
+		"A direct land should deal one 5-damage hit, not contact plus landing"
 	)
 	health.free()
 	dummy.free()
