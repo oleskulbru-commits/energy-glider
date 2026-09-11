@@ -1,0 +1,15 @@
+[gd_scene format=3 uid="uid://b51f0hhgb56f0"]
+
+[ext_resource type="Script" path="res://scripts/enemies/night_scarab.gd" id="1_scarab"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+radius = 0.16
+height = 0.4
+
+[node name="NightScarab" type="CharacterBody3D"]
+collision_layer = 8
+script = ExtResource("1_scarab")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.22, 0)
+shape = SubResource("CapsuleShape3D_body")

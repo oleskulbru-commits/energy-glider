@@ -69,8 +69,8 @@ func _physics_process(delta: float) -> void:
 	var dist := aim.length()
 	if dist > 0.0001:
 		var desired := aim / dist
-		var center := global_position + aim
-		var radius := hit_radius_for(_target)
+		var center := aim_point_for(_target, global_position)
+		var radius := HIT_RADIUS_M
 		if (
 			should_snap_home(dist)
 			or not heading_hits_sphere(global_position, _dir, center, radius)
@@ -91,14 +91,17 @@ func _aim_vector() -> Vector3:
 	if _target == null or not is_instance_valid(_target):
 		_target = null
 		return Vector3.ZERO
-	return aim_point_for(_target) - global_position
+	return aim_point_for(_target, global_position) - global_position
 
 
-static func aim_point_for(target: Node3D) -> Vector3:
+static func aim_point_for(target: Node3D, from: Vector3 = Vector3.INF) -> Vector3:
 	if target == null or not is_instance_valid(target):
 		return Vector3.ZERO
 	if target is SwarmPill:
-		return (target as SwarmPill).hit_center()
+		var pill := target as SwarmPill
+		if from.is_finite():
+			return pill.closest_aim_point(from)
+		return pill.hit_center()
 	return target.global_position
 
 
@@ -139,13 +142,14 @@ func _try_proximity_hit_along(from: Vector3, to: Vector3) -> void:
 	var pill := _target as SwarmPill
 	if pill == null or not pill.is_alive():
 		return
-	var aim := pill.hit_center()
-	var radius := hit_radius_for(pill)
-	if from.distance_to(aim) <= radius or to.distance_to(aim) <= radius:
+	if (
+		pill.distance_to_hitbox(from) <= HIT_RADIUS_M
+		or pill.distance_to_hitbox(to) <= HIT_RADIUS_M
+	):
 		_on_body_entered(pill)
 		return
-	var closest := Geometry3D.get_closest_point_to_segment(aim, from, to)
-	if closest.distance_to(aim) > radius:
+	var probe := Geometry3D.get_closest_point_to_segment(pill.closest_aim_point(to), from, to)
+	if pill.distance_to_hitbox(probe) > HIT_RADIUS_M:
 		return
 	_on_body_entered(pill)
 

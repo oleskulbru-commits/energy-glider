@@ -23,6 +23,7 @@ var _burst: CPUParticles3D
 var _bounce_count := 0
 var _bounce_range := 0.0
 var _acquire_range := 0.0
+var _muzzle := Vector3.ZERO
 var _hops: Array[Node3D] = []
 var _hop_hosts: Array[Node3D] = []
 var _hop_cores: Array[MeshInstance3D] = []
@@ -66,6 +67,7 @@ func advance(
 ) -> void:
 	if acquire_range >= 0.0:
 		_acquire_range = acquire_range
+	_muzzle = origin
 	if finished:
 		return
 	_fire_left -= delta
@@ -127,7 +129,7 @@ func _is_target_alive() -> bool:
 
 
 func _aim_point() -> Vector3:
-	return _target.global_position + Vector3(0.0, AIM_UP_M, 0.0)
+	return WeaponTargeting.lock_point(_target, _muzzle)
 
 
 func _finish() -> void:
@@ -301,7 +303,7 @@ func _hurt_pill(
 	var is_crit := AutoRifle.roll_crit(crit_chance, rng)
 	var base := AutoLaser.bounce_tick_damage(AutoLaser.damage_for(damage_bonus), hop_index)
 	var amount := AutoRifle.crit_damage_for(base, is_crit)
-	var at := pill.global_position + Vector3(0.0, AIM_UP_M, 0.0)
+	var at := WeaponTargeting.lock_point(pill, _muzzle)
 	pill.take_damage(
 		amount,
 		Vector3.ZERO,
@@ -385,9 +387,9 @@ func _show_hops() -> void:
 				_hop_hosts[i].visible = false
 			prev_alive = hop_alive
 			if hop_alive:
-				from = hop.global_position + Vector3(0.0, AIM_UP_M, 0.0)
+				from = WeaponTargeting.lock_point(hop, from)
 			continue
-		var to := hop.global_position + Vector3(0.0, AIM_UP_M, 0.0)
+		var to := WeaponTargeting.lock_point(hop, from)
 		_place_hop_segment(i, from, to)
 		from = to
 		prev_alive = true

@@ -252,15 +252,28 @@ func _should_spawn() -> bool:
 	var run_ended := glider == null or glider.is_run_ended()
 	var run_active := _director != null and _director.is_run_active()
 	var bootstrapped := _director != null and _director.has_collected_eon()
-	if not should_spawn_stream(run_active, bootstrapped, run_ended):
+	if not should_spawn_stream(run_active, bootstrapped, run_ended, _boss_blocks_stream()):
 		return false
 	if _grace_left > 0.0:
 		return false
 	return true
 
 
-static func should_spawn_stream(run_active: bool, run_bootstrapped: bool, run_ended: bool) -> bool:
-	if run_ended:
+func _boss_blocks_stream() -> bool:
+	var tree := get_tree()
+	if tree == null:
+		return false
+	var boss_dir := tree.get_first_node_in_group("boss_director")
+	return boss_dir != null and boss_dir.has_method("is_blocking_stream") and bool(boss_dir.call("is_blocking_stream"))
+
+
+static func should_spawn_stream(
+	run_active: bool,
+	run_bootstrapped: bool,
+	run_ended: bool,
+	boss_blocks_stream: bool = false
+) -> bool:
+	if run_ended or boss_blocks_stream:
 		return false
 	return run_active or run_bootstrapped
 

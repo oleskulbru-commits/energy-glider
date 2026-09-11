@@ -82,7 +82,7 @@ func _fire_one() -> bool:
 	var bounce_range := AutoRifle.bounce_range_for(range_m)
 	var bonus := _damage_bonus()
 	var crit := _crit_chance()
-	_strike_chain(target, pills, bounce_n, bounce_range, bonus, crit)
+	_strike_chain(target, pills, bounce_n, bounce_range, bonus, crit, origin)
 	_volley_exclude[target.get_instance_id()] = true
 	return true
 
@@ -93,25 +93,23 @@ func _strike_chain(
 	bounce_n: int,
 	bounce_range: float,
 	bonus: float,
-	crit: float
+	crit: float,
+	origin: Vector3
 ) -> void:
-	_strike(start, bonus, crit)
+	_strike(start, bonus, crit, origin)
 	var hops := AutoRifle.build_bounce_chain(start, pills, bounce_n, bounce_range, _rng)
-	var prev := start
+	var from := WeaponTargeting.lock_point(start, origin)
 	for hop in hops:
-		TeslaStrike.spawn_link(
-			get_tree(),
-			TeslaStrike.aim_point_for(prev),
-			TeslaStrike.aim_point_for(hop)
-		)
+		var to := WeaponTargeting.lock_point(hop, from)
+		TeslaStrike.spawn_link(get_tree(), from, to)
 		_hurt(hop, bonus, crit)
-		prev = hop
+		from = to
 
 
-func _strike(target: Node3D, bonus: float, crit: float) -> void:
+func _strike(target: Node3D, bonus: float, crit: float, origin: Vector3) -> void:
 	if target == null or not is_instance_valid(target):
 		return
-	TeslaStrike.spawn(get_tree(), TeslaStrike.aim_point_for(target))
+	TeslaStrike.spawn(get_tree(), TeslaStrike.aim_point_for(target, origin))
 	_hurt(target, bonus, crit)
 
 
@@ -224,7 +222,7 @@ static func pick_unique_targets(
 	var want := maxi(count, 0)
 	if want <= 0 or rng == null:
 		return found
-	var magnet := WeaponTargeting.find_laser_drone_magnet(pills, origin, facing, range_m)
+	var magnet := WeaponTargeting.find_magnet(pills, origin, facing, range_m)
 	if magnet != null:
 		for _i in want:
 			found.append(magnet)

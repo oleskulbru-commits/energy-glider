@@ -163,6 +163,62 @@ func hit_radius() -> float:
 	return 0.0
 
 
+## Closest point on the hitbox to `from`. Inside the volume, returns `from`.
+func closest_aim_point(from: Vector3) -> Vector3:
+	var col := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col == null or col.shape == null:
+		return hit_center()
+	if col.shape is CapsuleShape3D:
+		return closest_point_on_capsule(from, col.global_transform, col.shape as CapsuleShape3D)
+	if col.shape is SphereShape3D:
+		return closest_point_on_sphere(from, col.global_position, (col.shape as SphereShape3D).radius)
+	if col.shape is BoxShape3D:
+		return closest_point_on_box(from, col.global_transform, col.shape as BoxShape3D)
+	return hit_center()
+
+
+func distance_to_hitbox(from: Vector3) -> float:
+	return from.distance_to(closest_aim_point(from))
+
+
+static func closest_point_on_capsule(
+	from: Vector3, xf: Transform3D, capsule: CapsuleShape3D
+) -> Vector3:
+	var radius := maxf(capsule.radius, 0.0)
+	var half_cyl := maxf(capsule.height * 0.5 - radius, 0.0)
+	var axis := xf.basis.y
+	if axis.length_squared() < 0.0001:
+		axis = Vector3.UP
+	else:
+		axis = axis.normalized()
+	var a := xf.origin + axis * half_cyl
+	var b := xf.origin - axis * half_cyl
+	var on_axis := Geometry3D.get_closest_point_to_segment(from, a, b)
+	return closest_point_on_sphere(from, on_axis, radius)
+
+
+static func closest_point_on_sphere(from: Vector3, center: Vector3, radius: float) -> Vector3:
+	var rad := maxf(radius, 0.0)
+	var delta := from - center
+	var dist := delta.length()
+	if dist <= rad:
+		return from
+	if dist < 0.0001:
+		return center
+	return center + delta * (rad / dist)
+
+
+static func closest_point_on_box(from: Vector3, xf: Transform3D, box: BoxShape3D) -> Vector3:
+	var local := xf.affine_inverse() * from
+	var half := box.size * 0.5
+	var clamped := Vector3(
+		clampf(local.x, -half.x, half.x),
+		clampf(local.y, -half.y, half.y),
+		clampf(local.z, -half.z, half.z)
+	)
+	return xf * clamped
+
+
 ## Extra HP percent added when entering this level (L1=0, L7+=8%).
 static func hp_increment_for_level(level: int) -> float:
 	match maxi(level, 0):
@@ -285,14 +341,16 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 		return
 
-	var to_target := _seek_offset_xz()
-	to_target.y = 0.0
 	# Fallen behind the player's facing past margin — despawn.
-	if not garrisoned and is_behind_facing(_target.global_position, _target_facing_xz(), global_position):
+	if not _blocks_behind_despawn() and is_behind_facing(
+		_target.global_position, _target_facing_xz(), global_position
+	):
 		queue_free()
 		return
 
 	_update_chase(delta)
+	var to_target := _seek_offset_xz()
+	to_target.y = 0.0
 
 	if _is_spawn_active():
 		velocity = Vector3.ZERO
@@ -304,6 +362,7 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		_snap_to_terrain()
 		_align_to_terrain(_flat_seek_to_target())
+		_after_move(delta)
 		return
 
 	_stun_left = maxf(_stun_left - delta, 0.0)
@@ -313,6 +372,7 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		_snap_to_terrain()
 		_update_contact(delta)
+		_after_move(delta)
 		return
 
 	var seek := Vector3(to_target.x, 0.0, to_target.z)
@@ -335,6 +395,7 @@ func _physics_process(delta: float) -> void:
 	_align_to_terrain(_flat_velocity_dir())
 	_sync_anim_speed()
 	_update_contact(delta)
+	_after_move(delta)
 
 
 func _is_spawn_active() -> bool:
@@ -597,6 +658,16 @@ func _die(from_pos: Vector3) -> void:
 
 ## Subclasses adjust chase behavior (e.g. aggro speed ramp).
 func _update_chase(_delta: float) -> void:
+	pass
+
+
+## Garrisoned units and sphere-bound scarabs should not cull when the player faces away.
+func _blocks_behind_despawn() -> bool:
+	return garrisoned
+
+
+## Subclasses clamp or leash after the shared move/snap step.
+func _after_move(_delta: float) -> void:
 	pass
 
 

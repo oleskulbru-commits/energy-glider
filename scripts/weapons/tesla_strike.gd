@@ -22,9 +22,11 @@ static func spawn_link(tree: SceneTree, from: Vector3, to: Vector3) -> void:
 	_spawn_at(tree, from, to, true)
 
 
-static func aim_point_for(target: Node3D) -> Vector3:
+static func aim_point_for(target: Node3D, from: Vector3 = Vector3.INF) -> Vector3:
 	if target == null or not is_instance_valid(target):
 		return Vector3.ZERO
+	if from.is_finite():
+		return WeaponTargeting.lock_point(target, from)
 	return target.global_position + Vector3(0.0, AIM_UP_M, 0.0)
 
 

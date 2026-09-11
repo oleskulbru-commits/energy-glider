@@ -177,7 +177,7 @@ func _fire(origin: Vector3, target: Node3D) -> void:
 	var bullet: RifleBullet = RifleBulletScene.instantiate() as RifleBullet
 	var parent := SceneUtilScript.world_parent(get_tree(), _rig)
 	parent.add_child(bullet)
-	var aim := RifleBullet.aim_point_for(target) - origin
+	var aim := RifleBullet.aim_point_for(target, origin) - origin
 	bullet.launch(
 		origin,
 		target,
@@ -219,9 +219,9 @@ static func collect_candidates(
 			continue
 		if pill is SwarmPill and not (pill as SwarmPill).is_alive():
 			continue
-		if xz_distance(origin, pill.global_position) > range_m:
+		if not WeaponTargeting.in_xz_range(origin, pill, range_m):
 			continue
-		if not is_in_front(origin, facing, pill.global_position):
+		if not WeaponTargeting.is_lock_in_front(origin, facing, pill):
 			continue
 		found.append(pill)
 	return found
@@ -234,7 +234,7 @@ static func pick_target(
 	range_m: float,
 	rng: RandomNumberGenerator
 ) -> Node3D:
-	var magnet := WeaponTargeting.find_laser_drone_magnet(pills, origin, facing, range_m)
+	var magnet := WeaponTargeting.find_magnet(pills, origin, facing, range_m)
 	if magnet != null:
 		return magnet
 	var candidates := collect_candidates(pills, origin, facing, range_m)
@@ -258,7 +258,7 @@ static func pick_bounce_target(
 	exclude: Dictionary,
 	rng: RandomNumberGenerator
 ) -> Node3D:
-	var magnet := WeaponTargeting.find_laser_drone_magnet_bounce(pills, from, bounce_range)
+	var magnet := WeaponTargeting.find_magnet_bounce(pills, from, bounce_range)
 	if magnet != null:
 		return magnet
 	var found: Array[Node3D] = []
@@ -270,7 +270,7 @@ static func pick_bounce_target(
 			continue
 		if exclude.has(pill.get_instance_id()):
 			continue
-		if xz_distance(from, pill.global_position) > bounce_range:
+		if not WeaponTargeting.in_xz_range(from, pill, bounce_range):
 			continue
 		found.append(pill)
 	if found.is_empty() or rng == null:
@@ -290,14 +290,14 @@ static func build_bounce_chain(
 		return chain
 	var exclude: Dictionary = {}
 	exclude[start.get_instance_id()] = true
-	var from := start.global_position
+	var from := WeaponTargeting.lock_point(start, start.global_position)
 	for _i in bounce_count:
 		var next := pick_bounce_target(pills, from, bounce_range, exclude, rng)
 		if next == null:
 			break
 		chain.append(next)
 		exclude[next.get_instance_id()] = true
-		from = next.global_position
+		from = WeaponTargeting.lock_point(next, from)
 	return chain
 
 

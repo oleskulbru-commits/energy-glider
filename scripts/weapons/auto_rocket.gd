@@ -202,7 +202,7 @@ static func pick_best_target(
 	facing: Vector3,
 	range_m: float
 ) -> Node3D:
-	var magnet := WeaponTargeting.find_laser_drone_magnet(pills, origin, facing, range_m)
+	var magnet := WeaponTargeting.find_magnet(pills, origin, facing, range_m)
 	if magnet != null:
 		return magnet
 	var ranked := rank_targets(pills, origin, facing, range_m, 1)
@@ -222,7 +222,7 @@ static func rank_targets(
 	var want := maxi(count, 0)
 	if want <= 0:
 		return ranked
-	var magnet := WeaponTargeting.find_laser_drone_magnet(pills, origin, facing, range_m)
+	var magnet := WeaponTargeting.find_magnet(pills, origin, facing, range_m)
 	if magnet != null:
 		for _i in want:
 			ranked.append(magnet)
@@ -231,8 +231,8 @@ static func rank_targets(
 	candidates.sort_custom(
 		func(a: Node3D, b: Node3D) -> bool:
 			return (
-				aim_score(origin, facing, a.global_position, range_m)
-				> aim_score(origin, facing, b.global_position, range_m)
+				aim_score(origin, facing, WeaponTargeting.lock_point(a, origin), range_m)
+				> aim_score(origin, facing, WeaponTargeting.lock_point(b, origin), range_m)
 			)
 	)
 	var take := mini(want, candidates.size())

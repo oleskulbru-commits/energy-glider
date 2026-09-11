@@ -94,7 +94,7 @@ func _aim_vector() -> Vector3:
 	if _target == null or not is_instance_valid(_target):
 		_target = null
 		return Vector3.ZERO
-	return _target.global_position + Vector3(0.0, AIM_UP_M, 0.0) - global_position
+	return WeaponTargeting.lock_point(_target, global_position) - global_position
 
 
 func _is_lock_alive() -> bool:

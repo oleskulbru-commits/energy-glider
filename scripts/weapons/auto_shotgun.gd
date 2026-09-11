@@ -159,7 +159,7 @@ func _fire_volley() -> bool:
 	var target := pick_target(pills, origin, facing, range_m, _rng)
 	if target == null:
 		return false
-	var aim := aim_vector(origin, target.global_position, facing)
+	var aim := aim_vector(origin, WeaponTargeting.lock_point(target, origin), facing)
 	var amount := damage_for(_damage_bonus())
 	var knock := knockback_speed_for(_pushback_bonus())
 	var crit := _crit_chance()
@@ -248,7 +248,7 @@ static func collect_candidates(
 			continue
 		if pill is SwarmPill and not (pill as SwarmPill).is_alive():
 			continue
-		var pos := pill.global_position
+		var pos := WeaponTargeting.lock_point(pill, origin)
 		if origin.distance_to(pos) > range_m:
 			continue
 		var xz := AutoRifle.xz_distance(origin, pos)
@@ -265,7 +265,7 @@ static func pick_target(
 	range_m: float,
 	rng: RandomNumberGenerator
 ) -> Node3D:
-	var magnet := WeaponTargeting.find_laser_drone_magnet(
+	var magnet := WeaponTargeting.find_magnet(
 		pills, origin, facing, range_m, true, BELOW_XZ_EPS_M
 	)
 	if magnet != null:
@@ -297,7 +297,7 @@ static func pills_in_cone(
 			continue
 		if pill is SwarmPill and not (pill as SwarmPill).is_alive():
 			continue
-		var to := pill.global_position + Vector3(0.0, AIM_UP_M, 0.0) - origin
+		var to := WeaponTargeting.lock_point(pill, origin) - origin
 		var dist := to.length()
 		if dist > range_m:
 			continue

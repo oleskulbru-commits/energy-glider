@@ -272,7 +272,7 @@ static func pick_unique_target(
 	exclude: Dictionary,
 	rng: RandomNumberGenerator
 ) -> Node3D:
-	var magnet := WeaponTargeting.find_laser_drone_magnet(pills, origin, facing, range_m)
+	var magnet := WeaponTargeting.find_magnet(pills, origin, facing, range_m)
 	if magnet != null:
 		return magnet
 	var candidates: Array[Node3D] = []

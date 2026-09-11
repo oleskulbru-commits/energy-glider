@@ -103,6 +103,10 @@ func is_blocking_upgrades() -> bool:
 	return has_living_boss()
 
 
+func is_blocking_stream() -> bool:
+	return has_living_boss() and _living.has_finished_ascent()
+
+
 func is_defeated(tower_index: int) -> bool:
 	return bool(_defeated.get(tower_index, false))
 
