@@ -36,6 +36,7 @@ func _run() -> void:
 	_verify_night_volume()
 	_verify_night_spread()
 	_verify_night_scarabs()
+	_verify_boss_relocate()
 	_verify_stream_halt()
 	await _verify_visit_lock()
 	_verify_boss_shop()
@@ -150,6 +151,42 @@ func _verify_ascent_and_hp_lock() -> void:
 		"Bring the Night should fade in over 8 seconds after ascent"
 	)
 	_fail_unless(
+		is_equal_approx(SunEaterScript.RELOCATE_PERIOD_SEC, 60.0),
+		"Boss should relocate after 60 seconds standing"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.BURIED_WAIT_SEC, 2.0),
+		"Boss should wait 2 seconds underground before respawning"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.MIN_RELOCATE_SEP_M, 100.0),
+		"Relocate picks should prefer 100 m from previous stands"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.diameter_for_relocate(0), 160.0),
+		"First night sphere should be 160 m"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.diameter_for_relocate(1), 160.0),
+		"Later boss night spheres should stay 160 m"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.diameter_for_relocate(2), 160.0),
+		"Hopped boss night spheres should not grow"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.sink_y(12.0, 0.0), 12.0),
+		"Sink should start standing"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.sink_y(12.0, 1.5), -38.0),
+		"Sink should be halfway after 1.5 seconds"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.sink_y(12.0, 3.0), -88.0),
+		"Sink should finish fully buried"
+	)
+	_fail_unless(
 		is_equal_approx(SunEaterScript.HEIGHT_M, 100.0),
 		"Sun Eater should be as tall as the 100 m tower"
 	)
@@ -177,6 +214,12 @@ func _verify_ascent_and_hp_lock() -> void:
 		is_equal_approx(SunEaterScript.rise_y(12.0, 3.0), 12.0),
 		"Ascent should finish standing after 3 seconds"
 	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.NIGHT_REGEN_PER_SEC, 30.0),
+		"Clock night should regenerate the boss at 30 HP per second"
+	)
+	_fail_unless(SunEaterScript.night_regen_heal(1.0) == 30, "One night second should heal 30")
+	_fail_unless(SunEaterScript.night_regen_heal(0.5) == 15, "Half a night second should heal 15")
 	var boss: SunEater = SunEaterScene.instantiate() as SunEater
 	root.add_child(boss)
 	boss.configure_encounter(8, 5000)
@@ -194,6 +237,17 @@ func _verify_ascent_and_hp_lock() -> void:
 		is_equal_approx(boss.global_position.y, 12.0),
 		"Boss should stand still on the ground after 3 seconds"
 	)
+	boss.take_damage(100)
+	_fail_unless(boss.get_health() == 4900, "Damage should stick before clock night")
+	boss._physics_process(1.0)
+	_fail_unless(boss.get_health() == 4900, "The boss should not regenerate during the day")
+	boss.begin_clock_night()
+	boss._physics_process(1.0)
+	_fail_unless(boss.get_health() == 4930, "Clock night should regenerate 30 HP per second")
+	boss._physics_process(1.0)
+	_fail_unless(boss.get_health() == 4960, "Night regen should keep stacking")
+	boss._physics_process(2.0)
+	_fail_unless(boss.get_health() == 5000, "Night regen should stop at max HP")
 	boss.free()
 
 
@@ -536,7 +590,9 @@ func _verify_night_spread() -> void:
 
 
 func _verify_night_scarabs() -> void:
-	_fail_unless(is_equal_approx(NightScarabScript.MOVE_SPEED, 12.0), "Night scarabs should move at 12 m/s")
+	_fail_unless(is_equal_approx(NightScarabScript.MOVE_SPEED, 12.0), "Night scarabs should move at 12 m/s by day")
+	_fail_unless(is_equal_approx(NightScarabScript.NIGHT_MOVE_SPEED, 21.0), "Night scarabs should move at 21 m/s at clock night")
+	_fail_unless(is_equal_approx(NightScarabScript.FULL_SIM_RANGE_M, 50.0), "Far scarabs should drop full physics past 50 m")
 	_fail_unless(NightScarabScript.SCARAB_CONTACT_DAMAGE == 2, "Night scarabs should deal 2 damage")
 	_fail_unless(NightScarabScript.SCARAB_MAX_HEALTH == 15, "Night scarabs should have 15 HP")
 	_fail_unless(NightScarabScript.is_escape_spawn(10), "Every 10th scarab should be able to leave")
@@ -554,10 +610,10 @@ func _verify_night_scarabs() -> void:
 		NightScarabScript.should_hunt_player(false, true),
 		"Unshackled scarabs should hunt even if the player is outside"
 	)
-	_fail_unless(is_equal_approx(SunEaterScript.night_spawn_rate(0.0), 1.0), "Night rate should start at 1/s")
-	_fail_unless(is_equal_approx(SunEaterScript.night_spawn_rate(4.99), 1.0), "Night rate should stay 1/s until 5s")
-	_fail_unless(is_equal_approx(SunEaterScript.night_spawn_rate(5.0), 2.0), "Night rate should be 2/s at 5s")
-	_fail_unless(is_equal_approx(SunEaterScript.night_spawn_rate(10.0), 3.0), "Night rate should be 3/s at 10s")
+	_fail_unless(is_equal_approx(SunEaterScript.SCARAB_NIGHT_RATE, 10.0), "Night should spawn 10 scarabs per second per sphere")
+	_fail_unless(is_equal_approx(SunEaterScript.night_spawn_rate(0.0), 10.0), "Night rate should be 10/s at release")
+	_fail_unless(is_equal_approx(SunEaterScript.night_spawn_rate(10.0), 10.0), "Night rate should stay 10/s")
+	_fail_unless(SunEaterScript.SCARAB_CAP == 500, "Day and night scarab cap should both be 500")
 
 	var kit := NightScarabScene.instantiate()
 	root.add_child(kit)
@@ -569,6 +625,11 @@ func _verify_night_scarabs() -> void:
 	kit.apply_difficulty(1.0)
 	_fail_unless(kit.get_max_health() == 15, "Level HP curve should not scale night scarabs")
 	_fail_unless(kit.contact_damage == 2, "Retry difficulty should not scale night scarab damage")
+	kit._physics_process(0.016)
+	_fail_unless(
+		not kit.is_queued_for_deletion(),
+		"A scarab with no hunt target must keep living"
+	)
 	kit.free()
 
 	var volume := NightVolumeScript.new()
@@ -577,6 +638,9 @@ func _verify_night_scarabs() -> void:
 	volume.snap_to_standing(Vector3.ZERO, 0.0)
 	volume.set_fade(1.0)
 	_fail_unless(volume.is_formed(), "A fade-1 volume should count as formed")
+	volume.set_fade(0.5)
+	_fail_unless(volume.is_formed(), "A sphere that finished forming should keep counting as formed")
+	volume.set_fade(1.0)
 	_fail_unless(volume.contains_xz(Vector3(10.0, 4.0, 0.0)), "A point inside the disk should count")
 	_fail_unless(not volume.contains_xz(Vector3(41.0, 0.0, 0.0)), "A point past the radius should be outside")
 	var clamped := volume.clamp_xz(Vector3(80.0, 1.0, 0.0), 1.0)
@@ -611,6 +675,7 @@ func _verify_night_scarabs() -> void:
 	_fail_unless(not wanderer.is_hunting_in_sphere(), "Player leaving the sphere should return the scarab to roam")
 	wanderer.unshackle()
 	_fail_unless(wanderer.is_unshackled(), "Unshackle should release the scarab from its sphere")
+	_fail_unless(is_equal_approx(wanderer.move_speed, 12.0), "A daytime escaper should keep 12 m/s")
 	_fail_unless(
 		wanderer._blocks_behind_despawn(),
 		"Night scarabs should never despawn when the player drives past them"
@@ -624,6 +689,96 @@ func _verify_night_scarabs() -> void:
 	wanderer.free()
 	player.free()
 	volume.free()
+
+	var lonely: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(lonely)
+	lonely.global_position = Vector3(100.0, 0.0, 50.0)
+	lonely.configure(null, null)
+	lonely.begin_ascent(12.0)
+	lonely._physics_process(3.0)
+	lonely._physics_process(8.0)
+	lonely._spread_full = true
+	_fail_unless(
+		lonely.formed_night_volumes().size() == 1,
+		"A formed boss sphere should fill even with no hunt target"
+	)
+	lonely._physics_process(1.0)
+	_fail_unless(
+		lonely.living_scarab_count() == 1,
+		"Daytime spawn should fill formed spheres even without a hunt target"
+	)
+	_fail_unless(
+		lonely.living_scarabs()[0].get_parent() != lonely,
+		"Scarabs should live in the world, not inside the boss body"
+	)
+	lonely.living_scarabs()[0]._physics_process(0.016)
+	_fail_unless(
+		not lonely.living_scarabs()[0].is_queued_for_deletion(),
+		"A daytime scarab must survive a physics tick without a hunt target"
+	)
+	lonely.free()
+
+	var spread: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(spread)
+	spread._rng.seed = 21
+	spread.global_position = Vector3(100.0, 0.0, 50.0)
+	spread.configure(null, null)
+	spread.begin_ascent(12.0)
+	spread._physics_process(3.0)
+	spread._physics_process(8.0)
+	_fail_unless(spread.living_scarab_count() == 0, "Boss sphere still waits until the first formed second")
+	for _step in 5:
+		spread._physics_process(1.0)
+	_fail_unless(spread.child_night_volumes().is_empty(), "Later spheres should wait 6 seconds after the boss sphere")
+	_fail_unless(spread.living_scarab_count() == 5, "Boss sphere should keep filling while waiting to spread")
+	spread._physics_process(1.0)
+	_fail_unless(spread.child_night_volumes().size() == 1, "A later night sphere should appear after the wait")
+	var child_sphere := spread.child_night_volumes()[0]
+	_fail_unless(child_sphere.is_spawn_ready(), "A placed later sphere should spawn scarabs immediately")
+	_fail_unless(
+		spread.formed_night_volumes().size() == 2,
+		"Boss and later spheres should both count as spawners"
+	)
+	_fail_unless(
+		_scarabs_bound_to(spread, child_sphere) >= 1,
+		"A later night sphere must start spawning scarabs during the day"
+	)
+	_fail_unless(
+		_scarabs_bound_to(spread, child_sphere) + _scarabs_bound_to(spread, spread.get_node("NightVolume"))
+		== spread.living_scarab_count(),
+		"Every daytime scarab should belong to a night sphere"
+	)
+	var child_pos := child_sphere.global_position
+	_fail_unless(
+		Vector2(child_pos.x - 100.0, child_pos.z - 50.0).length() >= 120.0,
+		"Later sphere scarabs should live in the offset sphere, not the boss hull"
+	)
+	for scarab in spread.living_scarabs():
+		if scarab.home_volume() != child_sphere:
+			continue
+		var from_child := Vector2(
+			scarab.global_position.x - child_pos.x,
+			scarab.global_position.z - child_pos.z
+		)
+		_fail_unless(
+			from_child.length() <= child_sphere.radius_m,
+			"Later-sphere scarabs must spawn inside that sphere"
+		)
+	spread._physics_process(6.0)
+	_fail_unless(child_sphere.is_formed(), "Later sphere should still finish fading in")
+	var child_count := _scarabs_bound_to(spread, child_sphere)
+	spread._physics_process(1.0)
+	_fail_unless(
+		_scarabs_bound_to(spread, child_sphere) == child_count + 1,
+		"A later sphere should keep spawning 1 scarab per second by day"
+	)
+	spread._physics_process(5.0)
+	_fail_unless(spread.child_night_volumes().size() == 2, "Spread should keep planting later spheres")
+	_fail_unless(
+		_scarabs_bound_to(spread, spread.child_night_volumes()[1]) >= 1,
+		"Every later night sphere must spawn scarabs during the day"
+	)
+	spread.free()
 
 	var boss: SunEater = SunEaterScene.instantiate() as SunEater
 	root.add_child(boss)
@@ -640,6 +795,10 @@ func _verify_night_scarabs() -> void:
 	_fail_unless(boss.living_scarab_count() == 0, "Scarabs should not spawn until the first formed second")
 	boss._physics_process(1.0)
 	_fail_unless(boss.living_scarab_count() == 1, "A formed sphere should spawn 1 scarab per second by day")
+	_fail_unless(
+		boss.living_scarabs()[0].get_parent() != boss,
+		"Daytime scarabs should not be nested under the boss body"
+	)
 	_fail_unless(not boss.living_scarabs()[0].is_unshackled(), "The first scarab should stay bound")
 	boss._physics_process(9.0)
 	_fail_unless(boss.living_scarab_count() == 10, "Ten seconds should yield ten scarabs from one sphere")
@@ -658,11 +817,18 @@ func _verify_night_scarabs() -> void:
 	_fail_unless(mesh == null or not mesh.visible, "Night sphere meshes should hide at clock night")
 	for scarab in boss.living_scarabs():
 		_fail_unless(scarab.is_unshackled(), "Every collected scarab should hunt after night falls")
-	_fail_unless(is_equal_approx(boss.spawn_rate_per_sphere(), 1.0), "Night ramp should still be 1/s at release")
-	boss._physics_process(5.0)
-	_fail_unless(is_equal_approx(boss.spawn_rate_per_sphere(), 2.0), "Night ramp should be 2/s after 5 seconds")
-	boss._physics_process(5.0)
-	_fail_unless(is_equal_approx(boss.spawn_rate_per_sphere(), 3.0), "Night ramp should be 3/s after 10 seconds")
+		_fail_unless(
+			is_equal_approx(scarab.move_speed, 21.0),
+			"Clock night should raise scarab speed to 21 m/s"
+		)
+	_fail_unless(is_equal_approx(boss.spawn_rate_per_sphere(), 10.0), "Clock night should spawn 10/s per sphere")
+	boss._physics_process(1.0)
+	_fail_unless(boss.living_scarab_count() == 20, "One night second should add 10 scarabs from one sphere")
+	_fail_unless(
+		is_equal_approx(boss.living_scarabs()[19].move_speed, 21.0),
+		"Scarabs spawned at clock night should already move at 21 m/s"
+	)
+	_fail_unless(is_equal_approx(boss.spawn_rate_per_sphere(), 10.0), "Night rate should stay 10/s")
 	var before_late := boss.living_scarab_count()
 	var late := NightVolumeScript.new()
 	boss.add_child(late)
@@ -674,10 +840,120 @@ func _verify_night_scarabs() -> void:
 	_fail_unless(not late.visuals_enabled(), "Night-only spheres should have no visuals")
 	boss._physics_process(1.0)
 	_fail_unless(
-		boss.living_scarab_count() == before_late + 6,
-		"A sphere that forms at t=10s should immediately spawn at 3/s alongside existing spheres"
+		boss.living_scarab_count() == before_late + 20,
+		"A new night sphere should immediately spawn at 10/s alongside existing spheres"
 	)
 	hunter.free()
+	boss.free()
+
+
+func _verify_boss_relocate() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	var prev: Array[Vector2] = [Vector2.ZERO]
+	var pick := SunEaterScript.try_pick_boss_xz(rng, Vector2.ZERO, prev)
+	_fail_unless(pick.is_finite(), "Relocate should find a point in the night disk")
+	_fail_unless(
+		pick.length() <= SunEaterScript.SPREAD_RADIUS_M + 0.01,
+		"Relocate must stay inside the 400 m night-sphere disk"
+	)
+	_fail_unless(
+		pick.distance_to(Vector2.ZERO) >= SunEaterScript.MIN_RELOCATE_SEP_M - 0.01,
+		"Relocate should sit at least 100 m from previous stands when there is room"
+	)
+	rng.seed = 9
+	var cramped := SunEaterScript.try_pick_boss_xz(
+		rng, Vector2.ZERO, prev, 50.0, 100.0, 64
+	)
+	_fail_unless(
+		cramped.length() <= 50.01,
+		"A packed disk must still pick inside the allowed area"
+	)
+	_fail_unless(
+		cramped.length() >= 49.0,
+		"When 100 m is impossible, relocate should pick as far as possible"
+	)
+
+	var boss: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(boss)
+	boss._rng.seed = 21
+	boss.global_position = Vector3(100.0, 0.0, 50.0)
+	boss.configure_encounter(1, 5000)
+	boss.begin_ascent(12.0)
+	boss._spread_full = true
+	boss._physics_process(3.0)
+	boss._physics_process(8.0)
+	_fail_unless(boss.is_blocking_stream(), "Stream should halt after the first ascent")
+	_fail_unless(not boss.is_sinking(), "Boss should still be standing after Bring the Night")
+	var leftover := boss.follow_night_volume()
+	_fail_unless(leftover != null, "First stand should have a follow night sphere")
+	_fail_unless(is_equal_approx(leftover.radius_m, 80.0), "First night sphere radius should be 80 m")
+	_fail_unless(boss.batch_size() == 1, "First stay should plant one child sphere at a time")
+	var scarabs_before := boss.living_scarab_count()
+	boss._physics_process(60.0)
+	_fail_unless(boss.is_sinking(), "Boss should start sinking after 60 seconds standing")
+	_fail_unless(not leftover.follow_host, "The old night sphere should stay behind as a static volume")
+	_fail_unless(leftover.is_spawn_ready(), "The leftover sphere should keep spawning scarabs")
+	_fail_unless(
+		leftover in boss.child_night_volumes(),
+		"The leftover sphere should remain in the spawn list"
+	)
+	_fail_unless(
+		is_equal_approx(boss.global_position.y, 12.0),
+		"Sink should not consume the stand tick"
+	)
+	boss._physics_process(1.5)
+	_fail_unless(
+		is_equal_approx(boss.global_position.y, SunEaterScript.sink_y(12.0, 1.5)),
+		"Boss should descend through the terrain"
+	)
+	_fail_unless(boss.is_blocking_stream(), "Stream should stay halted while the boss sinks")
+	boss._physics_process(1.5)
+	_fail_unless(boss.is_buried_waiting(), "Boss should wait underground after sinking")
+	_fail_unless(
+		is_equal_approx(boss.global_position.y, -88.0),
+		"Buried wait should sit fully underground"
+	)
+	_fail_unless(boss.is_blocking_stream(), "Stream should stay halted while the boss is buried")
+	var old_xz := Vector2(100.0, 50.0)
+	boss._physics_process(2.0)
+	_fail_unless(boss.relocate_count() == 1, "First hop should count as one relocate")
+	_fail_unless(boss.batch_size() == 2, "Each hop should add one child sphere per wave")
+	_fail_unless(
+		is_equal_approx(boss.night_sphere_diameter(), 160.0),
+		"The new night sphere should stay 160 m after the first hop"
+	)
+	_fail_unless(boss.get_health() == 5000, "Relocate must not reset boss HP")
+	_fail_unless(
+		boss.living_scarab_count() >= scarabs_before,
+		"Relocate must not wipe the collected scarabs"
+	)
+	_fail_unless(is_instance_valid(leftover), "The leftover night sphere must survive the hop")
+	var new_xz := Vector2(boss.global_position.x, boss.global_position.z)
+	_fail_unless(
+		new_xz.distance_to(old_xz) >= 100.0 - 0.01,
+		"New stand should be at least 100 m from the previous one"
+	)
+	_fail_unless(
+		new_xz.distance_to(boss.origin_xz()) <= SunEaterScript.SPREAD_RADIUS_M + 0.01,
+		"New stand must stay inside the original night-sphere disk"
+	)
+	_fail_unless(boss.is_blocking_stream(), "Stream should stay halted while the boss re-rises")
+	_fail_unless(not boss.has_finished_ascent(), "Re-ascent should not look like the first rise is still pending for stream")
+	var follow := boss.follow_night_volume()
+	_fail_unless(follow != leftover, "A new follow sphere should grow at the new stand")
+	_fail_unless(is_equal_approx(follow.radius_m, 80.0), "New follow sphere should match the original 160 m sphere")
+	boss._physics_process(3.0)
+	_fail_unless(boss.has_finished_ascent(), "Boss should stand again after relocate ascent")
+	boss._physics_process(8.0)
+	_fail_unless(follow.is_formed(), "The new larger sphere should fade in over 8 seconds")
+	boss._spread_full = false
+	var children_before := boss.child_night_volumes().size()
+	boss._physics_process(6.0)
+	_fail_unless(
+		boss.child_night_volumes().size() == children_before + 2,
+		"After the first hop, a wave should plant two child spheres at once"
+	)
 	boss.free()
 
 
@@ -698,10 +974,21 @@ func _verify_stream_halt() -> void:
 	root.add_child(boss)
 	boss.begin_ascent(12.0)
 	_fail_unless(not boss.has_finished_ascent(), "Stream should keep running while the boss is still rising")
+	_fail_unless(not boss.is_blocking_stream(), "Stream should keep running until the first ascent finishes")
 	boss._physics_process(2.9)
 	_fail_unless(not boss.has_finished_ascent(), "Ascent should not finish before 3 seconds")
 	boss._physics_process(0.1)
 	_fail_unless(boss.has_finished_ascent(), "Stream should halt once the boss has fully ascended")
+	_fail_unless(boss.is_blocking_stream(), "An ascended boss should block the regular stream")
+	boss._spread_full = true
+	boss._physics_process(8.0)
+	boss._physics_process(60.0)
+	boss._physics_process(3.0)
+	_fail_unless(boss.is_buried_waiting(), "Boss should be underground after a relocate sink")
+	_fail_unless(boss.is_blocking_stream(), "Stream should stay halted while the boss is buried")
+	boss._physics_process(2.0)
+	_fail_unless(not boss.has_finished_ascent(), "Relocate rise should still count as ascending")
+	_fail_unless(boss.is_blocking_stream(), "Stream should stay halted while the boss re-rises")
 	boss.free()
 
 
@@ -765,6 +1052,14 @@ func _has_duplicate(shop: PackedStringArray) -> bool:
 			return true
 		seen[base] = true
 	return false
+
+
+func _scarabs_bound_to(boss: SunEater, volume: NightVolume) -> int:
+	var count := 0
+	for scarab in boss.living_scarabs():
+		if scarab.home_volume() == volume:
+			count += 1
+	return count
 
 
 func _fail_unless(condition: bool, message: String) -> void:

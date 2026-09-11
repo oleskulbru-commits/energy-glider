@@ -21,6 +21,9 @@ var _fade_t := 0.0
 var _fade_duration := 0.0
 var _self_fading := false
 var _visuals_enabled := true
+var _formed := false
+var _cheap_mat: StandardMaterial3D
+var _volumetric := true
 
 
 func _ready() -> void:
@@ -33,6 +36,7 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if follow_host:
 		_follow_host()
+	_update_render_lod()
 
 
 func configure(p_radius_m: float, p_follow_host: bool) -> void:
@@ -47,6 +51,7 @@ func begin_self_fade(duration_sec: float) -> void:
 	_fade_duration = maxf(duration_sec, 0.001)
 	_fade_t = 0.0
 	_self_fading = true
+	_formed = false
 	set_fade(0.0)
 
 
@@ -66,6 +71,8 @@ func snap_to_standing(origin: Vector3, ground_y: float) -> void:
 
 func set_fade(value: float) -> void:
 	fade = clampf(value, 0.0, 1.0)
+	if fade >= 1.0:
+		_formed = true
 	_apply_mesh_visibility()
 	if _mat != null:
 		_mat.set_shader_parameter("alpha_mul", fade)
@@ -81,7 +88,18 @@ func visuals_enabled() -> bool:
 
 
 func is_formed() -> bool:
-	return fade >= 1.0
+	return _formed or fade >= 1.0
+
+
+## Boss sphere waits until it has finished fading. Later spheres spawn as soon as they exist.
+func is_spawn_ready() -> bool:
+	return is_formed() or not follow_host
+
+
+func mark_formed() -> void:
+	_self_fading = false
+	_formed = true
+	set_fade(1.0)
 
 
 func contains_xz(world_pos: Vector3) -> bool:
@@ -155,8 +173,8 @@ func _ensure_mesh() -> void:
 	var sphere := SphereMesh.new()
 	sphere.radius = radius_m
 	sphere.height = radius_m * 2.0
-	sphere.radial_segments = 32
-	sphere.rings = 16
+	sphere.radial_segments = 16
+	sphere.rings = 8
 	_mesh.mesh = sphere
 	_mesh.position = Vector3.ZERO
 	_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -168,6 +186,37 @@ func _ensure_mesh() -> void:
 			_mat.shader = _SHADER
 		_mesh.material_override = _mat
 	_apply_mesh_visibility()
+
+
+func _update_render_lod() -> void:
+	if _mesh == null or not _visuals_enabled or fade <= 0.01:
+		return
+	var cam := _current_camera()
+	var volumetric := true
+	if cam != null:
+		var dx := cam.global_position.x - global_position.x
+		var dy := cam.global_position.y - global_position.y
+		var dz := cam.global_position.z - global_position.z
+		volumetric = dx * dx + dy * dy + dz * dz <= (radius_m + EDGE_FADE_M) * (radius_m + EDGE_FADE_M)
+	if volumetric == _volumetric and _mesh.material_override != null:
+		return
+	_volumetric = volumetric
+	if volumetric:
+		_mesh.material_override = _mat
+	else:
+		_ensure_cheap_mat()
+		_mesh.material_override = _cheap_mat
+
+
+func _ensure_cheap_mat() -> void:
+	if _cheap_mat != null:
+		return
+	_cheap_mat = StandardMaterial3D.new()
+	_cheap_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_cheap_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_cheap_mat.cull_mode = BaseMaterial3D.CULL_FRONT
+	_cheap_mat.albedo_color = Color(NIGHT_COLOR.r, NIGHT_COLOR.g, NIGHT_COLOR.b, 0.22)
+	_cheap_mat.no_depth_test = true
 
 
 func _apply_mesh_visibility() -> void:

@@ -104,7 +104,7 @@ func is_blocking_upgrades() -> bool:
 
 
 func is_blocking_stream() -> bool:
-	return has_living_boss() and _living.has_finished_ascent()
+	return has_living_boss() and _living.is_blocking_stream()
 
 
 func is_defeated(tower_index: int) -> bool:
@@ -115,6 +115,10 @@ func living_boss() -> SunEater:
 	if has_living_boss():
 		return _living
 	return null
+
+
+func player_body() -> Node3D:
+	return _player_body()
 
 
 func reset_living_boss() -> void:
