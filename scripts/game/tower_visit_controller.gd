@@ -3,6 +3,7 @@ extends Node
 
 ## Opens the upgrade menu the first time a west tower is entered within 20 m this life.
 ## Also heals once per tower per life: tower N restores N * 5 HP (capped at max).
+## A bonus on level N uses the same heal as westbound tower N.
 
 const VISIT_RADIUS_M := 20.0
 const VISIT_HEAL_PER_TOWER_INDEX := 5
@@ -50,7 +51,7 @@ static func visit_heal_amount(tower_index: int) -> int:
 
 
 func _apply_visit_heal(tower: UpgradeTower) -> void:
-	var amount := visit_heal_amount(tower.tower_index)
+	var amount := visit_heal_amount(tower.visit_heal_level())
 	if amount <= 0:
 		return
 	var health := _rig.get_node_or_null("PlayerHealth") as PlayerHealth
@@ -73,8 +74,17 @@ static func find_visit_tower(tree: SceneTree, origin: Vector3) -> UpgradeTower:
 		var tower := node as UpgradeTower
 		if tower == null or not tower.is_upgrade_stop():
 			continue
+		if tower.is_bonus and _is_bonus_visit_locked(tree, tower):
+			continue
 		var dist := xz_distance(origin, tower.global_position)
 		if dist <= best_dist:
 			best_dist = dist
 			best = tower
 	return best
+
+
+static func _is_bonus_visit_locked(tree: SceneTree, tower: UpgradeTower) -> bool:
+	var garrison := tree.get_first_node_in_group("bonus_tower_garrison")
+	if garrison == null or not garrison.has_method("is_visit_locked"):
+		return false
+	return bool(garrison.is_visit_locked(tower))

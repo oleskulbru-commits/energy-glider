@@ -15,6 +15,7 @@ const SPREAD_RADIUS_AIR_M := 4.0
 const AIR_VOLLEY_CENTER_JITTER_MIN_M := 2.0
 const AIR_VOLLEY_CENTER_JITTER_MAX_M := 4.0
 const HAIL_COOLDOWN_SEC := 7.0
+const SIEGE_ROCKET_COUNT := 8
 const FALL_TELEGRAPH_SEC := DroneRocketScript.FLIGHT_SEC
 const STAGGER_SEC := 0.1
 
@@ -34,6 +35,9 @@ func _ready() -> void:
 
 
 func _update_weapons(delta: float) -> void:
+	if garrisoned and not _garrison_aggroed:
+		_tick_shield_siege(delta)
+		return
 	if _firing_hail:
 		_tick_stagger(delta)
 		return
@@ -47,8 +51,28 @@ func _update_weapons(delta: float) -> void:
 	_cooldown_left = HAIL_COOLDOWN_SEC
 
 
-func _begin_hail() -> void:
-	var count := _rng_hail.randi_range(ROCKET_COUNT_MIN, ROCKET_COUNT_MAX)
+func reset_garrison_weapons() -> void:
+	_cooldown_left = 0.0
+	_firing_hail = false
+	_pending_offsets.clear()
+	_stagger_left = 0.0
+
+
+func _tick_shield_siege(delta: float) -> void:
+	if _firing_hail:
+		_tick_stagger(delta)
+		return
+	_cooldown_left = maxf(_cooldown_left - delta, 0.0)
+	if _cooldown_left > 0.0:
+		return
+	if garrison_shield() == null:
+		return
+	_begin_hail(SIEGE_ROCKET_COUNT)
+	_cooldown_left = HAIL_COOLDOWN_SEC
+
+
+func _begin_hail(count_override: int = 0) -> void:
+	var count := count_override if count_override > 0 else _rng_hail.randi_range(ROCKET_COUNT_MIN, ROCKET_COUNT_MAX)
 	_pending_offsets = impact_offsets_around(count, SPREAD_RADIUS_GROUND_M, _rng_hail)
 	var bias_angle := _rng_hail.randf() * TAU
 	var bias_dist := _rng_hail.randf_range(
@@ -81,7 +105,11 @@ func _fire_next_rocket() -> void:
 		parent = self
 	var rocket = DroneRocketScript.new()
 	parent.add_child(rocket)
-	if uses_air_targeting():
+	if garrisoned and not _garrison_aggroed:
+		var impact := _shield_siege_aim()
+		impact += offset * 0.12
+		rocket.launch_to_air_point(global_position, impact)
+	elif uses_air_targeting():
 		var lead := _lead_point_3d()
 		var air_offset := air_offset_from_ground(offset, _rng_hail)
 		var impact := lead + _hail_center_bias + air_offset

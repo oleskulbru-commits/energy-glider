@@ -4,6 +4,7 @@ extends Area3D
 ## Lofted homing capsule. Boosts up, then dives at the locked enemy.
 
 const AutoRocketScript := preload("res://scripts/weapons/auto_rocket.gd")
+const SwarmPillScript := preload("res://scripts/enemies/swarm_pill.gd")
 
 const SPEED_MPS := 35.0
 const LIFETIME_SEC := 8.0
@@ -99,8 +100,8 @@ func _aim_vector() -> Vector3:
 func _is_lock_alive() -> bool:
 	if _target == null or not is_instance_valid(_target):
 		return false
-	if _target is SwarmPill:
-		return (_target as SwarmPill).is_alive()
+	if _target is SwarmPillScript:
+		return (_target as SwarmPillScript).is_alive()
 	return true
 
 
@@ -146,7 +147,7 @@ func _orient() -> void:
 func _on_body_entered(body: Node) -> void:
 	if _spent:
 		return
-	var pill := body as SwarmPill
+	var pill := body as SwarmPillScript
 	if pill == null or not pill.is_alive():
 		return
 	var hit := _resolve_hit()

@@ -55,6 +55,10 @@ func _verify_populate_keeps_rows_and_scroll() -> void:
 	var damage_rows: VBoxContainer = panel.get_node("%DamageRows")
 	var upgrade_rows: VBoxContainer = panel.get_node("%UpgradeRows")
 	_fail_unless(damage_rows.get_child_count() == 2, "Damage rows should list owned weapons")
+	_fail_unless(
+		_row_text(damage_rows.get_child(0)).contains("kills: 0"),
+		"Damage rows should list kills beside damage"
+	)
 	_fail_unless(upgrade_rows.get_child_count() >= 1, "Upgrade rows should list bundled upgrades")
 	if _failed:
 		_free_nodes([scroll, upgrade_state, damage_stats])
@@ -84,11 +88,16 @@ func _verify_populate_keeps_rows_and_scroll() -> void:
 		)
 
 	damage_stats.record(UpgradeCatalogScript.FAMILY_RIFLE, 15)
+	damage_stats.record_kill(UpgradeCatalogScript.FAMILY_RIFLE)
 	panel.populate(null, null, upgrade_state, damage_stats)
 	await process_frame
 	_fail_unless(
 		damage_rows.get_child(0).get_instance_id() != first_damage_id,
 		"Changed damage totals should rebuild damage rows"
+	)
+	_fail_unless(
+		_row_text(damage_rows.get_child(0)).contains("kills: 1"),
+		"Updated kill counts should show on the rebuilt damage row"
 	)
 
 	_free_nodes([scroll, upgrade_state, damage_stats])
@@ -138,6 +147,15 @@ func _free_nodes(nodes: Array) -> void:
 	for node in nodes:
 		if node != null:
 			(node as Node).queue_free()
+
+
+func _row_text(row: Node) -> String:
+	var parts: PackedStringArray = PackedStringArray()
+	for child in row.get_children():
+		var label := child as Label
+		if label != null:
+			parts.append(label.text)
+	return " ".join(parts)
 
 
 func _fail_unless(condition: bool, message: String) -> void:

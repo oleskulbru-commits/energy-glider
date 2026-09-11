@@ -49,6 +49,16 @@ func configure(terrain: TerrainManager, target: Node3D, speed: float = BASE_MOVE
 	_snap_to_cruise_height(true, 0.0)
 
 
+func bind_garrison(anchor: Vector3, tower_index: int = -1, shield: Node3D = null) -> void:
+	super.bind_garrison(anchor, tower_index, shield)
+	never_despawn = true
+	collision_mask = 0
+
+
+func _garrison_idle_goal_xz() -> Vector3:
+	return garrison_home
+
+
 func _ensure_cube_visual() -> void:
 	var old_visual := get_node_or_null("Visual")
 	if old_visual != null:
@@ -83,7 +93,7 @@ func _physics_process(delta: float) -> void:
 	if _target == null or not is_instance_valid(_target):
 		queue_free()
 		return
-	if can_despawn_when_behind() and not never_despawn and is_behind_facing(_target.global_position, _target_facing_xz(), global_position):
+	if can_despawn_when_behind() and not never_despawn and not garrisoned and is_behind_facing(_target.global_position, _target_facing_xz(), global_position):
 		queue_free()
 		return
 
@@ -122,6 +132,9 @@ func _update_fly_state() -> void:
 
 
 func _steer(delta: float) -> void:
+	if garrisoned:
+		_steer_garrison(delta)
+		return
 	var desired := _desired_xz()
 	var to := desired - Vector3(global_position.x, 0.0, global_position.z)
 	to.y = 0.0
@@ -135,6 +148,18 @@ func _steer(delta: float) -> void:
 	if fly_state == FlyState.KITE:
 		speed = minf(speed, to.length() * 2.5)
 	velocity = dir * speed
+
+
+func _steer_garrison(delta: float) -> void:
+	tick_garrison_aggro(_target.global_position)
+	var goal := _garrison_goal_xz()
+	var to := goal - Vector3(global_position.x, 0.0, global_position.z)
+	to.y = 0.0
+	if to.length_squared() < 0.25:
+		velocity = Vector3(velocity.x, 0.0, velocity.z).lerp(Vector3.ZERO, minf(delta * 6.0, 1.0))
+		velocity.y = 0.0
+		return
+	velocity = to.normalized() * _get_move_speed()
 
 
 func _desired_xz() -> Vector3:
@@ -166,14 +191,25 @@ func _snap_to_cruise_height(instant: bool, delta: float = 0.016) -> void:
 func _face_target() -> void:
 	if _target == null or not is_instance_valid(_target):
 		return
-	var flat := Vector3(
-		_target.global_position.x - global_position.x,
-		0.0,
-		_target.global_position.z - global_position.z
-	)
-	if flat.length_squared() < 0.0001:
+	var look := _target.global_position
+	if garrisoned and not _garrison_aggroed:
+		look = _shield_siege_aim()
+	var to := look - global_position
+	if to.length_squared() < 0.0001:
 		return
-	look_at(global_position + flat.normalized(), Vector3.UP)
+	if absf(to.normalized().dot(Vector3.UP)) > 0.98:
+		to.y = 0.0
+		if to.length_squared() < 0.0001:
+			return
+		look = global_position + to.normalized()
+	look_at(look, Vector3.UP)
+
+
+func _shield_siege_aim() -> Vector3:
+	var shield := garrison_shield()
+	if shield != null and shield.has_method("aim_mid_from"):
+		return shield.aim_mid_from(global_position)
+	return Vector3(garrison_anchor.x, global_position.y + 25.0, garrison_anchor.z)
 
 
 ## Subclasses implement weapons. Base is a no-op.
@@ -189,6 +225,8 @@ func can_fire_weapons() -> bool:
 	if _target == null or not is_instance_valid(_target):
 		return false
 	if _stun_left > 0.0:
+		return false
+	if garrisoned and not _garrison_aggroed:
 		return false
 	return xz_distance_to_target() <= WEAPON_RANGE_M
 

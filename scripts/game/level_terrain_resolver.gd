@@ -16,6 +16,7 @@ const BAND_RIDGE := {"min": 1.48, "max": 2.0}
 static var _slab_cache: Dictionary = {} # int -> Dictionary
 static var _segment_param_cache: Dictionary = {} # int segment index -> Dictionary
 static var _cache_seed: int = -999
+static var _cache_lock := Mutex.new()
 
 
 static func params_at_world_x(world_x: float, origin_x: float = 0.0) -> Dictionary:
@@ -27,16 +28,21 @@ static func params_at_world_x(world_x: float, origin_x: float = 0.0) -> Dictiona
 
 ## Adjacent slab param sets and the blend factor in [0, 1).
 static func param_blend_at_world_x(world_x: float, origin_x: float = 0.0) -> Dictionary:
+	_cache_lock.lock()
 	_ensure_cache_valid()
 	var west_m := maxf(origin_x - world_x, 0.0)
 	var slab_f := west_m / SLAB_M
 	var slab0 := int(floor(slab_f))
 	var frac := slab_f - float(slab0)
 	var a := _params_for_slab(slab0, origin_x)
+	var result: Dictionary
 	if frac <= 0.0001:
-		return {"a": a, "b": a, "t": 0.0}
-	var b := _params_for_slab(slab0 + 1, origin_x)
-	return {"a": a, "b": b, "t": frac}
+		result = {"a": a, "b": a, "t": 0.0}
+	else:
+		var b := _params_for_slab(slab0 + 1, origin_x)
+		result = {"a": a, "b": b, "t": frac}
+	_cache_lock.unlock()
+	return result
 
 
 static func same_noise_domain(a: Dictionary, b: Dictionary) -> bool:
