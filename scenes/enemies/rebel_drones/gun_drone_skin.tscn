@@ -8,6 +8,9 @@
 [ext_resource type="PackedScene" uid="uid://m6el2htscaob" path="res://scenes/effects/muzzle_flash.tscn" id="5_muzzle"]
 [ext_resource type="Texture2D" uid="uid://q0ilybhppgao" path="res://assets/vfx/effect_textures/muzzle_flash_2.png" id="7_8vy1p"]
 [ext_resource type="ArrayMesh" uid="uid://dlljgpkviwwp1" path="res://assets/vfx/meshes/muzzle_cone.obj" id="7_fvrwa"]
+[ext_resource type="Material" path="res://assets/materials/enemies/rebel_drone_emissives_yellow.tres" id="8_emissives_yellow"]
+[ext_resource type="Material" path="res://assets/materials/enemies/rebel_drone_thruster_yellow.tres" id="9_thruster_yellow"]
+[ext_resource type="Material" path="res://assets/materials/enemies/rebel_drone_streak_yellow.tres" id="10_streak_yellow"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gun"]
 resource_name = "Autocannon_Materials"
@@ -80,6 +83,49 @@ texture_filter = 0
 [node name="GunDroneSkin" type="Node3D" unique_id=672632487]
 
 [node name="Body" parent="." unique_id=487950166 instance=ExtResource("1_body_skin")]
+
+[node name="TypeFlare" parent="Body" index="2"]
+flare_color = Color(1.6, 1.232, 0.24, 1)
+
+[node name="Rebel_Drone" parent="Body/Body" index="0"]
+surface_material_override/1 = ExtResource("8_emissives_yellow")
+surface_material_override/2 = ExtResource("9_thruster_yellow")
+
+[node name="Streak" parent="Body/Body/Rebel_Drone/ThrusterStreaks"]
+material_override = ExtResource("10_streak_yellow")
+
+[node name="Streak2" parent="Body/Body/Rebel_Drone/ThrusterStreaks"]
+material_override = ExtResource("10_streak_yellow")
+
+[node name="Streak3" parent="Body/Body/Rebel_Drone/ThrusterStreaks"]
+material_override = ExtResource("10_streak_yellow")
+
+[node name="Streak4" parent="Body/Body/Rebel_Drone/ThrusterStreaks"]
+material_override = ExtResource("10_streak_yellow")
+
+[node name="Streak5" parent="Body/Body/Rebel_Drone/ThrusterStreaks"]
+material_override = ExtResource("10_streak_yellow")
+
+[node name="Streak" parent="Body/Body/Rebel_Drone/HoverStreaks"]
+material_override = ExtResource("10_streak_yellow")
+
+[node name="Streak2" parent="Body/Body/Rebel_Drone/HoverStreaks"]
+material_override = ExtResource("10_streak_yellow")
+
+[node name="Streak3" parent="Body/Body/Rebel_Drone/HoverStreaks"]
+material_override = ExtResource("10_streak_yellow")
+
+[node name="Streak4" parent="Body/Body/Rebel_Drone/HoverStreaks"]
+material_override = ExtResource("10_streak_yellow")
+
+[node name="OmniLight3D" parent="Body/Body"]
+light_color = Color(1.6, 1.232, 0.24, 1)
+
+[node name="OmniLight3D2" parent="Body/Body"]
+light_color = Color(1.6, 1.232, 0.24, 1)
+
+[node name="SpotLight3D" parent="Body"]
+light_color = Color(1.6, 1.232, 0.24, 1)
 
 [node name="CSGCylinder3D" type="CSGCylinder3D" parent="Body" unique_id=1459974807]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0046526417, 0.3507992)

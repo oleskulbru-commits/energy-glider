@@ -1,0 +1,19 @@
+[gd_resource type="ShaderMaterial" format=3 uid="uid://bgskk84fcm5bv"]
+
+[ext_resource type="Shader" uid="uid://u7edd4r2jav4" path="res://assets/vfx/shaders/drone_hit_spark.gdshader" id="1_shader"]
+[ext_resource type="Texture2D" uid="uid://p8ajmaa7ccdy" path="res://assets/vfx/effect_textures/sparks_texture.png" id="2_base_tex"]
+
+[sub_resource type="Gradient" id="Gradient_spark_mask"]
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_spark_mask"]
+gradient = SubResource("Gradient_spark_mask")
+fill_from = Vector2(0.97720796, 0.23646724)
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_shader")
+shader_parameter/ColorParameter = Color(1.6, 0.75, 0.2, 1)
+shader_parameter/GlowStrength = 5.0
+shader_parameter/SpeedXY = Vector2(0, 2.5)
+shader_parameter/Base_Texture = ExtResource("2_base_tex")
+shader_parameter/Streak_Mask = SubResource("GradientTexture2D_spark_mask")

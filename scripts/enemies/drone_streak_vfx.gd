@@ -52,6 +52,18 @@ func find_thruster_streaks() -> Node3D:
 	return _thruster_streaks
 
 
+func get_spark_color() -> Color:
+	var first := _first_streak_mesh(_thruster_streaks)
+	if first == null:
+		return Color(1.6, 0.75, 0.2, 1.0)
+	var mat := first.material_override
+	if mat is ShaderMaterial:
+		var color: Variant = (mat as ShaderMaterial).get_shader_parameter("ColorParameter")
+		if color is Color:
+			return color as Color
+	return Color(1.6, 0.75, 0.2, 1.0)
+
+
 func get_rebel_drone() -> MeshInstance3D:
 	return get_node_or_null(REBEL_DRONE_PATH) as MeshInstance3D
 

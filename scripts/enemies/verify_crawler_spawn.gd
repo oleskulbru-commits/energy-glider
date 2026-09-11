@@ -66,6 +66,10 @@ func _run() -> void:
 		"SwarmPill walk dust should use HEAVY preset"
 	)
 	_fail_unless(
+		pill.get_climb_dust_preset() == SandParticleVfxScript.BurstPreset.CLIMB,
+		"SwarmPill climb dig dust should use CLIMB preset"
+	)
+	_fail_unless(
 		is_equal_approx(pill.get_sand_burst_scale_mult(), 1.0),
 		"SwarmPill sand scale mult should be 1.0"
 	)
@@ -75,6 +79,10 @@ func _run() -> void:
 	_fail_unless(
 		charger.get_walk_dust_preset() == SandParticleVfxScript.BurstPreset.MG,
 		"ChargerPill walk dust should use MG preset"
+	)
+	_fail_unless(
+		charger.get_climb_dust_preset() == SandParticleVfxScript.BurstPreset.CLIMB,
+		"ChargerPill climb dig dust should use CLIMB preset"
 	)
 	_fail_unless(
 		is_equal_approx(charger.get_sand_burst_scale_mult(), 3.0),

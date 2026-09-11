@@ -36,6 +36,9 @@ transform = Transform3D(0.45, 0, 0, 0, 0.45, 0, 0, 0, 0.45, 0, -0.015617151, 0.0
 [node name="WeaponModule" parent="Body/CSGCylinder3D/Weapon_Pivot" unique_id=625755394 instance=ExtResource("2_rocket_module")]
 transform = Transform3D(1.2270001, 0, 0, 0, 1.2266037, -0.031179985, 0, 0.031179985, 1.2266037, 0, -0.23717442, -0.13787162)
 
+[node name="Missile_Projectile_1" parent="Body/CSGCylinder3D/Weapon_Pivot/WeaponModule" index="1" unique_id=110242414]
+transform = Transform3D(1, 0, 0, 0, 0.9999999, 1.8626451e-09, 0, -1.8626451e-09, 0.9999999, 0, 0.022101715, 0.86946887)
+
 [node name="Missile_Projectile_1" type="Node3D" parent="Body/CSGCylinder3D/Weapon_Pivot" unique_id=1198503900]
 
 [node name="Missile_Projectile_2" type="Node3D" parent="Body/CSGCylinder3D/Weapon_Pivot" unique_id=1721007036]

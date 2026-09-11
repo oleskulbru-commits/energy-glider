@@ -9,6 +9,7 @@ const FRACTURED_SCENE := preload(
 const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 const CrawlerDebrisSandScript := preload("res://scripts/enemies/crawler_debris_sand.gd")
 const CameraImpactShakeScript := preload("res://scripts/player/camera_impact_shake.gd")
+const UpgradeCatalogScript := preload("res://scripts/game/upgrade_catalog.gd")
 
 const LIFETIME_SEC := 3.0
 const IMPULSE_MIN := 5.0
@@ -22,6 +23,7 @@ const DEBRIS_COLLISION_LAYER := 1
 const DEBRIS_COLLISION_MASK := 1
 
 var _terrain: TerrainManager
+var _spawn_landing_sand := false
 
 
 static func spawn(
@@ -29,7 +31,8 @@ static func spawn(
 	xf: Transform3D,
 	hit_pos: Vector3,
 	scale: float = CrawlerScaleUtil.death_burst_scale(),
-	terrain: TerrainManager = null
+	terrain: TerrainManager = null,
+	weapon_family: StringName = &""
 ) -> void:
 	if tree == null:
 		return
@@ -43,6 +46,7 @@ static func spawn(
 	wrapper.add_child(burst)
 	burst.scale = Vector3.ONE * scale
 	wrapper._terrain = terrain
+	wrapper._spawn_landing_sand = UpgradeCatalogScript.weapon_causes_debris_sand(weapon_family)
 	wrapper._build_shards(burst, hit_pos)
 	KillSparks.spawn(tree, xf.origin)
 	CameraImpactShakeScript.request(tree, xf.origin, 0.25, 15.0)
@@ -105,8 +109,9 @@ func _promote_to_rigid_body(mesh_inst: MeshInstance3D, hit_pos: Vector3) -> void
 	body.collision_mask = DEBRIS_COLLISION_MASK
 	body.gravity_scale = 1.0
 	body.continuous_cd = true
-	body.contact_monitor = true
-	body.max_contacts_reported = 1
+	if _spawn_landing_sand:
+		body.contact_monitor = true
+		body.max_contacts_reported = 1
 	body.add_child(_duplicate_mesh(mesh_inst))
 	body.add_child(_collision_for_mesh(mesh))
 
@@ -115,7 +120,8 @@ func _promote_to_rigid_body(mesh_inst: MeshInstance3D, hit_pos: Vector3) -> void
 	mesh_inst.queue_free()
 
 	_apply_burst_impulse(body, hit_pos)
-	CrawlerDebrisSandScript.attach(body, _terrain)
+	if _spawn_landing_sand:
+		CrawlerDebrisSandScript.attach(body, _terrain)
 
 
 func _duplicate_mesh(source: MeshInstance3D) -> MeshInstance3D:

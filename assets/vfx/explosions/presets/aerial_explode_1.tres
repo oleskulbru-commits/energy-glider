@@ -1,10 +1,12 @@
 [gd_resource type="Resource" script_class="AerialExplosionPreset" format=3 uid="uid://bo0prg4nrupay"]
 
-[ext_resource type="Script" uid="uid://daujcnywstycf" path="res://scripts/vfx/aerial_explosion_preset.gd" id="1_preset"]
-[ext_resource type="Material" path="res://assets/materials/vfx/aerial_explosion_material.tres" id="2_material"]
+[ext_resource type="Script" uid="uid://df46m8pq7v7mu" path="res://scripts/vfx/aerial_explosion_preset.gd" id="1_preset"]
+[ext_resource type="Material" uid="uid://bo365cxx7sghc" path="res://assets/materials/vfx/aerial_explosion_material.tres" id="2_material"]
 
 [resource]
 script = ExtResource("1_preset")
-fps = 25.0
+color_prefix = "aerial_explode_2_v001_frame_"
+frame_count = 47
+world_scale = 12.0
 material = ExtResource("2_material")
 emission_strength = 5.0

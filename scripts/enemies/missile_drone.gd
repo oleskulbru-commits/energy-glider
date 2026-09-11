@@ -96,7 +96,9 @@ func _fire_next_rocket() -> void:
 		rocket.launch_to_air_point(
 			spawn_transform.origin,
 			impact,
-			spawn_transform
+			spawn_transform,
+			null,
+			DRONE_SIZE_MULT
 		)
 	else:
 		var lead := _lead_point()
@@ -111,7 +113,9 @@ func _fire_next_rocket() -> void:
 			spawn_transform.origin,
 			ground,
 			_terrain,
-			spawn_transform
+			spawn_transform,
+			null,
+			DRONE_SIZE_MULT
 		)
 	_stagger_left = STAGGER_SEC
 	if _pending_offsets.is_empty():

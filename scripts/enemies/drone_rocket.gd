@@ -4,9 +4,9 @@ extends Area3D
 ## Lofted hail rocket with drone missile mesh and energy streak VFX.
 
 const DroneMissileProjectileScene = preload("res://scenes/enemies/rebel_drones/drone_missile_projectile.tscn")
-const DroneGroundBlastScript = preload("res://scripts/enemies/drone_ground_blast.gd")
-const AerialExplosionVfxScript = preload("res://scripts/vfx/aerial_explosion_vfx.gd")
 const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
+const AerialExplosionVfxScript := preload("res://scripts/vfx/aerial_explosion_vfx.gd")
+const DroneExplosionPreset := preload("res://assets/vfx/explosions/presets/aerial_explode_drone.tres")
 
 enum FlightMode { GROUND_ARC, AIR_LINEAR }
 
@@ -41,6 +41,7 @@ var _launch_dir := Vector3.FORWARD
 var _straight_speed_mps := 0.0
 var _straight_ghost_pos := Vector3.ZERO
 var _smoke_trail: CPUParticles3D
+var _visual_scale := 1.0
 
 
 func launch_from_drone(
@@ -48,11 +49,13 @@ func launch_from_drone(
 	impact: Vector3,
 	terrain: TerrainManager = null,
 	spawn_transform: Transform3D = Transform3D.IDENTITY,
-	visual_template: Node = null
+	visual_template: Node = null,
+	visual_scale: float = 1.0
 ) -> void:
 	_flight_mode = FlightMode.GROUND_ARC
 	_pass_through = false
 	_terrain = terrain
+	_visual_scale = maxf(visual_scale, 0.01)
 	var ground_y := impact.y
 	if terrain != null:
 		ground_y = terrain.sample_height(impact.x, impact.z)
@@ -71,11 +74,13 @@ func launch_to_air_point(
 	origin: Vector3,
 	impact_3d: Vector3,
 	spawn_transform: Transform3D = Transform3D.IDENTITY,
-	visual_template: Node = null
+	visual_template: Node = null,
+	visual_scale: float = 1.0
 ) -> void:
 	_flight_mode = FlightMode.AIR_LINEAR
 	_pass_through = false
 	_terrain = null
+	_visual_scale = maxf(visual_scale, 0.01)
 	_origin = origin
 	_impact = impact_3d
 	_flight_t = 0.0
@@ -254,7 +259,6 @@ func _physics_process_air(delta: float) -> void:
 	global_position = _impact
 	if _try_air_hit_at(_impact):
 		return
-	_spawn_impact_vfx(_impact)
 	_begin_pass_through()
 
 
@@ -291,7 +295,7 @@ func _try_air_hit_at(point: Vector3) -> bool:
 	var health := get_tree().get_first_node_in_group("player_health")
 	if health != null and health.has_method("take_damage"):
 		health.take_damage(DAMAGE)
-	_spawn_impact_vfx(point)
+	_spawn_explosion_at(point)
 	_stop_smoke_trail()
 	queue_free()
 	return true
@@ -347,15 +351,22 @@ func _detonate() -> void:
 				var health := get_tree().get_first_node_in_group("player_health")
 				if health != null and health.has_method("take_damage"):
 					health.take_damage(DAMAGE)
-	_spawn_impact_vfx(_impact)
-	if _flight_mode == FlightMode.GROUND_ARC:
-		DroneGroundBlastScript.spawn(get_tree(), _impact, _terrain)
+	_spawn_explosion_at(_impact)
 	_stop_smoke_trail()
 	queue_free()
 
 
-func _spawn_impact_vfx(at: Vector3) -> void:
-	AerialExplosionVfxScript.spawn(get_tree(), at)
+func _spawn_explosion_at(point: Vector3) -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	AerialExplosionVfxScript.spawn(
+		tree,
+		point,
+		DroneExplosionPreset,
+		_visual_scale,
+		_terrain
+	)
 
 
 func _begin_smoke_trail() -> void:
@@ -363,7 +374,8 @@ func _begin_smoke_trail() -> void:
 		_smoke_trail = SandParticleVfxScript.create_missile_smoke_trail(
 			self,
 			SandParticleVfxScript.material_for_drone_missile_trail(),
-			SandParticleVfxScript.DRONE_TRAIL_COLOR
+			SandParticleVfxScript.DRONE_TRAIL_COLOR,
+			_visual_scale
 		)
 	_smoke_trail.emitting = true
 
@@ -399,11 +411,13 @@ func _attach_projectile_visual(visual_template: Node = null) -> void:
 		from_template = true
 		_tint_projectile_vfx(visual_root)
 		_align_projectile_visual(visual_root, from_template)
+		visual_root.scale = Vector3.ONE * _visual_scale
 		return
 	var fallback: Node3D = DroneMissileProjectileScene.instantiate()
 	visual_root.add_child(fallback)
 	_tint_projectile_vfx(visual_root)
 	_align_projectile_visual(visual_root, false)
+	visual_root.scale = Vector3.ONE * _visual_scale
 
 
 func _duplicate_template_visuals(visual_root: Node3D, visual_template: Node) -> bool:

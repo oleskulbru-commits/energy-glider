@@ -20,9 +20,9 @@ const WeaponTargetingScript = preload("res://scripts/weapons/weapon_targeting.gd
 const GliderPhysicsScript = preload("res://scripts/player/glider_physics.gd")
 const PlayerHealthScript = preload("res://scripts/player/player_health.gd")
 const LevelRunScript = preload("res://scripts/game/level_run.gd")
-const DroneDeathBurstScript = preload("res://scripts/enemies/drone_death_burst.gd")
-const DroneStreakVfxScript = preload("res://scripts/enemies/drone_streak_vfx.gd")
-const DroneDebrisThrusterVfxScript = preload("res://scripts/enemies/drone_debris_thruster_vfx.gd")
+const DroneDebrisSparkVfxScript = preload("res://scripts/enemies/drone_debris_spark_vfx.gd")
+const DroneDamageSparkVfxScript = preload("res://scripts/vfx/drone_damage_spark_vfx.gd")
+const EnemyHitFragmentVfxScript = preload("res://scripts/vfx/enemy_hit_fragment_vfx.gd")
 const LaserDroneSkinScene = preload("res://scenes/enemies/laser_drone_skin.tscn")
 const MissileDroneScene = preload("res://scenes/enemies/missile_drone.tscn")
 const LaserDroneScene = preload("res://scenes/enemies/laser_drone.tscn")
@@ -1365,74 +1365,59 @@ func _verify_smoke_ai() -> void:
 
 
 func _verify_drone_death_debris() -> void:
-	var container := Node3D.new()
-	root.add_child(container)
-	var visual: Node3D = LaserDroneSkinScene.instantiate() as Node3D
-	container.add_child(visual)
-	visual.global_position = Vector3(0.0, 8.0, 0.0)
+	var target := Node3D.new()
+	root.add_child(target)
+	var drone: CharacterBody3D = LaserDroneScene.instantiate() as CharacterBody3D
+	root.add_child(drone)
+	drone.configure(null, target)
+	await process_frame
 
-	var streak_vfx := visual.get_node_or_null("Body") as DroneStreakVfxScript
-	_fail_unless(streak_vfx != null, "Laser skin should have DroneStreakVfx on Body")
-	streak_vfx.prepare_for_death()
-
-	var wrapper := DroneDeathBurstScript.spawn(
-		self,
-		visual.global_transform,
-		visual,
-		Vector3.ZERO,
-		null
+	_fail_unless(
+		drone.take_damage(999, Vector3(1.0, 0.0, 0.0)),
+		"Lethal hit should kill laser drone for chunk-only death debris"
 	)
 	await process_frame
-	_fail_unless(wrapper != null, "DroneDeathBurst.spawn should return a wrapper")
+
+	var spark_bodies := _find_sparking_fragment_bodies(root)
 	_fail_unless(
-		wrapper.get_debris_bodies().size() == 2,
-		"Drone death debris should spawn body and weapon rigid bodies (got %d)"
-		% wrapper.get_debris_bodies().size()
+		spark_bodies.size() >= 4,
+		"Lethal drone kill should spawn multiple sparking fragment chunks (got %d)"
+		% spark_bodies.size()
 	)
+	for body in spark_bodies:
+		var debris_sparks := body.get_node_or_null("DebrisSparks") as GPUParticles3D
+		_fail_unless(debris_sparks != null, "Kill fragment chunk should carry DebrisSparks")
+		_fail_unless(
+			debris_sparks.lifetime >= DroneDamageSparkVfxScript.DEBRIS_PARTICLE_LIFETIME,
+			"Kill fragment spark lifetime should use debris tuning"
+		)
+		_fail_unless(
+			_count_nodes_with_script(body, DroneDebrisSparkVfxScript) >= 1,
+			"Kill fragment chunk should attach DroneDebrisSparkVfx"
+		)
 
-	var body_rigid: RigidBody3D = null
-	for rb in wrapper.get_debris_bodies():
-		if rb.find_child("ThrusterStreaks", true, false) != null:
-			body_rigid = rb
-			break
-	_fail_unless(body_rigid != null, "Body debris should reparent ThrusterStreaks intact")
+	var fragment_wrappers := _count_nodes_with_script(root, EnemyHitFragmentVfxScript)
+	_fail_unless(fragment_wrappers >= 1, "Lethal drone kill should leave EnemyHitFragmentVfx wrappers")
 
-	for child in body_rigid.get_children():
-		if child is MeshInstance3D and child.name.begins_with("Streak"):
-			_fail_unless(
-				false,
-				"Debris should not flatten streak meshes as %s" % child.name
-			)
+	target.queue_free()
 
-	var thruster_streaks := body_rigid.get_node("ThrusterStreaks") as Node3D
-	var debris_vfx: DroneDebrisThrusterVfxScript = null
-	for child in body_rigid.get_children():
-		if child is DroneDebrisThrusterVfxScript:
-			debris_vfx = child
-			break
-	_fail_unless(debris_vfx != null, "Body debris should have DroneDebrisThrusterVfx attached")
-	_fail_unless(thruster_streaks.visible, "Thrusters should stay on before ground hit")
 
-	var terrain := StaticBody3D.new()
-	var terrain_col := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(20.0, 1.0, 20.0)
-	terrain_col.shape = box
-	terrain.add_child(terrain_col)
-	root.add_child(terrain)
-	body_rigid.linear_velocity = Vector3(5.0, -2.0, 0.0)
-	body_rigid.body_entered.emit(terrain)
-	var flicker_wait := DroneDebrisThrusterVfxScript.FLICKER_COUNT * (
-		DroneDebrisThrusterVfxScript.FLICKER_ON_SEC
-		+ DroneDebrisThrusterVfxScript.FLICKER_OFF_SEC
-	) + 0.05
-	await create_timer(flicker_wait).timeout
-	_fail_unless(not thruster_streaks.visible, "Thrusters should be off after ground-hit flicker")
+func _find_sparking_fragment_bodies(node: Node) -> Array[RigidBody3D]:
+	var out: Array[RigidBody3D] = []
+	if node is RigidBody3D and node.get_node_or_null("DebrisSparks") != null:
+		out.append(node as RigidBody3D)
+	for child in node.get_children():
+		out.append_array(_find_sparking_fragment_bodies(child))
+	return out
 
-	terrain.queue_free()
-	wrapper.queue_free()
-	visual.queue_free()
-	container.queue_free()
+
+func _count_nodes_with_script(node: Node, script: Script) -> int:
+	var count := 0
+	if node.get_script() == script:
+		count += 1
+	for child in node.get_children():
+		count += _count_nodes_with_script(child, script)
+	return count
 
 
 func _fail_unless(ok: bool, message: String) -> void:

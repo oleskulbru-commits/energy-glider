@@ -1,7 +1,7 @@
 class_name MachineGunDrone
 extends "res://scripts/enemies/combat_drone.gd"
 
-## Invulnerable green cube. Align: locked X, mirrors player Z. Charge: steers toward player with a turn cap.
+## Invulnerable yellow cube. Align: locked X, mirrors player Z. Charge: steers toward player with a turn cap.
 
 const DroneLaserBlastScript = preload("res://scripts/enemies/drone_laser_blast.gd")
 const DroneMgRoundScript = preload("res://scripts/enemies/drone_mg_round.gd")
@@ -34,7 +34,7 @@ var _tracer_size_ref: MeshInstance3D
 
 
 func _ready() -> void:
-	_cube_color = Color(0.22, 0.82, 0.32)
+	_cube_color = Color(0.95, 0.78, 0.12)
 	invulnerable = true
 	super._ready()
 	add_to_group("machine_gun_drone")

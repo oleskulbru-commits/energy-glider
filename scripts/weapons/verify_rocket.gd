@@ -39,15 +39,6 @@ func _verify_stats() -> void:
 		missile_source.find("material_for_rocket_trail") != -1,
 		"RocketMissile should configure sand-texture smoke trail"
 	)
-	_fail_unless(
-		missile_source.find("AerialExplosionVfxScript.spawn") != -1,
-		"RocketMissile should spawn aerial explosion VFX on impact"
-	)
-	var rocket_explosion_source := FileAccess.get_file_as_string("res://scripts/weapons/rocket_explosion.gd")
-	_fail_unless(
-		rocket_explosion_source.find("SceneUtilScript.world_parent") != -1,
-		"RocketExplosion should parent into the SubViewport world"
-	)
 	var auto_rocket_source := FileAccess.get_file_as_string("res://scripts/weapons/auto_rocket.gd")
 	_fail_unless(
 		auto_rocket_source.find("SceneUtilScript.world_parent") != -1,

@@ -237,9 +237,9 @@ func _clear_reticle() -> void:
 	_ui_reticle_active = false
 
 
-func _die(from_pos: Vector3) -> void:
+func _die(from_pos: Vector3, weapon_family: StringName = &"") -> void:
 	_clear_reticle()
 	if _active_blast != null and is_instance_valid(_active_blast):
 		_active_blast.queue_free()
 		_active_blast = null
-	super._die(from_pos)
+	super._die(from_pos, weapon_family)

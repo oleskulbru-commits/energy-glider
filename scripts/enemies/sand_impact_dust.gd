@@ -4,6 +4,7 @@ extends Node3D
 ## World-spawned sand burst. Tuning lives in sand_burst_*_gpu.tscn — this script only places and plays.
 
 const SandImpactDustScene := preload("res://scenes/effects/sand_impact_dust.tscn")
+const SandImpactDustExplosionScene := preload("res://scenes/effects/sand_impact_dust_explosion.tscn")
 const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
 const CameraImpactShakeScript := preload("res://scripts/player/camera_impact_shake.gd")
 
@@ -27,6 +28,8 @@ static func spawn(
 	var dust: SandImpactDust
 	if preset == SandParticleVfx.BurstPreset.HEAVY:
 		dust = SandImpactDustScene.instantiate() as SandImpactDust
+	elif preset == SandParticleVfx.BurstPreset.EXPLOSION:
+		dust = SandImpactDustExplosionScene.instantiate() as SandImpactDust
 	else:
 		dust = SandImpactDust.new()
 		var burst_root: Node = SandParticleVfx.burst_scene(preset).instantiate()

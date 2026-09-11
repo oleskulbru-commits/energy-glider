@@ -1,17 +1,23 @@
 class_name AerialExplosionVfx
 extends Node3D
 
-## One-shot camera-facing aerial explosion flipbook (color + normal).
-## Tweak [member preset] or the preset's material resource; values are duplicated per spawn.
+## One-shot aerial explosion flipbook on a camera-facing quad with aerial_explosion.gdshader.
+## Tweak [member preset] or the preset's ShaderMaterial resource.
 
 const VfxFlipbookScript := preload("res://scripts/vfx/vfx_flipbook.gd")
-const AerialExplosionPresetScript := preload("res://scripts/vfx/aerial_explosion_preset.gd")
+const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
+const SandImpactDustScript := preload("res://scripts/enemies/sand_impact_dust.gd")
 const CameraImpactShakeScript := preload("res://scripts/player/camera_impact_shake.gd")
 const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 const ExplosionShader := preload("res://assets/vfx/shaders/aerial_explosion.gdshader")
 const DefaultPresetPath := "res://assets/vfx/explosions/presets/aerial_explode_1.tres"
+const DroneExplosionPresetPath := "res://assets/vfx/explosions/presets/aerial_explode_drone.tres"
+## Player default world_scale; keeps hover-dust parity at scale_mult 1.0.
+const PROXIMITY_FADE_REFERENCE_WORLD_SCALE := 12.0
 
 const FREE_BUFFER_SEC := 0.05
+## Hold the final flipbook frame so the smoke tail reads before cleanup (~2.0s + hold).
+const LAST_FRAME_HOLD_SEC := 0.25
 
 @export var preset: AerialExplosionPreset
 @export var play_on_ready := false
@@ -22,27 +28,151 @@ var _frame := 0.0
 var _mesh: MeshInstance3D
 var _material: ShaderMaterial
 var _color_textures: Array[Texture2D] = []
-var _normal_textures: Array[Texture2D] = []
 var _flash_light: OmniLight3D
+var _last_frame_hold_left := -1.0
 
 
 static func spawn(
 	tree: SceneTree,
 	world_pos: Vector3,
 	preset_override: AerialExplosionPreset = null,
-	scale_mult: float = 1.0
+	scale_mult: float = 1.0,
+	terrain: TerrainManager = null
 ) -> AerialExplosionVfx:
 	if tree == null:
 		return null
 	var parent := SceneUtilScript.world_parent(tree)
 	if parent == null:
 		return null
+	var resolved := preset_override if preset_override != null else _load_default_preset()
 	var fx := AerialExplosionVfx.new()
 	parent.add_child(fx)
 	fx.global_position = world_pos
-	var resolved := preset_override if preset_override != null else _load_default_preset()
+	_maybe_spawn_ground_sand(tree, world_pos, resolved, scale_mult, terrain)
 	fx.configure(resolved, scale_mult)
 	return fx
+
+
+static func proximity_fade_distance_for(
+	preset: AerialExplosionPreset,
+	scale_mult: float = 1.0
+) -> float:
+	if preset == null:
+		return SandParticleVfxScript.PROXIMITY_FADE_DISTANCE
+	var world_size := preset.world_scale * maxf(scale_mult, 0.01)
+	var size_ratio := world_size / PROXIMITY_FADE_REFERENCE_WORLD_SCALE
+	return preset.proximity_fade_distance * size_ratio
+
+
+static func apply_preset_look(
+	material: ShaderMaterial,
+	preset: AerialExplosionPreset,
+	scale_mult: float = 1.0
+) -> void:
+	material.set_shader_parameter(
+		"color_tint",
+		Vector3(preset.color_tint.r, preset.color_tint.g, preset.color_tint.b)
+	)
+	material.set_shader_parameter(
+		"smoke_tint",
+		Vector3(preset.smoke_tint.r, preset.smoke_tint.g, preset.smoke_tint.b)
+	)
+	material.set_shader_parameter("smoke_mix", preset.smoke_mix)
+	material.set_shader_parameter("emission_strength", preset.emission_strength)
+	material.set_shader_parameter("alpha_scale", preset.alpha_scale)
+	material.set_shader_parameter("proximity_fade_enabled", preset.proximity_fade_enabled)
+	material.set_shader_parameter(
+		"proximity_fade_distance",
+		proximity_fade_distance_for(preset, scale_mult)
+	)
+
+
+static func set_frame_texture(material: ShaderMaterial, texture: Texture2D) -> void:
+	material.set_shader_parameter("color_tex", texture)
+
+
+static func duplicate_material(
+	preset: AerialExplosionPreset,
+	scale_mult: float = 1.0
+) -> ShaderMaterial:
+	var material: ShaderMaterial
+	if preset.material != null:
+		material = preset.material.duplicate() as ShaderMaterial
+	else:
+		material = ShaderMaterial.new()
+		material.shader = ExplosionShader
+	apply_preset_look(material, preset, scale_mult)
+	return material
+
+
+static func ground_clearance_m(
+	world_pos: Vector3,
+	terrain: TerrainManager,
+	tree: SceneTree
+) -> float:
+	var resolved_terrain := terrain if terrain != null else _resolve_terrain(tree)
+	var space := _resolve_space(tree)
+	var surface := TerrainQuery.sample_surface(
+		resolved_terrain,
+		space,
+		world_pos.x,
+		world_pos.z,
+		world_pos.y + 2.0
+	)
+	if surface.is_empty():
+		return INF
+	return world_pos.y - (surface.position as Vector3).y
+
+
+static func _maybe_spawn_ground_sand(
+	tree: SceneTree,
+	world_pos: Vector3,
+	preset: AerialExplosionPreset,
+	scale_mult: float,
+	terrain: TerrainManager
+) -> void:
+	if preset == null or not preset.spawn_ground_sand:
+		return
+	var clearance := ground_clearance_m(world_pos, terrain, tree)
+	if clearance > preset.ground_sand_max_clearance_m:
+		return
+	var resolved_terrain := terrain if terrain != null else _resolve_terrain(tree)
+	var proximity := 1.0 - clampf(clearance / preset.ground_sand_max_clearance_m, 0.0, 1.0)
+	var dust_scale := maxf(scale_mult, 0.01) * preset.ground_sand_scale_mult * lerpf(0.65, 1.0, proximity)
+	SandImpactDustScript.spawn(
+		tree,
+		world_pos,
+		resolved_terrain,
+		_ground_sand_burst_preset(preset),
+		dust_scale
+	 )
+
+
+static func _ground_sand_burst_preset(preset: AerialExplosionPreset) -> SandParticleVfxScript.BurstPreset:
+	match preset.ground_sand_burst:
+		AerialExplosionPreset.GroundSandBurst.LIGHT:
+			return SandParticleVfxScript.BurstPreset.LIGHT
+		AerialExplosionPreset.GroundSandBurst.MG:
+			return SandParticleVfxScript.BurstPreset.MG
+		AerialExplosionPreset.GroundSandBurst.DEATH:
+			return SandParticleVfxScript.BurstPreset.DEATH
+		AerialExplosionPreset.GroundSandBurst.EXPLOSION:
+			return SandParticleVfxScript.BurstPreset.EXPLOSION
+		_:
+			return SandParticleVfxScript.BurstPreset.HEAVY
+
+
+static func _resolve_terrain(tree: SceneTree) -> TerrainManager:
+	if tree == null:
+		return null
+	return tree.get_first_node_in_group("terrain_manager") as TerrainManager
+
+
+static func _resolve_space(tree: SceneTree) -> PhysicsDirectSpaceState3D:
+	if tree == null or tree.root == null:
+		return null
+	var world := tree.root.get_world_3d()
+	return world.direct_space_state if world != null else null
 
 
 static func _load_default_preset() -> AerialExplosionPreset:
@@ -77,13 +207,17 @@ func configure(preset_override: AerialExplosionPreset, scale_mult: float = 1.0) 
 func _process(delta: float) -> void:
 	if _preset == null or _color_textures.is_empty():
 		return
-	_face_camera()
+	_billboard_mesh()
 	_frame += delta * _preset.fps
-	var frame_idx := int(_frame)
-	if frame_idx >= _preset.frame_count:
-		queue_free()
-		return
+	var frame_idx := mini(int(_frame), _preset.frame_count - 1)
 	_set_frame(frame_idx)
+	if _frame < float(_preset.frame_count):
+		return
+	if _last_frame_hold_left < 0.0:
+		_last_frame_hold_left = LAST_FRAME_HOLD_SEC
+	_last_frame_hold_left -= delta
+	if _last_frame_hold_left <= 0.0:
+		queue_free()
 
 
 func _load_sequences() -> bool:
@@ -95,16 +229,7 @@ func _load_sequences() -> bool:
 		_preset.frame_count,
 		_preset.color_frame_offset
 	)
-	_normal_textures = VfxFlipbookScript.load_texture_sequence(
-		_preset.texture_dir,
-		_preset.normal_prefix,
-		_preset.frame_count,
-		_preset.normal_frame_offset
-	)
-	return (
-		_color_textures.size() == _preset.frame_count
-		and _normal_textures.size() == _preset.frame_count
-	)
+	return _color_textures.size() == _preset.frame_count
 
 
 func _build_mesh() -> void:
@@ -115,33 +240,21 @@ func _build_mesh() -> void:
 	_mesh.mesh = quad
 	var scale := _preset.world_scale * _scale_mult
 	_mesh.scale = Vector3(scale, scale, scale)
+	_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
-	_material = _create_material()
+	_material = duplicate_material(_preset, _scale_mult)
 	_mesh.material_override = _material
 	add_child(_mesh)
 
 
-func _create_material() -> ShaderMaterial:
-	if _preset.material != null:
-		return _preset.material.duplicate() as ShaderMaterial
-	var material := ShaderMaterial.new()
-	material.shader = ExplosionShader
-	_apply_preset_shader_params(material)
-	return material
-
-
-func _apply_preset_shader_params(material: ShaderMaterial) -> void:
-	material.set_shader_parameter("light_dir", _preset.light_dir)
-	material.set_shader_parameter("normal_strength", _preset.normal_strength)
-	material.set_shader_parameter("emission_strength", _preset.emission_strength)
-	material.set_shader_parameter("color_tint", Vector3(
-		_preset.color_tint.r,
-		_preset.color_tint.g,
-		_preset.color_tint.b
-	))
-	material.set_shader_parameter("alpha_scale", _preset.alpha_scale)
-	material.set_shader_parameter("lighting_dark", _preset.lighting_dark)
-	material.set_shader_parameter("lighting_bright", _preset.lighting_bright)
+func _billboard_mesh() -> void:
+	if _mesh == null:
+		return
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	_mesh.look_at(cam.global_position, Vector3.UP)
+	_mesh.rotate_object_local(Vector3.UP, PI)
 
 
 func _add_flash_light() -> void:
@@ -152,7 +265,11 @@ func _add_flash_light() -> void:
 	_flash_light.omni_range = _preset.light_range_m
 	_flash_light.shadow_enabled = false
 	add_child(_flash_light)
-	var duration := float(_preset.frame_count) / maxf(_preset.fps, 0.001) + FREE_BUFFER_SEC
+	var duration := (
+		float(_preset.frame_count) / maxf(_preset.fps, 0.001)
+		+ LAST_FRAME_HOLD_SEC
+		+ FREE_BUFFER_SEC
+	)
 	var tween := create_tween()
 	tween.tween_property(_flash_light, "light_energy", 0.0, duration).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
 
@@ -161,27 +278,4 @@ func _set_frame(frame_idx: int) -> void:
 	if _material == null:
 		return
 	var idx := clampi(frame_idx, 0, _preset.frame_count - 1)
-	_material.set_shader_parameter("color_tex", _color_textures[idx])
-	_material.set_shader_parameter("normal_tex", _normal_textures[idx])
-
-
-func _face_camera() -> void:
-	var cam := _find_camera()
-	if cam == null:
-		return
-	var to_cam := cam.global_position - global_position
-	if to_cam.length_squared() < 0.0001:
-		return
-	look_at(global_position + to_cam.normalized(), Vector3.UP)
-
-
-func _find_camera() -> Camera3D:
-	var rig := get_tree().get_first_node_in_group("player_rig")
-	if rig != null and rig.has_method("get_follow_camera"):
-		var follow := rig.call("get_follow_camera") as Camera3D
-		if follow != null:
-			return follow
-	for node in get_tree().get_nodes_in_group("glider_camera"):
-		if node is Camera3D:
-			return node as Camera3D
-	return get_viewport().get_camera_3d()
+	set_frame_texture(_material, _color_textures[idx])

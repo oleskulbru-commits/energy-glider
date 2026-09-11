@@ -6,9 +6,10 @@ extends Node3D
 const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 const CrawlerDebrisSandScript := preload("res://scripts/enemies/crawler_debris_sand.gd")
 const DroneDebrisThrusterVfxScript := preload("res://scripts/enemies/drone_debris_thruster_vfx.gd")
+const DroneDebrisSparkVfxScript := preload("res://scripts/enemies/drone_debris_spark_vfx.gd")
+const DroneDamageSparkVfxScript := preload("res://scripts/vfx/drone_damage_spark_vfx.gd")
 const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
 const CameraImpactShakeScript := preload("res://scripts/player/camera_impact_shake.gd")
-const AerialExplosionVfxScript := preload("res://scripts/vfx/aerial_explosion_vfx.gd")
 
 const BODY_PIECE_PATH := NodePath("Body/Body")
 const WEAPON_PIECE_PATH := NodePath("Body/CSGCylinder3D/Weapon_Pivot/WeaponModule")
@@ -24,6 +25,7 @@ const DEBRIS_COLLISION_LAYER := 1
 const DEBRIS_COLLISION_MASK := 1
 
 var _terrain: TerrainManager
+var _spark_color: Color = DroneDamageSparkVfxScript.DEFAULT_EMBER_COLOR
 
 
 static func spawn(
@@ -31,7 +33,8 @@ static func spawn(
 	drone_xf: Transform3D,
 	visual: Node3D,
 	hit_pos: Vector3,
-	terrain: TerrainManager = null
+	terrain: TerrainManager = null,
+	spark_color: Color = DroneDamageSparkVfxScript.DEFAULT_EMBER_COLOR
 ) -> Node3D:
 	if tree == null or visual == null:
 		return null
@@ -42,9 +45,8 @@ static func spawn(
 	parent.add_child(wrapper)
 	wrapper.global_transform = drone_xf
 	wrapper._terrain = terrain
+	wrapper._spark_color = spark_color
 	wrapper._spawn_pieces(visual, hit_pos)
-	AerialExplosionVfxScript.spawn(tree, drone_xf.origin)
-	KillSparks.spawn(tree, drone_xf.origin)
 	CameraImpactShakeScript.request(tree, drone_xf.origin, 0.25, 15.0)
 	wrapper._schedule_cleanup()
 	return wrapper
@@ -110,6 +112,8 @@ func _promote_piece(piece_root: Node3D, hit_pos: Vector3) -> void:
 	if thruster_streaks != null:
 		thruster_streaks.reparent(body, true)
 		DroneDebrisThrusterVfxScript.attach(body, thruster_streaks)
+
+	DroneDebrisSparkVfxScript.attach(body, _spark_color)
 
 	_apply_burst_impulse(body, hit_pos)
 	CrawlerDebrisSandScript.attach(body, _terrain, SandParticleVfxScript.BurstPreset.DEATH)

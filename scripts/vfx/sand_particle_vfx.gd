@@ -8,6 +8,8 @@ enum BurstPreset {
 	HEAVY,
 	MG,
 	DEATH,
+	CLIMB,
+	EXPLOSION,
 }
 
 const SAND_PARTICLE_MATERIAL := preload("res://assets/materials/vfx/sand_particle.tres")
@@ -17,6 +19,8 @@ const LIGHT_BURST_SCENE := preload("res://scenes/effects/sand_burst_light_gpu.ts
 const HEAVY_BURST_SCENE := preload("res://scenes/effects/sand_burst_heavy_gpu.tscn")
 const MG_BURST_SCENE := preload("res://scenes/effects/sand_burst_mg_gpu.tscn")
 const DEATH_BURST_SCENE := preload("res://scenes/effects/sand_burst_death_gpu.tscn")
+const CLIMB_BURST_SCENE := preload("res://scenes/effects/sand_burst_climb_gpu.tscn")
+const EXPLOSION_BURST_SCENE := preload("res://scenes/effects/sand_burst_explosion_gpu.tscn")
 
 const DEFAULT_VISIBILITY_AABB := AABB(Vector3(-4.0, -2.0, -4.0), Vector3(8.0, 4.0, 8.0))
 const FREE_BUFFER_SEC := 0.1
@@ -40,6 +44,10 @@ static func burst_scene(preset: BurstPreset) -> PackedScene:
 			return MG_BURST_SCENE
 		BurstPreset.DEATH:
 			return DEATH_BURST_SCENE
+		BurstPreset.CLIMB:
+			return CLIMB_BURST_SCENE
+		BurstPreset.EXPLOSION:
+			return EXPLOSION_BURST_SCENE
 		_:
 			return HEAVY_BURST_SCENE
 
@@ -119,32 +127,35 @@ static func configure_gpu_burst(burst: GPUParticles3D) -> void:
 static func create_missile_smoke_trail(
 	parent: Node3D,
 	material: StandardMaterial3D,
-	particle_color: Color = ROCKET_TRAIL_COLOR
+	particle_color: Color = ROCKET_TRAIL_COLOR,
+	scale_mult: float = 1.0
 ) -> CPUParticles3D:
 	var trail := CPUParticles3D.new()
 	trail.name = "SmokeTrail"
 	parent.add_child(trail)
-	configure_missile_smoke_trail(trail, material, particle_color)
+	configure_missile_smoke_trail(trail, material, particle_color, scale_mult)
 	return trail
 
 
 static func configure_missile_smoke_trail(
 	particles: CPUParticles3D,
 	material: StandardMaterial3D,
-	particle_color: Color = ROCKET_TRAIL_COLOR
+	particle_color: Color = ROCKET_TRAIL_COLOR,
+	scale_mult: float = 1.0
 ) -> void:
 	if particles == null:
 		return
-	particles.transform = Transform3D(Basis.IDENTITY, Vector3(0.0, 0.0, MISSILE_TRAIL_NOZZLE_Z))
+	var mult := maxf(scale_mult, 0.01)
+	particles.transform = Transform3D(Basis.IDENTITY, Vector3(0.0, 0.0, MISSILE_TRAIL_NOZZLE_Z * mult))
 	particles.emitting = false
 	particles.amount = 72
 	particles.lifetime = 0.48
 	particles.explosiveness = 0.08
 	particles.randomness = 0.65
-	particles.visibility_aabb = AABB(Vector3(-3.0, -3.0, -3.0), Vector3(6.0, 6.0, 6.0))
+	particles.visibility_aabb = AABB(Vector3(-3.0, -3.0, -3.0) * mult, Vector3(6.0, 6.0, 6.0) * mult)
 	particles.local_coords = false
 	particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-	particles.emission_sphere_radius = 0.05
+	particles.emission_sphere_radius = 0.05 * mult
 	particles.direction = Vector3(0.0, 0.0, 1.0)
 	particles.spread = 22.0
 	particles.gravity = Vector3(0.0, 0.35, 0.0)
@@ -159,7 +170,7 @@ static func configure_missile_smoke_trail(
 	particles.color_ramp = _missile_trail_color_ramp(particle_color)
 	configure_cpu_emitter(particles, material)
 	if particles.mesh is QuadMesh:
-		(particles.mesh as QuadMesh).size = MISSILE_TRAIL_QUAD_SIZE
+		(particles.mesh as QuadMesh).size = MISSILE_TRAIL_QUAD_SIZE * mult
 
 
 static func _missile_trail_scale_curve() -> Curve:

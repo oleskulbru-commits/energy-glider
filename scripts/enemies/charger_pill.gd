@@ -40,7 +40,7 @@ func get_walk_dust_preset() -> SandParticleVfx.BurstPreset:
 
 
 func get_climb_dust_preset() -> SandParticleVfx.BurstPreset:
-	return SandParticleVfx.BurstPreset.DEATH
+	return SandParticleVfx.BurstPreset.CLIMB
 
 
 func get_charge_dust_preset() -> SandParticleVfx.BurstPreset:

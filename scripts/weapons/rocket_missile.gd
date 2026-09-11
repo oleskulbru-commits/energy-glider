@@ -207,9 +207,8 @@ func _on_body_entered(body: Node) -> void:
 		return
 	var hit := _resolve_hit()
 	pill.take_damage(hit.damage, _dir, hit.is_crit, _knockback_speed, UpgradeCatalog.FAMILY_ROCKET)
-	AerialExplosionVfxScript.spawn(get_tree(), global_position)
-	RocketExplosion.spawn(get_tree(), global_position)
 	_spent = true
+	AerialExplosionVfxScript.spawn(get_tree(), global_position)
 	if _smoke_trail != null:
 		_smoke_trail.emitting = false
 	queue_free()

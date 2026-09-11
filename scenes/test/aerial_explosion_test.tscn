@@ -1,7 +1,8 @@
-[gd_scene format=3 uid="uid://twr7d6yioc2p"]
+[gd_scene load_steps=6 format=3 uid="uid://twr7d6yioc2p"]
 
 [ext_resource type="Script" uid="uid://cmwwy35wj6ydv" path="res://scripts/vfx/aerial_explosion_preview.gd" id="1_preview"]
 [ext_resource type="Resource" uid="uid://bo0prg4nrupay" path="res://assets/vfx/explosions/presets/aerial_explode_1.tres" id="2_preset"]
+[ext_resource type="Material" uid="uid://bo365cxx7sghc" path="res://assets/materials/vfx/aerial_explosion_material.tres" id="3_material"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 sky_top_color = Color(0.04, 0.05, 0.08, 1)
@@ -19,22 +20,29 @@ ambient_light_source = 2
 ambient_light_color = Color(0.35, 0.35, 0.4, 1)
 ambient_light_energy = 0.35
 
-[node name="AerialExplosionTest" type="Node3D" unique_id=1824407923]
+[sub_resource type="QuadMesh" id="QuadMesh_still"]
+size = Vector2(1, 1)
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=848939978]
+[node name="AerialExplosionTest" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_main")
 
-[node name="Camera3D" type="Camera3D" parent="." unique_id=295348753]
+[node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.939693, 0.34202, 0, -0.34202, 0.939693, 0, 4, 10)
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1450813656]
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 6, 0)
 light_energy = 0.6
 
-[node name="PreviewOrigin" type="Node3D" parent="." unique_id=1424395916]
+[node name="PreviewOrigin" type="Node3D" parent="."]
 script = ExtResource("1_preview")
 preset = ExtResource("2_preset")
 
-[node name="Label3D" type="Label3D" parent="PreviewOrigin" unique_id=208005038]
+[node name="StillPreview" type="MeshInstance3D" parent="PreviewOrigin"]
+mesh = SubResource("QuadMesh_still")
+material_override = ExtResource("3_material")
+
+[node name="Label3D" type="Label3D" parent="PreviewOrigin"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.5, 0)
-text = "Space: replay explosion"
+text = "Frame 005 | Edit aerial_explosion_material.tres | Space: play animation"
