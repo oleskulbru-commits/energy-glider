@@ -285,7 +285,7 @@ func _hurt_living(
 ) -> void:
 	if not _is_living(node):
 		return
-	_hurt_pill(node as SwarmPillScript, damage_bonus, crit_chance, rng, pop_burst)
+	_hurt_pill(node as SwarmPillScript, damage_bonus, crit_chance, rng, pop_burst, hop_index)
 
 
 func _hurt_pill(
@@ -293,7 +293,8 @@ func _hurt_pill(
 	damage_bonus: float,
 	crit_chance: float,
 	rng: RandomNumberGenerator,
-	pop_burst: bool
+	pop_burst: bool,
+	hop_index: int = 0
 ) -> void:
 	if pill == null:
 		return

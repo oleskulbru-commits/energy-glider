@@ -38,6 +38,28 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(640, 36)
 script = ExtResource("3_compass")
 
+[node name="BossHealthPanel" type="PanelContainer" parent="TopCenter/VBox"]
+unique_name_in_owner = true
+visible = false
+theme_type_variation = &"HudPanel"
+custom_minimum_size = Vector2(520, 0)
+
+[node name="BossHealthVBox" type="VBoxContainer" parent="TopCenter/VBox/BossHealthPanel"]
+theme_override_constants/separation = 6
+
+[node name="BossHealthLabel" type="Label" parent="TopCenter/VBox/BossHealthPanel/BossHealthVBox"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "SUN EATER"
+horizontal_alignment = 1
+
+[node name="BossHealthBar" type="ProgressBar" parent="TopCenter/VBox/BossHealthPanel/BossHealthVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(480, 14)
+max_value = 5000.0
+show_percentage = false
+value = 5000.0
+
 [node name="TopLeft" type="MarginContainer" parent="."]
 anchors_preset = 0
 offset_right = 280.0

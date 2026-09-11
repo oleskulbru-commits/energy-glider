@@ -66,6 +66,9 @@ const AIM_BORDER_ACTIVE_PX := 2
 @onready var _sail_label: Label = %SailLabel
 @onready var _day_label: Label = %DayLabel
 @onready var _compass_bar: CompassBar = %CompassBar
+@onready var _boss_health_panel: PanelContainer = %BossHealthPanel
+@onready var _boss_health_label: Label = %BossHealthLabel
+@onready var _boss_health_bar: ProgressBar = %BossHealthBar
 @onready var _stopped_summary: Label = %StoppedSummary
 @onready var _night_warning_panel: PanelContainer = %NightWarningPanel
 @onready var _night_warning_label: Label = %NightWarningLabel
@@ -124,6 +127,7 @@ var _bonus_radar_report := ""
 var _bonus_radar_entry: Dictionary = {}
 var _bonus_objective_index := -1
 var _level_progress: Node
+var _boss_director: Node
 var _safe_pulse_time := 0.0
 var _fail_fade_tween: Tween
 var _fail_fade_active := false
@@ -172,6 +176,9 @@ func _ready() -> void:
 		_bonus_radar_panel.visible = false
 	_hide_bonus_objective()
 	call_deferred("_bind_level_progress")
+	call_deferred("_bind_boss_director")
+	if _boss_health_panel != null:
+		_boss_health_panel.visible = false
 	if _safe_chip != null:
 		_safe_chip.visible = false
 	if _try_again_button != null:
@@ -362,6 +369,7 @@ func _on_attempt_started() -> void:
 	_clear_bonus_radar_pings()
 	_bind_level_progress()
 	_arm_bonus_radar_for_level(_current_level())
+	_hide_boss_health_bar()
 
 
 func _on_objective_changed(text: String) -> void:
@@ -590,6 +598,53 @@ func _bind_level_progress() -> void:
 	if not progress.level_changed.is_connected(_on_level_changed):
 		progress.level_changed.connect(_on_level_changed)
 	_arm_bonus_radar_for_level(_current_level())
+
+
+func _bind_boss_director() -> void:
+	var director := get_tree().get_first_node_in_group("boss_director")
+	if director == null:
+		return
+	_boss_director = director
+	if director.has_signal("boss_spawned") and not director.boss_spawned.is_connected(_on_boss_spawned):
+		director.boss_spawned.connect(_on_boss_spawned)
+	if director.has_signal("boss_health_changed") and not director.boss_health_changed.is_connected(_on_boss_health_changed):
+		director.boss_health_changed.connect(_on_boss_health_changed)
+	if director.has_signal("boss_despawned") and not director.boss_despawned.is_connected(_on_boss_despawned):
+		director.boss_despawned.connect(_on_boss_despawned)
+	if director.has_method("living_boss"):
+		var living: Variant = director.call("living_boss")
+		if living != null and living is SwarmPill:
+			var boss := living as SwarmPill
+			_show_boss_health_bar(boss.get_health(), boss.get_max_health())
+
+
+func _on_boss_spawned(boss: Node) -> void:
+	if boss != null and boss.has_method("get_health") and boss.has_method("get_max_health"):
+		_show_boss_health_bar(int(boss.call("get_health")), int(boss.call("get_max_health")))
+
+
+func _on_boss_health_changed(current: int, max_hp: int) -> void:
+	_show_boss_health_bar(current, max_hp)
+
+
+func _on_boss_despawned() -> void:
+	_hide_boss_health_bar()
+
+
+func _show_boss_health_bar(current: int, max_hp: int) -> void:
+	if _boss_health_panel == null or _boss_health_bar == null:
+		return
+	var cap := maxi(max_hp, 1)
+	_boss_health_bar.max_value = float(cap)
+	_boss_health_bar.value = float(clampi(current, 0, cap))
+	if _boss_health_label != null:
+		_boss_health_label.text = "SUN EATER  %d / %d" % [maxi(current, 0), cap]
+	_boss_health_panel.visible = current > 0
+
+
+func _hide_boss_health_bar() -> void:
+	if _boss_health_panel != null:
+		_boss_health_panel.visible = false
 
 
 func _current_level() -> int:

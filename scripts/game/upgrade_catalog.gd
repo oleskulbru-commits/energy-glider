@@ -50,6 +50,11 @@ const RARITY_WEIGHT_UNCOMMON := 20
 const RARITY_WEIGHT_RARE := 15
 const RARITY_WEIGHT_EPIC := 10
 const RARITY_WEIGHT_LEGENDARY := 5
+const BOSS_RARITY_WEIGHT_COMMON := 0
+const BOSS_RARITY_WEIGHT_UNCOMMON := 0
+const BOSS_RARITY_WEIGHT_RARE := 500
+const BOSS_RARITY_WEIGHT_EPIC := 375
+const BOSS_RARITY_WEIGHT_LEGENDARY := 125
 
 const ATTACK_SPEED_COMMON := 0.04
 const ATTACK_SPEED_UNCOMMON := 0.06
@@ -777,6 +782,16 @@ static func rarity_weights_for_luck(luck: int) -> PackedInt32Array:
 	return weights
 
 
+static func boss_rarity_weights() -> PackedInt32Array:
+	return PackedInt32Array([
+		BOSS_RARITY_WEIGHT_COMMON,
+		BOSS_RARITY_WEIGHT_UNCOMMON,
+		BOSS_RARITY_WEIGHT_RARE,
+		BOSS_RARITY_WEIGHT_EPIC,
+		BOSS_RARITY_WEIGHT_LEGENDARY
+	])
+
+
 static func is_empty_offer(id: StringName) -> bool:
 	return String(id).is_empty()
 
@@ -1000,7 +1015,8 @@ static func roll_shop(
 	has_rocket: bool = false,
 	has_shotgun: bool = false,
 	unlock_pity_steps: int = 0,
-	slot_count: int = -1
+	slot_count: int = -1,
+	boss_shop: bool = false
 ) -> PackedStringArray:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = world_seed * SHOP_SEED_WORLD + tower_index * SHOP_SEED_TOWER
@@ -1010,8 +1026,9 @@ static func roll_shop(
 		count = clampi(slot_count, 2, 6)
 	var slots := PackedStringArray()
 	var used: Dictionary = {}
+	var rarity_luck := 0 if boss_shop else luck
 	for _i in count:
-		var id := _roll_unique_id(rng, used, luck, families)
+		var id := _roll_unique_id(rng, used, rarity_luck, families, boss_shop)
 		used[String(weapon_base_id(StringName(id)))] = true
 		slots.append(id)
 	var unlock := missing_unlock_id(has_rifle, has_laser, has_tesla, has_rocket, has_shotgun, rng)
@@ -1025,13 +1042,14 @@ static func _roll_unique_id(
 	rng: RandomNumberGenerator,
 	used: Dictionary,
 	luck: int,
-	families: Array[StringName]
+	families: Array[StringName],
+	boss_shop: bool = false
 ) -> String:
 	if families.is_empty():
 		return String(ID_EXTRA_PROJECTILE)
 	for _try in 80:
 		var family: StringName = families[rng.randi_range(0, families.size() - 1)]
-		var rarity := _roll_rarity(rng, rarity_luck_for(family, luck))
+		var rarity := _roll_rarity(rng, rarity_luck_for(family, luck), boss_shop)
 		var base := String(make_id(family, rarity))
 		if used.has(base):
 			continue
@@ -1041,14 +1059,21 @@ static func _roll_unique_id(
 				continue
 			return encode_weapon_offer(StringName(base), StringName(parts[0]), StringName(parts[1]))
 		return base
-	for family in families:
-		for rarity in [
+	var fallback_rarities := [
+		RARITY_RARE,
+		RARITY_EPIC,
+		RARITY_LEGENDARY
+	]
+	if not boss_shop:
+		fallback_rarities = [
 			RARITY_COMMON,
 			RARITY_UNCOMMON,
 			RARITY_RARE,
 			RARITY_EPIC,
 			RARITY_LEGENDARY
-		]:
+		]
+	for family in families:
+		for rarity in fallback_rarities:
 			var id := String(make_id(family, rarity))
 			if used.has(id):
 				continue
@@ -1061,8 +1086,8 @@ static func _roll_unique_id(
 	return String(ID_EXTRA_PROJECTILE)
 
 
-static func _roll_rarity(rng: RandomNumberGenerator, luck: int = 0) -> StringName:
-	var weights := rarity_weights_for_luck(luck)
+static func _roll_rarity(rng: RandomNumberGenerator, luck: int = 0, boss_shop: bool = false) -> StringName:
+	var weights := boss_rarity_weights() if boss_shop else rarity_weights_for_luck(luck)
 	var total := 0
 	for weight in weights:
 		total += int(weight)

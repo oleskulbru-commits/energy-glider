@@ -158,7 +158,7 @@ func _emit_phase_transitions(prev: float, next: float) -> void:
 
 
 func _apply_time_visuals() -> void:
-	var day_blend := _daylight_blend()
+	var day_blend := _visual_daylight_blend()
 	if _sun != null:
 		_sun.basis = _sun_basis_for_time(time_normalized)
 		_sun.light_energy = lerpf(0.25, 1.35, day_blend)
@@ -189,8 +189,24 @@ func get_daylight_blend() -> float:
 	return _daylight_blend()
 
 
+## Clock night plus local night volumes (headlights / sun dim). Does not change `is_night()`.
 func get_night_blend() -> float:
-	return 1.0 - get_daylight_blend()
+	return 1.0 - _visual_daylight_blend()
+
+
+func _visual_daylight_blend() -> float:
+	return _daylight_blend() * (1.0 - _volume_night_blend())
+
+
+func _volume_night_blend() -> float:
+	var tree := get_tree()
+	if tree == null:
+		return 0.0
+	var peak := 0.0
+	for node in tree.get_nodes_in_group("night_volume"):
+		if node.has_method("camera_night_blend"):
+			peak = maxf(peak, float(node.call("camera_night_blend")))
+	return clampf(peak, 0.0, 1.0)
 
 
 func _sun_basis_for_time(t: float) -> Basis:
