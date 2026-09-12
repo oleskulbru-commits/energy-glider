@@ -1,12 +1,15 @@
 class_name NightScarab
 extends SwarmPill
 
-## Small purple pill that roams a night sphere until the player enters, or night unshackles it.
+## Purple pill. By day it fills night spheres; at clock night the stream hunts the glider.
 
 const MOVE_SPEED := 12.0
 const NIGHT_MOVE_SPEED := 21.0
 const SCARAB_CONTACT_DAMAGE := 2
 const SCARAB_MAX_HEALTH := 15
+const STREAM_AHEAD_MIN_M := 20.0
+const STREAM_AHEAD_MAX_M := 80.0
+const STREAM_CAP := 200
 const PILL_COLOR := Color(0.42, 0.05, 0.72)
 const PILL_MESH_RADIUS := 0.18
 const PILL_MESH_HEIGHT := 0.52
@@ -22,6 +25,8 @@ const CLAMP_MARGIN_M := 1.0
 const ESCAPE_EVERY := 10
 const FULL_SIM_RANGE_M := 50.0
 const FULL_SIM_RANGE_SQ := FULL_SIM_RANGE_M * FULL_SIM_RANGE_M
+const VISIBLE_RANGE_M := 100.0
+const VISIBLE_RANGE_SQ := VISIBLE_RANGE_M * VISIBLE_RANGE_M
 
 
 var _pill: MeshInstance3D
@@ -33,6 +38,7 @@ var _has_wander := false
 var _wander_t := 0.0
 var _collision: CollisionShape3D
 var _full_sim := true
+var _stream_hunter := false
 
 
 func _ready() -> void:
@@ -77,6 +83,14 @@ func unshackle() -> void:
 
 func apply_night_speed() -> void:
 	move_speed = NIGHT_MOVE_SPEED
+
+
+func mark_stream_hunter() -> void:
+	_stream_hunter = true
+
+
+func _blocks_behind_despawn() -> bool:
+	return not _stream_hunter
 
 
 func is_unshackled() -> bool:
@@ -156,9 +170,22 @@ func _physics_process(delta: float) -> void:
 	if _target == null or not is_instance_valid(_target):
 		_retarget_player()
 	if _target == null or not is_instance_valid(_target):
+		_set_pill_visible(true)
 		_update_chase(delta)
 		_after_move(delta)
 		return
+	if not _blocks_behind_despawn() and is_behind_facing(
+		_target.global_position, _target_facing_xz(), global_position
+	):
+		queue_free()
+		return
+	var far_visible := _is_beyond_visible_range()
+	_set_pill_visible(not far_visible)
+	if far_visible and not _unshackled:
+		_refresh_hunt_state()
+		if not _hunting:
+			_set_full_sim(false)
+			return
 	if _is_far_from_target():
 		_set_full_sim(false)
 		_cheap_move(delta)
@@ -168,9 +195,24 @@ func _physics_process(delta: float) -> void:
 
 
 func _is_far_from_target() -> bool:
+	return _xz_distance_sq_to_target() > FULL_SIM_RANGE_SQ
+
+
+func _is_beyond_visible_range() -> bool:
+	return _xz_distance_sq_to_target() > VISIBLE_RANGE_SQ
+
+
+func _xz_distance_sq_to_target() -> float:
 	var dx := _target.global_position.x - global_position.x
 	var dz := _target.global_position.z - global_position.z
-	return dx * dx + dz * dz > FULL_SIM_RANGE_SQ
+	return dx * dx + dz * dz
+
+
+func _set_pill_visible(on: bool) -> void:
+	if _pill == null:
+		_pill = get_node_or_null("Pill") as MeshInstance3D
+	if _pill != null:
+		_pill.visible = on
 
 
 func _set_full_sim(on: bool) -> void:
@@ -213,10 +255,6 @@ func _retarget_player() -> void:
 	var glider: Variant = rig.call("get_glider")
 	if glider is Node3D and is_instance_valid(glider):
 		_target = glider as Node3D
-
-
-func _blocks_behind_despawn() -> bool:
-	return true
 
 
 func _update_chase(delta: float) -> void:

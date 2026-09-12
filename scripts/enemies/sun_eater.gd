@@ -23,12 +23,14 @@ const MIN_RELOCATE_SEP_M := 100.0
 const BOSS_PLACE_TRIES := 128
 const BOSS_RIM_SAMPLES := 16
 const DAMAGE_FLOAT_Y_M := 9.0
-## Living scarab cap for day and night. Night 10/s per sphere will hit this fast.
+const NIGHT_REGEN_PER_SEC := 30.0
+## Daytime sphere army. Clock night uses the crawler-style stream instead.
 const SCARAB_CAP := 500
 const SCARAB_DAY_RATE := 1.0
-const SCARAB_NIGHT_RATE := 10.0
 const ESCAPE_EVERY := 10
-const NIGHT_REGEN_PER_SEC := 30.0
+const SCARAB_LIVE_ENTER_PAD_M := 100.0
+const SCARAB_LIVE_LEAVE_PAD_M := 140.0
+const MATERIALIZE_PER_FRAME := 24
 
 const NightScarabScene := preload("res://scenes/enemies/night_scarab.tscn")
 const NightScarabScript := preload("res://scripts/enemies/night_scarab.gd")
@@ -61,6 +63,8 @@ var _previous_xz: Array[Vector2] = []
 var _scarabs: Array = []
 var _spawn_acc: Dictionary = {}
 var _spawn_counts: Dictionary = {}
+var _volume_hot: Dictionary = {}
+var _virtual_counts: Dictionary = {}
 var _regen_accum := 0.0
 
 
@@ -114,6 +118,8 @@ func begin_ascent(ground_y: float) -> void:
 	_batch_size = 1
 	_spawn_acc.clear()
 	_spawn_counts.clear()
+	_volume_hot.clear()
+	_virtual_counts.clear()
 	_regen_accum = 0.0
 	_clear_scarabs()
 	_clear_child_spheres()
@@ -184,16 +190,6 @@ static func night_regen_heal(elapsed_sec: float) -> int:
 	return int(floorf(NIGHT_REGEN_PER_SEC * maxf(elapsed_sec, 0.0)))
 
 
-func spawn_rate_per_sphere() -> float:
-	if not _night_unleashed:
-		return SCARAB_DAY_RATE
-	return SCARAB_NIGHT_RATE
-
-
-static func night_spawn_rate(_elapsed_sec: float) -> float:
-	return SCARAB_NIGHT_RATE
-
-
 func living_scarab_count() -> int:
 	_cull_scarabs()
 	return _scarabs.size()
@@ -204,6 +200,23 @@ func living_scarabs() -> Array:
 	return _scarabs
 
 
+func virtual_scarab_count(volume: NightVolume = null) -> int:
+	if volume != null:
+		return int(_virtual_counts.get(volume, 0))
+	var total := 0
+	for key in _virtual_counts:
+		total += int(_virtual_counts[key])
+	return total
+
+
+func scarab_population() -> int:
+	return living_scarab_count() + virtual_scarab_count()
+
+
+func is_volume_hot(volume: NightVolume) -> bool:
+	return bool(_volume_hot.get(volume, false))
+
+
 func begin_clock_night() -> void:
 	if _night_unleashed:
 		_hide_night_visuals()
@@ -211,9 +224,10 @@ func begin_clock_night() -> void:
 	_night_unleashed = true
 	_night_ramp_t = 0.0
 	_hide_night_visuals()
-	for scarab in living_scarabs():
-		scarab.unshackle()
-		scarab.apply_night_speed()
+	_clear_scarabs()
+	_spawn_acc.clear()
+	_virtual_counts.clear()
+	_volume_hot.clear()
 
 
 func _tick_night_regen(delta: float) -> void:
@@ -591,28 +605,138 @@ func _clear_child_spheres() -> void:
 
 func _tick_scarab_spawns(delta: float) -> void:
 	_maybe_begin_clock_night()
-	_resolve_hunt_target()
-	var rate := spawn_rate_per_sphere()
-	var living := living_scarab_count()
-	for volume in formed_night_volumes():
-		living = _tick_volume_spawn(volume, rate, delta, living)
 	if _night_unleashed:
 		_night_ramp_t += delta
+		return
+	_resolve_hunt_target()
+	var rate := SCARAB_DAY_RATE
+	var budget := MATERIALIZE_PER_FRAME
+	for volume in formed_night_volumes():
+		budget = _sync_volume_presence(volume, budget)
+	var population := scarab_population()
+	for volume in formed_night_volumes():
+		population = _tick_volume_spawn(volume, rate, delta, population)
 
 
-func _tick_volume_spawn(volume: NightVolume, rate: float, delta: float, living: int) -> int:
+func _volume_should_be_hot(volume: NightVolume) -> bool:
+	if _target == null or not is_instance_valid(_target):
+		return true
+	var dist := volume.xz_distance_to(_target.global_position)
+	if bool(_volume_hot.get(volume, false)):
+		return dist <= volume.radius_m + SCARAB_LIVE_LEAVE_PAD_M
+	return dist < volume.radius_m + SCARAB_LIVE_ENTER_PAD_M
+
+
+func _sync_volume_presence(volume: NightVolume, budget: int) -> int:
+	var want_hot := _volume_should_be_hot(volume)
+	var was_hot := bool(_volume_hot.get(volume, false))
+	if was_hot and not want_hot:
+		_fold_volume_scarabs(volume)
+	_volume_hot[volume] = want_hot
+	if want_hot:
+		budget = _materialize_virtual(volume, budget)
+	return budget
+
+
+func _materialize_virtual(volume: NightVolume, budget: int) -> int:
+	var pending := int(_virtual_counts.get(volume, 0))
+	while pending > 0 and budget > 0:
+		if not _instantiate_scarab(volume, false):
+			break
+		pending -= 1
+		budget -= 1
+	_virtual_counts[volume] = pending
+	return budget
+
+
+func _fold_volume_scarabs(volume: NightVolume) -> void:
+	_cull_scarabs()
+	var kept: Array = []
+	var folded := 0
+	for scarab in _scarabs:
+		if scarab.home_volume() != volume or scarab.is_unshackled():
+			kept.append(scarab)
+			continue
+		if scarab.died.is_connected(_on_scarab_died):
+			scarab.died.disconnect(_on_scarab_died)
+		scarab.queue_free()
+		folded += 1
+	_scarabs = kept
+	_virtual_counts[volume] = int(_virtual_counts.get(volume, 0)) + folded
+
+
+func _tick_volume_spawn(volume: NightVolume, rate: float, delta: float, population: int) -> int:
 	var acc := float(_spawn_acc.get(volume, 0.0)) + rate * delta
 	var spawned := 0
-	while acc >= 1.0 and living < SCARAB_CAP:
+	var hot := bool(_volume_hot.get(volume, true))
+	while acc >= 1.0 and population < SCARAB_CAP:
 		acc -= 1.0
-		if not _spawn_scarab(volume):
+		if not _credit_scarab_spawn(volume, hot):
 			break
 		spawned += 1
-		living += 1
+		population += 1
 	_spawn_acc[volume] = acc
-	if spawned <= 0 and living >= SCARAB_CAP:
+	if spawned <= 0 and population >= SCARAB_CAP:
 		_spawn_acc[volume] = minf(acc, 0.999)
-	return living
+	return population
+
+
+func _credit_scarab_spawn(volume: NightVolume, hot: bool) -> bool:
+	var count := int(_spawn_counts.get(volume, 0)) + 1
+	_spawn_counts[volume] = count
+	var can_leave := NightScarabScript.is_escape_spawn(count, ESCAPE_EVERY)
+	if hot or can_leave:
+		return _instantiate_scarab(volume, can_leave)
+	_virtual_counts[volume] = int(_virtual_counts.get(volume, 0)) + 1
+	return true
+
+
+func _instantiate_scarab(volume: NightVolume, can_leave: bool) -> bool:
+	var scarab := NightScarabScene.instantiate()
+	scarab.configure(_terrain, _target, NightScarabScript.MOVE_SPEED)
+	scarab.bind_sphere(volume, can_leave)
+	var host := _scarab_host()
+	host.add_child(scarab)
+	scarab.top_level = true
+	var pos := volume.random_point_xz(_rng)
+	if _terrain != null:
+		pos.y = _terrain.sample_height(pos.x, pos.z)
+	else:
+		pos.y = volume.global_position.y
+	scarab.global_position = pos
+	if not scarab.died.is_connected(_on_scarab_died):
+		scarab.died.connect(_on_scarab_died)
+	_scarabs.append(scarab)
+	return true
+
+
+func _resolve_hunt_target() -> void:
+	if _target != null and is_instance_valid(_target):
+		return
+	_target = _find_player_body()
+
+
+func _find_player_body() -> Node3D:
+	var tree := get_tree()
+	if tree == null:
+		return null
+	var director := tree.get_first_node_in_group("boss_director")
+	if director != null and director.has_method("player_body"):
+		var body: Variant = director.call("player_body")
+		if body is Node3D and is_instance_valid(body):
+			return body as Node3D
+	var health := tree.get_first_node_in_group("player_health")
+	if health != null:
+		var rig := health.get_parent()
+		if rig != null and rig.has_method("get_glider"):
+			var glider: Variant = rig.call("get_glider")
+			if glider is Node3D and is_instance_valid(glider):
+				return glider as Node3D
+	return null
+
+
+func _on_scarab_died() -> void:
+	_cull_scarabs()
 
 
 func _maybe_begin_clock_night() -> void:
@@ -650,67 +774,11 @@ func formed_night_volumes() -> Array[NightVolume]:
 	return formed
 
 
-func _spawn_scarab(volume: NightVolume) -> bool:
-	var count := int(_spawn_counts.get(volume, 0)) + 1
-	_spawn_counts[volume] = count
-	var can_leave := NightScarabScript.is_escape_spawn(count, ESCAPE_EVERY) or _night_unleashed
-	var scarab := NightScarabScene.instantiate()
-	# Bind hunt target before entering the tree so SwarmPill physics cannot
-	# queue_free the scarab on its first tick.
-	scarab.configure(_terrain, _target, NightScarabScript.MOVE_SPEED)
-	scarab.bind_sphere(volume, can_leave)
-	var host := _scarab_host()
-	host.add_child(scarab)
-	scarab.top_level = true
-	var pos := volume.random_point_xz(_rng)
-	if _terrain != null:
-		pos.y = _terrain.sample_height(pos.x, pos.z)
-	else:
-		pos.y = volume.global_position.y
-	scarab.global_position = pos
-	if _night_unleashed:
-		scarab.unshackle()
-		scarab.apply_night_speed()
-	if not scarab.died.is_connected(_on_scarab_died):
-		scarab.died.connect(_on_scarab_died)
-	_scarabs.append(scarab)
-	return true
-
-
 func _scarab_host() -> Node:
 	var host := get_parent()
 	if host != null:
 		return host
 	return self
-
-
-func _resolve_hunt_target() -> void:
-	if _target != null and is_instance_valid(_target):
-		return
-	_target = _find_player_body()
-
-
-func _find_player_body() -> Node3D:
-	var tree := get_tree()
-	if tree == null:
-		return null
-	var director := tree.get_first_node_in_group("boss_director")
-	if director != null and director.has_method("player_body"):
-		var body: Variant = director.call("player_body")
-		if body is Node3D and is_instance_valid(body):
-			return body as Node3D
-	var health := tree.get_first_node_in_group("player_health")
-	if health != null:
-		var rig := health.get_parent()
-		if rig != null and rig.has_method("get_glider"):
-			var glider: Variant = rig.call("get_glider")
-			if glider is Node3D and is_instance_valid(glider):
-				return glider as Node3D
-	return null
-
-
-func _on_scarab_died() -> void:
-	_cull_scarabs()
 
 
 func _cull_scarabs() -> void:

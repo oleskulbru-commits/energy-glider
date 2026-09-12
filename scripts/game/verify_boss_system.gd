@@ -592,7 +592,14 @@ func _verify_night_spread() -> void:
 func _verify_night_scarabs() -> void:
 	_fail_unless(is_equal_approx(NightScarabScript.MOVE_SPEED, 12.0), "Night scarabs should move at 12 m/s by day")
 	_fail_unless(is_equal_approx(NightScarabScript.NIGHT_MOVE_SPEED, 21.0), "Night scarabs should move at 21 m/s at clock night")
+	_fail_unless(is_equal_approx(NightScarabScript.STREAM_AHEAD_MIN_M, 20.0), "Night scarabs should spawn from 20 m ahead")
+	_fail_unless(is_equal_approx(NightScarabScript.STREAM_AHEAD_MAX_M, 80.0), "Night scarabs should spawn out to 80 m ahead")
+	_fail_unless(NightScarabScript.STREAM_CAP == 200, "Boss-night scarabs should cap at 200 living bodies")
 	_fail_unless(is_equal_approx(NightScarabScript.FULL_SIM_RANGE_M, 50.0), "Far scarabs should drop full physics past 50 m")
+	_fail_unless(is_equal_approx(NightScarabScript.VISIBLE_RANGE_M, 100.0), "Scarabs should hide past 100 m")
+	_fail_unless(is_equal_approx(SunEaterScript.SCARAB_LIVE_ENTER_PAD_M, 100.0), "Spheres should go live within 100 m of their volume")
+	_fail_unless(is_equal_approx(SunEaterScript.SCARAB_LIVE_LEAVE_PAD_M, 140.0), "Spheres should stay live until 140 m past their volume")
+	_fail_unless(SunEaterScript.MATERIALIZE_PER_FRAME == 24, "Approaching a sphere should restore at most 24 scarabs per frame")
 	_fail_unless(NightScarabScript.SCARAB_CONTACT_DAMAGE == 2, "Night scarabs should deal 2 damage")
 	_fail_unless(NightScarabScript.SCARAB_MAX_HEALTH == 15, "Night scarabs should have 15 HP")
 	_fail_unless(NightScarabScript.is_escape_spawn(10), "Every 10th scarab should be able to leave")
@@ -610,10 +617,24 @@ func _verify_night_scarabs() -> void:
 		NightScarabScript.should_hunt_player(false, true),
 		"Unshackled scarabs should hunt even if the player is outside"
 	)
-	_fail_unless(is_equal_approx(SunEaterScript.SCARAB_NIGHT_RATE, 10.0), "Night should spawn 10 scarabs per second per sphere")
-	_fail_unless(is_equal_approx(SunEaterScript.night_spawn_rate(0.0), 10.0), "Night rate should be 10/s at release")
-	_fail_unless(is_equal_approx(SunEaterScript.night_spawn_rate(10.0), 10.0), "Night rate should stay 10/s")
-	_fail_unless(SunEaterScript.SCARAB_CAP == 500, "Day and night scarab cap should both be 500")
+	_fail_unless(is_equal_approx(SunEaterScript.SCARAB_DAY_RATE, 1.0), "Daytime spheres should spawn 1 scarab per second")
+	_fail_unless(SunEaterScript.SCARAB_CAP == 500, "Daytime sphere army should cap at 500")
+	_fail_unless(
+		EnemyStreamSpawnerScript.should_spawn_boss_night_scarabs(true, true, false),
+		"Clock night with a living boss should spawn the scarab stream"
+	)
+	_fail_unless(
+		not EnemyStreamSpawnerScript.should_spawn_boss_night_scarabs(false, true, false),
+		"Daytime should keep sphere filling, not the scarab stream"
+	)
+	_fail_unless(
+		not EnemyStreamSpawnerScript.should_spawn_boss_night_scarabs(true, false, false),
+		"Clock night with no boss should keep the regular crawler stream"
+	)
+	_fail_unless(
+		not EnemyStreamSpawnerScript.should_spawn_boss_night_scarabs(true, true, true),
+		"Scarabs should stop when the run has ended"
+	)
 
 	var kit := NightScarabScene.instantiate()
 	root.add_child(kit)
@@ -625,6 +646,12 @@ func _verify_night_scarabs() -> void:
 	kit.apply_difficulty(1.0)
 	_fail_unless(kit.get_max_health() == 15, "Level HP curve should not scale night scarabs")
 	_fail_unless(kit.contact_damage == 2, "Retry difficulty should not scale night scarab damage")
+	_fail_unless(kit._blocks_behind_despawn(), "Daytime scarabs should never despawn when the player drives past")
+	kit.mark_stream_hunter()
+	_fail_unless(not kit._blocks_behind_despawn(), "Clock-night stream scarabs should despawn behind the glider")
+	kit.unshackle()
+	kit.apply_night_speed()
+	_fail_unless(is_equal_approx(kit.move_speed, 21.0), "Unshackled night scarabs should hunt at 21 m/s")
 	kit._physics_process(0.016)
 	_fail_unless(
 		not kit.is_queued_for_deletion(),
@@ -643,6 +670,11 @@ func _verify_night_scarabs() -> void:
 	volume.set_fade(1.0)
 	_fail_unless(volume.contains_xz(Vector3(10.0, 4.0, 0.0)), "A point inside the disk should count")
 	_fail_unless(not volume.contains_xz(Vector3(41.0, 0.0, 0.0)), "A point past the radius should be outside")
+	var vol_mesh := volume.get_node("Mesh") as MeshInstance3D
+	_fail_unless(vol_mesh.material_override is ShaderMaterial, "Night spheres should keep the volumetric shader")
+	var sphere_mesh := vol_mesh.mesh as SphereMesh
+	_fail_unless(sphere_mesh != null and sphere_mesh.radial_segments == 64, "Night sphere mesh should use 64 radial segments")
+	_fail_unless(sphere_mesh != null and sphere_mesh.rings == 32, "Night sphere mesh should use 32 rings")
 	var clamped := volume.clamp_xz(Vector3(80.0, 1.0, 0.0), 1.0)
 	_fail_unless(
 		clamped.x <= 39.01,
@@ -678,7 +710,7 @@ func _verify_night_scarabs() -> void:
 	_fail_unless(is_equal_approx(wanderer.move_speed, 12.0), "A daytime escaper should keep 12 m/s")
 	_fail_unless(
 		wanderer._blocks_behind_despawn(),
-		"Night scarabs should never despawn when the player drives past them"
+		"Daytime scarabs should never despawn when the player drives past them"
 	)
 	player.global_position = Vector3(-80.0, 0.0, 0.0)
 	wanderer._physics_process(0.016)
@@ -811,40 +843,80 @@ func _verify_night_scarabs() -> void:
 		)
 	var night_volume := boss.get_node("NightVolume") as NightVolume
 	boss.begin_clock_night()
-	_fail_unless(boss.is_night_unleashed(), "Clock night should unshackle the collected swarm")
+	_fail_unless(boss.is_night_unleashed(), "Clock night should hide Bring the Night visuals")
 	_fail_unless(not night_volume.visuals_enabled(), "Formed night spheres should vanish at clock night")
 	var mesh := night_volume.get_node("Mesh") as MeshInstance3D
 	_fail_unless(mesh == null or not mesh.visible, "Night sphere meshes should hide at clock night")
-	for scarab in boss.living_scarabs():
-		_fail_unless(scarab.is_unshackled(), "Every collected scarab should hunt after night falls")
-		_fail_unless(
-			is_equal_approx(scarab.move_speed, 21.0),
-			"Clock night should raise scarab speed to 21 m/s"
-		)
-	_fail_unless(is_equal_approx(boss.spawn_rate_per_sphere(), 10.0), "Clock night should spawn 10/s per sphere")
-	boss._physics_process(1.0)
-	_fail_unless(boss.living_scarab_count() == 20, "One night second should add 10 scarabs from one sphere")
+	_fail_unless(boss.living_scarab_count() == 0, "Clock night should drop the sphere army")
+	_fail_unless(boss.virtual_scarab_count() == 0, "Clock night should drop virtual sphere scarabs")
+	boss._physics_process(2.0)
 	_fail_unless(
-		is_equal_approx(boss.living_scarabs()[19].move_speed, 21.0),
-		"Scarabs spawned at clock night should already move at 21 m/s"
-	)
-	_fail_unless(is_equal_approx(boss.spawn_rate_per_sphere(), 10.0), "Night rate should stay 10/s")
-	var before_late := boss.living_scarab_count()
-	var late := NightVolumeScript.new()
-	boss.add_child(late)
-	late.configure(SunEaterScript.CHILD_RADIUS_M, false)
-	late.snap_to_standing(Vector3(300.0, 0.0, 50.0), 12.0)
-	late.set_fade(1.0)
-	late.set_visuals_enabled(false)
-	boss._child_volumes.append(late)
-	_fail_unless(not late.visuals_enabled(), "Night-only spheres should have no visuals")
-	boss._physics_process(1.0)
-	_fail_unless(
-		boss.living_scarab_count() == before_late + 20,
-		"A new night sphere should immediately spawn at 10/s alongside existing spheres"
+		boss.living_scarab_count() == 0,
+		"Clock night scarabs should come from the stream, not the Sun Eater"
 	)
 	hunter.free()
 	boss.free()
+
+	var far_player := Node3D.new()
+	root.add_child(far_player)
+	far_player.global_position = Vector3(500.0, 12.0, 50.0)
+	var ghost: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(ghost)
+	ghost.global_position = Vector3(100.0, 0.0, 50.0)
+	ghost.configure(null, far_player)
+	ghost.begin_ascent(12.0)
+	ghost._physics_process(3.0)
+	ghost._physics_process(8.0)
+	ghost._spread_full = true
+	var home := ghost.get_node("NightVolume") as NightVolume
+	ghost._physics_process(0.016)
+	_fail_unless(not ghost.is_volume_hot(home), "A player 400 m away should leave the boss sphere cold")
+	ghost._physics_process(10.0)
+	_fail_unless(ghost.living_scarab_count() == 1, "The 10th daytime credit should still spawn an escaper")
+	_fail_unless(ghost.living_scarabs()[0].is_unshackled(), "Cold-sphere 10th scarab must be a living escaper")
+	_fail_unless(ghost.virtual_scarab_count(home) == 9, "Nine daytime credits should stay virtual")
+	_fail_unless(ghost.scarab_population() == 10, "Living plus virtual should count toward the 500 cap")
+
+	far_player.global_position = Vector3(100.0, 12.0, 50.0)
+	ghost._physics_process(0.016)
+	_fail_unless(ghost.is_volume_hot(home), "Entering radius+100 should heat the sphere")
+	_fail_unless(ghost.virtual_scarab_count(home) == 0, "Hot spheres should drain their virtual count")
+	_fail_unless(ghost.living_scarab_count() == 10, "Materialize should restore the bound army plus the escaper")
+
+	far_player.global_position = Vector3(300.0, 12.0, 50.0)
+	ghost._physics_process(0.016)
+	_fail_unless(ghost.is_volume_hot(home), "Hysteresis should keep a sphere live inside the leave pad")
+
+	far_player.global_position = Vector3(500.0, 12.0, 50.0)
+	ghost._physics_process(0.016)
+	_fail_unless(not ghost.is_volume_hot(home), "Leaving radius+140 should cool the sphere")
+	_fail_unless(ghost.living_scarab_count() == 1, "Folding should keep the daytime escaper")
+	_fail_unless(ghost.living_scarabs()[0].is_unshackled(), "The remaining living scarab should be the escaper")
+	_fail_unless(ghost.virtual_scarab_count(home) == 9, "Bound scarabs should return to the virtual count")
+	ghost.free()
+	far_player.free()
+
+	var overlap_player := Node3D.new()
+	root.add_child(overlap_player)
+	overlap_player.global_position = Vector3(200.0, 12.0, 50.0)
+	var overlap: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(overlap)
+	overlap.global_position = Vector3(200.0, 0.0, 50.0)
+	overlap.configure(null, overlap_player)
+	overlap.begin_ascent(12.0)
+	overlap._physics_process(3.0)
+	overlap._physics_process(8.0)
+	overlap._spread_full = true
+	var leftover := NightVolumeScript.new()
+	overlap.add_child(leftover)
+	leftover.configure(NightVolume.RADIUS_M, false)
+	leftover.snap_to_standing(Vector3(100.0, 0.0, 50.0), 12.0)
+	leftover.set_fade(1.0)
+	overlap._child_volumes.append(leftover)
+	overlap._physics_process(0.016)
+	_fail_unless(overlap.is_volume_hot(leftover), "A leftover 160 m sphere 100 m away should stay live")
+	overlap_player.free()
+	overlap.free()
 
 
 func _verify_boss_relocate() -> void:

@@ -11,6 +11,7 @@ const AutoRifleScript = preload("res://scripts/weapons/auto_rifle.gd")
 const DamageFloatScript = preload("res://scripts/ui/damage_float.gd")
 const CombatDroneScript = preload("res://scripts/enemies/combat_drone.gd")
 const LaserDroneScript = preload("res://scripts/enemies/laser_drone.gd")
+const NightScarabScript = preload("res://scripts/enemies/night_scarab.gd")
 
 
 func _init() -> void:
@@ -32,6 +33,7 @@ func _run() -> void:
 	_verify_rifle_targeting()
 	_verify_rifle_burst()
 	_verify_spawn_after_try_again()
+	_verify_boss_night_scarab_stream()
 	print("Enemy stream verification passed.")
 	quit(0)
 
@@ -904,6 +906,43 @@ func _verify_spawn_after_try_again() -> void:
 		EnemyStreamSpawnerScript.should_spawn_stream(false, true, false),
 		"Try Again should spawn enemies even before picking up the E.O.N. again"
 	)
+
+
+func _verify_boss_night_scarab_stream() -> void:
+	_fail_unless(
+		EnemyStreamSpawnerScript.should_spawn_boss_night_scarabs(true, true, false),
+		"A living boss at clock night should spawn scarabs"
+	)
+	_fail_unless(
+		not EnemyStreamSpawnerScript.should_spawn_boss_night_scarabs(true, false, false),
+		"Night without a boss should not swap in scarabs"
+	)
+	_fail_unless(
+		not EnemyStreamSpawnerScript.should_spawn_boss_night_scarabs(false, true, false),
+		"A daytime boss should not spawn the scarab stream"
+	)
+	_fail_unless(NightScarabScript.STREAM_CAP == 200, "Boss-night scarab cap should be 200")
+	_fail_unless(is_equal_approx(NightScarabScript.STREAM_AHEAD_MIN_M, 20.0), "Scarab band min should be 20 m")
+	_fail_unless(is_equal_approx(NightScarabScript.STREAM_AHEAD_MAX_M, 80.0), "Scarab band max should be 80 m")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4
+	var facing := Vector3(-1.0, 0.0, 0.0)
+	for _i in 40:
+		var offset: Vector2 = EnemyStreamSpawnerScript.spawn_offset_along_facing(
+			NightScarabScript.STREAM_AHEAD_MIN_M,
+			NightScarabScript.STREAM_AHEAD_MAX_M,
+			10.0,
+			rng,
+			facing
+		)
+		_fail_unless(offset.x <= -19.99, "Scarabs should spawn at least 20 m ahead on -X")
+		_fail_unless(offset.x >= -80.01, "Scarabs should spawn no farther than 80 m ahead")
+	var scarab := NightScarabScript.new()
+	root.add_child(scarab)
+	_fail_unless(scarab._blocks_behind_despawn(), "Daytime sphere scarabs should stay when the player drives past")
+	scarab.mark_stream_hunter()
+	_fail_unless(not scarab._blocks_behind_despawn(), "Clock-night stream scarabs should despawn behind the glider")
+	scarab.free()
 
 
 func _damage_float_labels() -> Array[Label3D]:

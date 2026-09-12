@@ -17,6 +17,8 @@ const SwarmPillScript := preload("res://scripts/enemies/swarm_pill.gd")
 const CombatDroneScript := preload("res://scripts/enemies/combat_drone.gd")
 const EonDirectorScript := preload("res://scripts/game/eon_director.gd")
 const LevelRunScript := preload("res://scripts/game/level_run.gd")
+const NightScarabScene := preload("res://scenes/enemies/night_scarab.tscn")
+const NightScarabScript := preload("res://scripts/enemies/night_scarab.gd")
 
 const SPAWN_GRACE_SEC := 3.0
 const DAWN_SPAWN_GRACE_SEC := 2.0
@@ -103,6 +105,13 @@ func _physics_process(delta: float) -> void:
 	_spawn_cooldown = maxf(_spawn_cooldown - delta, 0.0)
 	if _grace_left > 0.0:
 		_grace_left = maxf(_grace_left - delta, 0.0)
+
+	_tick_boss_night_scarabs()
+
+	var glider := _get_glider()
+	var run_ended := glider == null or glider.is_run_ended()
+	if should_spawn_boss_night_scarabs(_clock_is_night(), _has_living_boss(), run_ended):
+		return
 
 	if not _should_spawn():
 		return
@@ -265,6 +274,96 @@ func _boss_blocks_stream() -> bool:
 		return false
 	var boss_dir := tree.get_first_node_in_group("boss_director")
 	return boss_dir != null and boss_dir.has_method("is_blocking_stream") and bool(boss_dir.call("is_blocking_stream"))
+
+
+func _clock_is_night() -> bool:
+	var tree := get_tree()
+	if tree == null:
+		return false
+	var cycle := tree.get_first_node_in_group("day_night_cycle")
+	return cycle != null and cycle.has_method("is_night") and bool(cycle.call("is_night"))
+
+
+func _has_living_boss() -> bool:
+	var tree := get_tree()
+	if tree == null:
+		return false
+	var boss_dir := tree.get_first_node_in_group("boss_director")
+	return boss_dir != null and boss_dir.has_method("has_living_boss") and bool(boss_dir.call("has_living_boss"))
+
+
+static func should_spawn_boss_night_scarabs(
+	clock_night: bool,
+	has_living_boss: bool,
+	run_ended: bool
+) -> bool:
+	return clock_night and has_living_boss and not run_ended
+
+
+func _tick_boss_night_scarabs() -> void:
+	var glider := _get_glider()
+	var run_ended := glider == null or glider.is_run_ended()
+	if not should_spawn_boss_night_scarabs(_clock_is_night(), _has_living_boss(), run_ended):
+		_clear_night_scarabs()
+		return
+	_purge_ground_except_scarabs()
+	if _spawn_cooldown > 0.0:
+		return
+	var track := _track_body()
+	if track == null:
+		return
+	var alive := _count_scarabs()
+	var need := NightScarabScript.STREAM_CAP - alive
+	if need <= 0:
+		return
+	var level := _current_level()
+	var ahead := Vector2(NightScarabScript.STREAM_AHEAD_MIN_M, NightScarabScript.STREAM_AHEAD_MAX_M)
+	var spread := SwarmPillScript.z_spread_for_level(level)
+	var n := mini(spawns_per_tick_max, need)
+	for _i in n:
+		_spawn_night_scarab(track, ahead, spread)
+	_spawn_cooldown = spawn_interval_sec
+
+
+func _spawn_night_scarab(track: Node3D, ahead: Vector2, spread: float) -> void:
+	var offset := spawn_offset_along_facing(ahead.x, ahead.y, spread, _rng, _facing_xz())
+	var world_x := track.global_position.x + offset.x
+	var world_z := track.global_position.z + offset.y
+	var world_y := track.global_position.y
+	if _terrain != null:
+		world_y = _terrain.sample_height(world_x, world_z)
+	var scarab: NightScarabScript = NightScarabScene.instantiate() as NightScarabScript
+	add_child(scarab)
+	scarab.global_position = Vector3(world_x, world_y, world_z)
+	scarab.configure(_terrain, track, NightScarabScript.NIGHT_MOVE_SPEED)
+	scarab.unshackle()
+	scarab.apply_night_speed()
+	scarab.mark_stream_hunter()
+	_active.append(scarab)
+
+
+func _purge_ground_except_scarabs() -> void:
+	var kept: Array[Node] = []
+	for node in _active:
+		if node == null or not is_instance_valid(node):
+			continue
+		if node.is_in_group("night_scarab"):
+			kept.append(node)
+			continue
+		node.queue_free()
+	_active = kept
+
+
+func _clear_night_scarabs() -> void:
+	var kept: Array[Node] = []
+	for node in _active:
+		if node == null or not is_instance_valid(node):
+			continue
+		if node.is_in_group("night_scarab"):
+			node.queue_free()
+			continue
+		kept.append(node)
+	_active = kept
 
 
 static func should_spawn_stream(
@@ -624,8 +723,10 @@ static func spawn_offset_along_facing(
 	return Vector2(world.x, world.z)
 
 
-static func crawler_alive_count(active_count: int, charger_count: int, leaper_count: int) -> int:
-	return maxi(active_count - charger_count - leaper_count, 0)
+static func crawler_alive_count(
+	active_count: int, charger_count: int, leaper_count: int, scarab_count: int = 0
+) -> int:
+	return maxi(active_count - charger_count - leaper_count - scarab_count, 0)
 
 
 func _count_chargers() -> int:
@@ -644,8 +745,16 @@ func _count_leapers() -> int:
 	return count
 
 
+func _count_scarabs() -> int:
+	var count := 0
+	for node in _active:
+		if node != null and node.is_in_group("night_scarab"):
+			count += 1
+	return count
+
+
 func _count_crawlers() -> int:
-	return crawler_alive_count(_active.size(), _count_chargers(), _count_leapers())
+	return crawler_alive_count(_active.size(), _count_chargers(), _count_leapers(), _count_scarabs())
 
 
 func _cull_active() -> void:
