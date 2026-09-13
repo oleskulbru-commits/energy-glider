@@ -33,8 +33,8 @@ func _run() -> void:
 		"Rifle should not cause debris landing sand"
 	)
 	_fail_unless(
-		UpgradeCatalogScript.weapon_causes_debris_sand(UpgradeCatalogScript.FAMILY_ROCKET),
-		"Rocket should cause debris landing sand"
+		not UpgradeCatalogScript.weapon_causes_debris_sand(UpgradeCatalogScript.FAMILY_ROCKET),
+		"Rocket should not cause debris landing sand"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.weapon_causes_debris_sand(UpgradeCatalogScript.FAMILY_TESLA),
@@ -64,6 +64,25 @@ func _run() -> void:
 		% _count_debris_sand_nodes(wrapper)
 	)
 	wrapper.queue_free()
+
+	var rocket_wrapper := EnemyHitFragmentVfxScript.spawn(
+		self,
+		CRAWLER_KIT,
+		Vector3(0.0, 1.0, 0.0),
+		Vector3(1.0, 0.0, 0.0),
+		2,
+		1.0,
+		null,
+		false,
+		UpgradeCatalogScript.FAMILY_ROCKET
+	)
+	await create_timer(0.05).timeout
+	_fail_unless(
+		_count_debris_sand_nodes(rocket_wrapper) == 0,
+		"Rocket hit fragments should not attach landing sand (got %d)"
+		% _count_debris_sand_nodes(rocket_wrapper)
+	)
+	rocket_wrapper.queue_free()
 
 	var tesla_wrapper := EnemyHitFragmentVfxScript.spawn(
 		self,
