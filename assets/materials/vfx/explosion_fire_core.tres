@@ -1,0 +1,18 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://assets/vfx/shaders/explosion_fireball.gdshader" id="1_shader"]
+[ext_resource type="Texture2D" path="res://assets/vfx/effect_textures/fire_v5_vfx.png" id="2_noise"]
+
+[resource]
+render_priority = 1
+shader = ExtResource("1_shader")
+shader_parameter/noise_tex = ExtResource("2_noise")
+shader_parameter/uv_scale = 2.8
+shader_parameter/mask_threshold = 0.05
+shader_parameter/mask_softness = 0.18
+shader_parameter/displacement_strength = 0.0
+shader_parameter/cold_color = Vector3(0.9, 0.28, 0.06)
+shader_parameter/hot_color = Vector3(1.5, 0.92, 0.35)
+shader_parameter/emission_strength = 6.5
+shader_parameter/alpha_scale = 1.0
+shader_parameter/heat_bias = 0.08

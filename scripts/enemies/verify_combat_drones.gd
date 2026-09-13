@@ -717,8 +717,8 @@ func _verify_missile_hail() -> void:
 	var xfade_first := false
 	var xfade_finished := false
 	var mid_checked := false
-	var total_flight := DroneRocketScript.STRAIGHT_SEC + DroneRocketScript.FLIGHT_SEC
-	while elapsed < total_flight + step and not bool(rocket.get("_spent")):
+	var total_flight := DroneRocketScript.STRAIGHT_SEC + float(rocket.get("_flight_sec"))
+	while elapsed < total_flight + step * 3.0 and not bool(rocket.get("_spent")):
 		var xfade_before := float(rocket.get("_xfade_left"))
 		rocket._physics_process(step)
 		elapsed += step
@@ -772,6 +772,12 @@ func _verify_missile_hail() -> void:
 		rng
 	)
 	_fail_unless(offsets.size() == 35, "Should generate spread offsets")
+	for off in offsets:
+		var flat := Vector3(off.x, 0.0, off.z)
+		_fail_unless(
+			flat.length() <= MissileDroneScript.SPREAD_RADIUS_GROUND_M + 0.02,
+			"Ground offsets should stay within spread radius"
+		)
 	var air_offsets := MissileDroneScript.air_impact_offsets_around(35, MissileDroneScript.SPREAD_RADIUS_AIR_M, rng)
 	_fail_unless(air_offsets.size() == 35, "Should generate air spread offsets")
 	for air_off in air_offsets:
@@ -1244,8 +1250,11 @@ func is_gliding() -> bool:
 	player.global_position = Vector3(30.0, 12.0, 30.0)
 	var elapsed := 0.0
 	var step := 1.0 / 60.0
-	var total_flight := DroneRocketScript.STRAIGHT_SEC + DroneRocketScript.FLIGHT_SEC
-	while elapsed < total_flight + step and not bool(miss_rocket.get("_spent")):
+	var flight_sec := float(miss_rocket.get("_flight_sec"))
+	var loop_limit := DroneRocketScript.STRAIGHT_SEC + DroneRocketScript.FLIGHT_SEC + 0.2
+	while elapsed < loop_limit:
+		if bool(miss_rocket.get("_pass_through")) or bool(miss_rocket.get("_spent")):
+			break
 		miss_rocket._physics_process(step)
 		elapsed += step
 	_fail_unless(not bool(miss_rocket.get("_spent")), "Air rocket should pass through on miss")
@@ -1291,7 +1300,9 @@ func get_glider() -> Node3D:
 	root.add_child(hit_rocket)
 	hit_rocket.launch_to_air_point(origin, impact)
 	elapsed = 0.0
-	while elapsed < total_flight + step and not bool(hit_rocket.get("_spent")):
+	while elapsed < loop_limit:
+		if bool(hit_rocket.get("_spent")):
+			break
 		hit_rocket._physics_process(step)
 		elapsed += step
 	_fail_unless(bool(hit_rocket.get("_spent")), "Air rocket should detonate when player is in blast radius")

@@ -1,0 +1,15 @@
+[gd_scene format=3 uid="uid://db6p0f1j34twc"]
+
+[ext_resource type="Shader" uid="uid://d0x86oh2jssw6" path="res://explosion_cloud_shader.tres" id="1_13pyu"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_pee50"]
+render_priority = 0
+shader = ExtResource("1_13pyu")
+
+[sub_resource type="SphereMesh" id="SphereMesh_fqqya"]
+
+[node name="Node3D" type="Node3D" unique_id=1306770289]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1337827176]
+material_override = SubResource("ShaderMaterial_pee50")
+mesh = SubResource("SphereMesh_fqqya")

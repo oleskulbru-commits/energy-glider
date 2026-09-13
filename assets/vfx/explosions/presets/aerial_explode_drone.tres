@@ -2,13 +2,21 @@
 
 [ext_resource type="Script" uid="uid://df46m8pq7v7mu" path="res://scripts/vfx/aerial_explosion_preset.gd" id="1_preset"]
 [ext_resource type="Material" uid="uid://bo365cxx7sghc" path="res://assets/materials/vfx/aerial_explosion_material.tres" id="2_material"]
+[ext_resource type="Texture2D" uid="uid://8ligv7hx30t8" path="res://assets/vfx/effect_textures/decals/burnt_ground_albedo.png" id="3_burn_albedo"]
+[ext_resource type="Texture2D" uid="uid://c403vk16gvstm" path="res://assets/vfx/effect_textures/decals/burnt_ground_normal.png" id="4_burn_normal"]
 
 [resource]
 script = ExtResource("1_preset")
 world_scale = 10.0
 material = ExtResource("2_material")
 emission_strength = 5.0
+spark_color = Color(1.2, 1.5, 2, 1)
+spark_count = 28
+spark_glow_strength = 6.5
 light_energy = 14.0
 light_range_m = 22.0
 shake_strength = 0.65
 shake_radius_m = 30.0
+ground_burn_albedo = ExtResource("3_burn_albedo")
+ground_burn_normal = ExtResource("4_burn_normal")
+ground_burn_size_mult = 0.21666667

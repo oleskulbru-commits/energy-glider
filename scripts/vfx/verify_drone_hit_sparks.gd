@@ -105,7 +105,11 @@ func _run() -> void:
 	_fail_unless(damage_sparks != null, "Wounded drone should spawn Visual/DamageSparks")
 	_fail_unless(damage_sparks.emitting, "Damage sparks should be emitting")
 	_fail_unless(not damage_sparks.one_shot, "Damage sparks should loop until death")
-	_fail_unless(damage_sparks.amount == 12, "Damage sparks amount should be 12 (got %d)" % damage_sparks.amount)
+	_fail_unless(
+		damage_sparks.amount == DroneDamageSparkVfxScript.PARTICLE_AMOUNT,
+		"Damage sparks amount should match looping preset (got %d, expected %d)"
+		% [damage_sparks.amount, DroneDamageSparkVfxScript.PARTICLE_AMOUNT]
+	)
 	_fail_unless(
 		is_equal_approx(damage_sparks.scale.x, 0.25),
 		"Damage sparks should compensate Visual 4x scale (got %s)" % damage_sparks.scale

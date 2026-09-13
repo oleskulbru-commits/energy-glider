@@ -31,6 +31,13 @@ enum GroundSandBurst {
 @export_range(0.0, 3.0, 0.01) var alpha_scale := 1.0
 @export var proximity_fade_enabled := true
 @export_range(0.0, 8.0, 0.05) var proximity_fade_distance := 1.0
+@export var spawn_fireball_vfx := false
+
+@export_group("Impact Sparks")
+@export var spawn_sparks := true
+@export var spark_color := Color(2.0, 1.05, 0.32, 1.0)
+@export_range(0, 80, 1) var spark_count := 32
+@export_range(0.0, 20.0, 0.5) var spark_glow_strength := 7.0
 
 @export_group("Flash Light")
 @export var spawn_light := true
@@ -48,3 +55,15 @@ enum GroundSandBurst {
 @export_range(0.0, 12.0, 0.1) var ground_sand_max_clearance_m := 3.5
 @export var ground_sand_burst: GroundSandBurst = GroundSandBurst.EXPLOSION
 @export_range(0.1, 4.0, 0.05) var ground_sand_scale_mult := 1.0
+
+@export_group("Ground Burn Decal")
+## Spawns a scorch decal when the explosion is within [member ground_burn_max_clearance_m] of terrain.
+@export var spawn_ground_burn_decal := true
+@export_range(0.0, 12.0, 0.1) var ground_burn_max_clearance_m := 3.5
+@export var ground_burn_albedo: Texture2D
+@export var ground_burn_normal: Texture2D
+@export var ground_burn_tint := Color(1.15, 0.78, 0.58, 1.0)
+@export_range(0.1, 2.0, 0.05) var ground_burn_size_mult := 0.23333333
+@export_range(0.0, 2.0, 0.01) var ground_burn_opacity := 1.0
+@export_range(1.0, 180.0, 1.0) var ground_burn_lifetime_sec := 45.0
+@export_range(0.5, 30.0, 0.5) var ground_burn_fade_sec := 10.0

@@ -40,8 +40,9 @@ var _xfade_left := 0.0
 var _launch_dir := Vector3.FORWARD
 var _straight_speed_mps := 0.0
 var _straight_ghost_pos := Vector3.ZERO
-var _smoke_trail: CPUParticles3D
+var _smoke_trail: GPUParticles3D
 var _visual_scale := 1.0
+var _flight_sec := FLIGHT_SEC
 
 
 func launch_from_drone(
@@ -64,6 +65,7 @@ func launch_from_drone(
 	_flight_t = 0.0
 	_spent = false
 	_launch_dir = Vector3.ZERO
+	_flight_sec = FLIGHT_SEC * randf_range(0.9, 1.12)
 	_apply_spawn_transform(spawn_transform, origin)
 	_attach_projectile_visual(visual_template)
 	_begin_smoke_trail()
@@ -86,12 +88,13 @@ func launch_to_air_point(
 	_flight_t = 0.0
 	_spent = false
 	_launch_dir = Vector3.ZERO
+	_flight_sec = FLIGHT_SEC * randf_range(0.9, 1.12)
 	_apply_spawn_transform(spawn_transform, origin)
 	var travel := _impact - _origin
 	if travel.length_squared() < 0.0001:
 		_flight_speed_mps = 0.0
 	else:
-		_flight_speed_mps = travel.length() / FLIGHT_SEC
+		_flight_speed_mps = travel.length() / _flight_sec
 	_attach_projectile_visual(visual_template)
 	_begin_smoke_trail()
 	_begin_straight_phase()
@@ -120,7 +123,7 @@ func _begin_straight_phase() -> void:
 	_xfade_left = 0.0
 	_straight_speed_mps = _flight_speed_mps
 	if _straight_speed_mps <= 0.0:
-		_straight_speed_mps = maxf(_origin.distance_to(_impact) / FLIGHT_SEC, 12.0)
+		_straight_speed_mps = maxf(_origin.distance_to(_impact) / _flight_sec, 12.0)
 	_orient()
 
 
@@ -156,7 +159,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _physics_process_ground(delta: float) -> void:
-	_flight_t += delta / FLIGHT_SEC
+	_flight_t += delta / _flight_sec
 	if _flight_t >= 1.0:
 		global_position = _impact
 		_detonate()
@@ -189,14 +192,14 @@ func _begin_homing() -> void:
 		if travel.length_squared() < 0.0001:
 			_flight_speed_mps = 0.0
 		else:
-			_flight_speed_mps = travel.length() / FLIGHT_SEC
+			_flight_speed_mps = travel.length() / _flight_sec
 
 
 func _consume_xfade(delta: float) -> float:
 	var step := minf(delta, _xfade_left)
 	_xfade_left = maxf(_xfade_left - step, 0.0)
 	_straight_ghost_pos += _launch_dir * _straight_speed_mps * step
-	_flight_t += step / FLIGHT_SEC
+	_flight_t += step / _flight_sec
 	var home := _sample_homing(_flight_t)
 	var home_pos: Vector3 = home[0]
 	var home_dir: Vector3 = home[1]
@@ -246,7 +249,7 @@ func _blend_dir(from_dir: Vector3, to_dir: Vector3, weight: float) -> Vector3:
 
 
 func _physics_process_air(delta: float) -> void:
-	_flight_t += delta / FLIGHT_SEC
+	_flight_t += delta / _flight_sec
 	if _flight_t < 1.0:
 		global_position = _origin.lerp(_impact, _flight_t)
 		var travel := _impact - _origin
@@ -365,7 +368,10 @@ func _spawn_explosion_at(point: Vector3) -> void:
 		point,
 		DroneExplosionPreset,
 		_visual_scale,
-		_terrain
+		_terrain,
+		_dir,
+		null,
+		true
 	)
 
 

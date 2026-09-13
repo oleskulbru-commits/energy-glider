@@ -1,7 +1,7 @@
 @tool
 extends Node3D
 
-## Test-scene helper: billboards [member still_mesh], swaps still frame, Space plays full animation.
+## Test-scene helper: shows [member still_mesh] billboard preview, swaps still frame, Space plays animation.
 ## Tune look on aerial_explosion_material.tres — the scene quad uses that material directly.
 
 const AerialExplosionVfxScript := preload("res://scripts/vfx/aerial_explosion_vfx.gd")
@@ -33,8 +33,10 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	if _playing_animation:
+		return
 	var mesh := _get_still_mesh()
-	if mesh == null:
+	if mesh == null or not mesh.visible:
 		return
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:
@@ -55,8 +57,7 @@ func _apply_preset() -> void:
 		return
 	var mesh := _get_still_mesh()
 	if mesh != null:
-		var scale := preset.world_scale
-		mesh.scale = Vector3(scale, scale, scale)
+		AerialExplosionVfxScript.configure_billboard_mesh(mesh, preset)
 	_apply_still_frame()
 
 

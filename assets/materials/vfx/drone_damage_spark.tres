@@ -15,6 +15,5 @@ render_priority = 0
 shader = ExtResource("1_shader")
 shader_parameter/ColorParameter = Color(2, 0.45, 0.08, 1)
 shader_parameter/GlowStrength = 4.5
-shader_parameter/SpeedXY = Vector2(0, 1.2)
 shader_parameter/Base_Texture = ExtResource("2_base_tex")
 shader_parameter/Streak_Mask = SubResource("GradientTexture2D_white")

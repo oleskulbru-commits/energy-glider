@@ -121,7 +121,7 @@ var _terrain_manager: TerrainManager
 var _input: GliderInputScript
 var _visual: Node3D
 var _camera: GliderCameraScript
-var _impact_dust: CPUParticles3D
+var _impact_dust: GPUParticles3D
 var _contact_sparks: CPUParticles3D
 
 var _state: State = State.GROUNDED
@@ -189,7 +189,9 @@ func _ready() -> void:
 	_camera = get_node_or_null("GliderCamera") as GliderCameraScript
 	if _camera == null:
 		_camera = get_node_or_null("Camera3D") as GliderCameraScript
-	_impact_dust = get_node_or_null("ImpactDust") as CPUParticles3D
+	_impact_dust = get_node_or_null("ImpactDust") as GPUParticles3D
+	if _impact_dust != null:
+		SandParticleVfxScript.configure_gpu_impact_dust(_impact_dust)
 	_sync_sand_emitter_materials()
 	if _impact_dust != null and not _impact_dust.finished.is_connected(_on_impact_dust_finished):
 		_impact_dust.finished.connect(_on_impact_dust_finished)
@@ -848,9 +850,11 @@ func _enforce_floor_contact(state: PhysicsDirectBodyState3D) -> void:
 	# Soft settle: nudge origin only — killing normal speed here tugs crest momentum.
 
 func _sync_sand_emitter_materials() -> void:
-	SandParticleVfxScript.configure_cpu_emitter(_impact_dust)
-	var hover_dust := get_node_or_null("HoverDust/Stream") as CPUParticles3D
-	SandParticleVfxScript.configure_cpu_emitter(hover_dust)
+	if _impact_dust != null:
+		SandParticleVfxScript.configure_gpu_emitter(_impact_dust)
+	var hover_dust := get_node_or_null("HoverDust/Stream") as GPUParticles3D
+	if hover_dust != null:
+		SandParticleVfxScript.configure_gpu_emitter(hover_dust)
 
 
 func _setup_contact_sparks() -> void:

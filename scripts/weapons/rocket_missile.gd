@@ -33,14 +33,14 @@ var _speed := SPEED_MPS
 var _crit_chance := 0.0
 var _knockback_speed := KNOCKBACK_SPEED
 var _rng := RandomNumberGenerator.new()
-var _smoke_trail: CPUParticles3D
+var _smoke_trail: GPUParticles3D
 
 
 func _ready() -> void:
 	monitoring = true
 	monitorable = false
 	body_entered.connect(_on_body_entered)
-	_smoke_trail = get_node_or_null("SmokeTrail") as CPUParticles3D
+	_smoke_trail = get_node_or_null("SmokeTrail") as GPUParticles3D
 	_setup_visual()
 	_setup_trail()
 
@@ -87,7 +87,7 @@ func _setup_visual() -> void:
 func _setup_trail() -> void:
 	if _smoke_trail == null:
 		return
-	SandParticleVfxScript.configure_missile_smoke_trail(
+	SandParticleVfxScript.configure_gpu_missile_trail(
 		_smoke_trail,
 		SandParticleVfxScript.material_for_rocket_trail(),
 		SandParticleVfxScript.ROCKET_TRAIL_COLOR
@@ -208,7 +208,7 @@ func _on_body_entered(body: Node) -> void:
 	var hit := _resolve_hit()
 	pill.take_damage(hit.damage, _dir, hit.is_crit, _knockback_speed, UpgradeCatalog.FAMILY_ROCKET)
 	_spent = true
-	AerialExplosionVfxScript.spawn(get_tree(), global_position)
+	AerialExplosionVfxScript.spawn(get_tree(), global_position, null, 1.0, null, _dir, pill)
 	if _smoke_trail != null:
 		_smoke_trail.emitting = false
 	queue_free()

@@ -210,7 +210,7 @@ func _lead_point_3d() -> Vector3:
 	return player + vel * LEAD_SEC
 
 
-## Wide ring/ellipse offsets with jitter so the player can slip between hits.
+## Scattered disc offsets so hail impacts do not form a visible ring pattern.
 static func impact_offsets_around(
 	count: int,
 	radius_m: float,
@@ -218,14 +218,23 @@ static func impact_offsets_around(
 ) -> Array[Vector3]:
 	var offsets: Array[Vector3] = []
 	var n := maxi(count, 1)
-	for i in n:
-		var angle := TAU * float(i) / float(n) + rng.randf_range(-0.08, 0.08)
-		var radial := radius_m * rng.randf_range(0.35, 1.0)
-		# Elliptical stretch along Z so the pattern is wide but not a solid disc.
+	for _i in n:
+		var angle := rng.randf() * TAU
+		var radial := radius_m * sqrt(rng.randf())
+		var z_stretch := rng.randf_range(0.65, 0.95)
 		var x := cos(angle) * radial
-		var z := sin(angle) * radial * 0.75
+		var z := sin(angle) * radial * z_stretch
 		offsets.append(Vector3(x, 0.0, z))
+	_shuffle_offsets(offsets, rng)
 	return offsets
+
+
+static func _shuffle_offsets(offsets: Array[Vector3], rng: RandomNumberGenerator) -> void:
+	for i in range(offsets.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp: Vector3 = offsets[i]
+		offsets[i] = offsets[j]
+		offsets[j] = tmp
 
 
 static func air_offset_from_ground(offset: Vector3, rng: RandomNumberGenerator) -> Vector3:

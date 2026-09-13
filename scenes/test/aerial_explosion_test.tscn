@@ -1,8 +1,11 @@
-[gd_scene load_steps=6 format=3 uid="uid://twr7d6yioc2p"]
+[gd_scene load_steps=7 format=3 uid="uid://twr7d6yioc2p"]
 
 [ext_resource type="Script" uid="uid://cmwwy35wj6ydv" path="res://scripts/vfx/aerial_explosion_preview.gd" id="1_preview"]
 [ext_resource type="Resource" uid="uid://bo0prg4nrupay" path="res://assets/vfx/explosions/presets/aerial_explode_1.tres" id="2_preset"]
 [ext_resource type="Material" uid="uid://bo365cxx7sghc" path="res://assets/materials/vfx/aerial_explosion_material.tres" id="3_material"]
+
+[sub_resource type="QuadMesh" id="QuadMesh_billboard"]
+size = Vector2(1, 1)
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 sky_top_color = Color(0.04, 0.05, 0.08, 1)
@@ -19,9 +22,6 @@ sky = SubResource("Sky_env")
 ambient_light_source = 2
 ambient_light_color = Color(0.35, 0.35, 0.4, 1)
 ambient_light_energy = 0.35
-
-[sub_resource type="QuadMesh" id="QuadMesh_still"]
-size = Vector2(1, 1)
 
 [node name="AerialExplosionTest" type="Node3D"]
 
@@ -40,7 +40,7 @@ script = ExtResource("1_preview")
 preset = ExtResource("2_preset")
 
 [node name="StillPreview" type="MeshInstance3D" parent="PreviewOrigin"]
-mesh = SubResource("QuadMesh_still")
+mesh = SubResource("QuadMesh_billboard")
 material_override = ExtResource("3_material")
 
 [node name="Label3D" type="Label3D" parent="PreviewOrigin"]

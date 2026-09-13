@@ -1,15 +1,17 @@
 class_name HoverDust
 extends Node3D
 
-## Hover sand trail. Tune the Stream CPUParticles3D child in glider.tscn — script only handles surface follow and intensity.
+## Hover sand trail. Tune via SandParticleVfx.configure_gpu_hover_dust — script handles surface follow and intensity.
 
 const GliderPhysicsScript = preload("res://scripts/player/glider_physics.gd")
+const SandParticleVfxScript = preload("res://scripts/vfx/sand_particle_vfx.gd")
 
 const GROUND_OFFSET := 0.05
 const RAY_LENGTH := 24.0
 
-@onready var _particles: CPUParticles3D = $Stream
+@onready var _particles: GPUParticles3D = $Stream
 
+var _process_material: ParticleProcessMaterial
 var _velocity_min_base := 0.6
 var _velocity_max_base := 1.8
 var _alpha_base := 0.32
@@ -18,12 +20,20 @@ var _alpha_base := 0.32
 func _ready() -> void:
 	top_level = true
 	if _particles == null:
-		push_error("HoverDust requires a CPUParticles3D child named Stream.")
+		push_error("HoverDust requires a GPUParticles3D child named Stream.")
 		return
-	_velocity_min_base = _particles.initial_velocity_min
-	_velocity_max_base = _particles.initial_velocity_max
-	_alpha_base = _particles.color.a
+	SandParticleVfxScript.configure_gpu_hover_dust(_particles)
+	_cache_bases()
 	_particles.emitting = false
+
+
+func _cache_bases() -> void:
+	_process_material = _particles.process_material as ParticleProcessMaterial
+	if _process_material == null:
+		return
+	_velocity_min_base = _process_material.initial_velocity_min
+	_velocity_max_base = _process_material.initial_velocity_max
+	_alpha_base = _process_material.color.a
 
 
 func _sample_surface_contact(player: GliderPlayer) -> Dictionary:
@@ -47,7 +57,7 @@ func _sample_surface_contact(player: GliderPlayer) -> Dictionary:
 
 
 func _physics_process(_delta: float) -> void:
-	if _particles == null:
+	if _particles == null or _process_material == null:
 		return
 	var player := get_parent() as GliderPlayer
 	if player == null:
@@ -90,7 +100,8 @@ func _physics_process(_delta: float) -> void:
 		return
 
 	_particles.emitting = true
-	_particles.initial_velocity_min = _velocity_min_base * lerpf(0.7, 1.15, intensity)
-	_particles.initial_velocity_max = _velocity_max_base * lerpf(0.75, 1.25, intensity)
+	_process_material.initial_velocity_min = _velocity_min_base * lerpf(0.7, 1.15, intensity)
+	_process_material.initial_velocity_max = _velocity_max_base * lerpf(0.75, 1.25, intensity)
 	var alpha := _alpha_base * intensity
-	_particles.color = Color(_particles.color.r, _particles.color.g, _particles.color.b, alpha)
+	var base_color := _process_material.color
+	_process_material.color = Color(base_color.r, base_color.g, base_color.b, alpha)

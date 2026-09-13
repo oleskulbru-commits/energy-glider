@@ -100,28 +100,64 @@ static func emitter_quad_mesh(size: Vector2 = EMITTER_QUAD_SIZE) -> QuadMesh:
 	return mesh
 
 
-static func configure_cpu_emitter(particles: CPUParticles3D, material: StandardMaterial3D = null) -> void:
+static func configure_gpu_emitter(
+	particles: GPUParticles3D,
+	material: StandardMaterial3D = null,
+	quad_size: Vector2 = EMITTER_QUAD_SIZE
+) -> void:
 	if particles == null:
 		return
 	var resolved := material if material != null else material_for_emitter()
-	var mesh := particles.mesh
+	var mesh := particles.draw_pass_1
 	if mesh is QuadMesh:
-		(particles.mesh as QuadMesh).material = resolved
+		var quad := mesh as QuadMesh
+		quad.material = resolved
+		if quad.size == Vector2.ONE:
+			quad.size = quad_size
 	elif mesh == null:
 		var quad := QuadMesh.new()
-		quad.size = EMITTER_QUAD_SIZE
+		quad.size = quad_size
 		quad.material = resolved
-		particles.mesh = quad
+		particles.draw_pass_1 = quad
 
 
 static func configure_gpu_burst(burst: GPUParticles3D) -> void:
-	if burst == null:
+	configure_gpu_emitter(burst)
+
+
+static func configure_gpu_hover_dust(
+	particles: GPUParticles3D,
+	material: StandardMaterial3D = null
+) -> void:
+	if particles == null:
 		return
-	var mesh := burst.draw_pass_1
-	if mesh is QuadMesh:
-		(mesh as QuadMesh).material = material_for_emitter()
-	elif mesh == null:
-		burst.draw_pass_1 = emitter_quad_mesh()
+	particles.emitting = false
+	particles.amount = 200
+	particles.lifetime = 0.65
+	particles.explosiveness = 0.12
+	particles.randomness = 1.0
+	particles.visibility_aabb = DEFAULT_VISIBILITY_AABB
+	particles.local_coords = false
+	particles.process_material = _hover_dust_process_material()
+	configure_gpu_emitter(particles, material)
+
+
+static func configure_gpu_impact_dust(
+	particles: GPUParticles3D,
+	material: StandardMaterial3D = null
+) -> void:
+	if particles == null:
+		return
+	particles.emitting = false
+	particles.amount = 24
+	particles.lifetime = 1.0
+	particles.one_shot = true
+	particles.explosiveness = 0.9
+	particles.randomness = 0.55
+	particles.visibility_aabb = DEFAULT_VISIBILITY_AABB
+	particles.local_coords = false
+	particles.process_material = _impact_dust_process_material()
+	configure_gpu_emitter(particles, material)
 
 
 static func create_missile_smoke_trail(
@@ -129,16 +165,16 @@ static func create_missile_smoke_trail(
 	material: StandardMaterial3D,
 	particle_color: Color = ROCKET_TRAIL_COLOR,
 	scale_mult: float = 1.0
-) -> CPUParticles3D:
-	var trail := CPUParticles3D.new()
+) -> GPUParticles3D:
+	var trail := GPUParticles3D.new()
 	trail.name = "SmokeTrail"
 	parent.add_child(trail)
-	configure_missile_smoke_trail(trail, material, particle_color, scale_mult)
+	configure_gpu_missile_trail(trail, material, particle_color, scale_mult)
 	return trail
 
 
-static func configure_missile_smoke_trail(
-	particles: CPUParticles3D,
+static func configure_gpu_missile_trail(
+	particles: GPUParticles3D,
 	material: StandardMaterial3D,
 	particle_color: Color = ROCKET_TRAIL_COLOR,
 	scale_mult: float = 1.0
@@ -154,23 +190,96 @@ static func configure_missile_smoke_trail(
 	particles.randomness = 0.65
 	particles.visibility_aabb = AABB(Vector3(-3.0, -3.0, -3.0) * mult, Vector3(6.0, 6.0, 6.0) * mult)
 	particles.local_coords = false
-	particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-	particles.emission_sphere_radius = 0.05 * mult
-	particles.direction = Vector3(0.0, 0.0, 1.0)
-	particles.spread = 22.0
-	particles.gravity = Vector3(0.0, 0.35, 0.0)
-	particles.initial_velocity_min = 0.35
-	particles.initial_velocity_max = 1.4
-	particles.angle_min = -180.0
-	particles.angle_max = 180.0
-	particles.scale_amount_min = 0.22
-	particles.scale_amount_max = 0.48
-	particles.scale_amount_curve = _missile_trail_scale_curve()
-	particles.color = particle_color
-	particles.color_ramp = _missile_trail_color_ramp(particle_color)
-	configure_cpu_emitter(particles, material)
-	if particles.mesh is QuadMesh:
-		(particles.mesh as QuadMesh).size = MISSILE_TRAIL_QUAD_SIZE * mult
+	particles.process_material = _missile_trail_process_material(particle_color)
+	var resolved := material if material != null else material_for_rocket_trail()
+	configure_gpu_emitter(particles, resolved, MISSILE_TRAIL_QUAD_SIZE * mult)
+
+
+static func _hover_dust_process_material() -> ParticleProcessMaterial:
+	var proc := ParticleProcessMaterial.new()
+	proc.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	proc.emission_box_extents = Vector3(0.425, 0.025, 0.85)
+	proc.direction = Vector3(0.0, 1.0, 0.0)
+	proc.spread = 75.0
+	proc.gravity = Vector3(0.0, -1.2, 0.0)
+	proc.initial_velocity_min = 0.6
+	proc.initial_velocity_max = 1.8
+	proc.angle_min = 90.0
+	proc.angle_max = 360.0
+	proc.scale_min = 0.4
+	proc.scale_max = 0.75
+	proc.color = Color(1.0, 1.0, 1.0, 0.32)
+	proc.color_ramp = _gradient_texture(_hover_dust_gradient())
+	proc.particle_flag_align_y = true
+	proc.particle_flag_rotate_y = true
+	return proc
+
+
+static func _impact_dust_process_material() -> ParticleProcessMaterial:
+	var proc := ParticleProcessMaterial.new()
+	proc.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	proc.emission_sphere_radius = 0.12
+	proc.direction = Vector3(0.0, 1.0, 0.0)
+	proc.spread = 55.0
+	proc.initial_velocity_min = 2.0
+	proc.initial_velocity_max = 5.5
+	proc.gravity = Vector3(0.0, -6.0, 0.0)
+	proc.scale_min = 0.35
+	proc.scale_max = 0.65
+	proc.scale_curve = _curve_texture(_impact_dust_scale_curve())
+	proc.color = Color(1.0, 1.0, 1.0, 0.75)
+	proc.color_ramp = _gradient_texture(_impact_dust_gradient())
+	return proc
+
+
+static func _missile_trail_process_material(particle_color: Color) -> ParticleProcessMaterial:
+	var proc := ParticleProcessMaterial.new()
+	proc.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	proc.emission_sphere_radius = 0.05
+	proc.direction = Vector3(0.0, 0.0, 1.0)
+	proc.spread = 22.0
+	proc.gravity = Vector3(0.0, 0.35, 0.0)
+	proc.initial_velocity_min = 0.35
+	proc.initial_velocity_max = 1.4
+	proc.angle_min = -180.0
+	proc.angle_max = 180.0
+	proc.scale_min = 0.22
+	proc.scale_max = 0.48
+	proc.scale_curve = _curve_texture(_missile_trail_scale_curve())
+	proc.color = particle_color
+	proc.color_ramp = _gradient_texture(_missile_trail_color_ramp(particle_color))
+	return proc
+
+
+static func _hover_dust_gradient() -> Gradient:
+	var gradient := Gradient.new()
+	gradient.offsets = PackedFloat32Array([0.0, 0.16612378, 0.3159609])
+	gradient.colors = PackedColorArray([
+		Color(1.0, 1.0, 1.0, 1.0),
+		Color(1.0, 1.0, 1.0, 0.35),
+		Color(1.0, 1.0, 1.0, 0.0),
+	])
+	return gradient
+
+
+static func _impact_dust_scale_curve() -> Curve:
+	var curve := Curve.new()
+	curve.add_point(Vector2(0.0, 0.55))
+	curve.add_point(Vector2(0.25, 0.82))
+	curve.add_point(Vector2(1.0, 1.0))
+	return curve
+
+
+static func _impact_dust_gradient() -> Gradient:
+	var gradient := Gradient.new()
+	gradient.offsets = PackedFloat32Array([0.0, 0.2, 0.5, 1.0])
+	gradient.colors = PackedColorArray([
+		Color(1.0, 1.0, 1.0, 0.72),
+		Color(1.0, 1.0, 1.0, 0.55),
+		Color(1.0, 1.0, 1.0, 0.22),
+		Color(1.0, 1.0, 1.0, 0.0),
+	])
+	return gradient
 
 
 static func _missile_trail_scale_curve() -> Curve:
@@ -199,3 +308,15 @@ static func _missile_trail_color_ramp(particle_color: Color) -> Gradient:
 	gradient.offsets = PackedFloat32Array([0.0, 0.18, 0.55, 1.0])
 	gradient.colors = PackedColorArray([bright, mid, fade, fade])
 	return gradient
+
+
+static func _gradient_texture(gradient: Gradient) -> GradientTexture1D:
+	var texture := GradientTexture1D.new()
+	texture.gradient = gradient
+	return texture
+
+
+static func _curve_texture(curve: Curve) -> CurveTexture:
+	var texture := CurveTexture.new()
+	texture.curve = curve
+	return texture

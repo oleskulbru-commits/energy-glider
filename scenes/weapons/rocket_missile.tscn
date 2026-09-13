@@ -1,19 +1,6 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/weapons/rocket_missile.gd" id="1_missile"]
-[ext_resource type="Material" path="res://assets/materials/vfx/rocket_smoke_particle.tres" id="2_smoke_mat"]
-
-[sub_resource type="QuadMesh" id="QuadMesh_trail"]
-material = ExtResource("2_smoke_mat")
-size = Vector2(1.6, 1.6)
-
-[sub_resource type="Gradient" id="Gradient_trail_fade"]
-offsets = PackedFloat32Array(0, 0.18, 0.55, 1)
-colors = PackedColorArray(1, 0.72, 0.38, 0.62, 1, 0.58, 0.22, 0.38, 0.92, 0.86, 0.78, 0.14, 0.85, 0.82, 0.78, 0)
-
-[sub_resource type="Curve" id="Curve_trail_scale"]
-_data = [Vector2(0, 0.35), 0.0, 0.0, 0, 0, Vector2(0.35, 0.72), 0.0, 0.0, 0, 0, Vector2(1, 0.95), 0.0, 0.0, 0, 0]
-point_count = 3
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_hit"]
 radius = 0.36
@@ -24,30 +11,9 @@ collision_mask = 8
 monitorable = false
 script = ExtResource("1_missile")
 
-[node name="SmokeTrail" type="CPUParticles3D" parent="."]
+[node name="SmokeTrail" type="GPUParticles3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.42)
 emitting = false
-amount = 72
-lifetime = 0.48
-explosiveness = 0.08
-randomness = 0.65
-visibility_aabb = AABB(-3, -3, -3, 6, 6, 6)
-local_coords = false
-mesh = SubResource("QuadMesh_trail")
-emission_shape = 1
-emission_sphere_radius = 0.05
-direction = Vector3(0, 0, 1)
-spread = 22.0
-gravity = Vector3(0, 0.35, 0)
-initial_velocity_min = 0.35
-initial_velocity_max = 1.4
-angle_min = -180.0
-angle_max = 180.0
-scale_amount_min = 0.22
-scale_amount_max = 0.48
-scale_amount_curve = SubResource("Curve_trail_scale")
-color = Color(1, 0.68, 0.32, 0.55)
-color_ramp = SubResource("Gradient_trail_fade")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("SphereShape3D_hit")

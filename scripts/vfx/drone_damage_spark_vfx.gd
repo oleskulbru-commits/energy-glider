@@ -3,16 +3,15 @@ extends RefCounted
 
 ## Looping ember sparks on wounded combat drones. Attach to the drone Visual node.
 
-const DroneHitSparkVfxScript := preload("res://scripts/vfx/drone_hit_spark_vfx.gd")
-const SPARK_MATERIAL := preload("res://assets/materials/vfx/drone_damage_spark.tres")
+const SparkParticleVfxScript := preload("res://scripts/vfx/spark_particle_vfx.gd")
 
-const DEFAULT_EMBER_COLOR := Color(2.0, 0.45, 0.08, 1.0)
-const DEFAULT_GLOW_STRENGTH := 4.5
+const DEFAULT_EMBER_COLOR := SparkParticleVfxScript.DEFAULT_COLOR
+const DEFAULT_GLOW_STRENGTH := SparkParticleVfxScript.DEFAULT_GLOW_STRENGTH
 const LOCAL_OFFSET := Vector3(0.0, 0.35, 0.0)
 ## Cancels CombatDrone Visual scale (DRONE_SIZE_MULT = 4).
 const VISUAL_SCALE_COMPENSATION := 0.25
-const PARTICLE_AMOUNT := 12
-const PARTICLE_LIFETIME := 0.65
+const PARTICLE_AMOUNT := SparkParticleVfxScript.LOOPING_AMOUNT
+const PARTICLE_LIFETIME := SparkParticleVfxScript.LOOPING_LIFETIME
 const DEBRIS_PARTICLE_LIFETIME := 2.0
 const DEBRIS_PARTICLE_AMOUNT := 24
 const DEBRIS_GLOW_STRENGTH := 8.0
@@ -44,59 +43,58 @@ static func build_looping_sparks(
 	scale_compensation: float = 1.0,
 	particle_lifetime: float = PARTICLE_LIFETIME,
 	particle_amount: int = PARTICLE_AMOUNT,
-	visibility_aabb: AABB = AABB(Vector3(-2.0, -2.0, -2.0), Vector3(4.0, 4.0, 4.0)),
-	scale_min: float = 0.5,
-	scale_max: float = 1.0,
+	visibility_aabb: AABB = SparkParticleVfxScript.LOOPING_VISIBILITY_AABB,
+	scale_min: float = -1.0,
+	scale_max: float = -1.0,
 	glow_strength: float = DEFAULT_GLOW_STRENGTH,
-	emission_radius: float = 0.5,
+	emission_radius: float = -1.0,
 	spark_length_m: float = -1.0,
 	use_local_coords: bool = true,
-	initial_velocity_min: float = 0.8,
-	initial_velocity_max: float = 2.5
+	initial_velocity_min: float = -1.0,
+	initial_velocity_max: float = -1.0
 ) -> GPUParticles3D:
-	var mat := SPARK_MATERIAL.duplicate() as ShaderMaterial
-	if mat != null:
-		mat.set_shader_parameter("ColorParameter", spark_color)
-		mat.set_shader_parameter("GlowStrength", glow_strength)
+	var mat := SparkParticleVfxScript.tinted_material(spark_color, glow_strength)
 
 	var length_m := spark_length_m
 	if length_m <= 0.0:
-		length_m = DroneHitSparkVfxScript.SPARK_LENGTH_M
+		length_m = SparkParticleVfxScript.SPARK_LENGTH_M
 
 	var proc := ParticleProcessMaterial.new()
-	proc.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	proc.emission_sphere_radius = emission_radius
-	proc.direction = Vector3(0.0, 1.0, 0.0)
-	proc.spread = 45.0
-	proc.initial_velocity_min = initial_velocity_min
-	proc.initial_velocity_max = initial_velocity_max
-	proc.gravity = Vector3(0.0, -1.5, 0.0)
-	proc.damping_min = 0.6
-	proc.damping_max = 1.0
-	proc.scale_min = scale_min
-	proc.scale_max = scale_max
-	DroneHitSparkVfxScript.configure_spark_process(proc)
+	SparkParticleVfxScript.configure_looping_process(proc)
+	if emission_radius >= 0.0:
+		proc.emission_sphere_radius = emission_radius
+	if scale_min >= 0.0:
+		proc.scale_min = scale_min
+	if scale_max >= 0.0:
+		proc.scale_max = scale_max
+	if initial_velocity_min >= 0.0:
+		proc.initial_velocity_min = initial_velocity_min
+	if initial_velocity_max >= 0.0:
+		proc.initial_velocity_max = initial_velocity_max
 
 	var sparks := GPUParticles3D.new()
 	sparks.name = node_name
 	sparks.position = local_offset
 	sparks.scale = Vector3.ONE * scale_compensation
 	sparks.emitting = true
-	sparks.amount = particle_amount
-	sparks.lifetime = particle_lifetime
 	sparks.one_shot = false
-	sparks.randomness = 0.55
-	sparks.visibility_aabb = visibility_aabb
-	sparks.local_coords = use_local_coords
 	sparks.amount_ratio = 1.0
 	sparks.process_material = proc
-	sparks.draw_pass_1 = DroneHitSparkVfxScript.make_spark_quad(mat, length_m)
+	sparks.draw_pass_1 = SparkParticleVfxScript.make_spark_quad(mat, length_m)
+	SparkParticleVfxScript.configure_looping_emitter(
+		sparks,
+		particle_amount,
+		particle_lifetime,
+		use_local_coords
+	)
+	if visibility_aabb != SparkParticleVfxScript.LOOPING_VISIBILITY_AABB:
+		sparks.visibility_aabb = visibility_aabb
 	parent.add_child(sparks)
 	return sparks
 
 
 static func debris_spark_length_for_chunk(chunk_scale: float) -> float:
-	return DroneHitSparkVfxScript.SPARK_LENGTH_M * maxf(chunk_scale * DEBRIS_SPARK_LENGTH_SCALE, 2.0)
+	return SparkParticleVfxScript.SPARK_LENGTH_M * maxf(chunk_scale * DEBRIS_SPARK_LENGTH_SCALE, 2.0)
 
 
 static func debris_emission_radius_for_chunk(chunk_scale: float) -> float:

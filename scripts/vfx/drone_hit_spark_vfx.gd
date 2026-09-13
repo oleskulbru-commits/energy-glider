@@ -4,31 +4,24 @@ extends Node3D
 ## One-shot emissive sparks on drone hits.
 
 const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
-const SPARK_MATERIAL := preload("res://assets/materials/vfx/drone_hit_spark.tres")
+const SparkParticleVfxScript := preload("res://scripts/vfx/spark_particle_vfx.gd")
 
 const LIFETIME_SEC := 0.3
 const FREE_BUFFER_SEC := 0.1
 const DEFAULT_GLOW_STRENGTH := 5.0
-## sparks_texture.png is 32x16 (2:1 wide); mesh height is the streak axis for align_y.
-const SPARK_TEX_ASPECT := 2.0
-const SPARK_LENGTH_M := 0.08
-const SPARK_WIDTH_M := SPARK_LENGTH_M / SPARK_TEX_ASPECT
+const SPARK_TEX_ASPECT := SparkParticleVfxScript.SPARK_TEX_ASPECT
+const SPARK_LENGTH_M := SparkParticleVfxScript.SPARK_LENGTH_M
 
 
 static func make_spark_quad(
 	material: ShaderMaterial,
 	length_m: float = SPARK_LENGTH_M
 ) -> QuadMesh:
-	var quad := QuadMesh.new()
-	quad.size = Vector2(length_m / SPARK_TEX_ASPECT, length_m)
-	quad.material = material
-	return quad
+	return SparkParticleVfxScript.make_spark_quad(material, length_m)
 
 
 static func configure_spark_process(proc: ParticleProcessMaterial) -> void:
-	proc.particle_flag_align_y = true
-	proc.angle_min = 0.0
-	proc.angle_max = 0.0
+	SparkParticleVfxScript.configure_spark_process(proc)
 
 
 static func spawn(
@@ -61,10 +54,7 @@ func _build_burst(
 	glow_strength: float,
 	spark_length_m: float = SPARK_LENGTH_M
 ) -> void:
-	var mat := SPARK_MATERIAL.duplicate() as ShaderMaterial
-	if mat != null:
-		mat.set_shader_parameter("ColorParameter", spark_color)
-		mat.set_shader_parameter("GlowStrength", glow_strength)
+	var mat := SparkParticleVfxScript.tinted_material(spark_color, glow_strength)
 
 	var proc := ParticleProcessMaterial.new()
 	proc.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
