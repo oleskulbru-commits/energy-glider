@@ -17,7 +17,7 @@ const SPREAD_RADIUS_M := 400.0
 const SPREAD_WAIT_SEC := 6.0
 const CHILD_FORM_SEC := 6.0
 const PLACE_TRIES := 64
-const RELOCATE_PERIOD_SEC := 60.0
+const RELOCATE_PERIOD_SEC := 40.0
 const BURIED_WAIT_SEC := 2.0
 const MIN_RELOCATE_SEP_M := 100.0
 const BOSS_PLACE_TRIES := 128
@@ -27,13 +27,20 @@ const NIGHT_REGEN_PER_SEC := 30.0
 ## Daytime sphere army. Clock night uses the crawler-style stream instead.
 const SCARAB_CAP := 500
 const SCARAB_DAY_RATE := 1.0
-const ESCAPE_EVERY := 10
+const ESCAPE_EVERY := 5
 const SCARAB_LIVE_ENTER_PAD_M := 100.0
 const SCARAB_LIVE_LEAVE_PAD_M := 140.0
 const MATERIALIZE_PER_FRAME := 24
+const FINGER_TELEGRAPH_SEC := 20.0
+const FINGER_FOLLOW_SEC := 2.0
+const FINGER_LOCK_WAIT_SEC := 0.8
+const FINGER_LOCK_WAIT_STEP_SEC := 0.2
+const FINGER_HOMING_INDEX := 3
 
 const NightScarabScene := preload("res://scenes/enemies/night_scarab.tscn")
 const NightScarabScript := preload("res://scripts/enemies/night_scarab.gd")
+const FingerScene := preload("res://scenes/enemies/sun_eater_finger.tscn")
+const FingerReticleScript := preload("res://scripts/enemies/finger_reticle.gd")
 
 var tower_index := 0
 var _pill: MeshInstance3D
@@ -66,6 +73,16 @@ var _spawn_counts: Dictionary = {}
 var _volume_hot: Dictionary = {}
 var _virtual_counts: Dictionary = {}
 var _regen_accum := 0.0
+var _finger_used_this_stand := false
+var _finger_phase := 0
+var _finger_phase_t := 0.0
+var _finger_reticle
+var _finger_reticles: Array = []
+var _fingers: Array = []
+var _finger_launched: Array[bool] = []
+var _finger_locked: Array[bool] = []
+var _finger_impacts: Array[Vector3] = []
+var _suppress_damage_float := false
 
 
 func _ready() -> void:
@@ -121,6 +138,7 @@ func begin_ascent(ground_y: float) -> void:
 	_volume_hot.clear()
 	_virtual_counts.clear()
 	_regen_accum = 0.0
+	_reset_finger_stand()
 	_clear_scarabs()
 	_clear_child_spheres()
 	global_position.y = buried_y(ground_y)
@@ -296,8 +314,287 @@ func take_damage(
 	return killed
 
 
+func apply_finger_hit(
+	amount: int,
+	hit_dir: Vector3 = Vector3.ZERO,
+	is_crit: bool = false,
+	weapon_family: StringName = &""
+) -> bool:
+	_suppress_damage_float = true
+	var killed := take_damage(amount, hit_dir, is_crit, 0.0, weapon_family)
+	_suppress_damage_float = false
+	return killed
+
+
 func hit_radius() -> float:
 	return RADIUS_M
+
+
+func finger_reticle():
+	for reticle in _finger_reticles:
+		if reticle != null and is_instance_valid(reticle) and reticle.is_following():
+			return reticle
+	for i in range(_finger_reticles.size() - 1, -1, -1):
+		var reticle = _finger_reticles[i]
+		if reticle != null and is_instance_valid(reticle):
+			return reticle
+	if _finger_reticle != null and is_instance_valid(_finger_reticle):
+		return _finger_reticle
+	return null
+
+
+func finger_reticles() -> Array:
+	var living: Array = []
+	for reticle in _finger_reticles:
+		if reticle != null and is_instance_valid(reticle):
+			living.append(reticle)
+	return living
+
+
+func living_finger():
+	var spears := living_fingers()
+	if spears.is_empty():
+		return null
+	return spears[0]
+
+
+func living_fingers() -> Array:
+	_cull_fingers()
+	return _fingers.duplicate()
+
+
+func finger_used_this_stand() -> bool:
+	return _finger_used_this_stand
+
+
+static func finger_count_for_stand(relocate_count: int) -> int:
+	return 1 + maxi(relocate_count, 0)
+
+
+static func finger_lock_wait_sec(index: int) -> float:
+	if finger_is_homing(index):
+		return 0.0
+	return maxf(
+		0.0,
+		FINGER_LOCK_WAIT_SEC - FINGER_LOCK_WAIT_STEP_SEC * float(maxi(index, 0))
+	)
+
+
+static func finger_is_homing(index: int) -> bool:
+	return index >= FINGER_HOMING_INDEX
+
+
+static func finger_slam_sec(index: int) -> float:
+	return FINGER_LOCK_WAIT_SEC + FINGER_LOCK_WAIT_STEP_SEC * float(maxi(index, 0))
+
+
+static func finger_lock_sec(index: int) -> float:
+	return maxf(0.0, finger_slam_sec(index) - finger_lock_wait_sec(index))
+
+
+func _tick_finger(delta: float) -> void:
+	_cull_fingers()
+	if not _is_standing():
+		return
+	if _finger_phase == 0:
+		if _finger_used_this_stand or _stand_t < FINGER_TELEGRAPH_SEC:
+			return
+		_begin_finger_follow()
+		return
+	_finger_phase_t += delta
+	if _finger_phase == 1:
+		if _finger_phase_t < FINGER_FOLLOW_SEC:
+			return
+		_begin_finger_volley()
+		return
+	if _finger_phase == 2:
+		_tick_finger_launches()
+
+
+func _begin_finger_follow() -> void:
+	_finger_used_this_stand = true
+	_finger_phase = 1
+	_finger_phase_t = 0.0
+	var reticle = _spawn_following_reticle()
+	_finger_reticle = reticle
+	_finger_reticles = [reticle]
+
+
+func _spawn_following_reticle():
+	_resolve_hunt_target()
+	var reticle := FingerReticleScript.new()
+	_world_host().add_child(reticle)
+	reticle.configure(_target, _terrain)
+	if _target == null or not is_instance_valid(_target):
+		var ground := Vector3(
+			global_position.x,
+			_ground_y + FingerReticleScript.GROUND_LIFT_M,
+			global_position.z
+		)
+		reticle.global_position = ground
+	return reticle
+
+
+func _begin_finger_volley() -> void:
+	var count := finger_count_for_stand(_relocate_count)
+	_finger_launched.clear()
+	_finger_locked.clear()
+	_finger_impacts.clear()
+	for _i in count:
+		_finger_launched.append(false)
+		_finger_locked.append(false)
+		_finger_impacts.append(Vector3.ZERO)
+	_finger_phase = 2
+	_finger_phase_t = 0.0
+	_tick_finger_launches()
+
+
+func _tick_finger_launches() -> void:
+	for i in _finger_launched.size():
+		if (
+			not finger_is_homing(i)
+			and not _finger_locked[i]
+			and _finger_phase_t + 0.0001 >= finger_lock_sec(i)
+		):
+			_lock_finger_at(i)
+		if _finger_launched[i]:
+			continue
+		if _finger_phase_t + 0.0001 < finger_slam_sec(i):
+			continue
+		_spawn_finger(i)
+		_finger_launched[i] = true
+	for i in _finger_launched.size():
+		if not _finger_launched[i]:
+			return
+	_clear_finger_reticle()
+	_finger_phase = 3
+
+
+func _lock_finger_at(index: int) -> void:
+	var reticle = _reticle_at(index)
+	if reticle == null:
+		reticle = _spawn_following_reticle()
+		_store_finger_reticle(index, reticle)
+	reticle.lock()
+	_finger_impacts[index] = _finger_impact_point_from(reticle)
+	_finger_locked[index] = true
+	if index + 1 < _finger_launched.size() and _reticle_at(index + 1) == null:
+		var follower = _spawn_following_reticle()
+		_store_finger_reticle(index + 1, follower)
+		_finger_reticle = follower
+	else:
+		_finger_reticle = finger_reticle()
+
+
+func _store_finger_reticle(index: int, reticle) -> void:
+	while _finger_reticles.size() <= index:
+		_finger_reticles.append(null)
+	_finger_reticles[index] = reticle
+
+
+func _reticle_at(index: int):
+	if index < 0 or index >= _finger_reticles.size():
+		return null
+	var reticle = _finger_reticles[index]
+	if reticle != null and is_instance_valid(reticle):
+		return reticle
+	return null
+
+
+func _spawn_finger(index: int) -> void:
+	var from := Vector3(global_position.x, global_position.y + HEIGHT_M, global_position.z)
+	var finger = FingerScene.instantiate()
+	_world_host().add_child(finger)
+	finger.top_level = true
+	finger.configure(_terrain, _target, 0.0)
+	var homing := finger_is_homing(index)
+	var reticle = _reticle_at(index)
+	var impact := Vector3.ZERO
+	if not homing and index >= 0 and index < _finger_impacts.size():
+		impact = _finger_impacts[index]
+	if impact == Vector3.ZERO:
+		impact = _finger_impact_point_from(reticle)
+	if homing:
+		finger.begin_slam(self, from, impact, reticle, true)
+		if index >= 0 and index < _finger_reticles.size():
+			_finger_reticles[index] = null
+		if index + 1 < _finger_launched.size() and _reticle_at(index + 1) == null:
+			var follower = _spawn_following_reticle()
+			_store_finger_reticle(index + 1, follower)
+			_finger_reticle = follower
+		elif _finger_reticle == reticle:
+			_finger_reticle = finger_reticle()
+	else:
+		finger.begin_slam(self, from, impact, null, false)
+		_free_finger_reticle_at(index)
+	_fingers.append(finger)
+
+
+func _finger_impact_point_from(reticle) -> Vector3:
+	var pos := Vector3(global_position.x, _ground_y, global_position.z)
+	if reticle != null and is_instance_valid(reticle):
+		pos = reticle.locked_position()
+	elif _target != null and is_instance_valid(_target):
+		pos = _target.global_position
+	var ground_y := _ground_y
+	if _terrain != null:
+		ground_y = _terrain.sample_height(pos.x, pos.z)
+	else:
+		ground_y = pos.y
+	return Vector3(pos.x, ground_y, pos.z)
+
+
+func _world_host() -> Node:
+	var tree := get_tree()
+	if tree != null and tree.current_scene != null:
+		return tree.current_scene
+	return _scarab_host()
+
+
+func _reset_finger_stand() -> void:
+	_clear_finger()
+	_finger_used_this_stand = false
+	_finger_phase = 0
+	_finger_phase_t = 0.0
+
+
+func _cull_fingers() -> void:
+	var living: Array = []
+	for finger in _fingers:
+		if finger != null and is_instance_valid(finger):
+			living.append(finger)
+	_fingers = living
+
+
+func _free_finger_reticle_at(index: int) -> void:
+	var reticle = _reticle_at(index)
+	if reticle != null:
+		reticle.queue_free()
+	if index >= 0 and index < _finger_reticles.size():
+		_finger_reticles[index] = null
+	if _finger_reticle == reticle:
+		_finger_reticle = finger_reticle()
+
+
+func _clear_finger_reticle() -> void:
+	for reticle in _finger_reticles:
+		if reticle != null and is_instance_valid(reticle):
+			reticle.queue_free()
+	_finger_reticles.clear()
+	_finger_reticle = null
+
+
+func _clear_finger() -> void:
+	_clear_finger_reticle()
+	for finger in _fingers:
+		if finger != null and is_instance_valid(finger):
+			finger.queue_free()
+	_fingers.clear()
+	_finger_launched.clear()
+	_finger_locked.clear()
+	_finger_impacts.clear()
+	_finger_phase = 0
+	_finger_phase_t = 0.0
 
 
 func _physics_process(delta: float) -> void:
@@ -318,6 +615,7 @@ func _physics_process(delta: float) -> void:
 		_stand_t += delta
 		if _stand_t >= RELOCATE_PERIOD_SEC:
 			_begin_sink()
+	_tick_finger(delta)
 	_tick_scarab_spawns(delta)
 	_tick_night_regen(delta)
 	_sync_night_volume()
@@ -348,6 +646,7 @@ func _die(_from_pos: Vector3) -> void:
 		if _night_volume.get_parent() != self:
 			_night_volume.queue_free()
 	_night_volume = null
+	_clear_finger()
 	_clear_scarabs()
 	_clear_child_spheres()
 	died.emit()
@@ -355,6 +654,8 @@ func _die(_from_pos: Vector3) -> void:
 
 
 func _spawn_damage_float(amount: int, is_crit: bool = false) -> void:
+	if _suppress_damage_float:
+		return
 	DamageFloat.spawn_world(self, amount, _rng, DAMAGE_FLOAT_Y_M, is_crit)
 
 
@@ -424,6 +725,7 @@ func _begin_sink() -> void:
 	if _sinking or _buried_waiting or _rising:
 		return
 	_detach_follow_sphere()
+	_clear_finger()
 	_sinking = true
 	_bringing_night = false
 	_spreading = false
@@ -445,6 +747,7 @@ func _begin_relocate_ascent() -> void:
 	_rise_t = 0.0
 	_rising = true
 	_stand_t = 0.0
+	_reset_finger_stand()
 
 
 func _apply_relocate_position(xz: Vector2) -> void:
@@ -799,6 +1102,7 @@ func _clear_scarabs() -> void:
 
 
 func _exit_tree() -> void:
+	_clear_finger()
 	_clear_scarabs()
 	_clear_child_spheres()
 	if _night_volume != null and is_instance_valid(_night_volume) and _night_volume.get_parent() != self:

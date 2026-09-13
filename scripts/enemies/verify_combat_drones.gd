@@ -411,7 +411,7 @@ func _verify_laser_drone_weapon_magnet() -> void:
 	_fail_unless(shotgun_pick == laser, "Shotgun should magnet to in-range laser drone")
 
 	var bounce := AutoRifleScript.pick_bounce_target(
-		pills, origin, 50.0, exclude, rng
+		pills, origin, 50.0, {}, rng
 	)
 	_fail_unless(
 		bounce == laser,

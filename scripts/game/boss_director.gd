@@ -10,8 +10,8 @@ signal boss_despawned
 const SunEaterScene := preload("res://scenes/enemies/sun_eater.tscn")
 const EonDirectorScript := preload("res://scripts/game/eon_director.gd")
 
-## Westbound bosses. First is at tower 1 for testing; later fights stay on 16/24/32/40.
-const BOSS_TOWER_INDEXES: Array[int] = [1, 16, 24, 32, 40]
+## Westbound bosses at every 8th tower. First fight is tower 8.
+const BOSS_TOWER_INDEXES: Array[int] = [8, 16, 24, 32, 40]
 const BOSS_INTERVAL := 8
 const HP_PER_ORDINAL := 5000
 const SPAWN_TRIGGER_EAST_M := 200.0

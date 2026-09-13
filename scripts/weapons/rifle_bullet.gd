@@ -179,7 +179,7 @@ func _on_body_entered(body: Node) -> void:
 	)
 	if killed:
 		KillSparks.spawn(get_tree(), pill.global_position)
-	if _try_bounce(pill.global_position):
+	if _try_bounce(WeaponTargeting.lock_point(pill, global_position)):
 		return
 	_spent = true
 	queue_free()

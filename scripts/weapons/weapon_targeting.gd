@@ -1,11 +1,12 @@
 class_name WeaponTargeting
 extends RefCounted
 
-## Living magnets steal every weapon lock while in range. Boss beats the red drone.
+## Living magnets steal every weapon lock while in range. The Finger beats the boss; the boss beats the red drone.
 
 const LASER_DRONE_GROUP := "laser_drone"
 const BOSS_GROUP := "boss"
-const MAGNET_GROUPS: Array[StringName] = [BOSS_GROUP, LASER_DRONE_GROUP]
+const FINGER_GROUP := "sun_eater_finger"
+const MAGNET_GROUPS: Array[StringName] = [FINGER_GROUP, BOSS_GROUP, LASER_DRONE_GROUP]
 
 
 static func lock_point(target: Node3D, from: Vector3) -> Vector3:
@@ -49,7 +50,7 @@ static func find_magnet(
 	return null
 
 
-## Kept for existing weapon call sites. Boss outranks the red drone.
+## Kept for existing weapon call sites. Finger outranks the boss, which outranks the red drone.
 static func find_laser_drone_magnet(
 	pills: Array,
 	origin: Vector3,
@@ -64,10 +65,11 @@ static func find_laser_drone_magnet(
 static func find_magnet_bounce(
 	pills: Array,
 	from: Vector3,
-	bounce_range: float
+	bounce_range: float,
+	exclude: Dictionary = {}
 ) -> Node3D:
 	for group in MAGNET_GROUPS:
-		var magnet := _find_group_magnet_bounce(group, pills, from, bounce_range)
+		var magnet := _find_group_magnet_bounce(group, pills, from, bounce_range, exclude)
 		if magnet != null:
 			return magnet
 	return null
@@ -76,9 +78,10 @@ static func find_magnet_bounce(
 static func find_laser_drone_magnet_bounce(
 	pills: Array,
 	from: Vector3,
-	bounce_range: float
+	bounce_range: float,
+	exclude: Dictionary = {}
 ) -> Node3D:
-	return find_magnet_bounce(pills, from, bounce_range)
+	return find_magnet_bounce(pills, from, bounce_range, exclude)
 
 
 static func _find_group_magnet(
@@ -118,7 +121,8 @@ static func _find_group_magnet_bounce(
 	group: StringName,
 	pills: Array,
 	from: Vector3,
-	bounce_range: float
+	bounce_range: float,
+	exclude: Dictionary = {}
 ) -> Node3D:
 	for node in pills:
 		if node == null or not is_instance_valid(node):
@@ -127,6 +131,8 @@ static func _find_group_magnet_bounce(
 			continue
 		var pill := node as SwarmPill
 		if pill == null or not pill.is_alive():
+			continue
+		if exclude.has(pill.get_instance_id()):
 			continue
 		if AutoRifle.xz_distance(from, lock_point(pill, from)) > bounce_range:
 			continue

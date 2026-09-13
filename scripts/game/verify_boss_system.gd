@@ -19,6 +19,8 @@ const AutoRocketScript := preload("res://scripts/weapons/auto_rocket.gd")
 const WeaponTargetingScript := preload("res://scripts/weapons/weapon_targeting.gd")
 const RifleBulletScript := preload("res://scripts/weapons/rifle_bullet.gd")
 const SwarmPillScript := preload("res://scripts/enemies/swarm_pill.gd")
+const FingerScript := preload("res://scripts/enemies/sun_eater_finger.gd")
+const DamageFloatScript := preload("res://scripts/ui/damage_float.gd")
 
 var _failed := false
 
@@ -33,6 +35,7 @@ func _run() -> void:
 	_verify_encounter_gates()
 	_verify_ascent_and_hp_lock()
 	_verify_boss_targeting()
+	_verify_finger_mechanic()
 	_verify_night_volume()
 	_verify_night_spread()
 	_verify_night_scarabs()
@@ -48,20 +51,20 @@ func _run() -> void:
 
 
 func _verify_indexes_and_hp() -> void:
-	for index in [1, 16, 24, 32, 40]:
+	for index in [8, 16, 24, 32, 40]:
 		_fail_unless(
 			BossDirectorScript.is_boss_tower(index),
 			"Tower %d should be a boss tower" % index
 		)
-	for index in [0, 2, 7, 8, 9, 15, 17, 23, 25, 31, 33, 39, 41, 1004]:
+	for index in [0, 1, 2, 7, 9, 15, 17, 23, 25, 31, 33, 39, 41, 1004]:
 		_fail_unless(
 			not BossDirectorScript.is_boss_tower(index),
 			"Tower %d should not be a boss tower" % index
 		)
-	_fail_unless(BossDirectorScript.boss_ordinal(1) == 1, "First boss ordinal should be 1")
+	_fail_unless(BossDirectorScript.boss_ordinal(8) == 1, "First boss ordinal should be 1")
 	_fail_unless(BossDirectorScript.boss_ordinal(40) == 5, "Fifth boss ordinal should be 5")
 	_fail_unless(
-		BossDirectorScript.max_health_for_tower(1) == 5000,
+		BossDirectorScript.max_health_for_tower(8) == 5000,
 		"First boss should have 5000 HP"
 	)
 	_fail_unless(
@@ -116,11 +119,11 @@ func _verify_spawn_geometry() -> void:
 func _verify_encounter_gates() -> void:
 	var empty: Dictionary = {}
 	_fail_unless(
-		BossDirectorScript.can_start_encounter(1, false, empty),
+		BossDirectorScript.can_start_encounter(8, false, empty),
 		"First boss should spawn when none are living"
 	)
 	_fail_unless(
-		not BossDirectorScript.can_start_encounter(1, true, empty),
+		not BossDirectorScript.can_start_encounter(8, true, empty),
 		"A new boss should not spawn while another is alive"
 	)
 	_fail_unless(
@@ -128,11 +131,11 @@ func _verify_encounter_gates() -> void:
 		"Second boss should wait until the first is defeated"
 	)
 	_fail_unless(
-		BossDirectorScript.can_start_encounter(16, false, {1: true}),
+		BossDirectorScript.can_start_encounter(16, false, {8: true}),
 		"Second boss should spawn after the first is defeated"
 	)
 	_fail_unless(
-		not BossDirectorScript.can_start_encounter(1, false, {1: true}),
+		not BossDirectorScript.can_start_encounter(8, false, {8: true}),
 		"A defeated boss should not spawn again"
 	)
 	_fail_unless(
@@ -151,8 +154,8 @@ func _verify_ascent_and_hp_lock() -> void:
 		"Bring the Night should fade in over 8 seconds after ascent"
 	)
 	_fail_unless(
-		is_equal_approx(SunEaterScript.RELOCATE_PERIOD_SEC, 60.0),
-		"Boss should relocate after 60 seconds standing"
+		is_equal_approx(SunEaterScript.RELOCATE_PERIOD_SEC, 40.0),
+		"Boss should relocate after 40 seconds standing"
 	)
 	_fail_unless(
 		is_equal_approx(SunEaterScript.BURIED_WAIT_SEC, 2.0),
@@ -340,6 +343,12 @@ func _verify_boss_targeting() -> void:
 	)
 	var bounce := AutoRifleScript.pick_bounce_target(swarm, muzzle, 50.0, {}, rng)
 	_fail_unless(bounce == boss, "Bounce chains should magnet to the Sun Eater while it lives")
+	var hit_boss: Dictionary = {}
+	hit_boss[boss.get_instance_id()] = true
+	var bounce_off := AutoRifleScript.pick_bounce_target(swarm, muzzle, 50.0, hit_boss, rng)
+	_fail_unless(bounce_off == wall, "A bounce off the Sun Eater should chain to another pill")
+	var chain := AutoRifleScript.build_bounce_chain(boss, swarm, 1, 50.0, rng)
+	_fail_unless(chain.size() == 1 and chain[0] == wall, "Rifle bounce from the boss should not retarget the boss")
 	var drone := SwarmPillScript.new()
 	root.add_child(drone)
 	drone.add_to_group(WeaponTargetingScript.LASER_DRONE_GROUP)
@@ -369,6 +378,215 @@ func _verify_boss_targeting() -> void:
 	drone.free()
 	wall.free()
 	boss.free()
+
+
+func _verify_finger_mechanic() -> void:
+	_fail_unless(is_equal_approx(SunEaterScript.FINGER_TELEGRAPH_SEC, 20.0), "Finger telegraph should start at 20 s")
+	_fail_unless(is_equal_approx(SunEaterScript.FINGER_FOLLOW_SEC, 2.0), "Finger reticle should follow for 2 s")
+	_fail_unless(is_equal_approx(SunEaterScript.FINGER_LOCK_WAIT_SEC, 0.8), "Locked reticle should wait 0.8 s before the slam")
+	_fail_unless(SunEaterScript.finger_count_for_stand(0) == 1, "First stand should fire one Finger")
+	_fail_unless(SunEaterScript.finger_count_for_stand(1) == 2, "Second stand should fire two Fingers")
+	_fail_unless(SunEaterScript.finger_count_for_stand(2) == 3, "Third stand should fire three Fingers")
+	_fail_unless(is_equal_approx(SunEaterScript.finger_lock_wait_sec(0), 0.8), "The original Finger should give 0.8 s to dodge")
+	_fail_unless(is_equal_approx(SunEaterScript.finger_lock_wait_sec(1), 0.6), "The second Finger should lock-to-slam in 0.6 s")
+	_fail_unless(is_equal_approx(SunEaterScript.finger_lock_wait_sec(2), 0.4), "The third Finger should lock-to-slam in 0.4 s")
+	_fail_unless(is_equal_approx(SunEaterScript.finger_lock_wait_sec(3), 0.0), "The fourth Finger should home with no lock wait")
+	_fail_unless(not SunEaterScript.finger_is_homing(2), "The third Finger should still lock")
+	_fail_unless(SunEaterScript.finger_is_homing(3), "The fourth Finger should home")
+	_fail_unless(SunEaterScript.finger_is_homing(5), "Later Fingers should keep homing")
+	_fail_unless(is_equal_approx(SunEaterScript.finger_slam_sec(0), 0.8), "The original Finger should land after 0.8 s")
+	_fail_unless(is_equal_approx(SunEaterScript.finger_slam_sec(1), 1.0), "The second Finger should land 0.2 s after the first")
+	_fail_unless(is_equal_approx(SunEaterScript.finger_slam_sec(3), 1.4), "The homing Finger should slam 0.6 s after the first")
+	_fail_unless(is_equal_approx(SunEaterScript.finger_lock_sec(0), 0.0), "The original Finger should lock as soon as follow ends")
+	_fail_unless(is_equal_approx(SunEaterScript.finger_lock_sec(1), 0.4), "The second Finger should keep following for 0.4 s after the first locks")
+	_fail_unless(is_equal_approx(SunEaterScript.finger_lock_sec(2), 0.8), "The third Finger should keep following for 0.8 s after the first locks")
+	_fail_unless(SunEaterScript.finger_count_for_stand(3) == 4, "Three resurfaces should fire four Fingers")
+	_fail_unless(is_equal_approx(FingerScript.LINGER_SEC, 10.0), "Embedded Finger should stay 10 s")
+	_fail_unless(is_equal_approx(FingerScript.FADE_SEC, 1.0), "Finger should fade over 1 s")
+	_fail_unless(is_equal_approx(FingerScript.IMPACT_RADIUS_M, 10.0), "Finger blast should be a 10 m disk")
+	_fail_unless(FingerScript.CENTER_DAMAGE == 100, "Finger center damage should be 100")
+	_fail_unless(FingerScript.EDGE_DAMAGE == 30, "Finger edge damage should be 30")
+	_fail_unless(FingerScript.impact_damage_at(0.0) == 100, "Center of the slam should deal 100")
+	_fail_unless(FingerScript.impact_damage_at(5.0) == 65, "Mid-radius slam should deal 65")
+	_fail_unless(FingerScript.impact_damage_at(10.0) == 30, "Rim of the slam should deal 30")
+	_fail_unless(FingerScript.impact_damage_at(10.01) == 0, "Outside the 10 m disk should deal no slam damage")
+	var forced := FingerScript.redirect_hit(10, false)
+	_fail_unless(int(forced["amount"]) == 20 and bool(forced["is_crit"]), "A non-crit into the Finger should become a 2x crit")
+	var natural := FingerScript.redirect_hit(20, true)
+	_fail_unless(int(natural["amount"]) == 30 and bool(natural["is_crit"]), "A natural crit into the Finger should become 3x")
+	_fail_unless(
+		WeaponTargetingScript.MAGNET_GROUPS[0] == WeaponTargetingScript.FINGER_GROUP,
+		"The Finger should magnet ahead of the boss"
+	)
+
+	var hunter := Node3D.new()
+	root.add_child(hunter)
+	hunter.global_position = Vector3(120.0, 12.0, 50.0)
+	var boss: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(boss)
+	boss.global_position = Vector3(100.0, 0.0, 50.0)
+	boss.configure(null, hunter)
+	boss.configure_encounter(1, 5000)
+	boss.begin_ascent(12.0)
+	boss._physics_process(3.0)
+	boss._physics_process(16.0)
+	_fail_unless(boss.finger_reticle() == null, "Finger reticle should not appear before 20 s of standing")
+	boss._physics_process(1.0)
+	var reticle = boss.finger_reticle()
+	_fail_unless(reticle != null, "Finger reticle should appear at 20 s of standing")
+	_fail_unless(reticle.is_following(), "Finger reticle should follow the player at first")
+	_fail_unless(
+		Vector2(reticle.global_position.x - 120.0, reticle.global_position.z - 50.0).length() < 0.2,
+		"Follow reticle should sit on the player"
+	)
+	hunter.global_position = Vector3(130.0, 12.0, 55.0)
+	reticle._physics_process(0.016)
+	_fail_unless(
+		Vector2(reticle.global_position.x - 130.0, reticle.global_position.z - 55.0).length() < 0.2,
+		"Follow reticle should stay locked to the moving player"
+	)
+	boss._physics_process(2.0)
+	_fail_unless(reticle.is_locked(), "Finger reticle should lock after 2 s")
+	var locked: Vector3 = reticle.locked_position()
+	hunter.global_position = Vector3(200.0, 12.0, 80.0)
+	reticle._physics_process(0.016)
+	_fail_unless(
+		reticle.locked_position().is_equal_approx(locked),
+		"Locked reticle should stop following the player"
+	)
+	boss._physics_process(0.7)
+	_fail_unless(boss.living_finger() == null, "The first stand should not slam before 0.8 s")
+	_fail_unless(boss.living_fingers().is_empty(), "The first stand should fire only one Finger")
+	boss._physics_process(0.1)
+	var finger = boss.living_finger()
+	_fail_unless(finger != null, "The Finger should spawn after the 0.8 s lock wait")
+	_fail_unless(finger.is_in_group(WeaponTargetingScript.FINGER_GROUP), "The Finger should join its magnet group")
+	_fail_unless(not finger.is_in_group("boss"), "The Finger must not count as a second boss")
+	_fail_unless(finger.is_slamming(), "The Finger should slam down from the boss")
+	finger._physics_process(FingerScript.SLAM_SEC)
+	_fail_unless(finger.is_embedded(), "The Finger should embed after the slam")
+	_fail_unless(finger.is_alive(), "An embedded Finger should be targetable")
+
+	var muzzle := Vector3(142.0, 2.0, 55.0)
+	var facing := Vector3(-1.0, 0.0, 0.0)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 2
+	var pills: Array = [boss, finger]
+	_fail_unless(
+		AutoRifleScript.pick_target(pills, muzzle, facing, AutoRifleScript.RANGE_M, rng) == finger,
+		"Rifle should magnet to the Finger over the boss"
+	)
+	_fail_unless(
+		AutoShotgunScript.pick_target(pills, muzzle, facing, AutoShotgunScript.RANGE_M, rng) == finger,
+		"Shotgun should magnet to the Finger over the boss"
+	)
+	_fail_unless(
+		AutoLaserScript.pick_unique_target(pills, muzzle, facing, AutoLaserScript.RANGE_M, {}, rng)
+		== finger,
+		"Laser should magnet to the Finger over the boss"
+	)
+	_fail_unless(
+		AutoRocketScript.pick_best_target(pills, muzzle, facing, AutoRocketScript.RANGE_M) == finger,
+		"Rockets should magnet to the Finger over the boss"
+	)
+	var tesla_picks := AutoTeslaScript.pick_unique_targets(
+		pills, muzzle, facing, AutoTeslaScript.RANGE_M, 3, rng
+	)
+	_fail_unless(
+		tesla_picks.size() == 3 and tesla_picks[0] == finger,
+		"Tesla should magnet to the Finger over the boss"
+	)
+
+	var hp_before := boss.get_health()
+	finger.take_damage(10, Vector3.ZERO, false, 0.0, &"rifle")
+	_fail_unless(boss.get_health() == hp_before - 20, "A non-crit Finger hit should deal 2x to the boss")
+	_fail_unless(finger.get_health() == 1, "The Finger should not spend its own HP")
+	var float_near_finger := false
+	for node in root.get_tree().get_nodes_in_group(DamageFloatScript.GROUP):
+		var label := node as Label3D
+		if label == null:
+			continue
+		var host := label.get_parent() as Node3D
+		if host == null:
+			continue
+		var to_finger := Vector2(
+			host.global_position.x - finger.global_position.x,
+			host.global_position.z - finger.global_position.z
+		)
+		var to_boss := Vector2(
+			host.global_position.x - boss.global_position.x,
+			host.global_position.z - boss.global_position.z
+		)
+		if to_finger.length() < to_boss.length() and label.text == "20":
+			float_near_finger = true
+			break
+	_fail_unless(float_near_finger, "Finger hits should show crit numbers on the spear")
+	finger.take_damage(20, Vector3.ZERO, true, 0.0, &"rifle")
+	_fail_unless(boss.get_health() == hp_before - 50, "A natural crit Finger hit should deal 3x to the boss")
+
+	finger._physics_process(FingerScript.LINGER_SEC)
+	_fail_unless(finger.is_alive(), "The Finger should stay targetable after 10 s")
+	_fail_unless(finger.is_fading(), "The Finger should start fading 10 s after embed")
+	finger._physics_process(FingerScript.FADE_SEC)
+	_fail_unless(not finger.is_alive(), "The Finger should despawn after the fade")
+	_fail_unless(finger.is_queued_for_deletion(), "The faded Finger should leave the world")
+	_fail_unless(boss.finger_used_this_stand(), "A stand should only fire The Finger once")
+	boss._physics_process(1.0)
+	_fail_unless(boss.finger_reticle() == null, "The same stand must not start a second Finger")
+
+	boss._begin_relocate_ascent()
+	_fail_unless(not boss.finger_used_this_stand(), "A new location should allow The Finger again")
+	hunter.global_position = Vector3(boss.global_position.x + 10.0, 12.0, boss.global_position.z)
+	boss._physics_process(3.0)
+	boss._physics_process(17.0)
+	_fail_unless(boss.finger_reticle() != null, "Relocate stands should telegraph The Finger again")
+	boss._physics_process(2.0)
+	var rings: Array = boss.finger_reticles()
+	_fail_unless(rings.size() == 2, "Second stand should show a locked ring and a chasing ring")
+	_fail_unless(rings[0].is_locked(), "The first ring should lock after 2 s")
+	_fail_unless(rings[1].is_following(), "The extra ring should keep following")
+	var first_lock: Vector3 = rings[0].locked_position()
+	hunter.global_position = Vector3(boss.global_position.x + 40.0, 12.0, boss.global_position.z + 25.0)
+	rings[1]._physics_process(0.016)
+	_fail_unless(rings[0].locked_position().is_equal_approx(first_lock), "The first ring should stay locked")
+	_fail_unless(
+		Vector2(rings[1].global_position.x - hunter.global_position.x, rings[1].global_position.z - hunter.global_position.z).length() < 0.2,
+		"The extra ring should chase the player"
+	)
+	boss._physics_process(0.7)
+	_fail_unless(boss.living_fingers().is_empty(), "Neither Finger should slam before 0.8 s")
+	_fail_unless(boss.finger_reticle() != null, "The extra warning ring should stay after it locks")
+	boss._physics_process(0.1)
+	_fail_unless(boss.living_fingers().size() == 1, "The original Finger should land at 0.8 s")
+	_fail_unless(boss.finger_reticle() != null, "The warning ring should stay until the last spear launches")
+	var first_volley = boss.living_fingers()[0]
+	boss._physics_process(0.2)
+	_fail_unless(boss.living_fingers().size() == 2, "The extra Finger should land 0.2 s after the original")
+	_fail_unless(boss.finger_reticle() == null, "The warning ring should clear after the last spear launches")
+	var second_volley = boss.living_fingers()[1]
+	var first_xz := Vector2(first_volley.slam_impact().x, first_volley.slam_impact().z)
+	var second_xz := Vector2(second_volley.slam_impact().x, second_volley.slam_impact().z)
+	_fail_unless(first_xz.distance_to(second_xz) > 1.0, "The extra Finger should lock closer to the moved player")
+	hunter.free()
+	boss.free()
+
+	var homing_hunter := Node3D.new()
+	root.add_child(homing_hunter)
+	homing_hunter.global_position = Vector3(0.0, 4.0, 0.0)
+	var homing := FingerScript.new()
+	root.add_child(homing)
+	homing.configure(null, homing_hunter, 0.0)
+	homing.begin_slam(null, Vector3(0.0, 40.0, 0.0), Vector3(0.0, 0.0, 0.0), null, true)
+	_fail_unless(homing.is_homing(), "The fourth Finger should track the player")
+	homing_hunter.global_position = Vector3(18.0, 4.0, 12.0)
+	homing._physics_process(FingerScript.SLAM_SEC)
+	_fail_unless(homing.is_embedded(), "A homing Finger should still embed")
+	_fail_unless(
+		Vector2(homing.slam_impact().x - 18.0, homing.slam_impact().z - 12.0).length() < 0.2,
+		"A homing Finger should land on the player"
+	)
+	homing.free()
+	homing_hunter.free()
 
 
 func _verify_night_volume() -> void:
@@ -602,9 +820,9 @@ func _verify_night_scarabs() -> void:
 	_fail_unless(SunEaterScript.MATERIALIZE_PER_FRAME == 24, "Approaching a sphere should restore at most 24 scarabs per frame")
 	_fail_unless(NightScarabScript.SCARAB_CONTACT_DAMAGE == 2, "Night scarabs should deal 2 damage")
 	_fail_unless(NightScarabScript.SCARAB_MAX_HEALTH == 15, "Night scarabs should have 15 HP")
-	_fail_unless(NightScarabScript.is_escape_spawn(10), "Every 10th scarab should be able to leave")
-	_fail_unless(not NightScarabScript.is_escape_spawn(9), "The 9th scarab should stay bound")
-	_fail_unless(NightScarabScript.is_escape_spawn(20), "The 20th scarab should be able to leave")
+	_fail_unless(NightScarabScript.is_escape_spawn(5), "Every 5th scarab should be able to leave")
+	_fail_unless(not NightScarabScript.is_escape_spawn(4), "The 4th scarab should stay bound")
+	_fail_unless(NightScarabScript.is_escape_spawn(10), "The 10th scarab should be able to leave")
 	_fail_unless(
 		not NightScarabScript.should_hunt_player(false, false),
 		"Bound scarabs should roam while the player is outside the sphere"
@@ -834,12 +1052,14 @@ func _verify_night_scarabs() -> void:
 	_fail_unless(not boss.living_scarabs()[0].is_unshackled(), "The first scarab should stay bound")
 	boss._physics_process(9.0)
 	_fail_unless(boss.living_scarab_count() == 10, "Ten seconds should yield ten scarabs from one sphere")
-	var tenth = boss.living_scarabs()[9]
-	_fail_unless(tenth.is_unshackled(), "Every 10th scarab should be able to leave the sphere")
-	for i in range(9):
+	_fail_unless(boss.living_scarabs()[4].is_unshackled(), "Every 5th scarab should be able to leave the sphere")
+	_fail_unless(boss.living_scarabs()[9].is_unshackled(), "The 10th scarab should also be able to leave")
+	for i in range(10):
+		if i == 4 or i == 9:
+			continue
 		_fail_unless(
 			not boss.living_scarabs()[i].is_unshackled(),
-			"Scarabs 1-9 should stay bound to their sphere"
+			"Non-fifth scarabs should stay bound to their sphere"
 		)
 	var night_volume := boss.get_node("NightVolume") as NightVolume
 	boss.begin_clock_night()
@@ -872,16 +1092,17 @@ func _verify_night_scarabs() -> void:
 	ghost._physics_process(0.016)
 	_fail_unless(not ghost.is_volume_hot(home), "A player 400 m away should leave the boss sphere cold")
 	ghost._physics_process(10.0)
-	_fail_unless(ghost.living_scarab_count() == 1, "The 10th daytime credit should still spawn an escaper")
-	_fail_unless(ghost.living_scarabs()[0].is_unshackled(), "Cold-sphere 10th scarab must be a living escaper")
-	_fail_unless(ghost.virtual_scarab_count(home) == 9, "Nine daytime credits should stay virtual")
+	_fail_unless(ghost.living_scarab_count() == 2, "Every 5th daytime credit should spawn an escaper")
+	_fail_unless(ghost.living_scarabs()[0].is_unshackled(), "Cold-sphere 5th scarab must be a living escaper")
+	_fail_unless(ghost.living_scarabs()[1].is_unshackled(), "Cold-sphere 10th scarab must be a living escaper")
+	_fail_unless(ghost.virtual_scarab_count(home) == 8, "Eight daytime credits should stay virtual")
 	_fail_unless(ghost.scarab_population() == 10, "Living plus virtual should count toward the 500 cap")
 
 	far_player.global_position = Vector3(100.0, 12.0, 50.0)
 	ghost._physics_process(0.016)
 	_fail_unless(ghost.is_volume_hot(home), "Entering radius+100 should heat the sphere")
 	_fail_unless(ghost.virtual_scarab_count(home) == 0, "Hot spheres should drain their virtual count")
-	_fail_unless(ghost.living_scarab_count() == 10, "Materialize should restore the bound army plus the escaper")
+	_fail_unless(ghost.living_scarab_count() == 10, "Materialize should restore the bound army plus the escapers")
 
 	far_player.global_position = Vector3(300.0, 12.0, 50.0)
 	ghost._physics_process(0.016)
@@ -890,9 +1111,10 @@ func _verify_night_scarabs() -> void:
 	far_player.global_position = Vector3(500.0, 12.0, 50.0)
 	ghost._physics_process(0.016)
 	_fail_unless(not ghost.is_volume_hot(home), "Leaving radius+140 should cool the sphere")
-	_fail_unless(ghost.living_scarab_count() == 1, "Folding should keep the daytime escaper")
-	_fail_unless(ghost.living_scarabs()[0].is_unshackled(), "The remaining living scarab should be the escaper")
-	_fail_unless(ghost.virtual_scarab_count(home) == 9, "Bound scarabs should return to the virtual count")
+	_fail_unless(ghost.living_scarab_count() == 2, "Folding should keep the daytime escapers")
+	_fail_unless(ghost.living_scarabs()[0].is_unshackled(), "A remaining living scarab should be an escaper")
+	_fail_unless(ghost.living_scarabs()[1].is_unshackled(), "Both remaining living scarabs should be escapers")
+	_fail_unless(ghost.virtual_scarab_count(home) == 8, "Bound scarabs should return to the virtual count")
 	ghost.free()
 	far_player.free()
 
@@ -962,8 +1184,8 @@ func _verify_boss_relocate() -> void:
 	_fail_unless(is_equal_approx(leftover.radius_m, 80.0), "First night sphere radius should be 80 m")
 	_fail_unless(boss.batch_size() == 1, "First stay should plant one child sphere at a time")
 	var scarabs_before := boss.living_scarab_count()
-	boss._physics_process(60.0)
-	_fail_unless(boss.is_sinking(), "Boss should start sinking after 60 seconds standing")
+	boss._physics_process(40.0)
+	_fail_unless(boss.is_sinking(), "Boss should start sinking after 40 seconds standing")
 	_fail_unless(not leftover.follow_host, "The old night sphere should stay behind as a static volume")
 	_fail_unless(leftover.is_spawn_ready(), "The leftover sphere should keep spawning scarabs")
 	_fail_unless(
@@ -1054,7 +1276,7 @@ func _verify_stream_halt() -> void:
 	_fail_unless(boss.is_blocking_stream(), "An ascended boss should block the regular stream")
 	boss._spread_full = true
 	boss._physics_process(8.0)
-	boss._physics_process(60.0)
+	boss._physics_process(40.0)
 	boss._physics_process(3.0)
 	_fail_unless(boss.is_buried_waiting(), "Boss should be underground after a relocate sink")
 	_fail_unless(boss.is_blocking_stream(), "Stream should stay halted while the boss is buried")
@@ -1097,7 +1319,7 @@ func _verify_boss_shop() -> void:
 		and int(weights[4]) == 125,
 		"Boss shop weights should be 50 / 37.5 / 12.5 rare/epic/legendary"
 	)
-	for tower_index in [1, 16, 24, 32, 40]:
+	for tower_index in [8, 16, 24, 32, 40]:
 		var shop := UpgradeCatalogScript.roll_shop(
 			1, tower_index, 20, true, true, true, true, true, 0, -1, true
 		)

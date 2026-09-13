@@ -258,7 +258,14 @@ static func pick_bounce_target(
 	exclude: Dictionary,
 	rng: RandomNumberGenerator
 ) -> Node3D:
-	var magnet := WeaponTargeting.find_magnet_bounce(pills, from, bounce_range)
+	var bounce_pills: Array = []
+	for node in pills:
+		if node == null or not is_instance_valid(node):
+			continue
+		if exclude.has(node.get_instance_id()):
+			continue
+		bounce_pills.append(node)
+	var magnet := WeaponTargeting.find_magnet_bounce(bounce_pills, from, bounce_range)
 	if magnet != null:
 		return magnet
 	var found: Array[Node3D] = []
