@@ -315,7 +315,7 @@ func _xz_distance(point: Vector3) -> float:
 	return Vector2(point.x - global_position.x, point.z - global_position.z).length()
 
 
-func _die(_from_pos: Vector3) -> void:
+func _die(_from_pos: Vector3, _weapon_family: StringName = &"") -> void:
 	set_physics_process(false)
 	var collision := get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if collision != null:

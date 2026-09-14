@@ -633,7 +633,7 @@ func _apply_hitbox_scale() -> void:
 	_apply_boss_hitbox()
 
 
-func _die(_from_pos: Vector3) -> void:
+func _die(_from_pos: Vector3, _weapon_family: StringName = &"") -> void:
 	set_physics_process(false)
 	var collision := get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if collision != null:

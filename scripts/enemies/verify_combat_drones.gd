@@ -25,9 +25,9 @@ const DroneDebrisFlameVfxScript = preload("res://scripts/enemies/drone_debris_fl
 const SandParticleVfxScript = preload("res://scripts/vfx/sand_particle_vfx.gd")
 const DroneDamageSparkVfxScript = preload("res://scripts/vfx/drone_damage_spark_vfx.gd")
 const EnemyHitFragmentVfxScript = preload("res://scripts/vfx/enemy_hit_fragment_vfx.gd")
-const LaserDroneSkinScene = preload("res://scenes/enemies/laser_drone_skin.tscn")
-const MissileDroneScene = preload("res://scenes/enemies/missile_drone.tscn")
-const LaserDroneScene = preload("res://scenes/enemies/laser_drone.tscn")
+const LaserDroneSkinScene = preload("res://scenes/enemies/rebel_drones/laser_drone_skin.tscn")
+const MissileDroneScene = preload("res://scenes/enemies/rebel_drones/missile_drone.tscn")
+const LaserDroneScene = preload("res://scenes/enemies/rebel_drones/laser_drone.tscn")
 
 var _failed := false
 

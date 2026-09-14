@@ -308,7 +308,7 @@ func _blocks_behind_despawn() -> bool:
 	return leap_state == LeapState.CHARGE or leap_state == LeapState.LEAP
 
 
-func _die(from_pos: Vector3) -> void:
+func _die(from_pos: Vector3, _weapon_family: StringName = &"") -> void:
 	_clear_reticle()
 	set_physics_process(false)
 	var collision := get_node_or_null("CollisionShape3D") as CollisionShape3D
