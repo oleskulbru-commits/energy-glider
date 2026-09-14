@@ -9,11 +9,12 @@
 script = ExtResource("1_preset")
 world_scale = 10.0
 material = ExtResource("2_material")
-emission_strength = 5.0
-spark_color = Color(1.2, 1.5, 2, 1)
+emission_strength = 3.25
+alpha_scale = 0.82
+spark_color = Color(0.9, 1.1, 1.4, 1)
 spark_count = 28
-spark_glow_strength = 6.5
-light_energy = 14.0
+spark_glow_strength = 4.5
+light_energy = 9.0
 light_range_m = 22.0
 shake_strength = 0.65
 shake_radius_m = 30.0

@@ -74,10 +74,57 @@ func _run() -> void:
 	_assert_material_parity(trail_quad.material as StandardMaterial3D, "missile smoke trail")
 	trail_host.queue_free()
 
+	var flame_host := Node3D.new()
+	root.add_child(flame_host)
+	var flame_trail := SandParticleVfxScript.create_debris_flame_trail(flame_host, 1.0)
+	_fail_unless(flame_trail is GPUParticles3D, "Debris flame trail should be GPUParticles3D")
+	_fail_unless(flame_trail.name == "FlameTrail", "Debris flame trail node should be named FlameTrail")
+	_fail_unless(
+		flame_trail.amount == SandParticleVfxScript.DEBRIS_FLAME_AMOUNT,
+		"Debris flame trail should keep %d particles"
+		% SandParticleVfxScript.DEBRIS_FLAME_AMOUNT
+	)
+	_fail_unless(
+		flame_trail.process_material is ParticleProcessMaterial,
+		"Debris flame trail should use ParticleProcessMaterial"
+	)
+	var flame_quad := flame_trail.draw_pass_1 as QuadMesh
+	_fail_unless(flame_quad != null, "Debris flame trail should use a QuadMesh draw pass")
+	_assert_flame_material(flame_quad.material as StandardMaterial3D)
+	flame_host.queue_free()
+
 	if _failed:
 		return
 	print("Sand material parity verification passed.")
 	quit(0)
+
+
+func _assert_flame_material(material: StandardMaterial3D) -> void:
+	_fail_unless(material != null, "Debris flame trail should have a StandardMaterial3D")
+	_fail_unless(
+		material.albedo_texture != null
+		and material.albedo_texture.resource_path.ends_with("fire_v1_vfx.png"),
+		"Debris flame trail should use fire_v1_vfx texture"
+	)
+	_fail_unless(
+		is_equal_approx(
+			material.albedo_color.r,
+			SandParticleVfxScript.MUZZLE_FLAME_MATERIAL_COLOR.r
+		)
+		and is_equal_approx(
+			material.albedo_color.g,
+			SandParticleVfxScript.MUZZLE_FLAME_MATERIAL_COLOR.g
+		)
+		and is_equal_approx(
+			material.albedo_color.b,
+			SandParticleVfxScript.MUZZLE_FLAME_MATERIAL_COLOR.b
+		),
+		"Debris flame trail should use boosted muzzle-tint material color"
+	)
+	_fail_unless(material.emission_enabled, "Debris flame trail material should enable emission")
+	_fail_unless(material.blend_mode == BaseMaterial3D.BLEND_MODE_ADD, "Debris flame trail should be additive")
+	_fail_unless(material.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED, "Debris flame trail should be unshaded")
+	_fail_unless(material.proximity_fade_enabled, "Debris flame trail should enable proximity fade")
 
 
 func _assert_material_parity(material: StandardMaterial3D, label: String) -> void:

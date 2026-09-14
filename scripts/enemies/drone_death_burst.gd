@@ -7,6 +7,7 @@ const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 const CrawlerDebrisSandScript := preload("res://scripts/enemies/crawler_debris_sand.gd")
 const DroneDebrisThrusterVfxScript := preload("res://scripts/enemies/drone_debris_thruster_vfx.gd")
 const DroneDebrisSparkVfxScript := preload("res://scripts/enemies/drone_debris_spark_vfx.gd")
+const DroneDebrisFlameVfxScript := preload("res://scripts/enemies/drone_debris_flame_vfx.gd")
 const DroneDamageSparkVfxScript := preload("res://scripts/vfx/drone_damage_spark_vfx.gd")
 const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
 const CameraImpactShakeScript := preload("res://scripts/player/camera_impact_shake.gd")
@@ -114,6 +115,7 @@ func _promote_piece(piece_root: Node3D, hit_pos: Vector3) -> void:
 		DroneDebrisThrusterVfxScript.attach(body, thruster_streaks)
 
 	DroneDebrisSparkVfxScript.attach(body, _spark_color)
+	DroneDebrisFlameVfxScript.attach(body, 1.0)
 
 	_apply_burst_impulse(body, hit_pos)
 	CrawlerDebrisSandScript.attach(body, _terrain, SandParticleVfxScript.BurstPreset.DEATH)

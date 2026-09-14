@@ -7,6 +7,7 @@ render_priority = 0
 shader = ExtResource("1_13pyu")
 
 [sub_resource type="SphereMesh" id="SphereMesh_fqqya"]
+radial_segments = 32
 
 [node name="Node3D" type="Node3D" unique_id=1306770289]
 

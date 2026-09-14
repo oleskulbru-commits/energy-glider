@@ -21,6 +21,8 @@ const GliderPhysicsScript = preload("res://scripts/player/glider_physics.gd")
 const PlayerHealthScript = preload("res://scripts/player/player_health.gd")
 const LevelRunScript = preload("res://scripts/game/level_run.gd")
 const DroneDebrisSparkVfxScript = preload("res://scripts/enemies/drone_debris_spark_vfx.gd")
+const DroneDebrisFlameVfxScript = preload("res://scripts/enemies/drone_debris_flame_vfx.gd")
+const SandParticleVfxScript = preload("res://scripts/vfx/sand_particle_vfx.gd")
 const DroneDamageSparkVfxScript = preload("res://scripts/vfx/drone_damage_spark_vfx.gd")
 const EnemyHitFragmentVfxScript = preload("res://scripts/vfx/enemy_hit_fragment_vfx.gd")
 const LaserDroneSkinScene = preload("res://scenes/enemies/laser_drone_skin.tscn")
@@ -846,8 +848,12 @@ func _verify_missile_hail() -> void:
 	)
 	var reticle: GroundReticle = GroundReticleScript.new()
 	root.add_child(reticle)
-	reticle.place(Vector3(1.0, 2.0, 3.0), 0.5)
+	reticle.place(Vector3(1.0, 2.0, 3.0), 0.5, null)
 	_fail_unless(is_instance_valid(reticle), "Ground reticle should spawn")
+	_fail_unless(
+		reticle.get_node_or_null("ReticleQuad") != null,
+		"Ground reticle should use flipbook ReticleQuad"
+	)
 	reticle.queue_free()
 	_verify_missile_muzzle_slots()
 	_verify_missile_aim_facing()
@@ -1405,6 +1411,14 @@ func _verify_drone_death_debris() -> void:
 		_fail_unless(
 			_count_nodes_with_script(body, DroneDebrisSparkVfxScript) >= 1,
 			"Kill fragment chunk should attach DroneDebrisSparkVfx"
+		)
+		_fail_unless(
+			body.get_node_or_null("FlameTrail") == null,
+			"Lethal kill fragments should skip debris flame (AerialExplosionVfx covers fire)"
+		)
+		_fail_unless(
+			_count_nodes_with_script(body, DroneDebrisFlameVfxScript) == 0,
+			"Lethal kill fragments should not attach DroneDebrisFlameVfx"
 		)
 
 	var fragment_wrappers := _count_nodes_with_script(root, EnemyHitFragmentVfxScript)

@@ -6,6 +6,7 @@ extends Node3D
 const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 const CrawlerDebrisSandScript := preload("res://scripts/enemies/crawler_debris_sand.gd")
 const DroneDebrisSparkVfxScript := preload("res://scripts/enemies/drone_debris_spark_vfx.gd")
+const DroneDebrisFlameVfxScript := preload("res://scripts/enemies/drone_debris_flame_vfx.gd")
 const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
 const UpgradeCatalogScript := preload("res://scripts/game/upgrade_catalog.gd")
 
@@ -183,6 +184,8 @@ func _spawn_piece(entry: Dictionary, hit_pos: Vector3, hit_dir: Vector3, scale_m
 		CrawlerDebrisSandScript.attach(body, _terrain, SandParticleVfxScript.BurstPreset.LIGHT)
 	if _spark_color.a > 0.0:
 		DroneDebrisSparkVfxScript.attach(body, _spark_color, scale_mult)
+		if not _death_sand_on_land:
+			DroneDebrisFlameVfxScript.attach(body, scale_mult)
 
 
 func _mesh_instance_from_entry(entry: Dictionary, scale_mult: float) -> MeshInstance3D:

@@ -77,6 +77,28 @@ func _verify_preset() -> void:
 		"Player RocketMissile should pass hit body into explosion spawn for burn policy"
 	)
 
+	var rifle_source := FileAccess.get_file_as_string("res://scripts/weapons/rifle_bullet.gd")
+	_fail_unless(
+		rifle_source.find("combat_drone") != -1
+		and rifle_source.find("AerialExplosionVfxScript.spawn") != -1,
+		"RifleBullet should spawn aerial explosion VFX on lethal drone kills"
+	)
+	_fail_unless(
+		rifle_source.find("KillSparks.spawn") != -1,
+		"RifleBullet should keep KillSparks for non-drone lethal kills"
+	)
+
+	var shotgun_source := FileAccess.get_file_as_string("res://scripts/weapons/auto_shotgun.gd")
+	_fail_unless(
+		shotgun_source.find("combat_drone") != -1
+		and shotgun_source.find("AerialExplosionVfxScript.spawn") != -1,
+		"AutoShotgun should spawn aerial explosion VFX on lethal drone kills"
+	)
+	_fail_unless(
+		shotgun_source.find("KillSparks.spawn") != -1,
+		"AutoShotgun should keep KillSparks for non-drone lethal kills"
+	)
+
 	var vfx_source := FileAccess.get_file_as_string("res://scripts/vfx/aerial_explosion_vfx.gd")
 	_fail_unless(
 		vfx_source.find("duplicate_material") != -1,

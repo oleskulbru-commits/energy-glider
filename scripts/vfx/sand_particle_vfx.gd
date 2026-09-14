@@ -15,6 +15,7 @@ enum BurstPreset {
 const SAND_PARTICLE_MATERIAL := preload("res://assets/materials/vfx/sand_particle.tres")
 const ROCKET_SMOKE_MATERIAL := preload("res://assets/materials/vfx/rocket_smoke_particle.tres")
 const DRONE_MISSILE_SMOKE_MATERIAL := preload("res://assets/materials/vfx/drone_missile_smoke_particle.tres")
+const FIRE_V1_PARTICLE_MATERIAL := preload("res://assets/materials/vfx/fire_v1_particle.tres")
 const LIGHT_BURST_SCENE := preload("res://scenes/effects/sand_burst_light_gpu.tscn")
 const HEAVY_BURST_SCENE := preload("res://scenes/effects/sand_burst_heavy_gpu.tscn")
 const MG_BURST_SCENE := preload("res://scenes/effects/sand_burst_mg_gpu.tscn")
@@ -34,6 +35,13 @@ const MISSILE_TRAIL_QUAD_SIZE := Vector2(1.6, 1.6)
 const MISSILE_TRAIL_NOZZLE_Z := 0.42
 const ROCKET_TRAIL_COLOR := Color(1.0, 0.68, 0.32, 0.55)
 const DRONE_TRAIL_COLOR := Color(0.45, 0.68, 1.0, 0.55)
+const MUZZLE_FLAME_TINT := Color(1.0, 0.767, 0.6, 1.0)
+const MUZZLE_FLAME_MATERIAL_COLOR := Color(3.0, 2.3, 1.75, 1.0)
+const MUZZLE_FLAME_COLOR := Color(2.4, 1.85, 1.4, 0.95)
+const DEBRIS_FLAME_TRAIL_OFFSET := Vector3(0.0, 0.2, 0.0)
+const DEBRIS_FLAME_QUAD_SIZE := Vector2(2.2, 2.2)
+const DEBRIS_FLAME_LIFETIME := 0.72
+const DEBRIS_FLAME_AMOUNT := 96
 
 
 static func burst_scene(preset: BurstPreset) -> PackedScene:
@@ -85,6 +93,17 @@ static func material_for_rocket_trail() -> StandardMaterial3D:
 
 static func material_for_drone_missile_trail() -> StandardMaterial3D:
 	return tinted_emitter_material(DRONE_MISSILE_SMOKE_MATERIAL)
+
+
+static func material_for_debris_flame_trail() -> StandardMaterial3D:
+	var material := FIRE_V1_PARTICLE_MATERIAL.duplicate() as StandardMaterial3D
+	if material != null:
+		material.albedo_color = MUZZLE_FLAME_MATERIAL_COLOR
+		material.emission_enabled = true
+		material.emission = MUZZLE_FLAME_TINT
+		material.emission_energy_multiplier = 2.5
+		material.proximity_fade_distance = PROXIMITY_FADE_DISTANCE
+	return material
 
 
 static func tinted_emitter_material(source: Material) -> StandardMaterial3D:
@@ -173,6 +192,18 @@ static func create_missile_smoke_trail(
 	return trail
 
 
+static func create_debris_flame_trail(
+	parent: Node3D,
+	scale_mult: float = 1.0,
+	particle_color: Color = MUZZLE_FLAME_COLOR
+) -> GPUParticles3D:
+	var trail := GPUParticles3D.new()
+	trail.name = "FlameTrail"
+	parent.add_child(trail)
+	configure_gpu_debris_flame_trail(trail, particle_color, scale_mult)
+	return trail
+
+
 static func configure_gpu_missile_trail(
 	particles: GPUParticles3D,
 	material: StandardMaterial3D,
@@ -193,6 +224,30 @@ static func configure_gpu_missile_trail(
 	particles.process_material = _missile_trail_process_material(particle_color)
 	var resolved := material if material != null else material_for_rocket_trail()
 	configure_gpu_emitter(particles, resolved, MISSILE_TRAIL_QUAD_SIZE * mult)
+
+
+static func configure_gpu_debris_flame_trail(
+	particles: GPUParticles3D,
+	particle_color: Color = MUZZLE_FLAME_COLOR,
+	scale_mult: float = 1.0
+) -> void:
+	if particles == null:
+		return
+	var mult := maxf(scale_mult, 0.01)
+	particles.transform = Transform3D(Basis.IDENTITY, DEBRIS_FLAME_TRAIL_OFFSET * mult)
+	particles.emitting = true
+	particles.amount = DEBRIS_FLAME_AMOUNT
+	particles.lifetime = DEBRIS_FLAME_LIFETIME
+	particles.explosiveness = 0.1
+	particles.randomness = 0.55
+	particles.visibility_aabb = AABB(Vector3(-4.0, -4.0, -4.0) * mult, Vector3(8.0, 8.0, 8.0) * mult)
+	particles.local_coords = false
+	particles.process_material = _debris_flame_trail_process_material(particle_color)
+	configure_gpu_emitter(
+		particles,
+		material_for_debris_flame_trail(),
+		DEBRIS_FLAME_QUAD_SIZE * mult
+	)
 
 
 static func _hover_dust_process_material() -> ParticleProcessMaterial:
@@ -251,6 +306,25 @@ static func _missile_trail_process_material(particle_color: Color) -> ParticlePr
 	return proc
 
 
+static func _debris_flame_trail_process_material(particle_color: Color) -> ParticleProcessMaterial:
+	var proc := ParticleProcessMaterial.new()
+	proc.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	proc.emission_sphere_radius = 0.14
+	proc.direction = Vector3(0.0, 1.0, 0.0)
+	proc.spread = 34.0
+	proc.gravity = Vector3(0.0, 0.55, 0.0)
+	proc.initial_velocity_min = 0.55
+	proc.initial_velocity_max = 2.0
+	proc.angle_min = -180.0
+	proc.angle_max = 180.0
+	proc.scale_min = 0.38
+	proc.scale_max = 0.78
+	proc.scale_curve = _curve_texture(_debris_flame_trail_scale_curve())
+	proc.color = particle_color
+	proc.color_ramp = _gradient_texture(_debris_flame_trail_color_ramp(particle_color))
+	return proc
+
+
 static func _hover_dust_gradient() -> Gradient:
 	var gradient := Gradient.new()
 	gradient.offsets = PackedFloat32Array([0.0, 0.16612378, 0.3159609])
@@ -306,6 +380,39 @@ static func _missile_trail_color_ramp(particle_color: Color) -> Gradient:
 	)
 	var fade := Color(0.85, 0.82, 0.78, 0.0)
 	gradient.offsets = PackedFloat32Array([0.0, 0.18, 0.55, 1.0])
+	gradient.colors = PackedColorArray([bright, mid, fade, fade])
+	return gradient
+
+
+static func _debris_flame_trail_scale_curve() -> Curve:
+	var curve := Curve.new()
+	curve.add_point(Vector2(0.0, 0.45))
+	curve.add_point(Vector2(0.28, 0.82))
+	curve.add_point(Vector2(1.0, 1.0))
+	return curve
+
+
+static func _debris_flame_trail_color_ramp(particle_color: Color) -> Gradient:
+	var gradient := Gradient.new()
+	var bright := Color(
+		particle_color.r * 1.35,
+		particle_color.g * 1.22,
+		particle_color.b * 1.12,
+		particle_color.a
+	)
+	var mid := Color(
+		particle_color.r * 0.95,
+		particle_color.g * 0.78,
+		particle_color.b * 0.5,
+		particle_color.a * 0.78
+	)
+	var fade := Color(
+		particle_color.r * 0.45,
+		particle_color.g * 0.22,
+		particle_color.b * 0.08,
+		0.0
+	)
+	gradient.offsets = PackedFloat32Array([0.0, 0.22, 0.62, 1.0])
 	gradient.colors = PackedColorArray([bright, mid, fade, fade])
 	return gradient
 

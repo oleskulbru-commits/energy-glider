@@ -9,7 +9,6 @@ const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
 const SandImpactDustScript := preload("res://scripts/enemies/sand_impact_dust.gd")
 const CameraImpactShakeScript := preload("res://scripts/player/camera_impact_shake.gd")
 const ExplosionSparkVfxScript := preload("res://scripts/vfx/explosion_spark_vfx.gd")
-const ExplosionFireballVfxScript := preload("res://scripts/vfx/explosion_fireball_vfx.gd")
 const GroundBurnDecalVfxScript := preload("res://scripts/vfx/ground_burn_decal_vfx.gd")
 const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 const ExplosionShader := preload("res://assets/vfx/shaders/aerial_explosion.gdshader")
@@ -67,7 +66,6 @@ static func spawn(
 	_maybe_spawn_ground_sand(tree, world_pos, resolved, resolved_scale, terrain)
 	_maybe_spawn_ground_burn_decal(tree, world_pos, resolved, resolved_scale, terrain, hit_body)
 	_maybe_spawn_impact_sparks(tree, world_pos, resolved, resolved_scale, impact_dir)
-	_maybe_spawn_fireball_vfx(tree, world_pos, resolved, resolved_scale)
 	fx.configure(resolved, resolved_scale, frame_start)
 	return fx
 
@@ -207,22 +205,6 @@ static func _maybe_spawn_impact_sparks(
 		preset,
 		scale_mult,
 		spark_spray_dir(impact_dir)
-	)
-
-
-static func _maybe_spawn_fireball_vfx(
-	tree: SceneTree,
-	world_pos: Vector3,
-	preset: AerialExplosionPreset,
-	scale_mult: float
-) -> void:
-	if preset == null or not preset.spawn_fireball_vfx:
-		return
-	ExplosionFireballVfxScript.spawn(
-		tree,
-		world_pos,
-		scale_mult,
-		preset.world_scale
 	)
 
 

@@ -108,7 +108,7 @@ func _fire_next_rocket() -> void:
 			ground.y = _terrain.sample_height(impact.x, impact.z)
 		var reticle = GroundReticleScript.new()
 		parent.add_child(reticle)
-		reticle.place(ground, FALL_TELEGRAPH_SEC)
+		reticle.place(ground, FALL_TELEGRAPH_SEC, _terrain)
 		rocket.launch_from_drone(
 			spawn_transform.origin,
 			ground,

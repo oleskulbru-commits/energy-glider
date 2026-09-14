@@ -31,7 +31,6 @@ enum GroundSandBurst {
 @export_range(0.0, 3.0, 0.01) var alpha_scale := 1.0
 @export var proximity_fade_enabled := true
 @export_range(0.0, 8.0, 0.05) var proximity_fade_distance := 1.0
-@export var spawn_fireball_vfx := false
 
 @export_group("Impact Sparks")
 @export var spawn_sparks := true
