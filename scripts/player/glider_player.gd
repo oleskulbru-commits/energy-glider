@@ -6,6 +6,7 @@ const GliderPhysicsScript = preload("res://scripts/player/glider_physics.gd")
 const GliderInputScript = preload("res://scripts/input/glider_input.gd")
 const TerrainProbesScript = preload("res://scripts/player/terrain_probes.gd")
 const PlayerDeathSequenceScript = preload("res://scripts/player/player_death_sequence.gd")
+const SandParticleVfxScript = preload("res://scripts/vfx/sand_particle_vfx.gd")
 
 enum State { GROUNDED, GLIDING }
 
@@ -120,8 +121,7 @@ var _terrain_manager: TerrainManager
 var _input: GliderInputScript
 var _visual: Node3D
 var _camera: GliderCameraScript
-var _contact_dust: CPUParticles3D
-var _impact_dust: CPUParticles3D
+var _impact_dust: GPUParticles3D
 var _contact_sparks: CPUParticles3D
 
 var _state: State = State.GROUNDED
@@ -189,8 +189,13 @@ func _ready() -> void:
 	_camera = get_node_or_null("GliderCamera") as GliderCameraScript
 	if _camera == null:
 		_camera = get_node_or_null("Camera3D") as GliderCameraScript
-	_contact_dust = get_node_or_null("ContactDust") as CPUParticles3D
-	_impact_dust = get_node_or_null("ImpactDust") as CPUParticles3D
+	_impact_dust = get_node_or_null("ImpactDust") as GPUParticles3D
+	if _impact_dust != null:
+		SandParticleVfxScript.configure_gpu_impact_dust(_impact_dust)
+	_sync_sand_emitter_materials()
+	if _impact_dust != null and not _impact_dust.finished.is_connected(_on_impact_dust_finished):
+		_impact_dust.finished.connect(_on_impact_dust_finished)
+		_impact_dust.visible = false
 	_setup_contact_sparks()
 	_yaw = rotation.y
 
@@ -267,7 +272,6 @@ func _physics_process(delta: float) -> void:
 
 	_last_physics_delta = delta
 	_physics_ctx = _build_physics_context()
-	_update_contact_dust()
 
 
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
@@ -861,6 +865,14 @@ func _enforce_floor_contact(state: PhysicsDirectBodyState3D) -> void:
 	state.transform = xf
 	# Soft settle: nudge origin only — killing normal speed here tugs crest momentum.
 
+func _sync_sand_emitter_materials() -> void:
+	if _impact_dust != null:
+		SandParticleVfxScript.configure_gpu_emitter(_impact_dust)
+	var hover_dust := get_node_or_null("HoverDust/Stream") as GPUParticles3D
+	if hover_dust != null:
+		SandParticleVfxScript.configure_gpu_emitter(hover_dust)
+
+
 func _setup_contact_sparks() -> void:
 	_contact_sparks = CPUParticles3D.new()
 	_contact_sparks.name = "ContactSparks"
@@ -1170,11 +1182,18 @@ func _play_touchdown_juice(approach: float, keep: float) -> void:
 	if approach < 3.0 and keep >= 0.995:
 		return
 	if _impact_dust != null:
+		_impact_dust.visible = true
 		_impact_dust.restart()
 		_impact_dust.emitting = true
 	if keep < 0.995 and _contact_sparks != null:
 		_contact_sparks.restart()
 		_contact_sparks.emitting = true
+
+
+func _on_impact_dust_finished() -> void:
+	if _impact_dust != null:
+		_impact_dust.emitting = false
+		_impact_dust.visible = false
 
 
 func _apply_steering(delta: float) -> void:
@@ -1527,15 +1546,6 @@ func _update_landing_feedback(delta: float) -> void:
 		_grounded_lock_timer = maxf(_grounded_lock_timer - delta, 0.0)
 
 
-func _update_contact_dust() -> void:
-	if _contact_dust == null:
-		return
-	var speed := Vector2(velocity.x, velocity.z).length()
-	var min_clearance := _min_board_probe_clearance()
-	var scraping := min_clearance <= GliderPhysicsScript.HOVER_COMPRESS_START
-	_contact_dust.emitting = _state == State.GROUNDED and speed > 1.5 and scraping
-
-
 func _update_camera(delta: float) -> void:
 	if _camera == null:
 		return
@@ -1826,6 +1836,10 @@ func get_smoothed_clearance() -> float:
 
 func get_yaw() -> float:
 	return _yaw
+
+
+func get_terrain_manager() -> TerrainManager:
+	return _terrain_manager
 
 
 func get_camera_follow_target() -> Node3D:

@@ -13,7 +13,7 @@ const MG_FIRE_INTERVAL_SEC := 0.05
 const PASS_DAMAGE := 15
 ## Wider than the cube so a near-miss flyby still counts as a hit.
 const PASS_HIT_HALF_XZ_M := 2.5
-const PASS_HIT_ABOVE_M := CUBE_SIZE_M * 0.5
+const PASS_HIT_ABOVE_M := CUBE_SIZE_M * DRONE_SIZE_MULT * 0.5
 ## Drone cruises above the player; reach down through that gap for overhead passes.
 const PASS_HIT_BELOW_M := CRUISE_HEIGHT_M + 2.0
 const DESPAWN_BEHIND_M := 40.0
@@ -30,12 +30,37 @@ var _charge_clearance_m := CRUISE_HEIGHT_M
 var _pass_damage_dealt := false
 var _exit_left := 0.0
 var _mg_cooldown := 0.0
+var _gun_barrel: Node3D
+var _muzzle_flash: MuzzleFlash
+var _tracer_size_ref: MeshInstance3D
 
 
 func _ready() -> void:
 	_cube_color = Color(0.22, 0.82, 0.32)
 	super._ready()
 	add_to_group("machine_gun_drone")
+	_cache_gun_barrel()
+	_cache_tracer_reference()
+	_stop_muzzle_flash()
+
+
+func _cache_gun_barrel() -> void:
+	var visual := get_node_or_null("Visual") as Node3D
+	if visual == null:
+		visual = _visual
+	if visual == null:
+		return
+	_gun_barrel = visual.find_child("GunBarrel", true, false) as Node3D
+	if _gun_barrel == null:
+		return
+	_muzzle_flash = _gun_barrel.get_node_or_null("MuzzleFlash") as MuzzleFlash
+	_tracer_size_ref = visual.find_child("TracerSizeReference", true, false) as MeshInstance3D
+
+
+func _cache_tracer_reference() -> void:
+	if _tracer_size_ref == null:
+		return
+	_tracer_size_ref.visible = false
 
 
 func configure(terrain: TerrainManager, target: Node3D, speed: float = BASE_MOVE_SPEED_MPS) -> void:
@@ -62,7 +87,7 @@ func _update_fly_state() -> void:
 	pass
 
 
-func _steer(_delta: float) -> void:
+func _steer(delta: float) -> void:
 	if _target == null or not is_instance_valid(_target):
 		return
 	match _phase:
@@ -73,18 +98,19 @@ func _steer(_delta: float) -> void:
 				_hold_x
 			)
 			velocity = Vector3.ZERO
+			_steer_heading_toward(-_lane_forward, FLIGHT_TURN_RATE_DEG, delta)
 			if _should_begin_charge():
 				_begin_charge()
 		FlyPhase.CHARGE:
-			_tick_charge_steering(_delta)
-			velocity = _charge_heading * CHARGE_SPEED_MPS
-			velocity.y = 0.0
+			_tick_charge_steering(delta)
+			_flight_heading = _charge_heading
+			_apply_flight_velocity(CHARGE_SPEED_MPS, delta)
 			_try_pass_damage()
 			_check_pass_transition()
 		FlyPhase.EXIT:
-			velocity = _charge_heading * CHARGE_SPEED_MPS
-			velocity.y = 0.0
-			_exit_left = maxf(_exit_left - _delta, 0.0)
+			_flight_heading = _charge_heading
+			_apply_flight_velocity(CHARGE_SPEED_MPS, delta)
+			_exit_left = maxf(_exit_left - delta, 0.0)
 			if _exit_left <= 0.0 or is_behind_facing(
 				_target.global_position,
 				_lane_forward,
@@ -131,7 +157,7 @@ func _sample_ground_y(world: Vector3) -> float:
 
 func _tick_charge_steering(delta: float) -> void:
 	var desired := heading_toward_player_xz(global_position, _target.global_position)
-	_charge_heading = rotate_heading_toward(
+	_charge_heading = CombatDrone.rotate_heading_toward(
 		_charge_heading,
 		desired,
 		CHARGE_TURN_RATE_DEG,
@@ -171,20 +197,13 @@ func _begin_exit() -> void:
 	_exit_left = EXIT_DESPAWN_SEC
 
 
-func _face_target() -> void:
-	var look_dir := -_lane_forward
-	if _phase != FlyPhase.ALIGN:
-		look_dir = _charge_heading
-	if look_dir.length_squared() < 0.0001:
-		return
-	look_at(global_position + look_dir, Vector3.UP)
-
-
 func _update_weapons(delta: float) -> void:
 	_mg_cooldown = maxf(_mg_cooldown - delta, 0.0)
 	if _phase != FlyPhase.CHARGE:
+		_stop_muzzle_flash()
 		return
 	if _stun_left > 0.0:
+		_stop_muzzle_flash()
 		return
 	if _mg_cooldown > 0.0:
 		return
@@ -193,9 +212,22 @@ func _update_weapons(delta: float) -> void:
 
 
 func _fire_mg_round() -> void:
-	var origin := global_position + Vector3(0.0, -0.35, 0.0)
 	var aim_dir := straight_fire_direction(_charge_heading, MG_AIM_PITCH_DEG)
-	DroneMgRoundScript.fire(get_tree(), origin, aim_dir, _terrain)
+	DroneMgRoundScript.fire(
+		get_tree(),
+		aim_dir,
+		_terrain,
+		DroneMgRoundScript.SPEED_MPS,
+		_gun_barrel,
+		_tracer_size_ref
+	)
+	if _muzzle_flash != null:
+		_muzzle_flash.flash()
+
+
+func _stop_muzzle_flash() -> void:
+	if _muzzle_flash != null:
+		_muzzle_flash.stop()
 
 
 static func straight_fire_direction(flat_heading: Vector3, pitch_deg: float) -> Vector3:
@@ -315,27 +347,6 @@ static func lane_pass_heading(
 	if to_player.length_squared() < 0.0001:
 		return Vector3(-lane_forward.x, 0.0, -lane_forward.z).normalized()
 	return to_player.normalized()
-
-
-static func rotate_heading_toward(
-	current: Vector3,
-	target: Vector3,
-	max_turn_deg: float,
-	delta: float
-) -> Vector3:
-	var cur := Vector3(current.x, 0.0, current.z)
-	var tgt := Vector3(target.x, 0.0, target.z)
-	if cur.length_squared() < 0.0001:
-		cur = Vector3(-1.0, 0.0, 0.0)
-	else:
-		cur = cur.normalized()
-	if tgt.length_squared() < 0.0001:
-		return cur
-	tgt = tgt.normalized()
-	var max_rad := deg_to_rad(maxf(max_turn_deg, 0.0)) * maxf(delta, 0.0)
-	var angle := cur.signed_angle_to(tgt, Vector3.UP)
-	var turn := clampf(angle, -max_rad, max_rad)
-	return cur.rotated(Vector3.UP, turn).normalized()
 
 
 static func player_in_pass_hitbox(drone_pos: Vector3, player_pos: Vector3) -> bool:

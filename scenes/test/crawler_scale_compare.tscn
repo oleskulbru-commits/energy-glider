@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://i17beu7dbtbu" path="res://scripts/test/crawler_scale_compare.gd" id="1_script"]
 [ext_resource type="Environment" uid="uid://c16k12ob5acay" path="res://assets/environment/game_world_env.tres" id="2_env"]
-[ext_resource type="PackedScene" uid="uid://chqjbyfsqqnww" path="res://scenes/enemies/crawler_skin.tscn" id="3_skin"]
+[ext_resource type="PackedScene" uid="uid://chqjbyfsqqnww" path="res://scenes/enemies/crawler/crawler_skin.tscn" id="3_skin"]
 [ext_resource type="PackedScene" uid="uid://cxpd8q671dqvt" path="res://assets/3dmodels/enemies/crawler/crawler_fractured_v001.glb" id="4_fractured"]
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_floor"]

@@ -198,6 +198,11 @@ static func is_weapon_family(family: StringName) -> bool:
 	)
 
 
+## Landing sand on player-spawned debris chips/shards (not MG drone impacts).
+static func weapon_causes_debris_sand(family: StringName) -> bool:
+	return family == FAMILY_TESLA
+
+
 static func is_weapon_unlock(id: StringName) -> bool:
 	return (
 		id == ID_UNLOCK_RIFLE

@@ -12,6 +12,7 @@ const LASER_BURN_TICK_SEC := 0.5
 const LASER_BURN_DAMAGE := 2
 
 @export var glider_path: NodePath
+@export var invulnerable := false
 
 var current: int = BASE_HEALTH
 
@@ -114,6 +115,8 @@ func get_burn_left() -> float:
 
 func take_damage(amount: int) -> void:
 	if amount <= 0:
+		return
+	if invulnerable:
 		return
 	if _is_run_ended():
 		return

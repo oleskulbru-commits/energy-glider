@@ -6,7 +6,19 @@ signal died
 ## Stream enemy: animated crawler that chases the player and deals contact damage.
 
 const CrawlerDeathBurstScript := preload("res://scripts/enemies/crawler_death_burst.gd")
+const CrawlerSandFootstepsScript := preload("res://scripts/enemies/crawler_sand_footsteps.gd")
+const EnemyHitFragmentVfxScript := preload("res://scripts/vfx/enemy_hit_fragment_vfx.gd")
 const RunDamageStatsScript := preload("res://scripts/game/run_damage_stats.gd")
+const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
+const UpgradeCatalogScript := preload("res://scripts/game/upgrade_catalog.gd")
+
+const SAND_MARKER_NAMES := [
+	"DigDustAnchor",
+	"FootFrontLeft",
+	"FootFrontRight",
+	"FootRearLeft",
+	"FootRearRight",
+]
 
 ## Fine-tune below 1.0 if the Blender-sized import still reads large in-game.
 const CRAWLER_SIZE_MULT := 0.85
@@ -41,6 +53,11 @@ const LOCK_DOT_TEX_PX := 64
 const LOCK_DOT_PIXEL_SIZE := 0.015
 const LOCK_DOT_CLEARANCE_M := 0.85
 const LOCK_DOT_COLOR := Color(1.0, 0.12, 0.1)
+const HIT_FRAGMENT_COOLDOWN_SEC := 0.12
+const HIT_FRAGMENT_HIT_OFFSET_M := 0.35
+const HIT_FRAGMENT_SCALE_MULT := 1.25
+const HIT_FRAGMENT_KILL_SCALE_MULT := 1.75
+const HIT_FRAGMENT_COUNT_MULT := 3
 
 var move_speed := DEFAULT_SPEED
 var contact_damage := CONTACT_DAMAGE
@@ -58,6 +75,7 @@ var _max_health := MAX_HEALTH
 var _hp := MAX_HEALTH
 var _hit_velocity := Vector3.ZERO
 var _anim: CrawlerAnimController
+var _sand_footsteps: CrawlerSandFootstepsScript
 var _collision_bottom_y := 0.0
 var _rng := RandomNumberGenerator.new()
 var _stun_left := 0.0
@@ -68,6 +86,8 @@ var garrison_tower_index := -1
 var _garrison_aggroed := false
 var _garrison_shield: Node3D
 var _lock_dot: Sprite3D
+var _hit_fragment_cooldown_left := 0.0
+var _sand_marker_base_positions: Dictionary = {}
 
 
 func _ready() -> void:
@@ -78,6 +98,7 @@ func _ready() -> void:
 	_apply_hitbox_scale()
 	_collision_bottom_y = _compute_collision_bottom_y()
 	_anim = _find_anim_controller()
+	_sand_footsteps = _find_sand_footsteps()
 	if _anim != null and not _anim.spawn_finished.is_connected(_on_spawn_finished):
 		_anim.spawn_finished.connect(_on_spawn_finished)
 	_rng.randomize()
@@ -92,7 +113,15 @@ func configure(terrain: TerrainManager, target: Node3D, speed: float = DEFAULT_S
 	_terrain = terrain
 	_target = target
 	move_speed = speed
+	_configure_sand_vfx()
 	_snap_to_terrain()
+
+
+func _configure_sand_vfx() -> void:
+	if _anim != null:
+		_anim.configure_sand(_terrain, self)
+	if _sand_footsteps != null:
+		_sand_footsteps.configure(_terrain, self)
 
 
 func set_target(target: Node3D) -> void:
@@ -309,13 +338,16 @@ func take_damage(
 	_spawn_damage_float(amount, is_crit)
 	if garrisoned:
 		_alert_garrison_pack()
-	if _hp <= 0:
+	var is_lethal := _hp <= 0
+	_try_spawn_hit_fragments(hit_dir, is_crit, weapon_family, is_lethal)
+	_try_spawn_hit_sparks(hit_dir, is_crit, weapon_family, is_lethal)
+	if is_lethal:
 		if stats != null:
 			stats.record_kill(weapon_family)
 		var from_pos := global_position
 		if hit_dir.length_squared() > 0.0001:
 			from_pos = global_position - hit_dir.normalized()
-		_die(from_pos)
+		_die(from_pos, weapon_family)
 		return true
 	if hit_dir.length_squared() > 0.0001:
 		_hit_velocity = hit_knockback_velocity_for(hit_dir, knockback_speed)
@@ -340,6 +372,8 @@ func _physics_process(delta: float) -> void:
 	if _target == null or not is_instance_valid(_target):
 		queue_free()
 		return
+
+	_hit_fragment_cooldown_left = maxf(_hit_fragment_cooldown_left - delta, 0.0)
 
 	# Fallen behind the player's facing past margin — despawn.
 	if not _blocks_behind_despawn() and is_behind_facing(
@@ -402,15 +436,130 @@ func _is_spawn_active() -> bool:
 	return _anim != null and _anim.is_spawn_active()
 
 
+func get_sand_burst_scale_mult() -> float:
+	return _get_crawler_visual_scale_mult()
+
+
+func get_hit_fragment_kit() -> PackedScene:
+	return preload("res://assets/vfx/meshes/enemy_fragments/crawler_fragments.glb")
+
+
+func get_hit_fragment_scale_mult(is_lethal: bool = false) -> float:
+	var size_mult := (
+		HIT_FRAGMENT_KILL_SCALE_MULT if is_lethal else HIT_FRAGMENT_SCALE_MULT
+	)
+	return get_sand_burst_scale_mult() * size_mult
+
+
+func get_hit_fragment_count(
+	is_crit: bool,
+	weapon_family: StringName = &"",
+	is_lethal: bool = false
+) -> int:
+	var base := 2
+	if (
+		weapon_family == UpgradeCatalogScript.FAMILY_LASER
+		or weapon_family == UpgradeCatalogScript.FAMILY_TESLA
+	):
+		base = 2 if is_lethal else 1
+	elif is_lethal:
+		base = 4
+	elif is_crit:
+		base = 3
+	return base * HIT_FRAGMENT_COUNT_MULT
+
+
+func _try_spawn_hit_fragments(
+	hit_dir: Vector3,
+	is_crit: bool,
+	weapon_family: StringName,
+	is_lethal: bool = false
+) -> void:
+	if not is_lethal and _hit_fragment_cooldown_left > 0.0:
+		return
+	var kit := get_hit_fragment_kit()
+	if kit == null:
+		return
+	var hit_pos := _hit_fragment_spawn_pos(hit_dir)
+	var count := get_hit_fragment_count(is_crit, weapon_family, is_lethal)
+	EnemyHitFragmentVfxScript.spawn(
+		get_tree(),
+		kit,
+		hit_pos,
+		hit_dir,
+		count,
+		get_hit_fragment_scale_mult(is_lethal),
+		_terrain,
+		is_lethal,
+		weapon_family
+	)
+	_hit_fragment_cooldown_left = HIT_FRAGMENT_COOLDOWN_SEC
+
+
+func _hit_fragment_spawn_pos(hit_dir: Vector3) -> Vector3:
+	if hit_dir.length_squared() > 0.0001:
+		return global_position - hit_dir.normalized() * HIT_FRAGMENT_HIT_OFFSET_M
+	return global_position + Vector3(0.0, 0.4, 0.0)
+
+
+func _try_spawn_hit_sparks(
+	_hit_dir: Vector3,
+	_is_crit: bool,
+	_weapon_family: StringName,
+	_is_lethal: bool
+) -> void:
+	pass
+
+
+func get_climb_dust_preset() -> SandParticleVfx.BurstPreset:
+	return SandParticleVfx.BurstPreset.CLIMB
+
+
+func get_walk_dust_preset() -> SandParticleVfx.BurstPreset:
+	return SandParticleVfx.BurstPreset.HEAVY
+
+
+func get_walk_dust_shake_strength() -> float:
+	return 0.035
+
+
+func get_walk_dust_shake_radius_m() -> float:
+	return 8.0
+
+
+func get_climb_dust_shake_strength() -> float:
+	return 0.22
+
+
+func get_climb_dust_shake_radius_m() -> float:
+	return 18.0
+
+
 func _get_crawler_visual_scale_mult() -> float:
 	return 1.0
 
 
 func _apply_visual_scale() -> void:
 	var model := _get_crawler_model()
+	var mult := _get_crawler_visual_scale_mult()
 	if model != null:
 		var base := CrawlerScaleUtil.animated_model_scale(CRAWLER_LIVING_SCALE)
-		model.scale = Vector3.ONE * base * _get_crawler_visual_scale_mult()
+		model.scale = Vector3.ONE * base * mult
+	_apply_sand_marker_positions(mult)
+
+
+func _apply_sand_marker_positions(mult: float) -> void:
+	var skin := get_node_or_null("Visual") as Node3D
+	if skin == null:
+		return
+	for marker_name in SAND_MARKER_NAMES:
+		var marker := skin.get_node_or_null(marker_name) as Node3D
+		if marker == null:
+			continue
+		var key := marker.get_instance_id()
+		if not _sand_marker_base_positions.has(key):
+			_sand_marker_base_positions[key] = marker.position
+		marker.position = _sand_marker_base_positions[key] * mult
 
 
 func _apply_hitbox_scale() -> void:
@@ -445,6 +594,13 @@ func _find_anim_controller() -> CrawlerAnimController:
 	if skin == null:
 		return null
 	return skin.find_child("CrawlerAnimController", true, false) as CrawlerAnimController
+
+
+func _find_sand_footsteps() -> CrawlerSandFootstepsScript:
+	var skin := get_node_or_null("Visual")
+	if skin == null:
+		return null
+	return skin.find_child("CrawlerSandFootsteps", true, false) as CrawlerSandFootstepsScript
 
 
 func _on_spawn_finished() -> void:
@@ -638,7 +794,7 @@ func _align_to_terrain(flat_forward: Vector3) -> void:
 	global_transform.basis = global_transform.basis.slerp(target_basis, TERRAIN_ALIGN_BLEND)
 
 
-func _die(from_pos: Vector3) -> void:
+func _die(from_pos: Vector3, weapon_family: StringName = &"") -> void:
 	set_physics_process(false)
 	var collision := get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if collision != null:
@@ -651,7 +807,9 @@ func _die(from_pos: Vector3) -> void:
 	var visual := get_node_or_null("Visual")
 	if visual != null:
 		visual.visible = false
-	CrawlerDeathBurstScript.spawn(get_tree(), burst_xf, from_pos, burst_scale)
+	CrawlerDeathBurstScript.spawn(
+		get_tree(), burst_xf, from_pos, burst_scale, _terrain, weapon_family
+	)
 	died.emit()
 	queue_free()
 

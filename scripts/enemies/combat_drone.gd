@@ -4,6 +4,12 @@ extends SwarmPill
 ## Flying cube enemy. Kites ahead of the player; no melee contact.
 
 const AutoRifleScript = preload("res://scripts/weapons/auto_rifle.gd")
+const CameraImpactShakeScript := preload("res://scripts/player/camera_impact_shake.gd")
+const DroneHitSparkVfxScript := preload("res://scripts/vfx/drone_hit_spark_vfx.gd")
+const DroneDamageSparkVfxScript := preload("res://scripts/vfx/drone_damage_spark_vfx.gd")
+const DroneStreakVfxScript := preload("res://scripts/enemies/drone_streak_vfx.gd")
+const DroneTypeFlareScript := preload("res://scripts/vfx/drone_type_flare.gd")
+const DRONE_FRAGMENT_KIT := preload("res://assets/vfx/meshes/enemy_fragments/drone_fragments.glb")
 
 const DRONE_MAX_HEALTH := 40
 const WEAPON_RANGE_M := 40.0
@@ -12,20 +18,31 @@ const CRUISE_HEIGHT_M := 8.0
 const HEIGHT_FOLLOW_RATE := 4.0
 const KITE_HOLD_M := 40.0
 const CUBE_SIZE_M := 1.4
+const DRONE_SIZE_MULT := 4.0
 const BASE_MOVE_SPEED_MPS := 15.0
 const DRONE_MIN_LEVEL := 5
 const AIR_TARGETING_ENTER_SEC := 1.0
 const AIR_TARGETING_EXIT_SEC := 0.35
+const FLIGHT_TURN_RATE_DEG := 72.0
+const FLIGHT_SPEED_ACCEL_MPS2 := 40.0
+const FACE_SLERP_RATE := 10.0
+const HIT_SPARK_COUNT := 8
+const HIT_SPARK_CRIT_COUNT := 12
+const HIT_SPARK_KILL_COUNT := 14
+const HIT_SPARK_FALLBACK_COLOR := Color(1.6, 0.75, 0.2, 1.0)
 
 enum FlyState { APPROACH, KITE, CATCH_UP }
 
 var fly_state: int = FlyState.APPROACH
+var _visual: Node3D
 var _cube: MeshInstance3D
 var _cube_color := Color(0.85, 0.15, 0.12)
 var _airborne_time := 0.0
 var _grounded_time := 0.0
+var _flight_heading := Vector3(-1.0, 0.0, 0.0)
 var invulnerable := false
 var never_despawn := false
+var _damage_sparks: GPUParticles3D
 
 
 func _ready() -> void:
@@ -38,6 +55,8 @@ func _ready() -> void:
 	_hp = get_max_health()
 	_ensure_cube_visual()
 	_ensure_box_hitbox()
+	_apply_visual_scale()
+	_apply_hitbox_scale()
 	_collision_bottom_y = _compute_collision_bottom_y()
 	_rng.randomize()
 
@@ -47,6 +66,7 @@ func configure(terrain: TerrainManager, target: Node3D, speed: float = BASE_MOVE
 	_target = target
 	move_speed = speed
 	_snap_to_cruise_height(true, 0.0)
+	_init_flight_heading_from_transform()
 
 
 func bind_garrison(anchor: Vector3, tower_index: int = -1, shield: Node3D = null) -> void:
@@ -60,9 +80,13 @@ func _garrison_idle_goal_xz() -> Vector3:
 
 
 func _ensure_cube_visual() -> void:
-	var old_visual := get_node_or_null("Visual")
-	if old_visual != null:
-		old_visual.queue_free()
+	var scene_visual := get_node_or_null("Visual") as Node3D
+	if scene_visual != null:
+		_visual = scene_visual
+		# Imported drone GLBs face +Z; steering uses look_at (-Z toward target).
+		scene_visual.rotation.y = PI
+		return
+
 	_cube = get_node_or_null("Cube") as MeshInstance3D
 	if _cube == null:
 		_cube = MeshInstance3D.new()
@@ -84,7 +108,7 @@ func _ensure_box_hitbox() -> void:
 		col.name = "CollisionShape3D"
 		add_child(col)
 	var box := BoxShape3D.new()
-	box.size = Vector3.ONE * CUBE_SIZE_M
+	box.size = Vector3.ONE * body_size_m()
 	col.shape = box
 	col.position = Vector3.ZERO
 
@@ -115,7 +139,10 @@ func _physics_process(delta: float) -> void:
 	)
 	move_and_slide()
 	_snap_to_cruise_height(false, delta)
-	_face_target()
+	if garrisoned:
+		_face_target()
+	else:
+		_face_heading(delta)
 	_update_weapons(delta)
 
 
@@ -144,10 +171,10 @@ func _steer(delta: float) -> void:
 		return
 	var dir := to.normalized()
 	var speed := _get_move_speed()
-	# Soft arrive near kite hold so we don't overshoot forever.
 	if fly_state == FlyState.KITE:
 		speed = minf(speed, to.length() * 2.5)
-	velocity = dir * speed
+	_steer_heading_toward(dir, FLIGHT_TURN_RATE_DEG, delta)
+	_apply_flight_velocity(speed, delta)
 
 
 func _steer_garrison(delta: float) -> void:
@@ -172,6 +199,67 @@ func _desired_xz() -> Vector3:
 			return Vector3(player.x, 0.0, player.z) + facing * KITE_HOLD_M
 		_:
 			return Vector3(player.x, 0.0, player.z) + facing * KITE_HOLD_M
+
+
+func _steer_heading_toward(desired_dir: Vector3, turn_rate_deg: float, delta: float) -> void:
+	var flat := Vector3(desired_dir.x, 0.0, desired_dir.z)
+	if flat.length_squared() < 0.0001:
+		return
+	_flight_heading = rotate_heading_toward(_flight_heading, flat, turn_rate_deg, delta)
+
+
+func _apply_flight_velocity(target_speed: float, delta: float) -> void:
+	var current_speed := Vector3(velocity.x, 0.0, velocity.z).length()
+	var new_speed := move_toward(
+		current_speed,
+		maxf(target_speed, 0.0),
+		FLIGHT_SPEED_ACCEL_MPS2 * maxf(delta, 0.0)
+	)
+	if _flight_heading.length_squared() < 0.0001:
+		velocity = Vector3.ZERO
+		velocity.y = 0.0
+		return
+	velocity = _flight_heading * new_speed
+	velocity.y = 0.0
+
+
+func _face_heading(delta: float) -> void:
+	if _flight_heading.length_squared() < 0.0001:
+		return
+	var forward := Vector3(_flight_heading.x, 0.0, _flight_heading.z).normalized()
+	var target_basis := Basis.looking_at(forward, Vector3.UP).orthonormalized()
+	global_transform.basis = global_transform.basis.slerp(
+		target_basis,
+		minf(FACE_SLERP_RATE * maxf(delta, 0.0), 1.0)
+	)
+
+
+func _init_flight_heading_from_transform() -> void:
+	var forward := -global_transform.basis.z
+	forward.y = 0.0
+	if forward.length_squared() > 0.0001:
+		_flight_heading = forward.normalized()
+
+
+static func rotate_heading_toward(
+	current: Vector3,
+	target: Vector3,
+	max_turn_deg: float,
+	delta: float
+) -> Vector3:
+	var cur := Vector3(current.x, 0.0, current.z)
+	var tgt := Vector3(target.x, 0.0, target.z)
+	if cur.length_squared() < 0.0001:
+		cur = Vector3(-1.0, 0.0, 0.0)
+	else:
+		cur = cur.normalized()
+	if tgt.length_squared() < 0.0001:
+		return cur
+	tgt = tgt.normalized()
+	var max_rad := deg_to_rad(maxf(max_turn_deg, 0.0)) * maxf(delta, 0.0)
+	var angle := cur.signed_angle_to(tgt, Vector3.UP)
+	var turn := clampf(angle, -max_rad, max_rad)
+	return cur.rotated(Vector3.UP, turn).normalized()
 
 
 func _snap_to_cruise_height(instant: bool, delta: float = 0.016) -> void:
@@ -261,6 +349,118 @@ func xz_distance_to_target() -> float:
 	return AutoRifleScript.xz_distance(global_position, _target.global_position)
 
 
+func get_hit_fragment_kit() -> PackedScene:
+	return DRONE_FRAGMENT_KIT
+
+
+func get_hit_fragment_scale_mult(is_lethal: bool = false) -> float:
+	var size_mult := (
+		HIT_FRAGMENT_KILL_SCALE_MULT if is_lethal else HIT_FRAGMENT_SCALE_MULT
+	)
+	return DRONE_SIZE_MULT * size_mult
+
+
+func _try_spawn_hit_fragments(
+	hit_dir: Vector3,
+	is_crit: bool,
+	weapon_family: StringName,
+	is_lethal: bool = false
+) -> void:
+	if not is_lethal and _hit_fragment_cooldown_left > 0.0:
+		return
+	var kit := get_hit_fragment_kit()
+	if kit == null:
+		return
+	var hit_pos := _hit_fragment_spawn_pos(hit_dir)
+	var count := get_hit_fragment_count(is_crit, weapon_family, is_lethal)
+	var spark_color := _resolve_damage_spark_color() if is_lethal else Color(0.0, 0.0, 0.0, 0.0)
+	EnemyHitFragmentVfxScript.spawn(
+		get_tree(),
+		kit,
+		hit_pos,
+		hit_dir,
+		count,
+		get_hit_fragment_scale_mult(is_lethal),
+		_terrain,
+		is_lethal,
+		weapon_family,
+		spark_color,
+		is_lethal
+	)
+	_hit_fragment_cooldown_left = HIT_FRAGMENT_COOLDOWN_SEC
+
+
+func _try_spawn_hit_sparks(
+	hit_dir: Vector3,
+	is_crit: bool,
+	_weapon_family: StringName,
+	is_lethal: bool
+) -> void:
+	if invulnerable:
+		return
+	if not is_lethal and _hit_fragment_cooldown_left > 0.0:
+		return
+	var count := HIT_SPARK_COUNT
+	if is_lethal:
+		count = HIT_SPARK_KILL_COUNT
+	elif is_crit:
+		count = HIT_SPARK_CRIT_COUNT
+	var spark_color := _resolve_hit_spark_color()
+	var glow := DroneHitSparkVfxScript.DEFAULT_GLOW_STRENGTH
+	var spark_length := DroneHitSparkVfxScript.SPARK_LENGTH_M
+	if is_lethal:
+		spark_color = _resolve_damage_spark_color()
+		glow = DroneDamageSparkVfxScript.DEBRIS_GLOW_STRENGTH
+		spark_length = DroneDamageSparkVfxScript.debris_spark_length_for_chunk(
+			get_hit_fragment_scale_mult(true)
+		)
+	DroneHitSparkVfxScript.spawn(
+		get_tree(),
+		_hit_fragment_spawn_pos(hit_dir),
+		hit_dir,
+		spark_color,
+		count,
+		glow,
+		spark_length
+	)
+	_hit_fragment_cooldown_left = HIT_FRAGMENT_COOLDOWN_SEC
+
+
+func _resolve_hit_spark_color() -> Color:
+	if _visual != null:
+		var streak_vfx := _visual.get_node_or_null("Body") as DroneStreakVfxScript
+		if streak_vfx != null:
+			return streak_vfx.get_spark_color()
+	return HIT_SPARK_FALLBACK_COLOR
+
+
+func _resolve_damage_spark_color() -> Color:
+	var base := _resolve_hit_spark_color()
+	return Color(
+		maxf(base.r, 2.0),
+		minf(base.g, 0.45),
+		minf(base.b, 0.12),
+		base.a
+	)
+
+
+func _ensure_damage_sparks() -> void:
+	if _damage_sparks != null or _visual == null:
+		return
+	_damage_sparks = DroneDamageSparkVfxScript.attach(
+		_visual,
+		_resolve_damage_spark_color()
+	)
+
+
+func _clear_damage_sparks() -> void:
+	if _damage_sparks == null:
+		return
+	if is_instance_valid(_damage_sparks):
+		_damage_sparks.queue_free()
+	_damage_sparks = null
+
+
 func take_damage(
 	amount: int,
 	hit_dir: Vector3 = Vector3.ZERO,
@@ -270,26 +470,53 @@ func take_damage(
 ) -> bool:
 	if invulnerable:
 		return false
-	return super.take_damage(amount, hit_dir, is_crit, knockback_speed, weapon_family)
+	var died := super.take_damage(amount, hit_dir, is_crit, knockback_speed, weapon_family)
+	if not died and _hp < _max_health:
+		_ensure_damage_sparks()
+	return died
 
 
-func _die(from_pos: Vector3) -> void:
+func _die(from_pos: Vector3, _weapon_family: StringName = &"") -> void:
+	_clear_damage_sparks()
 	set_physics_process(false)
 	var collision := get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if collision != null:
 		collision.disabled = true
-	if _cube != null:
+	CameraImpactShakeScript.request(get_tree(), global_position, 0.25, 15.0)
+	if _visual != null:
+		var streak_vfx := _visual.get_node_or_null("Body") as DroneStreakVfx
+		if streak_vfx != null:
+			streak_vfx.prepare_for_death()
+		_visual.visible = false
+	elif _cube != null:
 		_cube.visible = false
 	died.emit()
 	queue_free()
 
 
 func _apply_visual_scale() -> void:
-	pass
+	if _visual != null:
+		_visual.scale = Vector3.ONE * DRONE_SIZE_MULT
+		return
+	if _cube != null and _cube.mesh is BoxMesh:
+		(_cube.mesh as BoxMesh).size = Vector3.ONE * body_size_m()
+
+
+func get_type_flare() -> Node3D:
+	if _visual == null:
+		return null
+	var flare := _visual.find_child("TypeFlare", true, false)
+	if flare != null and flare.get_script() == DroneTypeFlareScript:
+		return flare
+	return null
 
 
 func _apply_hitbox_scale() -> void:
-	pass
+	var col := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col == null or col.shape == null:
+		return
+	if col.shape is BoxShape3D:
+		(col.shape as BoxShape3D).size = Vector3.ONE * body_size_m()
 
 
 func _sync_anim_speed() -> void:
@@ -318,3 +545,7 @@ static func move_speed_for_drone_level(level: int) -> float:
 
 static func spawn_ahead_m() -> float:
 	return SPAWN_AHEAD_M
+
+
+static func body_size_m() -> float:
+	return CUBE_SIZE_M * DRONE_SIZE_MULT

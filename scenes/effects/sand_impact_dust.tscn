@@ -1,0 +1,9 @@
+[gd_scene format=3 uid="uid://8n7jehpwerc7"]
+
+[ext_resource type="Script" uid="uid://bbqhh0w466g6h" path="res://scripts/enemies/sand_impact_dust.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://scenes/effects/sand_burst_heavy_gpu.tscn" id="2_heavy"]
+
+[node name="SandImpactDust" type="Node3D" unique_id=816318249]
+script = ExtResource("1_script")
+
+[node name="BurstRoot" parent="." unique_id=343550513 instance=ExtResource("2_heavy")]

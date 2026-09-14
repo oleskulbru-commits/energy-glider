@@ -1,0 +1,16 @@
+[gd_resource type="ShaderMaterial" format=3 uid="uid://bo365cxx7sghc"]
+
+[ext_resource type="Shader" uid="uid://bepfomdu0vu8p" path="res://assets/vfx/shaders/aerial_explosion.gdshader" id="1_shader"]
+[ext_resource type="Texture2D" uid="uid://bw2vbt64nmjss" path="res://assets/vfx/effect_textures/explosions/aerial_explosions/aerial_explode_2_v001_frame_0010.png" id="2_frame"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_shader")
+shader_parameter/color_tex = ExtResource("2_frame")
+shader_parameter/color_tint = Vector3(1, 1, 1)
+shader_parameter/smoke_tint = Vector3(0.22, 0.2, 0.18)
+shader_parameter/smoke_mix = 0.28
+shader_parameter/emission_strength = 2.5
+shader_parameter/alpha_scale = 1.0
+shader_parameter/proximity_fade_enabled = true
+shader_parameter/proximity_fade_distance = 1.0

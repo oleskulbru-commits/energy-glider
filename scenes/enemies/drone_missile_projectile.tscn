@@ -1,0 +1,5 @@
+[gd_scene format=4]
+
+[ext_resource type="PackedScene" uid="uid://m1yoai3lb2q1" path="res://scenes/enemies/rebel_drones/drone_missile_projectile.tscn" id="1_scene"]
+
+[node name="DroneMissileProjectile" instance=ExtResource("1_scene")]

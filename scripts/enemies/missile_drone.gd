@@ -1,23 +1,26 @@
 class_name MissileDrone
 extends "res://scripts/enemies/combat_drone.gd"
 
-## Blue cube. Fires a staggered lofted hail with player-rocket visuals.
+## Blue drone. Fires a staggered lofted hail using drone_missile_projectile.tscn.
 
 const GroundReticleScript = preload("res://scripts/enemies/ground_reticle.gd")
 const DroneRocketScript = preload("res://scripts/enemies/drone_rocket.gd")
+const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 
 const ROCKET_COUNT_MIN := 30
 const ROCKET_COUNT_MAX := 40
 const ROCKET_DAMAGE := 10
-const LEAD_SEC := DroneRocketScript.FLIGHT_SEC
+const LEAD_SEC := DroneRocketScript.STRAIGHT_SEC + DroneRocketScript.FLIGHT_SEC
 const SPREAD_RADIUS_GROUND_M := 4.0
 const SPREAD_RADIUS_AIR_M := 4.0
 const AIR_VOLLEY_CENTER_JITTER_MIN_M := 2.0
 const AIR_VOLLEY_CENTER_JITTER_MAX_M := 4.0
 const HAIL_COOLDOWN_SEC := 7.0
 const SIEGE_ROCKET_COUNT := 8
-const FALL_TELEGRAPH_SEC := DroneRocketScript.FLIGHT_SEC
+const FALL_TELEGRAPH_SEC := DroneRocketScript.STRAIGHT_SEC + DroneRocketScript.FLIGHT_SEC
 const STAGGER_SEC := 0.1
+const SPAWN_SLOT_COUNT := 6
+const AIM_FACE_XFADE_SEC := 0.4
 
 var _cooldown_left := 1.5
 var _rng_hail := RandomNumberGenerator.new()
@@ -25,6 +28,9 @@ var _pending_offsets: Array[Vector3] = []
 var _stagger_left := 0.0
 var _firing_hail := false
 var _hail_center_bias := Vector3.ZERO
+var _hail_rockets_fired := 0
+var _aim_face_xfade_left := 0.0
+var _aim_face_from_basis := Basis.IDENTITY
 
 
 func _ready() -> void:
@@ -81,8 +87,9 @@ func _begin_hail(count_override: int = 0) -> void:
 	)
 	_hail_center_bias = Vector3(cos(bias_angle) * bias_dist, 0.0, sin(bias_angle) * bias_dist)
 	_firing_hail = true
-	_stagger_left = 0.0
-	_fire_next_rocket()
+	_stagger_left = AIM_FACE_XFADE_SEC
+	_hail_rockets_fired = 0
+	_begin_aim_face_xfade()
 
 
 func _tick_stagger(delta: float) -> void:
@@ -100,20 +107,33 @@ func _fire_next_rocket() -> void:
 		_firing_hail = false
 		return
 	var offset: Vector3 = _pending_offsets.pop_front()
-	var parent := get_tree().current_scene
-	if parent == null:
-		parent = self
+	var parent := SceneUtilScript.world_parent(get_tree(), self)
 	var rocket = DroneRocketScript.new()
 	parent.add_child(rocket)
+	var slot_index := _hail_rockets_fired % SPAWN_SLOT_COUNT
+	var spawn_transform := _get_spawn_slot_transform(slot_index)
+	_hail_rockets_fired += 1
 	if garrisoned and not _garrison_aggroed:
 		var impact := _shield_siege_aim()
 		impact += offset * 0.12
-		rocket.launch_to_air_point(global_position, impact)
+		rocket.launch_to_air_point(
+			spawn_transform.origin,
+			impact,
+			spawn_transform,
+			null,
+			DRONE_SIZE_MULT
+		)
 	elif uses_air_targeting():
 		var lead := _lead_point_3d()
 		var air_offset := air_offset_from_ground(offset, _rng_hail)
 		var impact := lead + _hail_center_bias + air_offset
-		rocket.launch_to_air_point(global_position, impact)
+		rocket.launch_to_air_point(
+			spawn_transform.origin,
+			impact,
+			spawn_transform,
+			null,
+			DRONE_SIZE_MULT
+		)
 	else:
 		var lead := _lead_point()
 		var impact := lead + offset
@@ -122,11 +142,78 @@ func _fire_next_rocket() -> void:
 			ground.y = _terrain.sample_height(impact.x, impact.z)
 		var reticle = GroundReticleScript.new()
 		parent.add_child(reticle)
-		reticle.place(ground, FALL_TELEGRAPH_SEC)
-		rocket.launch_from_drone(global_position, ground, _terrain)
+		reticle.place(ground, FALL_TELEGRAPH_SEC, _terrain)
+		rocket.launch_from_drone(
+			spawn_transform.origin,
+			ground,
+			_terrain,
+			spawn_transform,
+			null,
+			DRONE_SIZE_MULT
+		)
 	_stagger_left = STAGGER_SEC
 	if _pending_offsets.is_empty():
 		_firing_hail = false
+
+
+func _get_spawn_slot(slot_index: int) -> Node3D:
+	var slot_name := "Missile %d" % (slot_index + 1)
+	var slot := find_child(slot_name, true, false) as Node3D
+	if slot != null:
+		return slot
+	var visual := get_node_or_null("Visual")
+	if visual == null:
+		return null
+	return visual.find_child("Missile_Projectile_%d" % (slot_index + 1), true, false) as Node3D
+
+
+func _get_spawn_slot_transform(slot_index: int) -> Transform3D:
+	var slot := _get_spawn_slot(slot_index)
+	if slot != null:
+		return slot.global_transform
+	return global_transform
+
+
+func _face_heading(delta: float) -> void:
+	if _firing_hail:
+		_apply_aim_facing(delta)
+		return
+	super._face_heading(delta)
+
+
+func _begin_aim_face_xfade() -> void:
+	_aim_face_from_basis = global_transform.basis
+	_aim_face_xfade_left = AIM_FACE_XFADE_SEC
+
+
+func _apply_aim_facing(delta: float) -> void:
+	var forward := _aim_forward_xz()
+	if forward.length_squared() < 0.0001:
+		super._face_heading(delta)
+		return
+	var target_basis := Basis.looking_at(forward, Vector3.UP).orthonormalized()
+	if _aim_face_xfade_left > 0.0:
+		_aim_face_xfade_left = maxf(_aim_face_xfade_left - maxf(delta, 0.0), 0.0)
+		var weight := 1.0 - (_aim_face_xfade_left / AIM_FACE_XFADE_SEC)
+		global_transform.basis = _aim_face_from_basis.slerp(
+			target_basis,
+			smoothstep(0.0, 1.0, weight)
+		)
+		return
+	global_transform.basis = global_transform.basis.slerp(
+		target_basis,
+		minf(FACE_SLERP_RATE * maxf(delta, 0.0), 1.0)
+	)
+
+
+func _aim_forward_xz() -> Vector3:
+	if _target == null or not is_instance_valid(_target):
+		return Vector3.ZERO
+	var aim := _lead_point_3d() if uses_air_targeting() else _lead_point()
+	var to := Vector3(aim.x - global_position.x, 0.0, aim.z - global_position.z)
+	if to.length_squared() < 0.0001:
+		return Vector3.ZERO
+	return to.normalized()
 
 
 func _target_velocity() -> Vector3:
@@ -157,7 +244,7 @@ func _lead_point_3d() -> Vector3:
 	return player + vel * LEAD_SEC
 
 
-## Wide ring/ellipse offsets with jitter so the player can slip between hits.
+## Scattered disc offsets so hail impacts do not form a visible ring pattern.
 static func impact_offsets_around(
 	count: int,
 	radius_m: float,
@@ -165,14 +252,23 @@ static func impact_offsets_around(
 ) -> Array[Vector3]:
 	var offsets: Array[Vector3] = []
 	var n := maxi(count, 1)
-	for i in n:
-		var angle := TAU * float(i) / float(n) + rng.randf_range(-0.08, 0.08)
-		var radial := radius_m * rng.randf_range(0.35, 1.0)
-		# Elliptical stretch along Z so the pattern is wide but not a solid disc.
+	for _i in n:
+		var angle := rng.randf() * TAU
+		var radial := radius_m * sqrt(rng.randf())
+		var z_stretch := rng.randf_range(0.65, 0.95)
 		var x := cos(angle) * radial
-		var z := sin(angle) * radial * 0.75
+		var z := sin(angle) * radial * z_stretch
 		offsets.append(Vector3(x, 0.0, z))
+	_shuffle_offsets(offsets, rng)
 	return offsets
+
+
+static func _shuffle_offsets(offsets: Array[Vector3], rng: RandomNumberGenerator) -> void:
+	for i in range(offsets.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp: Vector3 = offsets[i]
+		offsets[i] = offsets[j]
+		offsets[j] = tmp
 
 
 static func air_offset_from_ground(offset: Vector3, rng: RandomNumberGenerator) -> Vector3:

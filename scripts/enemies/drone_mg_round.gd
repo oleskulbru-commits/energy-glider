@@ -5,14 +5,13 @@ extends Node3D
 
 const DroneMgRoundScript := preload("res://scripts/enemies/drone_mg_round.gd")
 const SandImpactDustScript = preload("res://scripts/enemies/sand_impact_dust.gd")
+const SandParticleVfxScript = preload("res://scripts/vfx/sand_particle_vfx.gd")
 
 const SPEED_MPS := 140.0
 const MAX_LIFE_SEC := 1.2
 const GROUND_OFFSET_M := 0.06
-const TRACER_RADIUS := 0.18
-const TRACER_HEIGHT := 1.1
-const STREAK_RADIUS := 0.14
-const STREAK_HEIGHT := 3.2
+const FALLBACK_RADIUS := 0.01
+const FALLBACK_HEIGHT := 0.4
 
 
 var _dir := Vector3.DOWN
@@ -20,15 +19,15 @@ var _speed := SPEED_MPS
 var _life := MAX_LIFE_SEC
 var _terrain: TerrainManager
 var _tracer: MeshInstance3D
-var _streak: MeshInstance3D
 
 
 static func fire(
 	tree: SceneTree,
-	origin: Vector3,
 	aim_dir: Vector3,
 	terrain: TerrainManager = null,
-	speed_mps: float = SPEED_MPS
+	speed_mps: float = SPEED_MPS,
+	gun_barrel: Node3D = null,
+	size_ref: MeshInstance3D = null
 ) -> Node3D:
 	if tree == null:
 		return null
@@ -37,27 +36,57 @@ static func fire(
 		return null
 	var tracer: Node3D = DroneMgRoundScript.new()
 	parent.add_child(tracer)
-	tracer.configure(origin, aim_dir, terrain, speed_mps)
+	tracer.configure(aim_dir, terrain, speed_mps, gun_barrel, size_ref)
 	return tracer
 
 
+static func reference_has_capsule(ref: MeshInstance3D) -> bool:
+	return ref != null and ref.mesh is CapsuleMesh
+
+
+static func capsule_world_size(ref: MeshInstance3D) -> Vector2:
+	if not reference_has_capsule(ref):
+		return Vector2.ZERO
+	var mesh := ref.mesh as CapsuleMesh
+	var scale := ref.global_transform.basis.get_scale().abs()
+	var radius_scale := maxf(scale.x, scale.z)
+	return Vector2(mesh.radius * radius_scale, mesh.height * scale.y)
+
+
 func configure(
-	origin: Vector3,
 	aim_dir: Vector3,
 	terrain: TerrainManager,
-	speed_mps: float = SPEED_MPS
+	speed_mps: float = SPEED_MPS,
+	gun_barrel: Node3D = null,
+	size_ref: MeshInstance3D = null
 ) -> void:
-	global_position = origin
 	_terrain = terrain
 	_speed = maxf(speed_mps, 1.0)
 	_life = MAX_LIFE_SEC
 	if aim_dir.length_squared() > 0.0001:
 		_dir = aim_dir.normalized()
-	_ensure_tracer()
+	_apply_reference_transform(gun_barrel, size_ref)
+	_ensure_tracer(size_ref)
 	_orient()
 
 
-func _ensure_tracer() -> void:
+func _apply_reference_transform(gun_barrel: Node3D, _size_ref: MeshInstance3D) -> void:
+	if gun_barrel != null:
+		global_position = gun_barrel.global_position
+		return
+	global_position = Vector3.ZERO
+
+
+func _orient() -> void:
+	if _dir.length_squared() < 0.0001:
+		return
+	if absf(_dir.dot(Vector3.UP)) > 0.98:
+		look_at(global_position + _dir, Vector3.FORWARD)
+	else:
+		look_at(global_position + _dir, Vector3.UP)
+
+
+func _ensure_tracer(size_ref: MeshInstance3D) -> void:
 	if _tracer != null:
 		return
 	var mat := StandardMaterial3D.new()
@@ -67,43 +96,27 @@ func _ensure_tracer() -> void:
 	mat.emission = Color(1.0, 0.72, 0.22, 1.0)
 	mat.emission_energy_multiplier = 2.6
 
-	var streak_mat := StandardMaterial3D.new()
-	streak_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	streak_mat.albedo_color = Color(1.0, 0.78, 0.28, 0.9)
-	streak_mat.emission_enabled = true
-	streak_mat.emission = Color(1.0, 0.62, 0.16, 1.0)
-	streak_mat.emission_energy_multiplier = 2.0
-
-	_streak = MeshInstance3D.new()
-	_streak.name = "Streak"
-	var streak_capsule := CapsuleMesh.new()
-	streak_capsule.radius = STREAK_RADIUS
-	streak_capsule.height = STREAK_HEIGHT
-	_streak.mesh = streak_capsule
-	_streak.material_override = streak_mat
-	_streak.position = Vector3(0.0, 0.0, STREAK_HEIGHT * 0.45)
-	_streak.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(_streak)
-
 	_tracer = MeshInstance3D.new()
 	_tracer.name = "Tracer"
-	var capsule := CapsuleMesh.new()
-	capsule.radius = TRACER_RADIUS
-	capsule.height = TRACER_HEIGHT
-	_tracer.mesh = capsule
+	if reference_has_capsule(size_ref):
+		_tracer.mesh = (size_ref.mesh as CapsuleMesh).duplicate()
+	else:
+		var capsule := CapsuleMesh.new()
+		capsule.radius = FALLBACK_RADIUS
+		capsule.height = FALLBACK_HEIGHT
+		_tracer.mesh = capsule
 	_tracer.material_override = mat
 	_tracer.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_tracer.transform = Transform3D(
+		Basis(Vector3(1.0, 0.0, 0.0), Vector3(0.0, 0.0, 1.0), Vector3(0.0, -1.0, 0.0)),
+		Vector3.ZERO
+	)
 	add_child(_tracer)
-
-
-func _orient() -> void:
-	if _dir.length_squared() < 0.0001:
-		return
-	look_at(global_position + _dir, Vector3.UP)
 
 
 func _physics_process(delta: float) -> void:
 	global_position += _dir * _speed * delta
+	_orient()
 	_life -= delta
 	if _life <= 0.0:
 		queue_free()
@@ -130,5 +143,6 @@ func _impact() -> void:
 	SandImpactDustScript.spawn(
 		tree,
 		Vector3(global_position.x, ground_y, global_position.z),
-		_terrain
+		_terrain,
+		SandParticleVfxScript.BurstPreset.MG
 	)

@@ -1,9 +1,9 @@
 extends SceneTree
 
 const SwarmPillScript = preload("res://scripts/enemies/swarm_pill.gd")
-const SwarmPillScene = preload("res://scenes/enemies/swarm_pill.tscn")
+const SwarmPillScene = preload("res://scenes/enemies/crawler/swarm_pill.tscn")
 const ChargerPillScript = preload("res://scripts/enemies/charger_pill.gd")
-const ChargerPillScene = preload("res://scenes/enemies/charger_pill.tscn")
+const ChargerPillScene = preload("res://scenes/enemies/crawler/charger_pill.tscn")
 const LeaperPillScript = preload("res://scripts/enemies/leaper_pill.gd")
 const LeaperPillScene = preload("res://scenes/enemies/leaper_pill.tscn")
 const EnemyStreamSpawnerScript = preload("res://scripts/enemies/enemy_stream_spawner.gd")

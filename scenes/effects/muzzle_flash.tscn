@@ -1,0 +1,23 @@
+[gd_scene format=3 uid="uid://m6el2htscaob"]
+
+[ext_resource type="Script" uid="uid://c3trpwrrqei4q" path="res://scripts/vfx/muzzle_flash.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://bdsvxwhpqewsc" path="res://assets/vfx/effect_textures/muzzle_flash_1.png" id="1_tmmjm"]
+[ext_resource type="ArrayMesh" uid="uid://dwxh7v6kkls2i" path="res://assets/vfx/meshes/muzzle_planes.obj" id="1_u6mxp"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_iiyor"]
+transparency = 1
+blend_mode = 1
+cull_mode = 2
+shading_mode = 0
+vertex_color_use_as_albedo = true
+vertex_color_is_srgb = true
+albedo_texture = ExtResource("1_tmmjm")
+texture_filter = 0
+
+[node name="MuzzleFlash" type="Node3D" unique_id=432335010]
+script = ExtResource("1_script")
+
+[node name="MuzzlePlanes" type="GPUParticles3D" parent="." unique_id=1779938887]
+emitting = false
+material_override = SubResource("StandardMaterial3D_iiyor")
+draw_pass_1 = ExtResource("1_u6mxp")

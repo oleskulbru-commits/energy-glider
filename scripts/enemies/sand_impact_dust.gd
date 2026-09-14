@@ -1,28 +1,76 @@
 class_name SandImpactDust
 extends Node3D
 
-## Mars-sand burst when MG rounds pepper the dunes. Matches glider hover dust visuals.
+## World-spawned sand burst. Tuning lives in sand_burst_*_gpu.tscn — this script only places and plays.
 
-const SandImpactDustScript := preload("res://scripts/enemies/sand_impact_dust.gd")
-const HoverDustScript = preload("res://scripts/player/hover_dust.gd")
+const SandImpactDustScene := preload("res://scenes/effects/sand_impact_dust.tscn")
+const SandImpactDustExplosionScene := preload("res://scenes/effects/sand_impact_dust_explosion.tscn")
+const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
+const CameraImpactShakeScript := preload("res://scripts/player/camera_impact_shake.gd")
 
 const GROUND_LIFT := 0.05
-const BURST_INTENSITY := 1.35
 
 
 static func spawn(
 	tree: SceneTree,
 	impact: Vector3,
-	terrain: TerrainManager = null
+	terrain: TerrainManager = null,
+	preset: SandParticleVfx.BurstPreset = SandParticleVfx.BurstPreset.HEAVY,
+	scale_mult: float = 1.0,
+	shake_strength: float = 0.0,
+	shake_radius_m: float = 0.0
 ) -> void:
 	if tree == null:
 		return
 	var parent := tree.current_scene
 	if parent == null:
 		return
-	var dust: SandImpactDust = SandImpactDustScript.new()
+	var dust: SandImpactDust
+	if preset == SandParticleVfx.BurstPreset.HEAVY:
+		dust = SandImpactDustScene.instantiate() as SandImpactDust
+	elif preset == SandParticleVfx.BurstPreset.EXPLOSION:
+		dust = SandImpactDustExplosionScene.instantiate() as SandImpactDust
+	else:
+		dust = SandImpactDust.new()
+		var burst_root: Node = SandParticleVfx.burst_scene(preset).instantiate()
+		dust.add_child(burst_root)
 	parent.add_child(dust)
 	dust._place_on_surface(impact, terrain, tree)
+	if scale_mult > 0.0 and not is_equal_approx(scale_mult, 1.0):
+		dust.scale = Vector3.ONE * scale_mult
+	dust._play_burst()
+	if shake_strength > 0.0 and shake_radius_m > 0.0:
+		CameraImpactShakeScript.request(tree, impact, shake_strength, shake_radius_m)
+
+
+func _ready() -> void:
+	pass
+
+
+func _play_burst() -> void:
+	var burst := _find_burst() as GPUParticles3D
+	if burst == null:
+		queue_free()
+		return
+	SandParticleVfxScript.configure_gpu_burst(burst)
+	burst.restart()
+	burst.emitting = true
+	var timer := get_tree().create_timer(burst.lifetime + SandParticleVfx.FREE_BUFFER_SEC)
+	timer.timeout.connect(queue_free)
+
+
+func _find_burst() -> Node:
+	var direct := get_node_or_null("SandBurst") as GPUParticles3D
+	if direct != null:
+		return direct
+	var burst_root := get_node_or_null("BurstRoot")
+	if burst_root != null:
+		return burst_root.get_node_or_null("SandBurst")
+	for child in get_children():
+		var nested := child.get_node_or_null("SandBurst") as GPUParticles3D
+		if nested != null:
+			return nested
+	return null
 
 
 func _place_on_surface(impact: Vector3, terrain: TerrainManager, tree: SceneTree) -> void:
@@ -43,13 +91,3 @@ func _place_on_surface(impact: Vector3, terrain: TerrainManager, tree: SceneTree
 	var normal: Vector3 = surface.normal
 	global_position = surface.position + normal * GROUND_LIFT
 	global_basis = TerrainQuery.basis_from_up(normal)
-
-
-func _ready() -> void:
-	var burst := CPUParticles3D.new()
-	burst.name = "SandBurst"
-	HoverDustScript.configure_impact_burst(burst, BURST_INTENSITY)
-	add_child(burst)
-	burst.restart()
-	var timer := get_tree().create_timer(HoverDustScript.BASE_LIFETIME + 0.1)
-	timer.timeout.connect(queue_free)

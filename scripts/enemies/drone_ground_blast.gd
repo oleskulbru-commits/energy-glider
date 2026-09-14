@@ -3,6 +3,8 @@ extends Node3D
 ## Bright flash + particle burst + lingering ground fire for drone rocket impacts.
 
 const BlastScript := preload("res://scripts/enemies/drone_ground_blast.gd")
+const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
+const CameraImpactShakeScript := preload("res://scripts/player/camera_impact_shake.gd")
 
 const TOTAL_LIFETIME_SEC := 5.0
 const FIRE_EMIT_SEC := 2.8
@@ -28,6 +30,7 @@ static func spawn(
 
 
 func _ready() -> void:
+	CameraImpactShakeScript.request(get_tree(), global_position, 0.95, 42.0)
 	_add_flash_light()
 	_add_flash_burst()
 	_add_ground_dust()
@@ -100,8 +103,7 @@ func _add_ground_dust() -> void:
 	dust.color = Color(0.72, 0.82, 0.95, 0.75)
 	dust.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	dust.local_coords = false
-	dust.material_override = _dust_material()
-	dust.mesh = _spark_mesh(0.38)
+	dust.mesh = SandParticleVfxScript.emitter_quad_mesh()
 	add_child(dust)
 	dust.restart()
 
@@ -150,19 +152,6 @@ func _fire_material(energy: float) -> StandardMaterial3D:
 	mat.emission_enabled = true
 	mat.emission = Color(0.2, 0.45, 1.0, 1.0)
 	mat.emission_energy_multiplier = energy
-	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	mat.disable_fog = true
-	return mat
-
-
-func _dust_material() -> StandardMaterial3D:
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color(0.78, 0.86, 0.96, 0.65)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.emission_enabled = true
-	mat.emission = Color(0.45, 0.62, 0.9, 1.0)
-	mat.emission_energy_multiplier = 3.5
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	mat.disable_fog = true
 	return mat

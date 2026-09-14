@@ -238,7 +238,7 @@ func _place_landing_reticle() -> void:
 		return
 	var reticle: GroundReticle = GroundReticleScript.new()
 	parent.add_child(reticle)
-	reticle.place(_leap_impact, LEAP_SEC, RETICLE_COLOR)
+	reticle.place(_leap_impact, LEAP_SEC, _terrain, RETICLE_COLOR)
 	_reticle = reticle
 
 

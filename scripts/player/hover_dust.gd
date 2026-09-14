@@ -1,83 +1,39 @@
 class_name HoverDust
 extends Node3D
 
+## Hover sand trail. Tune via SandParticleVfx.configure_gpu_hover_dust — script handles surface follow and intensity.
+
 const GliderPhysicsScript = preload("res://scripts/player/glider_physics.gd")
+const SandParticleVfxScript = preload("res://scripts/vfx/sand_particle_vfx.gd")
 
 const GROUND_OFFSET := 0.05
 const RAY_LENGTH := 24.0
-const BASE_AMOUNT := 28
-const BASE_LIFETIME := 0.65
-const BASE_VELOCITY_MIN := 0.6
-const BASE_VELOCITY_MAX := 1.8
-const BASE_ALPHA := 0.45
-const DUST_COLOR := Color(0.78, 0.62, 0.4, BASE_ALPHA)
 
-var _particles: CPUParticles3D
+@onready var _particles: GPUParticles3D = $Stream
 
-
-static func configure_sand_mesh(particles: CPUParticles3D) -> void:
-	var quad := QuadMesh.new()
-	quad.size = Vector2(0.2, 0.2)
-	var mat := StandardMaterial3D.new()
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.vertex_color_use_as_albedo = true
-	mat.billboard_mode = StandardMaterial3D.BILLBOARD_PARTICLES
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	quad.material = mat
-	particles.mesh = quad
-	particles.visibility_aabb = AABB(Vector3(-2.0, -1.0, -2.0), Vector3(4.0, 3.0, 4.0))
-
-
-static func configure_hover_stream(particles: CPUParticles3D) -> void:
-	configure_sand_mesh(particles)
-	particles.emitting = false
-	particles.amount = BASE_AMOUNT
-	particles.lifetime = BASE_LIFETIME
-	particles.explosiveness = 0.12
-	particles.randomness = 0.45
-	particles.direction = Vector3(0.0, 1.0, 0.0)
-	particles.spread = 75.0
-	particles.gravity = Vector3(0.0, -1.2, 0.0)
-	particles.initial_velocity_min = BASE_VELOCITY_MIN
-	particles.initial_velocity_max = BASE_VELOCITY_MAX
-	particles.scale_amount_min = 0.1
-	particles.scale_amount_max = 0.22
-	particles.color = DUST_COLOR
-	particles.local_coords = false
-	particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
-	particles.emission_box_extents = Vector3(0.425, 0.025, 0.85)
-
-
-static func configure_impact_burst(particles: CPUParticles3D, intensity: float = 1.15) -> void:
-	configure_sand_mesh(particles)
-	var clamped := clampf(intensity, 0.5, 2.0)
-	particles.emitting = true
-	particles.one_shot = true
-	particles.amount = int(round(lerpf(float(BASE_AMOUNT), 56.0, clamped - 0.5)))
-	particles.lifetime = BASE_LIFETIME
-	particles.explosiveness = 0.92
-	particles.randomness = 0.45
-	particles.direction = Vector3(0.0, 1.0, 0.0)
-	particles.spread = 75.0
-	particles.gravity = Vector3(0.0, -1.2, 0.0)
-	var velocity_scale := lerpf(2.4, 4.8, clamped - 0.5)
-	particles.initial_velocity_min = BASE_VELOCITY_MIN * velocity_scale
-	particles.initial_velocity_max = BASE_VELOCITY_MAX * velocity_scale
-	particles.scale_amount_min = 0.1
-	particles.scale_amount_max = 0.22
-	var alpha := lerpf(0.55, 0.82, clamped - 0.5)
-	particles.color = Color(DUST_COLOR.r, DUST_COLOR.g, DUST_COLOR.b, alpha)
-	particles.local_coords = false
-	particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-	particles.emission_sphere_radius = 0.08
+var _process_material: ParticleProcessMaterial
+var _velocity_min_base := 0.6
+var _velocity_max_base := 1.8
+var _alpha_base := 0.32
 
 
 func _ready() -> void:
 	top_level = true
-	_particles = CPUParticles3D.new()
-	configure_hover_stream(_particles)
-	add_child(_particles)
+	if _particles == null:
+		push_error("HoverDust requires a GPUParticles3D child named Stream.")
+		return
+	SandParticleVfxScript.configure_gpu_hover_dust(_particles)
+	_cache_bases()
+	_particles.emitting = false
+
+
+func _cache_bases() -> void:
+	_process_material = _particles.process_material as ParticleProcessMaterial
+	if _process_material == null:
+		return
+	_velocity_min_base = _process_material.initial_velocity_min
+	_velocity_max_base = _process_material.initial_velocity_max
+	_alpha_base = _process_material.color.a
 
 
 func _sample_surface_contact(player: GliderPlayer) -> Dictionary:
@@ -101,8 +57,10 @@ func _sample_surface_contact(player: GliderPlayer) -> Dictionary:
 
 
 func _physics_process(_delta: float) -> void:
+	if _particles == null or _process_material == null:
+		return
 	var player := get_parent() as GliderPlayer
-	if player == null or _particles == null:
+	if player == null:
 		return
 
 	if player.is_run_ended():
@@ -142,6 +100,8 @@ func _physics_process(_delta: float) -> void:
 		return
 
 	_particles.emitting = true
-	_particles.initial_velocity_min = BASE_VELOCITY_MIN * lerpf(0.7, 1.15, intensity)
-	_particles.initial_velocity_max = BASE_VELOCITY_MAX * lerpf(0.75, 1.25, intensity)
-	_particles.color = Color(DUST_COLOR.r, DUST_COLOR.g, DUST_COLOR.b, BASE_ALPHA * intensity)
+	_process_material.initial_velocity_min = _velocity_min_base * lerpf(0.7, 1.15, intensity)
+	_process_material.initial_velocity_max = _velocity_max_base * lerpf(0.75, 1.25, intensity)
+	var alpha := _alpha_base * intensity
+	var base_color := _process_material.color
+	_process_material.color = Color(base_color.r, base_color.g, base_color.b, alpha)

@@ -20,6 +20,14 @@ const WeaponTargetingScript = preload("res://scripts/weapons/weapon_targeting.gd
 const GliderPhysicsScript = preload("res://scripts/player/glider_physics.gd")
 const PlayerHealthScript = preload("res://scripts/player/player_health.gd")
 const LevelRunScript = preload("res://scripts/game/level_run.gd")
+const DroneDebrisSparkVfxScript = preload("res://scripts/enemies/drone_debris_spark_vfx.gd")
+const DroneDebrisFlameVfxScript = preload("res://scripts/enemies/drone_debris_flame_vfx.gd")
+const SandParticleVfxScript = preload("res://scripts/vfx/sand_particle_vfx.gd")
+const DroneDamageSparkVfxScript = preload("res://scripts/vfx/drone_damage_spark_vfx.gd")
+const EnemyHitFragmentVfxScript = preload("res://scripts/vfx/enemy_hit_fragment_vfx.gd")
+const LaserDroneSkinScene = preload("res://scenes/enemies/laser_drone_skin.tscn")
+const MissileDroneScene = preload("res://scenes/enemies/missile_drone.tscn")
+const LaserDroneScene = preload("res://scenes/enemies/laser_drone.tscn")
 
 var _failed := false
 
@@ -51,6 +59,9 @@ func _run() -> void:
 	_verify_machine_gun_drone()
 	if _failed:
 		return
+	_verify_flight_heading_inertia()
+	if _failed:
+		return
 	_verify_air_targeting()
 	if _failed:
 		return
@@ -58,6 +69,9 @@ func _run() -> void:
 	if _failed:
 		return
 	_verify_smoke_ai()
+	if _failed:
+		return
+	await _verify_drone_death_debris()
 	if _failed:
 		return
 	print("Combat drone verification passed.")
@@ -317,7 +331,7 @@ func _verify_laser_rework() -> void:
 	charge_rig.add_child(charge_health)
 	root.add_child(charge_rig)
 	charge_health.current = 50
-	var charge_laser: LaserDrone = LaserDroneScript.new()
+	var charge_laser: LaserDrone = LaserDroneScene.instantiate() as LaserDrone
 	root.add_child(charge_laser)
 	charge_laser.configure(null, charge_player, 15.0)
 	charge_player.global_position = Vector3.ZERO
@@ -346,10 +360,16 @@ func _verify_laser_rework() -> void:
 	)
 	_fail_unless(charge_laser.get("_has_fired_blast"), "Laser should record that it fired")
 	_fail_unless(charge_laser.can_despawn_when_behind(), "Laser may despawn behind after firing")
+	var flare := charge_laser.get_type_flare()
 	_fail_unless(
-		charge_laser.get_node_or_null("TargetFlare") != null,
-		"Laser drone should mount a visible targeting flare"
+		flare != null,
+		"Laser drone should mount a visible targeting flare under Visual"
 	)
+	if flare != null:
+		_fail_unless(
+			flare.get_flare_color().is_equal_approx(Color(1.6, 0.21, 0.064, 1.0)),
+			"Laser TypeFlare should use red tint (got %s)" % flare.get_flare_color()
+		)
 	charge_laser.free()
 	charge_rig.free()
 
@@ -534,6 +554,20 @@ func _player_x_at_segment_progress(level: int, progress: float) -> float:
 
 
 func _verify_missile_hail() -> void:
+	var drone_rocket_source := FileAccess.get_file_as_string("res://scripts/enemies/drone_rocket.gd")
+	_fail_unless(
+		drone_rocket_source.find("create_missile_smoke_trail") != -1,
+		"DroneRocket should create sand-texture smoke trail"
+	)
+	_fail_unless(
+		drone_rocket_source.find("material_for_drone_missile_trail") != -1,
+		"DroneRocket should use blue drone missile smoke material"
+	)
+	var missile_drone_source := FileAccess.get_file_as_string("res://scripts/enemies/missile_drone.gd")
+	_fail_unless(
+		missile_drone_source.find("SceneUtilScript.world_parent") != -1,
+		"MissileDrone should spawn rockets into the SubViewport world"
+	)
 	_fail_unless(MissileDroneScript.ROCKET_COUNT_MIN == 30, "Hail min should be 30")
 	_fail_unless(MissileDroneScript.ROCKET_COUNT_MAX == 40, "Hail max should be 40")
 	_fail_unless(
@@ -543,11 +577,17 @@ func _verify_missile_hail() -> void:
 	_fail_unless(DroneRocketScript.DAMAGE == 10, "Drone rocket should deal 10")
 	_fail_unless(MissileDroneScript.ROCKET_DAMAGE == 10, "Missile drone damage alias should be 10")
 	_fail_unless(
-		is_equal_approx(MissileDroneScript.FALL_TELEGRAPH_SEC, DroneRocketScript.FLIGHT_SEC),
+		is_equal_approx(
+			MissileDroneScript.FALL_TELEGRAPH_SEC,
+			DroneRocketScript.STRAIGHT_SEC + DroneRocketScript.FLIGHT_SEC
+		),
 		"Reticle lifetime should match rocket flight time"
 	)
 	_fail_unless(
-		is_equal_approx(MissileDroneScript.LEAD_SEC, DroneRocketScript.FLIGHT_SEC),
+		is_equal_approx(
+			MissileDroneScript.LEAD_SEC,
+			DroneRocketScript.STRAIGHT_SEC + DroneRocketScript.FLIGHT_SEC
+		),
 		"Lead time should match rocket flight time"
 	)
 	var origin := Vector3(-40.0, 8.0, 0.0)
@@ -563,14 +603,91 @@ func _verify_missile_hail() -> void:
 	var rocket: DroneRocket = DroneRocketScript.new()
 	root.add_child(rocket)
 	rocket.launch_from_drone(origin, impact)
-	var elapsed := 0.0
+	_fail_unless(rocket.uses_drone_missile_visual(), "Drone rocket should attach a projectile visual")
+	var projectile_visual := rocket.get_node("ProjectileVisual").get_child(0)
+	var streak := projectile_visual.find_child("Streak", true, false)
+	_fail_unless(streak != null and streak is MeshInstance3D, "Drone rocket should include a Streak mesh")
+	var launch_basis := rocket.global_transform.basis
+	var launch_pos := rocket.global_position
 	var step := 1.0 / 60.0
-	while elapsed < DroneRocketScript.FLIGHT_SEC + step and not bool(rocket.get("_spent")):
+	var launch_dir: Vector3 = rocket.get("_dir")
+	_fail_unless(
+		-rocket.global_transform.basis.z.dot(launch_dir) > 0.99,
+		"Rocket root should face the tube axis at launch"
+	)
+	_fail_unless(
+		launch_dir.dot(Vector3.FORWARD) > 0.99,
+		"Straight launch should go out the front (-Z), not the tail"
+	)
+	_fail_unless(
+		is_equal_approx(float(rocket.get("_straight_left")), DroneRocketScript.STRAIGHT_SEC),
+		"Rocket should start with a 0.3 s straight phase"
+	)
+	_fail_unless(
+		is_equal_approx(DroneRocketScript.XFADE_SEC, 0.8),
+		"Homing xfade should last 0.8 s"
+	)
+	var elapsed := 0.0
+	var straight_checked := false
+	while elapsed + step * 0.5 < DroneRocketScript.STRAIGHT_SEC:
 		rocket._physics_process(step)
 		elapsed += step
+		_fail_unless(
+			rocket.global_transform.basis.is_equal_approx(launch_basis),
+			"Rocket should hold launch orientation during the straight phase"
+		)
+		_fail_unless(
+			is_equal_approx(float(rocket.get("_flight_t")), 0.0),
+			"Arc flight should not start during the straight phase"
+		)
+		straight_checked = true
+	_fail_unless(straight_checked, "Rocket should spend time in the straight phase")
 	_fail_unless(
-		absf(elapsed - DroneRocketScript.FLIGHT_SEC) <= step * 2.0,
-		"Rocket should detonate after one flight duration"
+		rocket.global_position.distance_to(launch_pos) > 0.01,
+		"Rocket should travel straight out of the tube before homing"
+	)
+	_fail_unless(
+		(rocket.global_position - launch_pos).normalized().dot(launch_dir) > 0.99,
+		"Straight-phase travel should follow the tube axis"
+	)
+	var xfade_first := false
+	var xfade_finished := false
+	var mid_checked := false
+	var total_flight := DroneRocketScript.STRAIGHT_SEC + float(rocket.get("_flight_sec"))
+	while elapsed < total_flight + step * 3.0 and not bool(rocket.get("_spent")):
+		var xfade_before := float(rocket.get("_xfade_left"))
+		rocket._physics_process(step)
+		elapsed += step
+		var xfade_after := float(rocket.get("_xfade_left"))
+		if not xfade_first and xfade_after > 0.0 and xfade_after < DroneRocketScript.XFADE_SEC:
+			xfade_first = true
+			_fail_unless(
+				(rocket.get("_dir") as Vector3).dot(launch_dir) > 0.7,
+				"First xfade frames should still mostly face the launch direction"
+			)
+		if not xfade_finished and xfade_before > 0.0 and xfade_after <= 0.0:
+			xfade_finished = true
+			_fail_unless(
+				not rocket.global_transform.basis.is_equal_approx(launch_basis),
+				"Rocket should have turned by the end of the homing xfade"
+			)
+		if not mid_checked and float(rocket.get("_flight_t")) >= 0.5:
+			mid_checked = true
+			_fail_unless(
+				not rocket.global_transform.basis.is_equal_approx(launch_basis),
+				"Rocket should bank along arc after the straight phase"
+			)
+			var travel_dir: Vector3 = rocket.get("_dir")
+			_fail_unless(
+				-rocket.global_transform.basis.z.dot(travel_dir) > 0.99,
+				"Rocket should face velocity mid-flight"
+			)
+	_fail_unless(xfade_first, "Rocket should crossfade into tracking")
+	_fail_unless(xfade_finished, "Rocket should finish the homing xfade before impact")
+	_fail_unless(mid_checked, "Rocket should reach mid-flight before detonation")
+	_fail_unless(
+		absf(elapsed - total_flight) <= step * 2.0,
+		"Rocket should detonate after straight phase plus one flight duration"
 	)
 	_fail_unless(bool(rocket.get("_spent")), "Rocket should detonate at end of flight")
 	rocket.queue_free()
@@ -591,6 +708,12 @@ func _verify_missile_hail() -> void:
 		rng
 	)
 	_fail_unless(offsets.size() == 35, "Should generate spread offsets")
+	for off in offsets:
+		var flat := Vector3(off.x, 0.0, off.z)
+		_fail_unless(
+			flat.length() <= MissileDroneScript.SPREAD_RADIUS_GROUND_M + 0.02,
+			"Ground offsets should stay within spread radius"
+		)
 	var air_offsets := MissileDroneScript.air_impact_offsets_around(35, MissileDroneScript.SPREAD_RADIUS_AIR_M, rng)
 	_fail_unless(air_offsets.size() == 35, "Should generate air spread offsets")
 	for air_off in air_offsets:
@@ -659,9 +782,112 @@ func _verify_missile_hail() -> void:
 	)
 	var reticle: GroundReticle = GroundReticleScript.new()
 	root.add_child(reticle)
-	reticle.place(Vector3(1.0, 2.0, 3.0), 0.5)
+	reticle.place(Vector3(1.0, 2.0, 3.0), 0.5, null)
 	_fail_unless(is_instance_valid(reticle), "Ground reticle should spawn")
+	_fail_unless(
+		reticle.get_node_or_null("ReticleQuad") != null,
+		"Ground reticle should use flipbook ReticleQuad"
+	)
 	reticle.queue_free()
+	_verify_missile_muzzle_slots()
+	_verify_missile_aim_facing()
+
+
+func _verify_missile_muzzle_slots() -> void:
+	var missile: MissileDrone = MissileDroneScene.instantiate() as MissileDrone
+	root.add_child(missile)
+	var visual := missile.get_node_or_null("Visual") as Node3D
+	_fail_unless(visual != null, "Missile drone should have Visual")
+	var origins: Array[Vector3] = []
+	for i in MissileDroneScript.SPAWN_SLOT_COUNT:
+		var slot: Node3D = missile._get_spawn_slot(i)
+		var expected_name := "Missile %d" % (i + 1)
+		_fail_unless(slot != null, "Missile drone should have %s muzzle" % expected_name)
+		_fail_unless(
+			slot.name == expected_name,
+			"Spawn slot %d should resolve to %s" % [i, expected_name]
+		)
+		_fail_unless(
+			visual.is_ancestor_of(slot),
+			"%s should live under Visual so it stays in the launcher barrel" % expected_name
+		)
+		origins.append(slot.global_position)
+	for i in origins.size():
+		for j in range(i + 1, origins.size()):
+			_fail_unless(
+				origins[i].distance_to(origins[j]) > 0.01,
+				"Missile muzzle origins should be distinct (%d vs %d)" % [i + 1, j + 1]
+			)
+	var slot0: Node3D = missile._get_spawn_slot(0)
+	var rocket: DroneRocket = DroneRocketScript.new()
+	root.add_child(rocket)
+	rocket.launch_from_drone(
+		slot0.global_position,
+		slot0.global_position + Vector3(10.0, 0.0, 0.0),
+		null,
+		slot0.global_transform
+	)
+	_fail_unless(
+		rocket.global_position.is_equal_approx(slot0.global_position),
+		"Rocket should spawn at Missile 1 barrel"
+	)
+	var barrel_forward := slot0.global_transform.basis.z.normalized()
+	_fail_unless(
+		(rocket.get("_dir") as Vector3).dot(barrel_forward) > 0.99,
+		"Rocket should leave along the barrel axis"
+	)
+	rocket.queue_free()
+	missile.queue_free()
+
+
+func _verify_missile_aim_facing() -> void:
+	var player := CharacterBody3D.new()
+	root.add_child(player)
+	player.global_position = Vector3(0.0, 0.0, 20.0)
+	player.velocity = Vector3.ZERO
+	var missile: MissileDrone = MissileDroneScript.new()
+	root.add_child(missile)
+	missile.configure(null, player, 15.0)
+	missile.global_position = Vector3(0.0, 8.0, 0.0)
+	missile.set("_flight_heading", Vector3(-1.0, 0.0, 0.0))
+	missile.set("_firing_hail", false)
+	missile._face_heading(1.0)
+	var nose := _xz_nose(missile)
+	_fail_unless(
+		nose.dot(Vector3(-1.0, 0.0, 0.0)) > 0.99,
+		"Idle missile drone should face flight heading"
+	)
+
+	missile.set("_firing_hail", true)
+	missile._begin_aim_face_xfade()
+	missile._face_heading(0.016)
+	nose = _xz_nose(missile)
+	_fail_unless(
+		nose.dot(Vector3(-1.0, 0.0, 0.0)) > 0.7,
+		"Hail start should xfade facing instead of snapping to the lead"
+	)
+	missile._face_heading(MissileDroneScript.AIM_FACE_XFADE_SEC)
+	var lead: Vector3 = missile._lead_point()
+	var to_lead := Vector3(
+		lead.x - missile.global_position.x,
+		0.0,
+		lead.z - missile.global_position.z
+	).normalized()
+	nose = _xz_nose(missile)
+	_fail_unless(nose.dot(to_lead) > 0.99, "Firing missile drone should face the lead point after xfade")
+	_fail_unless(
+		nose.dot(Vector3(-1.0, 0.0, 0.0)) < 0.5,
+		"Firing facing should leave the kite heading"
+	)
+	missile.queue_free()
+	player.queue_free()
+
+
+func _xz_nose(node: Node3D) -> Vector3:
+	var nose := Vector3(-node.global_transform.basis.z.x, 0.0, -node.global_transform.basis.z.z)
+	if nose.length_squared() < 0.0001:
+		return Vector3.ZERO
+	return nose.normalized()
 
 
 func _verify_machine_gun_drone() -> void:
@@ -752,7 +978,7 @@ func _verify_machine_gun_drone() -> void:
 
 	var start_heading := Vector3(-1.0, 0.0, 0.0)
 	var turn_target := Vector3(0.0, 0.0, -1.0)
-	var turned := MachineGunDroneScript.rotate_heading_toward(
+	var turned := CombatDroneScript.rotate_heading_toward(
 		start_heading, turn_target, MachineGunDroneScript.CHARGE_TURN_RATE_DEG, 1.0
 	)
 	var turned_deg := rad_to_deg(acos(clampf(start_heading.dot(turned), -1.0, 1.0)))
@@ -890,6 +1116,73 @@ func _verify_machine_gun_drone() -> void:
 	skipped.free()
 
 
+func _verify_flight_heading_inertia() -> void:
+	var start_heading := Vector3(-1.0, 0.0, 0.0)
+	var turn_target := Vector3(0.0, 0.0, -1.0)
+	var turned := CombatDroneScript.rotate_heading_toward(
+		start_heading,
+		turn_target,
+		CombatDroneScript.FLIGHT_TURN_RATE_DEG,
+		1.0
+	)
+	var turned_deg := rad_to_deg(acos(clampf(start_heading.dot(turned), -1.0, 1.0)))
+	_fail_unless(
+		turned_deg <= CombatDroneScript.FLIGHT_TURN_RATE_DEG + 0.01,
+		"Flight turn rate should cap per second"
+	)
+
+	var target := Node3D.new()
+	root.add_child(target)
+	target.global_position = Vector3(0.0, 0.0, 200.0)
+
+	var laser: LaserDrone = LaserDroneScript.new()
+	root.add_child(laser)
+	laser.global_position = Vector3(0.0, 8.0, 0.0)
+	laser.configure(null, target)
+	laser.set("_flight_heading", Vector3(1.0, 0.0, 0.0))
+
+	var desired := laser.desired_velocity_xz()
+	_fail_unless(desired.length_squared() > 0.0001, "Laser acquire steer test needs non-zero desired velocity")
+	_fail_unless(
+		LaserDroneScript.movement_zone_for_distance(laser.xz_distance_to_target()) == "acquire",
+		"Heading inertia test should use acquire movement zone"
+	)
+	var desired_dir := desired.normalized()
+
+	laser._steer(0.05)
+	var vel_xz := Vector3(laser.velocity.x, 0.0, laser.velocity.z)
+	_fail_unless(vel_xz.length_squared() > 0.0001, "Steer step should produce XZ velocity")
+	var vel_dir := vel_xz.normalized()
+	_fail_unless(
+		vel_dir.dot(desired_dir) < 0.99,
+		"Velocity direction should lag desired heading during a turn"
+	)
+
+	var heading_after: Vector3 = laser.get("_flight_heading")
+	var heading_turn_deg := rad_to_deg(acos(clampf(Vector3(1.0, 0.0, 0.0).dot(heading_after), -1.0, 1.0)))
+	_fail_unless(
+		heading_turn_deg <= CombatDroneScript.FLIGHT_TURN_RATE_DEG * 0.05 + 0.01,
+		"Heading turn per step should respect flight turn rate (got %.3f deg)"
+		% heading_turn_deg
+	)
+
+	for _i in 24:
+		laser._steer(0.016)
+		laser._face_heading(0.016)
+
+	vel_xz = Vector3(laser.velocity.x, 0.0, laser.velocity.z)
+	vel_dir = vel_xz.normalized()
+	var face_fwd := -laser.global_transform.basis.z
+	face_fwd.y = 0.0
+	_fail_unless(
+		face_fwd.normalized().dot(vel_dir) > 0.85,
+		"Body facing should track flight heading after sustained steering"
+	)
+
+	laser.queue_free()
+	target.queue_free()
+
+
 func _verify_air_targeting() -> void:
 	var drone: CombatDrone = CombatDroneScript.new()
 	root.add_child(drone)
@@ -955,7 +1248,11 @@ func is_gliding() -> bool:
 	player.global_position = Vector3(30.0, 12.0, 30.0)
 	var elapsed := 0.0
 	var step := 1.0 / 60.0
-	while elapsed < DroneRocketScript.FLIGHT_SEC + step and not bool(miss_rocket.get("_spent")):
+	var flight_sec := float(miss_rocket.get("_flight_sec"))
+	var loop_limit := DroneRocketScript.STRAIGHT_SEC + DroneRocketScript.FLIGHT_SEC + 0.2
+	while elapsed < loop_limit:
+		if bool(miss_rocket.get("_pass_through")) or bool(miss_rocket.get("_spent")):
+			break
 		miss_rocket._physics_process(step)
 		elapsed += step
 	_fail_unless(not bool(miss_rocket.get("_spent")), "Air rocket should pass through on miss")
@@ -963,10 +1260,10 @@ func is_gliding() -> bool:
 		bool(miss_rocket.get("_pass_through")),
 		"Air rocket should enter pass-through after missing impact"
 	)
-	var expected_pass_speed := origin.distance_to(impact) / DroneRocketScript.FLIGHT_SEC
+	var expected_pass_speed := float(miss_rocket.get("_flight_speed_mps"))
 	_fail_unless(
 		(miss_rocket.get("_pass_vel") as Vector3).length() >= expected_pass_speed - 0.01,
-		"Missed air rocket should pass through at flight speed"
+		"Missed air rocket should pass through at homing flight speed"
 	)
 	var pass_pos: Vector3 = miss_rocket.global_position
 	miss_rocket._physics_process(step)
@@ -1001,7 +1298,9 @@ func get_glider() -> Node3D:
 	root.add_child(hit_rocket)
 	hit_rocket.launch_to_air_point(origin, impact)
 	elapsed = 0.0
-	while elapsed < DroneRocketScript.FLIGHT_SEC + step and not bool(hit_rocket.get("_spent")):
+	while elapsed < loop_limit:
+		if bool(hit_rocket.get("_spent")):
+			break
 		hit_rocket._physics_process(step)
 		elapsed += step
 	_fail_unless(bool(hit_rocket.get("_spent")), "Air rocket should detonate when player is in blast radius")
@@ -1072,6 +1371,70 @@ func _verify_smoke_ai() -> void:
 	missile.queue_free()
 	health.queue_free()
 	player.queue_free()
+
+
+func _verify_drone_death_debris() -> void:
+	var target := Node3D.new()
+	root.add_child(target)
+	var drone: CharacterBody3D = LaserDroneScene.instantiate() as CharacterBody3D
+	root.add_child(drone)
+	drone.configure(null, target)
+	await process_frame
+
+	_fail_unless(
+		drone.take_damage(999, Vector3(1.0, 0.0, 0.0)),
+		"Lethal hit should kill laser drone for chunk-only death debris"
+	)
+	await process_frame
+
+	var spark_bodies := _find_sparking_fragment_bodies(root)
+	_fail_unless(
+		spark_bodies.size() >= 4,
+		"Lethal drone kill should spawn multiple sparking fragment chunks (got %d)"
+		% spark_bodies.size()
+	)
+	for body in spark_bodies:
+		var debris_sparks := body.get_node_or_null("DebrisSparks") as GPUParticles3D
+		_fail_unless(debris_sparks != null, "Kill fragment chunk should carry DebrisSparks")
+		_fail_unless(
+			debris_sparks.lifetime >= DroneDamageSparkVfxScript.DEBRIS_PARTICLE_LIFETIME,
+			"Kill fragment spark lifetime should use debris tuning"
+		)
+		_fail_unless(
+			_count_nodes_with_script(body, DroneDebrisSparkVfxScript) >= 1,
+			"Kill fragment chunk should attach DroneDebrisSparkVfx"
+		)
+		_fail_unless(
+			body.get_node_or_null("FlameTrail") == null,
+			"Lethal kill fragments should skip debris flame (AerialExplosionVfx covers fire)"
+		)
+		_fail_unless(
+			_count_nodes_with_script(body, DroneDebrisFlameVfxScript) == 0,
+			"Lethal kill fragments should not attach DroneDebrisFlameVfx"
+		)
+
+	var fragment_wrappers := _count_nodes_with_script(root, EnemyHitFragmentVfxScript)
+	_fail_unless(fragment_wrappers >= 1, "Lethal drone kill should leave EnemyHitFragmentVfx wrappers")
+
+	target.queue_free()
+
+
+func _find_sparking_fragment_bodies(node: Node) -> Array[RigidBody3D]:
+	var out: Array[RigidBody3D] = []
+	if node is RigidBody3D and node.get_node_or_null("DebrisSparks") != null:
+		out.append(node as RigidBody3D)
+	for child in node.get_children():
+		out.append_array(_find_sparking_fragment_bodies(child))
+	return out
+
+
+func _count_nodes_with_script(node: Node, script: Script) -> int:
+	var count := 0
+	if node.get_script() == script:
+		count += 1
+	for child in node.get_children():
+		count += _count_nodes_with_script(child, script)
+	return count
 
 
 func _fail_unless(ok: bool, message: String) -> void:
