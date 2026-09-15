@@ -20,6 +20,8 @@ const WeaponTargetingScript := preload("res://scripts/weapons/weapon_targeting.g
 const RifleBulletScript := preload("res://scripts/weapons/rifle_bullet.gd")
 const SwarmPillScript := preload("res://scripts/enemies/swarm_pill.gd")
 const FingerScript := preload("res://scripts/enemies/sun_eater_finger.gd")
+const NightPortalScript := preload("res://scripts/enemies/night_portal.gd")
+const BlackTendrilsScript := preload("res://scripts/enemies/black_tendrils.gd")
 const DamageFloatScript := preload("res://scripts/ui/damage_float.gd")
 
 var _failed := false
@@ -36,6 +38,8 @@ func _run() -> void:
 	_verify_ascent_and_hp_lock()
 	_verify_boss_targeting()
 	_verify_finger_mechanic()
+	_verify_night_portal()
+	_verify_black_tendrils()
 	_verify_night_volume()
 	_verify_night_spread()
 	_verify_night_scarabs()
@@ -51,20 +55,20 @@ func _run() -> void:
 
 
 func _verify_indexes_and_hp() -> void:
-	for index in [8, 16, 24, 32, 40]:
+	for index in [1, 16, 24, 32, 40]:
 		_fail_unless(
 			BossDirectorScript.is_boss_tower(index),
 			"Tower %d should be a boss tower" % index
 		)
-	for index in [0, 1, 2, 7, 9, 15, 17, 23, 25, 31, 33, 39, 41, 1004]:
+	for index in [0, 2, 7, 8, 9, 15, 17, 23, 25, 31, 33, 39, 41, 1004]:
 		_fail_unless(
 			not BossDirectorScript.is_boss_tower(index),
 			"Tower %d should not be a boss tower" % index
 		)
-	_fail_unless(BossDirectorScript.boss_ordinal(8) == 1, "First boss ordinal should be 1")
+	_fail_unless(BossDirectorScript.boss_ordinal(1) == 1, "First boss ordinal should be 1")
 	_fail_unless(BossDirectorScript.boss_ordinal(40) == 5, "Fifth boss ordinal should be 5")
 	_fail_unless(
-		BossDirectorScript.max_health_for_tower(8) == 5000,
+		BossDirectorScript.max_health_for_tower(1) == 5000,
 		"First boss should have 5000 HP"
 	)
 	_fail_unless(
@@ -119,11 +123,11 @@ func _verify_spawn_geometry() -> void:
 func _verify_encounter_gates() -> void:
 	var empty: Dictionary = {}
 	_fail_unless(
-		BossDirectorScript.can_start_encounter(8, false, empty),
+		BossDirectorScript.can_start_encounter(1, false, empty),
 		"First boss should spawn when none are living"
 	)
 	_fail_unless(
-		not BossDirectorScript.can_start_encounter(8, true, empty),
+		not BossDirectorScript.can_start_encounter(1, true, empty),
 		"A new boss should not spawn while another is alive"
 	)
 	_fail_unless(
@@ -131,11 +135,11 @@ func _verify_encounter_gates() -> void:
 		"Second boss should wait until the first is defeated"
 	)
 	_fail_unless(
-		BossDirectorScript.can_start_encounter(16, false, {8: true}),
+		BossDirectorScript.can_start_encounter(16, false, {1: true}),
 		"Second boss should spawn after the first is defeated"
 	)
 	_fail_unless(
-		not BossDirectorScript.can_start_encounter(8, false, {8: true}),
+		not BossDirectorScript.can_start_encounter(1, false, {1: true}),
 		"A defeated boss should not spawn again"
 	)
 	_fail_unless(
@@ -587,6 +591,248 @@ func _verify_finger_mechanic() -> void:
 	)
 	homing.free()
 	homing_hunter.free()
+
+
+func _verify_night_portal() -> void:
+	_fail_unless(is_equal_approx(SunEaterScript.PORTAL_AHEAD_M, 25.0), "Portal should open 25 m ahead")
+	_fail_unless(is_equal_approx(SunEaterScript.PORTAL_COOLDOWN_MIN_SEC, 15.0), "Portal cooldown min should be 15 s")
+	_fail_unless(is_equal_approx(SunEaterScript.PORTAL_COOLDOWN_MAX_SEC, 25.0), "Portal cooldown max should be 25 s")
+	_fail_unless(is_equal_approx(NightPortalScript.OPEN_SEC, 0.5), "Portal should open over 0.5 s")
+	_fail_unless(is_equal_approx(NightPortalScript.LIVE_SEC, 2.5), "Portal should stay live for 2.5 s")
+	_fail_unless(is_equal_approx(NightPortalScript.CLOSE_SEC, 0.3), "Portal should close over 0.3 s")
+	_fail_unless(is_equal_approx(NightPortalScript.BASE_WIDTH_M, 6.0), "First portal should be 6 m wide")
+	_fail_unless(is_equal_approx(NightPortalScript.WIDTH_STEP_M, 4.0), "Each portal spawn should add 4 m of width")
+	_fail_unless(is_equal_approx(NightPortalScript.width_for_spawn(0), 6.0), "Spawn 0 should be 6 m")
+	_fail_unless(is_equal_approx(NightPortalScript.width_for_spawn(1), 10.0), "Spawn 1 should be 10 m")
+	_fail_unless(is_equal_approx(NightPortalScript.width_for_spawn(2), 14.0), "Spawn 2 should be 14 m")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 9
+	for _i in 20:
+		var wait := SunEaterScript.roll_portal_cooldown_sec(rng)
+		_fail_unless(
+			wait >= 15.0 - 0.0001 and wait <= 25.0 + 0.0001,
+			"Portal cooldown rolls should stay inside 15–25 s"
+		)
+
+	var hunter := Node3D.new()
+	root.add_child(hunter)
+	hunter.global_position = Vector3(0.0, 2.0, 0.0)
+	hunter.rotation.y = 0.0
+	var boss: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(boss)
+	boss.global_position = Vector3(40.0, 0.0, 0.0)
+	boss.configure(null, hunter)
+	boss.configure_encounter(8, 5000)
+	boss.begin_ascent(0.0)
+	boss._physics_process(3.0)
+	boss.set("_portal_cooldown_t", 0.0)
+	boss._physics_process(0.1)
+	_fail_unless(boss.living_portal() == null, "Portal should wait until a night sphere is operational")
+	_fail_unless(boss.formed_night_volumes().is_empty(), "Sanity: night sphere is not formed yet")
+
+	var volume := boss.follow_night_volume()
+	_fail_unless(volume != null, "Boss should carry a follow night volume")
+	volume.mark_formed()
+	_fail_unless(not boss.formed_night_volumes().is_empty(), "Marked night sphere should count as formed")
+	boss.set("_portal_cooldown_t", 0.0)
+	boss._physics_process(0.05)
+	_fail_unless(boss.living_portal() == null, "Portal should not cast when only the boss sphere exists")
+	_fail_unless(boss.portal_destination_volumes().is_empty(), "Boss sphere must not be a portal destination")
+
+	var leftover := NightVolumeScript.new()
+	leftover.name = "PortalDestSphere"
+	leftover.follow_host = false
+	leftover.configure(NightVolumeScript.RADIUS_M, false)
+	root.add_child(leftover)
+	leftover.global_position = Vector3(200.0, 0.0, 50.0)
+	leftover.mark_formed()
+	var children: Array = boss.get("_child_volumes")
+	children.append(leftover)
+	boss.set("_child_volumes", children)
+	_fail_unless(boss.portal_destination_volumes().size() == 1, "Leftover spheres should be portal destinations")
+	boss.set("_portal_cooldown_t", 0.0)
+	boss._physics_process(0.05)
+	var portal = boss.living_portal()
+	_fail_unless(portal != null, "Portal should cast once a non-boss night sphere exists")
+	_fail_unless(is_equal_approx(portal.width_m(), 6.0), "The first portal should be 6 m wide")
+	var ahead := Vector2(portal.global_position.x - hunter.global_position.x, portal.global_position.z - hunter.global_position.z)
+	_fail_unless(
+		absf(ahead.length() - SunEaterScript.PORTAL_AHEAD_M) < 0.5,
+		"Portal should sit ~25 m ahead of the player (got %.2f)" % ahead.length()
+	)
+	_fail_unless(not portal.is_live(), "Portal should not be enterable while opening")
+	portal._physics_process(NightPortalScript.OPEN_SEC)
+	_fail_unless(portal.is_live(), "Portal should become live after the open")
+
+	boss.set("_finger_used_this_stand", false)
+	boss.set("_finger_phase", 1)
+	boss.set("_stand_t", SunEaterScript.FINGER_TELEGRAPH_SEC + 1.0)
+	boss._physics_process(0.0)
+	_fail_unless(boss.living_portal() != null, "Casting a portal must not clear Finger state")
+	_fail_unless(int(boss.get("_finger_phase")) == 1, "Finger phase should survive a portal cast")
+
+	var hp_before := boss.get_health()
+	var traveler := Node3D.new()
+	root.add_child(traveler)
+	traveler.global_position = Vector3(10.0, 2.0, 10.0)
+	traveler.rotation.y = 1.2
+	boss.deliver_portal_teleport(traveler)
+	_fail_unless(boss.get_health() == hp_before, "Portal teleport must not damage the boss")
+	_fail_unless(
+		Vector2(traveler.global_position.x - leftover.global_position.x, traveler.global_position.z - leftover.global_position.z).length() < 0.2,
+		"Portal should drop the player at a leftover night sphere, not the boss sphere"
+	)
+	_fail_unless(
+		Vector2(traveler.global_position.x - volume.global_position.x, traveler.global_position.z - volume.global_position.z).length() > 1.0,
+		"Portal must not drop the player on the boss's current night sphere"
+	)
+	_fail_unless(is_equal_approx(traveler.rotation.y, 1.2), "Portal teleport should keep the player yaw")
+
+	portal.begin_close()
+	portal._physics_process(NightPortalScript.CLOSE_SEC)
+	_fail_unless(boss.living_portal() == null or portal.is_done(), "Closed portal should leave the world")
+	boss.set("_portal_cooldown_t", 0.0)
+	boss._physics_process(0.05)
+	var second = boss.living_portal()
+	_fail_unless(second != null, "A second portal should cast after cooldown")
+	_fail_unless(is_equal_approx(second.width_m(), 10.0), "The second portal should be 10 m wide")
+	traveler.free()
+	leftover.free()
+	hunter.free()
+	boss.free()
+
+
+func _verify_black_tendrils() -> void:
+	_fail_unless(is_equal_approx(SunEaterScript.TENDRIL_RANGE_M, 100.0), "Tendrils should require >100 m range")
+	_fail_unless(is_equal_approx(SunEaterScript.TENDRIL_WINDOW_SEC, 10.0), "Tendrils should only fire in the first 10 s after ascent")
+	_fail_unless(is_equal_approx(SunEaterScript.TENDRIL_COOLDOWN_SEC, 10.0), "Tendril cooldown should be 10 s")
+	_fail_unless(BlackTendrilsScript.WALL_COUNT == 3, "Tendrils should fire three walls")
+	_fail_unless(is_equal_approx(BlackTendrilsScript.WIDTH_M, NightPortalScript.BASE_WIDTH_M), "Walls should match portal starting width")
+	_fail_unless(is_equal_approx(BlackTendrilsScript.CONE_DEG, 45.0), "Tendrils should aim inside a 45° cone")
+	_fail_unless(is_equal_approx(BlackTendrilsScript.LINGER_SEC, 3.0), "Walls should linger 3 s after passing the player")
+	_fail_unless(BlackTendrilsScript.DAMAGE == 30, "Tendrils should deal 30 damage")
+	_fail_unless(is_equal_approx(BlackTendrilsScript.OVERSHOOT_M, 120.0), "Tendrils should overshoot the player by 120 m")
+	_fail_unless(is_equal_approx(BlackTendrilsScript.HEIGHT_M, 120.0), "Walls should be tall enough to read through dunes")
+
+	var hunter := TendrilStubBody.new()
+	root.add_child(hunter)
+	hunter.global_position = Vector3(150.0, 2.0, 0.0)
+	var health := TendrilStubHealth.new()
+	hunter.add_child(health)
+	health.add_to_group("player_health")
+	var boss: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(boss)
+	boss.global_position = Vector3(0.0, 0.0, 0.0)
+	boss.configure(null, hunter)
+	boss.configure_encounter(8, 5000)
+	boss.begin_ascent(0.0)
+	boss._physics_process(3.0)
+	_fail_unless(boss.relocate_count() == 0, "First ascent should start at relocate_count 0")
+	boss.set("_tendril_cooldown_t", 0.0)
+	boss.set("_stand_t", 1.0)
+	boss._physics_process(0.05)
+	_fail_unless(boss.living_tendrils() == null, "First ascent must not cast Black Tendrils")
+
+	boss.set("_relocate_count", 1)
+	boss.set("_stand_t", 1.0)
+	boss.set("_tendril_cooldown_t", 0.0)
+	hunter.global_position = Vector3(150.0, 2.0, 0.0)
+	boss._physics_process(0.05)
+	var tendrils = boss.living_tendrils()
+	_fail_unless(tendrils != null, "After the first relocate, far players should trigger Black Tendrils")
+	var dirs: PackedVector3Array = tendrils.dirs()
+	_fail_unless(dirs.size() == 3, "Black Tendrils should spawn three directions")
+	var axis := Vector3(1.0, 0.0, 0.0)
+	var aim_dot := dirs[0].dot(axis)
+	_fail_unless(aim_dot > 0.999, "The first wall should aim directly at the player")
+	var half := deg_to_rad(BlackTendrilsScript.CONE_DEG * 0.5)
+	for i in dirs.size():
+		var ang := acos(clampf(dirs[i].dot(axis), -1.0, 1.0))
+		_fail_unless(ang <= half + 0.001, "Tendril %d should stay inside the 45° cone" % i)
+	_fail_unless(
+		is_equal_approx(tendrils.reach_m(), 150.0),
+		"Tendril reach should match the cast-time player distance"
+	)
+	_fail_unless(
+		absf(tendrils.max_length_m() - (150.0 + BlackTendrilsScript.OVERSHOOT_M)) < 0.01,
+		"Tendril max travel should overshoot the player"
+	)
+	_fail_unless(tendrils.walls().size() == 3, "Three wall Area3Ds should exist")
+
+	# Aimed wall should track the player while still approaching.
+	hunter.global_position = Vector3(140.0, 2.0, 40.0)
+	tendrils._physics_process(0.1)
+	var tracked: PackedVector3Array = tendrils.dirs()
+	var want := Vector3(140.0, 0.0, 40.0).normalized()
+	_fail_unless(
+		tracked[0].dot(want) > 0.995,
+		"The aimed wall should retarget toward the moving player while shooting"
+	)
+
+	hunter.global_position = Vector3(150.0, 2.0, 0.0)
+	var shoot_t: float = tendrils.reach_m() / BlackTendrilsScript.SPEED_M_S + 0.05
+	tendrils._physics_process(shoot_t)
+	_fail_unless(
+		tendrils.phase() == BlackTendrilsScript.Phase.LINGERING,
+		"Walls should linger once they pass the player"
+	)
+	_fail_unless(
+		tendrils.traveled_m() + 0.001 >= tendrils.reach_m(),
+		"Walls should reach at least as far as the player"
+	)
+	var wall_mesh := tendrils.walls()[0].get_node("Mesh") as MeshInstance3D
+	_fail_unless(wall_mesh != null, "Each wall should have a mesh")
+	var box := wall_mesh.mesh as BoxMesh
+	_fail_unless(box != null, "Wall mesh should be a BoxMesh")
+	_fail_unless(
+		box.size.z + 0.001 >= tendrils.reach_m(),
+		"Walls should be solid slabs back to the boss, not thin sheets"
+	)
+	var under: PackedVector3Array = tendrils.dirs()
+	_fail_unless(
+		under[0].dot(Vector3(1.0, 0.0, 0.0)) > 0.995,
+		"When the walls pass the player, the aimed wall should still be aimed at them"
+	)
+
+	tendrils.apply_hit_for_test(hunter)
+	_fail_unless(health.last_damage == 30, "Hitting a tendril wall should deal 30 damage")
+	_fail_unless(hunter.last_knockback.length() > 0.1, "Hitting a tendril wall should shove sideways")
+	_fail_unless(is_equal_approx(hunter.last_knockback.x, 0.0), "Shove should be lateral to the wall travel")
+	_fail_unless(not is_equal_approx(hunter.last_knockback.z, 0.0), "Shove should push to either side")
+	_fail_unless(
+		absf(hunter.last_knockback.z) >= BlackTendrilsScript.SHOVE_SPEED - 0.01,
+		"Wall shove should be strong enough to eject the glider"
+	)
+
+	# Running back into a wall after cooldown should hit again.
+	tendrils._physics_process(BlackTendrilsScript.HIT_COOLDOWN_SEC + 0.05)
+	hunter.last_knockback = Vector3.ZERO
+	health.last_damage = 0
+	tendrils.apply_hit_for_test(hunter)
+	_fail_unless(health.last_damage == 30, "Re-entering a wall should deal damage again")
+	_fail_unless(hunter.last_knockback.length() > 0.1, "Re-entering a wall should shove again")
+
+	tendrils._physics_process(BlackTendrilsScript.LINGER_SEC)
+	_fail_unless(boss.living_tendrils() == null or tendrils.is_done(), "Tendrils should despawn after the linger")
+	_fail_unless(
+		is_equal_approx(boss.tendril_cooldown_left(), SunEaterScript.TENDRIL_COOLDOWN_SEC),
+		"Finished tendrils should start a 10 s cooldown"
+	)
+
+	boss.set("_tendril_cooldown_t", 0.0)
+	boss.set("_stand_t", 1.0)
+	hunter.global_position = Vector3(50.0, 2.0, 0.0)
+	boss._physics_process(0.05)
+	_fail_unless(boss.living_tendrils() == null, "Tendrils must not fire when the player is within 100 m")
+
+	hunter.global_position = Vector3(150.0, 2.0, 0.0)
+	boss.set("_stand_t", 11.0)
+	boss.set("_tendril_cooldown_t", 0.0)
+	boss._physics_process(0.05)
+	_fail_unless(boss.living_tendrils() == null, "Tendrils must not fire after the first 10 s of a stand")
+
+	hunter.free()
+	boss.free()
 
 
 func _verify_night_volume() -> void:
@@ -1319,7 +1565,7 @@ func _verify_boss_shop() -> void:
 		and int(weights[4]) == 125,
 		"Boss shop weights should be 50 / 37.5 / 12.5 rare/epic/legendary"
 	)
-	for tower_index in [8, 16, 24, 32, 40]:
+	for tower_index in [1, 16, 24, 32, 40]:
 		var shop := UpgradeCatalogScript.roll_shop(
 			1, tower_index, 20, true, true, true, true, true, 0, -1, true
 		)
@@ -1368,3 +1614,17 @@ class FakeBossDirector extends Node:
 
 	func is_blocking_upgrades() -> bool:
 		return blocking
+
+
+class TendrilStubHealth extends Node:
+	var last_damage := 0
+
+	func take_damage(amount: int) -> void:
+		last_damage = amount
+
+
+class TendrilStubBody extends Node3D:
+	var last_knockback := Vector3.ZERO
+
+	func queue_knockback(velocity_delta: Vector3) -> void:
+		last_knockback = velocity_delta

@@ -4,6 +4,7 @@ extends SwarmPill
 ## Stationary DPS-check boss. Rises from underground, then stands still.
 
 signal health_changed(current: int, max_hp: int)
+signal portal_cast()
 
 const PILL_COLOR := Color(0.02, 0.02, 0.03)
 const TOWER_HEIGHT_M := 100.0
@@ -36,11 +37,21 @@ const FINGER_FOLLOW_SEC := 2.0
 const FINGER_LOCK_WAIT_SEC := 0.8
 const FINGER_LOCK_WAIT_STEP_SEC := 0.2
 const FINGER_HOMING_INDEX := 3
+const PORTAL_AHEAD_M := 25.0
+const PORTAL_COOLDOWN_MIN_SEC := 15.0
+const PORTAL_COOLDOWN_MAX_SEC := 25.0
+const PORTAL_LAND_LIFT_M := 1.2
+const TENDRIL_RANGE_M := 100.0
+const TENDRIL_WINDOW_SEC := 10.0
+const TENDRIL_COOLDOWN_SEC := 10.0
 
 const NightScarabScene := preload("res://scenes/enemies/night_scarab.tscn")
 const NightScarabScript := preload("res://scripts/enemies/night_scarab.gd")
 const FingerScene := preload("res://scenes/enemies/sun_eater_finger.tscn")
 const FingerReticleScript := preload("res://scripts/enemies/finger_reticle.gd")
+const NightPortalScript := preload("res://scripts/enemies/night_portal.gd")
+const BlackTendrilsScript := preload("res://scripts/enemies/black_tendrils.gd")
+const MathUtilScript := preload("res://scripts/util/math_util.gd")
 
 var tower_index := 0
 var _pill: MeshInstance3D
@@ -83,6 +94,11 @@ var _finger_launched: Array[bool] = []
 var _finger_locked: Array[bool] = []
 var _finger_impacts: Array[Vector3] = []
 var _suppress_damage_float := false
+var _portal
+var _portal_cooldown_t := -1.0
+var _portal_spawn_count := 0
+var _tendrils
+var _tendril_cooldown_t := 0.0
 
 
 func _ready() -> void:
@@ -138,6 +154,8 @@ func begin_ascent(ground_y: float) -> void:
 	_volume_hot.clear()
 	_virtual_counts.clear()
 	_regen_accum = 0.0
+	_portal_spawn_count = 0
+	_tendril_cooldown_t = 0.0
 	_reset_finger_stand()
 	_clear_scarabs()
 	_clear_child_spheres()
@@ -553,9 +571,13 @@ func _world_host() -> Node:
 
 func _reset_finger_stand() -> void:
 	_clear_finger()
+	_clear_portal()
+	_clear_tendrils()
 	_finger_used_this_stand = false
 	_finger_phase = 0
 	_finger_phase_t = 0.0
+	_portal_cooldown_t = -1.0
+	_tendril_cooldown_t = 0.0
 
 
 func _cull_fingers() -> void:
@@ -597,6 +619,230 @@ func _clear_finger() -> void:
 	_finger_phase_t = 0.0
 
 
+func living_portal():
+	if _portal != null and is_instance_valid(_portal) and not _portal.is_done():
+		return _portal
+	return null
+
+
+func portal_cooldown_left() -> float:
+	return maxf(_portal_cooldown_t, 0.0)
+
+
+static func roll_portal_cooldown_sec(rng: RandomNumberGenerator) -> float:
+	if rng == null:
+		return PORTAL_COOLDOWN_MIN_SEC
+	return rng.randf_range(PORTAL_COOLDOWN_MIN_SEC, PORTAL_COOLDOWN_MAX_SEC)
+
+
+func deliver_portal_teleport(body: Node3D) -> void:
+	if body == null or not is_instance_valid(body):
+		return
+	var volumes := portal_destination_volumes()
+	if volumes.is_empty():
+		return
+	var volume: NightVolume = volumes[_rng.randi_range(0, volumes.size() - 1)]
+	var ground_y := volume.global_position.y
+	if _terrain != null:
+		ground_y = _terrain.sample_height(volume.global_position.x, volume.global_position.z)
+	var dest := Vector3(
+		volume.global_position.x,
+		ground_y + PORTAL_LAND_LIFT_M,
+		volume.global_position.z
+	)
+	var yaw := body.rotation.y
+	if body.has_method("get_yaw"):
+		yaw = float(body.call("get_yaw"))
+	if body.has_method("teleport_to"):
+		body.call("teleport_to", dest, yaw)
+	else:
+		body.global_position = dest
+		body.rotation.y = yaw
+
+
+func portal_destination_volumes() -> Array[NightVolume]:
+	## Formed night spheres the portal may drop into — never the boss's current sphere.
+	var dests: Array[NightVolume] = []
+	var follow := follow_night_volume()
+	for volume in formed_night_volumes():
+		if volume == null or not is_instance_valid(volume):
+			continue
+		if volume == follow:
+			continue
+		dests.append(volume)
+	return dests
+
+
+func _tick_portal(delta: float) -> void:
+	if _portal != null and (not is_instance_valid(_portal) or _portal.is_done()):
+		_portal = null
+	if not _is_standing():
+		return
+	if living_portal() != null:
+		return
+	if portal_destination_volumes().is_empty():
+		return
+	if _portal_cooldown_t < 0.0:
+		_roll_portal_cooldown()
+	_portal_cooldown_t = maxf(_portal_cooldown_t - delta, 0.0)
+	if _portal_cooldown_t > 0.0001:
+		return
+	_try_cast_portal()
+
+
+func _try_cast_portal() -> void:
+	if living_portal() != null:
+		return
+	if portal_destination_volumes().is_empty():
+		return
+	_resolve_hunt_target()
+	var player := _target
+	if player == null or not is_instance_valid(player):
+		_roll_portal_cooldown()
+		return
+	var facing := _portal_facing_xz(player)
+	var spawn := _portal_spawn_point(player, facing)
+	var width_m := NightPortalScript.width_for_spawn(_portal_spawn_count)
+	var portal = NightPortalScript.new()
+	_world_host().add_child(portal)
+	portal.top_level = true
+	portal.configure(self, spawn, facing, width_m)
+	if not portal.finished.is_connected(_on_portal_finished):
+		portal.finished.connect(_on_portal_finished)
+	_portal = portal
+	_portal_spawn_count += 1
+	_portal_cooldown_t = 0.0
+	portal_cast.emit()
+	_play_portal_vo()
+
+
+func _play_portal_vo() -> void:
+	pass
+
+
+func _on_portal_finished() -> void:
+	_portal = null
+	_roll_portal_cooldown()
+
+
+func _roll_portal_cooldown() -> void:
+	_portal_cooldown_t = roll_portal_cooldown_sec(_rng)
+
+
+func _portal_facing_xz(player: Node3D) -> Vector3:
+	var vel := Vector3.ZERO
+	if player is RigidBody3D:
+		vel = (player as RigidBody3D).linear_velocity
+	elif player.get("velocity") != null:
+		vel = player.velocity as Vector3
+	var flat := Vector3(vel.x, 0.0, vel.z)
+	if flat.length_squared() > 1.0:
+		return flat.normalized()
+	if player.has_method("get_yaw"):
+		return MathUtilScript.yaw_forward(float(player.call("get_yaw")))
+	var basis_fwd := -player.global_transform.basis.z
+	basis_fwd.y = 0.0
+	if basis_fwd.length_squared() > 0.0001:
+		return basis_fwd.normalized()
+	return Vector3(-1.0, 0.0, 0.0)
+
+
+func _portal_spawn_point(player: Node3D, facing_xz: Vector3) -> Vector3:
+	var facing := Vector3(facing_xz.x, 0.0, facing_xz.z)
+	if facing.length_squared() < 0.0001:
+		facing = Vector3(-1.0, 0.0, 0.0)
+	else:
+		facing = facing.normalized()
+	var pos := player.global_position + facing * PORTAL_AHEAD_M
+	var ground_y := pos.y
+	if _terrain != null:
+		ground_y = _terrain.sample_height(pos.x, pos.z)
+	elif _ground_y != 0.0:
+		ground_y = _ground_y
+	return Vector3(pos.x, ground_y, pos.z)
+
+
+func _clear_portal() -> void:
+	if _portal != null and is_instance_valid(_portal):
+		if _portal.finished.is_connected(_on_portal_finished):
+			_portal.finished.disconnect(_on_portal_finished)
+		_portal.queue_free()
+	_portal = null
+
+
+func living_tendrils():
+	if _tendrils != null and is_instance_valid(_tendrils) and not _tendrils.is_done():
+		return _tendrils
+	return null
+
+
+func tendril_cooldown_left() -> float:
+	return maxf(_tendril_cooldown_t, 0.0)
+
+
+func _tick_tendrils(delta: float) -> void:
+	if _tendrils != null and (not is_instance_valid(_tendrils) or _tendrils.is_done()):
+		_tendrils = null
+	if not _is_standing():
+		return
+	if living_tendrils() != null:
+		return
+	_tendril_cooldown_t = maxf(_tendril_cooldown_t - delta, 0.0)
+	if _tendril_cooldown_t > 0.0001:
+		return
+	_try_cast_tendrils()
+
+
+func _try_cast_tendrils() -> void:
+	if living_tendrils() != null:
+		return
+	if _relocate_count < 1:
+		return
+	if _stand_t >= TENDRIL_WINDOW_SEC:
+		return
+	_resolve_hunt_target()
+	var player := _target
+	if player == null or not is_instance_valid(player):
+		return
+	var origin := _tendril_origin()
+	var to := Vector3(player.global_position.x - origin.x, 0.0, player.global_position.z - origin.z)
+	var dist := to.length()
+	if dist <= TENDRIL_RANGE_M:
+		return
+	var axis := to / dist
+	var dirs := BlackTendrilsScript.build_dirs(axis, _rng)
+	var max_len := dist + BlackTendrilsScript.OVERSHOOT_M
+	var tendrils = BlackTendrilsScript.new()
+	_world_host().add_child(tendrils)
+	tendrils.top_level = true
+	tendrils.configure(self, origin, dirs, max_len, dist, _terrain)
+	if not tendrils.finished.is_connected(_on_tendrils_finished):
+		tendrils.finished.connect(_on_tendrils_finished)
+	_tendrils = tendrils
+	_tendril_cooldown_t = 0.0
+
+
+func _tendril_origin() -> Vector3:
+	var pos := global_position
+	var ground_y := _ground_y
+	if _terrain != null:
+		ground_y = _terrain.sample_height(pos.x, pos.z)
+	return Vector3(pos.x, ground_y, pos.z)
+
+
+func _on_tendrils_finished() -> void:
+	_tendrils = null
+	_tendril_cooldown_t = TENDRIL_COOLDOWN_SEC
+
+
+func _clear_tendrils() -> void:
+	if _tendrils != null and is_instance_valid(_tendrils):
+		if _tendrils.finished.is_connected(_on_tendrils_finished):
+			_tendrils.finished.disconnect(_on_tendrils_finished)
+		_tendrils.queue_free()
+	_tendrils = null
+
+
 func _physics_process(delta: float) -> void:
 	velocity = Vector3.ZERO
 	_hit_velocity = Vector3.ZERO
@@ -616,6 +862,8 @@ func _physics_process(delta: float) -> void:
 		if _stand_t >= RELOCATE_PERIOD_SEC:
 			_begin_sink()
 	_tick_finger(delta)
+	_tick_portal(delta)
+	_tick_tendrils(delta)
 	_tick_scarab_spawns(delta)
 	_tick_night_regen(delta)
 	_sync_night_volume()
@@ -647,6 +895,8 @@ func _die(_from_pos: Vector3, _weapon_family: StringName = &"") -> void:
 			_night_volume.queue_free()
 	_night_volume = null
 	_clear_finger()
+	_clear_portal()
+	_clear_tendrils()
 	_clear_scarabs()
 	_clear_child_spheres()
 	died.emit()
@@ -726,6 +976,8 @@ func _begin_sink() -> void:
 		return
 	_detach_follow_sphere()
 	_clear_finger()
+	_clear_portal()
+	_clear_tendrils()
 	_sinking = true
 	_bringing_night = false
 	_spreading = false
@@ -1103,6 +1355,8 @@ func _clear_scarabs() -> void:
 
 func _exit_tree() -> void:
 	_clear_finger()
+	_clear_portal()
+	_clear_tendrils()
 	_clear_scarabs()
 	_clear_child_spheres()
 	if _night_volume != null and is_instance_valid(_night_volume) and _night_volume.get_parent() != self:
