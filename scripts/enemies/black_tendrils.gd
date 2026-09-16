@@ -13,7 +13,7 @@ const WIDTH_M := NightPortalScript.BASE_WIDTH_M
 const HEIGHT_M := 120.0
 const CONE_DEG := 45.0
 const OVERSHOOT_M := 120.0
-const SPEED_M_S := 280.0
+const SPEED_M_S := 252.0
 const EXTEND_SPEED_M_S := SPEED_M_S
 const LINGER_SEC := 3.0
 const DAMAGE := 30
@@ -36,7 +36,6 @@ var _dirs: PackedVector3Array = PackedVector3Array()
 var _max_length_m := 1.0
 var _reach_m := 1.0
 var _traveled := 0.0
-var _aim_locked := false
 var _hit_cooldown: Dictionary = {}
 var _walls: Array[Area3D] = []
 var _meshes: Array[MeshInstance3D] = []
@@ -93,7 +92,6 @@ func configure(
 	_max_length_m = maxf(max_length_m, 1.0)
 	_reach_m = clampf(reach_m, 0.5, _max_length_m)
 	_traveled = 0.0
-	_aim_locked = false
 	_hit_cooldown.clear()
 	_phase = Phase.SHOOTING
 	_phase_t = 0.0
@@ -149,15 +147,12 @@ func _physics_process(delta: float) -> void:
 	_tick_hit_cooldowns(delta)
 	match _phase:
 		Phase.SHOOTING:
-			if not _aim_locked:
-				_retarget_aimed_wall()
 			_advance(delta)
 			_update_wall_transforms()
 			_poll_wall_overlaps()
 			if _traveled + 0.0001 >= _reach_m:
 				_phase = Phase.LINGERING
 				_phase_t = 0.0
-				_aim_locked = true
 		Phase.LINGERING:
 			_advance(delta)
 			_update_wall_transforms()
@@ -170,40 +165,6 @@ func _advance(delta: float) -> void:
 	if _traveled >= _max_length_m:
 		return
 	_traveled = minf(_traveled + SPEED_M_S * delta, _max_length_m)
-
-
-func _retarget_aimed_wall() -> void:
-	if _dirs.is_empty():
-		return
-	var player := _resolve_player()
-	if player == null:
-		return
-	var to := Vector3(player.global_position.x - _origin.x, 0.0, player.global_position.z - _origin.z)
-	var dist := to.length()
-	if dist < 0.5:
-		return
-	_dirs[0] = to / dist
-	_reach_m = dist
-	_max_length_m = maxf(_max_length_m, dist + OVERSHOOT_M)
-	if _traveled + 0.0001 >= _reach_m:
-		_aim_locked = true
-
-
-func _resolve_player() -> Node3D:
-	if _boss != null and is_instance_valid(_boss):
-		var target = _boss.get("_target")
-		if target is Node3D and is_instance_valid(target):
-			return target as Node3D
-	var tree := get_tree()
-	if tree == null:
-		return null
-	var health := tree.get_first_node_in_group("player_health")
-	if health != null and health.get_parent() is Node3D:
-		return health.get_parent() as Node3D
-	var body := tree.get_first_node_in_group("player")
-	if body is Node3D:
-		return body as Node3D
-	return null
 
 
 func _ensure_walls() -> void:

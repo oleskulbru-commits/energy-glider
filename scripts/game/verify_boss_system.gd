@@ -759,14 +759,14 @@ func _verify_black_tendrils() -> void:
 	)
 	_fail_unless(tendrils.walls().size() == 3, "Three wall Area3Ds should exist")
 
-	# Aimed wall should track the player while still approaching.
+	# Aimed wall locks at cast — strafing should let it miss.
+	var locked_aim: Vector3 = tendrils.dirs()[0]
 	hunter.global_position = Vector3(140.0, 2.0, 40.0)
 	tendrils._physics_process(0.1)
 	var tracked: PackedVector3Array = tendrils.dirs()
-	var want := Vector3(140.0, 0.0, 40.0).normalized()
 	_fail_unless(
-		tracked[0].dot(want) > 0.995,
-		"The aimed wall should retarget toward the moving player while shooting"
+		tracked[0].dot(locked_aim) > 0.999,
+		"The aimed wall must not home after cast"
 	)
 
 	hunter.global_position = Vector3(150.0, 2.0, 0.0)
@@ -790,8 +790,8 @@ func _verify_black_tendrils() -> void:
 	)
 	var under: PackedVector3Array = tendrils.dirs()
 	_fail_unless(
-		under[0].dot(Vector3(1.0, 0.0, 0.0)) > 0.995,
-		"When the walls pass the player, the aimed wall should still be aimed at them"
+		under[0].dot(locked_aim) > 0.999,
+		"Wall aim should stay frozen through the shot"
 	)
 
 	tendrils.apply_hit_for_test(hunter)
