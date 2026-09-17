@@ -15,6 +15,11 @@ func _init() -> void:
 
 func _run() -> void:
 	var arena: Node = ArenaScene.instantiate()
+	var spawner := arena.get_node_or_null("DroneTestSpawner") as DroneTestSpawnerScript
+	_fail_unless(spawner != null, "Missing DroneTestSpawner")
+	spawner.spawn_mg = true
+	spawner.spawn_laser = true
+	spawner.spawn_missile = true
 	root.add_child(arena)
 
 	var state := arena.get_node_or_null("RunUpgradeState") as RunUpgradeState
@@ -30,8 +35,8 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 
-	var spawner: DroneTestSpawnerScript = arena.get_node_or_null("DroneTestSpawner") as DroneTestSpawnerScript
-	_fail_unless(spawner != null, "Missing DroneTestSpawner")
+	spawner = arena.get_node_or_null("DroneTestSpawner") as DroneTestSpawnerScript
+	_fail_unless(spawner != null, "Missing DroneTestSpawner after arena ready")
 	_assert_drone_spawned(spawner._active_mg, "machine gun", spawner._active_mg is MachineGunDroneScript)
 	_assert_drone_spawned(spawner._active_laser, "laser", spawner._active_laser is LaserDroneScript)
 	_assert_drone_spawned(spawner._active_missile, "missile", spawner._active_missile is MissileDroneScript)

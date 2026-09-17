@@ -8,6 +8,39 @@
 [ext_resource type="Material" path="res://assets/materials/enemies/rebel_drone_emissives_red.tres" id="5_emissives_red"]
 [ext_resource type="Material" path="res://assets/materials/enemies/rebel_drone_thruster_red.tres" id="6_thruster_red"]
 [ext_resource type="Material" path="res://assets/materials/enemies/rebel_drone_streak_red.tres" id="7_streak_red"]
+[ext_resource type="PackedScene" uid="uid://m6el2htscaob" path="res://scenes/effects/muzzle_flash.tscn" id="8_muzzle"]
+[ext_resource type="Material" path="res://assets/materials/vfx/laser_pulse_muzzle.tres" id="9_laser_muzzle_mat"]
+[ext_resource type="ArrayMesh" uid="uid://dlljgpkviwwp1" path="res://assets/vfx/meshes/muzzle_cone.obj" id="10_muzzle_cone"]
+
+[sub_resource type="Curve" id="Curve_laser_alpha"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), -2.9442136, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_laser_alpha"]
+curve = SubResource("Curve_laser_alpha")
+
+[sub_resource type="Curve" id="Curve_laser_emission"]
+_limits = [0.0, 7.05, 0.0, 1.0]
+_data = [Vector2(0, 5.7281246), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_laser_emission"]
+curve = SubResource("Curve_laser_emission")
+
+[sub_resource type="Curve" id="Curve_laser_scale"]
+_data = [Vector2(0, 0.02272737), 0.0, 1.0440339, 0, 0, Vector2(1, 1), 1.1859791, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_laser_scale"]
+curve = SubResource("Curve_laser_scale")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_laser_muzzle"]
+gravity = Vector3(0, 0, 0)
+scale_min = 0.5
+scale_curve = SubResource("CurveTexture_laser_scale")
+color = Color(1.6, 0.21, 0.064, 1)
+alpha_curve = SubResource("CurveTexture_laser_alpha")
+emission_curve = SubResource("CurveTexture_laser_emission")
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_laser"]
 resource_name = "Laser_Materials"
@@ -86,4 +119,33 @@ transform = Transform3D(1.27, 0, 0, 0, 1.27, 0, 0, 0, 1.27, 0, -0.629, 0.07)
 [node name="Drone_Laser_Cannon" parent="Body/CSGCylinder3D/Weapon_Pivot/WeaponModule" index="0" unique_id=1634473719]
 transform = Transform3D(0.99999994, 0, 0, 0, 0.99999994, 0, 0, 0, 0.99999994, 0, 0.1235421, -0.08951825)
 
+[node name="MuzzleFlash" parent="Body/CSGCylinder3D/Weapon_Pivot/WeaponModule/Drone_Laser_Cannon" instance=ExtResource("8_muzzle")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.35)
+
+[node name="MuzzlePlanes" parent="Body/CSGCylinder3D/Weapon_Pivot/WeaponModule/Drone_Laser_Cannon/MuzzleFlash" index="0"]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 0, 0, 0)
+emitting = false
+amount = 1
+lifetime = 0.1
+one_shot = true
+randomness = 1.0
+fixed_fps = 60
+local_coords = true
+process_material = SubResource("ParticleProcessMaterial_laser_muzzle")
+material_override = ExtResource("9_laser_muzzle_mat")
+
+[node name="MuzzleCone" type="GPUParticles3D" parent="Body/CSGCylinder3D/Weapon_Pivot/WeaponModule/Drone_Laser_Cannon/MuzzleFlash"]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 0, 0, 0)
+emitting = false
+amount = 1
+lifetime = 0.1
+one_shot = true
+randomness = 1.0
+fixed_fps = 60
+local_coords = true
+process_material = SubResource("ParticleProcessMaterial_laser_muzzle")
+material_override = ExtResource("9_laser_muzzle_mat")
+draw_pass_1 = ExtResource("10_muzzle_cone")
+
 [editable path="Body/CSGCylinder3D/Weapon_Pivot/WeaponModule"]
+[editable path="Body/CSGCylinder3D/Weapon_Pivot/WeaponModule/Drone_Laser_Cannon/MuzzleFlash"]

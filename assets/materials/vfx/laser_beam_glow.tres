@@ -1,0 +1,16 @@
+[gd_resource type="ShaderMaterial" format=3 uid="uid://d118fpfcevyhg"]
+
+[ext_resource type="Shader" uid="uid://bmbj3d438ywpe" path="res://assets/vfx/shaders/laser_beam.gdshader" id="1_shader"]
+[ext_resource type="Texture2D" uid="uid://1f7kovnjgn2g" path="res://assets/vfx/effect_textures/laser_noise.png" id="2_streak"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_shader")
+shader_parameter/color_tint = Color(1.6, 0.21, 0.064, 1)
+shader_parameter/glow_strength = 3.0
+shader_parameter/scroll_speed = 4.0
+shader_parameter/beam_tile_count = 4.0
+shader_parameter/beam_width_scale = 1.0
+shader_parameter/uv_length_scale = 1.0
+shader_parameter/uv_width_scale = 1.0
+shader_parameter/streak_tex = ExtResource("2_streak")

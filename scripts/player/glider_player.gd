@@ -7,6 +7,7 @@ const GliderInputScript = preload("res://scripts/input/glider_input.gd")
 const TerrainProbesScript = preload("res://scripts/player/terrain_probes.gd")
 const PlayerDeathSequenceScript = preload("res://scripts/player/player_death_sequence.gd")
 const SandParticleVfxScript = preload("res://scripts/vfx/sand_particle_vfx.gd")
+const GliderAnimControllerScript = preload("res://scripts/player/glider_anim_controller.gd")
 
 enum State { GROUNDED, GLIDING }
 
@@ -1615,6 +1616,22 @@ func is_gliding() -> bool:
 
 func is_landing() -> bool:
 	return _landing_stabilize_timer > 0.0
+
+
+func play_hit_reaction() -> void:
+	_landing_stabilize_timer = LANDING_STABILIZE_DURATION
+	if _state != State.GROUNDED:
+		return
+	var anim := _get_anim_controller()
+	if anim != null:
+		anim.force_landing_reaction()
+
+
+func _get_anim_controller() -> GliderAnimControllerScript:
+	var skin := get_node_or_null("Visual/GliderSkin")
+	if skin == null:
+		return null
+	return skin.get_node_or_null("GliderAnimController") as GliderAnimControllerScript
 
 
 func consume_jump_anim_trigger() -> bool:

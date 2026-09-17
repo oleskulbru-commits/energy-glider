@@ -3,15 +3,24 @@ extends Node3D
 
 ## Red ground pulse fired from a laser drone. Homes along terrain toward the player at high speed.
 
+const BLAST_SCENE := preload("res://scenes/effects/drone_laser_blast.tscn")
+const MuzzleFlashScript := preload("res://scripts/vfx/muzzle_flash.gd")
+const SandImpactDustScript := preload("res://scripts/enemies/sand_impact_dust.gd")
+const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
+const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
+
 const DAMAGE := 35
 const SPEED_MPS := 120.0
 const GROUND_OFFSET_M := 0.55
 const IMPACT_RADIUS_M := 1.35
-const CORE_RADIUS_M := 1.15
-const GLOW_RADIUS_M := 3.6
-const WAKE_RADIUS_M := 5.5
 const IMPACT_FLASH_SEC := 0.35
+const IMPACT_FIRE_SCALE := 2.0
 const MAX_LIFE_SEC := 30.0
+const TRACER_VISUAL_SCALE := 4.0
+const TRACER_PULSE_AMPLITUDE := 0.08
+const TRACER_PULSE_HZ := 18.0
+const TRACER_DISPLACEMENT_STRENGTH := 0.09
+const TRACER_DISPLACEMENT_PULSE := 0.08
 
 var _terrain: TerrainManager
 var _target: Node3D
@@ -20,10 +29,10 @@ var _life := 0.0
 var _spent := false
 var _impacting := false
 var _impact_left := 0.0
-var _core: MeshInstance3D
-var _glow: MeshInstance3D
-var _wake: MeshInstance3D
-var _light: OmniLight3D
+
+@onready var _tracer: MeshInstance3D = $Tracer
+@onready var _muzzle_flash: MuzzleFlashScript = $MuzzleFlash
+@onready var _light: OmniLight3D = $TravelLight
 
 
 static func fire(
@@ -33,9 +42,9 @@ static func fire(
 	terrain: TerrainManager = null,
 	damage: int = DAMAGE
 ) -> DroneLaserBlast:
-	var blast := DroneLaserBlast.new()
+	var blast := BLAST_SCENE.instantiate() as DroneLaserBlast
 	if tree != null:
-		var parent := tree.current_scene
+		var parent := SceneUtilScript.world_parent(tree)
 		if parent == null:
 			parent = tree.root
 		if parent != null:
@@ -87,15 +96,20 @@ func configure(
 	_impacting = false
 	_impact_left = 0.0
 	_life = 0.0
-	_ensure_visuals()
 	global_position = ground_point(origin, _terrain)
-	_update_visual_scale(1.0)
+	_update_tracer_scale(1.0)
+	if _muzzle_flash != null:
+		_muzzle_flash.flash()
 	set_process(true)
 	_try_impact_if_close()
 
 
 func is_finished() -> bool:
 	return _spent
+
+
+func get_bolt_visual() -> Node3D:
+	return _tracer
 
 
 func advance(delta: float) -> void:
@@ -113,8 +127,6 @@ func _process(delta: float) -> void:
 		return
 	if _impacting:
 		_impact_left = maxf(_impact_left - delta, 0.0)
-		var flash := 1.0 + (1.0 - _impact_left / IMPACT_FLASH_SEC) * 3.0
-		_update_visual_scale(flash)
 		if _light != null:
 			_light.light_energy = 24.0 * maxf(_impact_left / IMPACT_FLASH_SEC, 0.0)
 		if _impact_left <= 0.0:
@@ -146,8 +158,8 @@ func _process(delta: float) -> void:
 	_face_toward(dir)
 	if _light != null:
 		_light.light_energy = 8.0 + sin(_life * 32.0) * 3.0
-	if _wake != null:
-		_wake.scale = Vector3.ONE * (1.0 + sin(_life * 18.0) * 0.08)
+	var pulse := 1.0 + sin(_life * TRACER_PULSE_HZ) * TRACER_PULSE_AMPLITUDE
+	_update_tracer_scale(pulse)
 
 
 func _current_target_ground() -> Vector3:
@@ -172,21 +184,24 @@ func _trigger_impact() -> void:
 	_impacting = true
 	_impact_left = IMPACT_FLASH_SEC
 	global_position = _current_target_ground()
+	_set_travel_visible(false)
 	var tree := get_tree()
+	if tree != null:
+		_spawn_impact_fire(tree)
 	if tree != null and _target != null and is_instance_valid(_target):
 		apply_damage(tree, _damage, _target)
-		_trigger_hit_hue(tree)
-	_update_visual_scale(3.0)
 	if _light != null:
 		_light.light_energy = 24.0
 
 
-func _trigger_hit_hue(tree: SceneTree) -> void:
-	if tree == null:
-		return
-	var hud := tree.get_first_node_in_group("glider_hud")
-	if hud != null and hud.has_method("play_laser_drone_hit_hue"):
-		hud.play_laser_drone_hit_hue()
+func _spawn_impact_fire(tree: SceneTree) -> void:
+	SandImpactDustScript.spawn(
+		tree,
+		global_position,
+		_terrain,
+		SandParticleVfxScript.BurstPreset.LASER,
+		IMPACT_FIRE_SCALE
+	)
 
 
 func _face_toward(dir: Vector3) -> void:
@@ -196,74 +211,21 @@ func _face_toward(dir: Vector3) -> void:
 	look_at(global_position + flat.normalized(), Vector3.UP)
 
 
-func _ensure_visuals() -> void:
-	if _core != null:
+func _update_tracer_scale(mult: float) -> void:
+	if _tracer == null:
 		return
-
-	_wake = MeshInstance3D.new()
-	var wake_mesh := SphereMesh.new()
-	wake_mesh.radius = WAKE_RADIUS_M
-	wake_mesh.height = WAKE_RADIUS_M * 2.0
-	_wake.mesh = wake_mesh
-	var wake_mat := StandardMaterial3D.new()
-	wake_mat.albedo_color = Color(1.0, 0.1, 0.05, 0.18)
-	wake_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	wake_mat.emission_enabled = true
-	wake_mat.emission = Color(1.0, 0.12, 0.05)
-	wake_mat.emission_energy_multiplier = 1.8
-	wake_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	wake_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_wake.material_override = wake_mat
-	_wake.scale = Vector3(1.0, 0.22, 1.0)
-	add_child(_wake)
-
-	_glow = MeshInstance3D.new()
-	var glow_mesh := SphereMesh.new()
-	glow_mesh.radius = GLOW_RADIUS_M
-	glow_mesh.height = GLOW_RADIUS_M * 2.0
-	_glow.mesh = glow_mesh
-	var glow_mat := StandardMaterial3D.new()
-	glow_mat.albedo_color = Color(1.0, 0.12, 0.06, 0.42)
-	glow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	glow_mat.emission_enabled = true
-	glow_mat.emission = Color(1.0, 0.18, 0.06)
-	glow_mat.emission_energy_multiplier = 3.5
-	glow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	glow_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_glow.material_override = glow_mat
-	_glow.scale = Vector3(1.0, 0.35, 1.0)
-	add_child(_glow)
-
-	_core = MeshInstance3D.new()
-	var core_mesh := SphereMesh.new()
-	core_mesh.radius = CORE_RADIUS_M
-	core_mesh.height = CORE_RADIUS_M * 2.0
-	_core.mesh = core_mesh
-	var core_mat := StandardMaterial3D.new()
-	core_mat.albedo_color = Color(1.0, 0.22, 0.1)
-	core_mat.emission_enabled = true
-	core_mat.emission = Color(1.0, 0.28, 0.08)
-	core_mat.emission_energy_multiplier = 6.5
-	core_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_core.material_override = core_mat
-	_core.scale = Vector3(1.0, 0.55, 1.0)
-	add_child(_core)
-
-	_light = OmniLight3D.new()
-	_light.light_color = Color(1.0, 0.24, 0.1)
-	_light.light_energy = 10.0
-	_light.omni_range = 28.0
-	_light.shadow_enabled = false
-	add_child(_light)
+	_tracer.scale = Vector3.ONE * TRACER_VISUAL_SCALE * mult
+	var mat := _tracer.material_override as ShaderMaterial
+	if mat != null:
+		var pulse := (mult - 1.0) / TRACER_PULSE_AMPLITUDE
+		var displacement := TRACER_DISPLACEMENT_STRENGTH * (
+			1.0 + pulse * TRACER_DISPLACEMENT_PULSE
+		)
+		mat.set_shader_parameter("displacement_strength", displacement)
 
 
-func _update_visual_scale(mult: float) -> void:
-	var core_scale := Vector3(1.0, 0.55, 1.0) * mult
-	var glow_scale := Vector3(1.0, 0.35, 1.0) * mult * 1.12
-	var wake_scale := Vector3(1.0, 0.22, 1.0) * mult * 1.25
-	if _core != null:
-		_core.scale = core_scale
-	if _glow != null:
-		_glow.scale = glow_scale
-	if _wake != null:
-		_wake.scale = wake_scale
+func _set_travel_visible(is_visible: bool) -> void:
+	if _tracer != null:
+		_tracer.visible = is_visible
+	if _muzzle_flash != null:
+		_muzzle_flash.visible = is_visible
