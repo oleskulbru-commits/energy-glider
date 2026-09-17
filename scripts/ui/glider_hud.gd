@@ -17,9 +17,12 @@ const LaserTargetReticleUIScript = preload("res://scripts/ui/laser_target_reticl
 const DeathStatsPanelScript = preload("res://scripts/ui/death_stats_panel.gd")
 const RunDamageStatsScript = preload("res://scripts/game/run_damage_stats.gd")
 
-const LASER_HIT_HUE_COLOR := Color(0.92, 0.1, 0.06, 1.0)
-const LASER_HIT_HUE_PEAK_ALPHA := 0.42
-const LASER_HIT_HUE_FADE_SEC := 2.0
+const DAMAGE_FLASH_COLOR := Color(0.92, 0.1, 0.06, 1.0)
+const DAMAGE_FLASH_HEAVY_THRESHOLD := 10
+const DAMAGE_FLASH_PEAK_HEAVY := 0.55
+const DAMAGE_FLASH_PEAK_LIGHT := 0.24
+const DAMAGE_FLASH_FADE_HEAVY_SEC := 0.45
+const DAMAGE_FLASH_FADE_LIGHT_SEC := 0.25
 
 @onready var _power_label: Label = %PowerLabel
 @onready var _power_percent_label: Label = %PowerPercent
@@ -157,7 +160,7 @@ func _ready() -> void:
 		_fail_fade.z_index = 100
 	if _laser_hit_hue != null:
 		_laser_hit_hue.visible = false
-		_laser_hit_hue.color = Color(LASER_HIT_HUE_COLOR.r, LASER_HIT_HUE_COLOR.g, LASER_HIT_HUE_COLOR.b, 0.0)
+		_laser_hit_hue.color = Color(DAMAGE_FLASH_COLOR.r, DAMAGE_FLASH_COLOR.g, DAMAGE_FLASH_COLOR.b, 0.0)
 		_laser_hit_hue.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_laser_hit_hue.z_index = 95
 	call_deferred("_connect_weapon_tray")
@@ -881,24 +884,31 @@ func update_laser_target_telegraph(elapsed: float, delta: float) -> void:
 	_laser_target_reticle.update_telegraph(elapsed, delta, anchor.screen_pos, anchor.valid)
 
 
-func play_laser_drone_hit_hue() -> void:
+func play_damage_flash(amount: int) -> void:
 	if _laser_hit_hue == null:
 		return
+	var heavy := amount >= DAMAGE_FLASH_HEAVY_THRESHOLD
+	var peak_alpha := DAMAGE_FLASH_PEAK_HEAVY if heavy else DAMAGE_FLASH_PEAK_LIGHT
+	var fade_sec := DAMAGE_FLASH_FADE_HEAVY_SEC if heavy else DAMAGE_FLASH_FADE_LIGHT_SEC
 	if _laser_hit_hue_tween != null:
 		_laser_hit_hue_tween.kill()
 		_laser_hit_hue_tween = null
 	_laser_hit_hue.visible = true
 	_laser_hit_hue.color = Color(
-		LASER_HIT_HUE_COLOR.r,
-		LASER_HIT_HUE_COLOR.g,
-		LASER_HIT_HUE_COLOR.b,
-		LASER_HIT_HUE_PEAK_ALPHA
+		DAMAGE_FLASH_COLOR.r,
+		DAMAGE_FLASH_COLOR.g,
+		DAMAGE_FLASH_COLOR.b,
+		peak_alpha
 	)
 	_laser_hit_hue_tween = create_tween()
 	_laser_hit_hue_tween.tween_property(
-		_laser_hit_hue, "color:a", 0.0, LASER_HIT_HUE_FADE_SEC
+		_laser_hit_hue, "color:a", 0.0, fade_sec
 	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	_laser_hit_hue_tween.finished.connect(_on_laser_hit_hue_fade_finished, CONNECT_ONE_SHOT)
+
+
+func play_laser_drone_hit_hue() -> void:
+	play_damage_flash(35)
 
 
 func _on_laser_hit_hue_fade_finished() -> void:
@@ -907,9 +917,9 @@ func _on_laser_hit_hue_fade_finished() -> void:
 		return
 	_laser_hit_hue.visible = false
 	_laser_hit_hue.color = Color(
-		LASER_HIT_HUE_COLOR.r,
-		LASER_HIT_HUE_COLOR.g,
-		LASER_HIT_HUE_COLOR.b,
+		DAMAGE_FLASH_COLOR.r,
+		DAMAGE_FLASH_COLOR.g,
+		DAMAGE_FLASH_COLOR.b,
 		0.0
 	)
 

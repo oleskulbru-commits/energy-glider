@@ -1,0 +1,82 @@
+[gd_scene format=3 uid="uid://nxjhx5mtp04c"]
+
+[ext_resource type="Script" uid="uid://b8wgdwjgu1kjv" path="res://scripts/vfx/laser_beam_preview.gd" id="1_preview"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
+sky_top_color = Color(0.04, 0.05, 0.08, 1)
+sky_horizon_color = Color(0.08, 0.09, 0.12, 1)
+ground_bottom_color = Color(0.02, 0.02, 0.03, 1)
+ground_horizon_color = Color(0.08, 0.09, 0.12, 1)
+
+[sub_resource type="Sky" id="Sky_env"]
+sky_material = SubResource("ProceduralSkyMaterial_sky")
+
+[sub_resource type="Environment" id="Environment_main"]
+background_mode = 2
+sky = SubResource("Sky_env")
+ambient_light_source = 2
+ambient_light_color = Color(0.35, 0.35, 0.4, 1)
+ambient_light_energy = 0.35
+glow_enabled = true
+glow_intensity = 0.4
+glow_bloom = 0.12
+fog_enabled = true
+fog_density = 0.001
+fog_sky_affect = 0.4
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
+albedo_color = Color(0.42, 0.36, 0.28, 1)
+roughness = 0.95
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
+size = Vector2(120, 120)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_target"]
+albedo_color = Color(0.12, 0.12, 0.14, 1)
+emission_enabled = true
+emission = Color(1, 0.2, 0.08, 1)
+emission_energy_multiplier = 0.35
+
+[sub_resource type="SphereMesh" id="SphereMesh_target"]
+radius = 0.35
+height = 0.7
+
+[node name="LaserBeamTest" type="Node3D" unique_id=468154414]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1640002926]
+environment = SubResource("Environment_main")
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=956076796]
+transform = Transform3D(1, 0, 0, 0, 0.978148, 0.207912, 0, -0.207912, 0.978148, 0, 3.2, 9.5)
+current = true
+fov = 78.0
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=254935832]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 6, 0)
+light_energy = 0.55
+
+[node name="Ground" type="MeshInstance3D" parent="." unique_id=1850066212]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -22)
+material_override = SubResource("StandardMaterial3D_ground")
+mesh = SubResource("PlaneMesh_ground")
+
+[node name="BeamStart" type="Node3D" parent="." unique_id=2101325280]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.85, 0)
+
+[node name="BeamEnd" type="Node3D" parent="." unique_id=531719492]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, -45)
+
+[node name="TargetMarker" type="MeshInstance3D" parent="BeamEnd" unique_id=1238430113]
+material_override = SubResource("StandardMaterial3D_target")
+mesh = SubResource("SphereMesh_target")
+
+[node name="LaserBeamPreview" type="Node3D" parent="." unique_id=1771027625]
+script = ExtResource("1_preview")
+core_width = 0.2
+glow_strength = 12.0
+
+[node name="Label3D" type="Label3D" parent="." unique_id=2108203514]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.2, -2)
+text = "Tune LaserBeamPreview exports | beam_tile_length_m / uv_length_scale / scroll_speed / widths"
+font_size = 28
+outline_size = 4

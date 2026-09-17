@@ -4,6 +4,7 @@ extends Node
 ## Lofted homing missiles. Chamber clock matches the shotgun.
 
 const RocketMissileScene := preload("res://scenes/weapons/rocket_missile.tscn")
+const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 
 const DAMAGE := 18
 const RANGE_M := 75.0
@@ -166,9 +167,7 @@ func _facing_xz() -> Vector3:
 
 func _fire(origin: Vector3, target: Node3D, facing: Vector3) -> void:
 	var missile: RocketMissile = RocketMissileScene.instantiate() as RocketMissile
-	var parent := get_tree().current_scene
-	if parent == null:
-		parent = _rig
+	var parent := SceneUtilScript.world_parent(get_tree(), _rig)
 	parent.add_child(missile)
 	missile.launch(
 		origin,

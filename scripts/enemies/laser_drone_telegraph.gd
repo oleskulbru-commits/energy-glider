@@ -52,3 +52,13 @@ static func brackets_visible(elapsed: float) -> bool:
 
 static func blink_visible(elapsed: float) -> bool:
 	return brackets_visible(elapsed)
+
+
+static func frame_index_for_telegraph(elapsed: float, frame_count: int) -> int:
+	if frame_count <= 1:
+		return 0
+	var total := telegraph_total_sec()
+	if total <= 0.0:
+		return 0
+	var t := clampf(elapsed / total, 0.0, 1.0)
+	return clampi(int(floor(t * float(frame_count - 1))), 0, frame_count - 1)

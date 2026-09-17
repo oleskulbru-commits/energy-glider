@@ -8,6 +8,8 @@ const SKIN_SCENE := preload(
 )
 const SelfScript := preload("res://scripts/player/hero_ragdoll.gd")
 const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
+const RagdollGroundSandScript := preload("res://scripts/player/ragdoll_ground_sand.gd")
+const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
 
 const LIFETIME_SEC := 4.0
 const IMPULSE_STRENGTH := 4.0
@@ -42,6 +44,7 @@ var _spawn_bone_basis: Dictionary = {}
 var _simulating := false
 var _lifetime_left := LIFETIME_SEC
 var _auto_expire := true
+var _ground_sand: Node
 
 
 static func spawn(
@@ -49,7 +52,8 @@ static func spawn(
 	xf: Transform3D,
 	velocity: Vector3,
 	impulse: Vector3,
-	pose_source: Skeleton3D = null
+	pose_source: Skeleton3D = null,
+	terrain: TerrainManager = null
 ) -> Node3D:
 	if tree == null:
 		return null
@@ -65,6 +69,7 @@ static func spawn(
 		ragdoll._apply_skeleton_pose(pose_source)
 	ragdoll._cache_spawn_pose()
 	ragdoll._start_simulation()
+	ragdoll._attach_ground_sand(terrain)
 	ragdoll._apply_launch(velocity, impulse)
 	return ragdoll
 
@@ -89,10 +94,17 @@ func disable_auto_expire() -> void:
 
 
 func cleanup() -> void:
+	if _ground_sand != null and is_instance_valid(_ground_sand):
+		_ground_sand.queue_free()
+	_ground_sand = null
 	if _simulating and _skeleton != null:
 		_skeleton.physical_bones_stop_simulation()
 	_simulating = false
 	queue_free()
+
+
+func get_simulation_skeleton() -> Skeleton3D:
+	return _skeleton
 
 
 func get_physical_bone_count() -> int:
@@ -424,3 +436,13 @@ func _start_simulation() -> void:
 		return
 	_skeleton.physical_bones_start_simulation()
 	_simulating = true
+
+
+func _attach_ground_sand(terrain: TerrainManager) -> void:
+	if terrain == null:
+		return
+	_ground_sand = RagdollGroundSandScript.attach(
+		self,
+		terrain,
+		SandParticleVfxScript.BurstPreset.DEATH
+	)

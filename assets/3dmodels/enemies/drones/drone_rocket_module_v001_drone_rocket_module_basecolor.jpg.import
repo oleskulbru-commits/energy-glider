@@ -1,0 +1,44 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://5n5nvtt2tupy"
+path.s3tc="res://.godot/imported/drone_rocket_module_v001_drone_rocket_module_basecolor.jpg-61ce0788bcee50f1d39cb79b26f4cafa.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
+generator_parameters={
+"md5": "bf6eb959929a02b712ebcd65e2a8b609"
+}
+
+[deps]
+
+source_file="res://assets/3dmodels/enemies/drones/drone_rocket_module_v001_drone_rocket_module_basecolor.jpg"
+dest_files=["res://.godot/imported/drone_rocket_module_v001_drone_rocket_module_basecolor.jpg-61ce0788bcee50f1d39cb79b26f4cafa.s3tc.ctex"]
+
+[params]
+
+compress/mode=2
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/uastc_level=0
+compress/rdo_quality_loss=0.0
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/channel_remap/red=0
+process/channel_remap/green=1
+process/channel_remap/blue=2
+process/channel_remap/alpha=3
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=0

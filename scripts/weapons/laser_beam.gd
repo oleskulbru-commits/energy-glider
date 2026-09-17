@@ -1,32 +1,31 @@
 class_name LaserBeam
 extends Node3D
 
-## Solid red beam. Clock keeps running with no target.
+## Scrolling streak beam, camera-facing ribbon. Clock keeps running with no target.
 
 const AIM_UP_M := 0.7
-const RADIUS_CORE := 0.13
-const RADIUS_GLOW := 0.22
+const BEAM_GLOW_WIDTH := 0.28
+const BEAM_CORE_WIDTH := 0.10
+const BEAM_TILE_LENGTH_M := 2.5
+
+const _GLOW_MAT := preload("res://assets/materials/vfx/laser_beam_glow.tres")
+const _CORE_MAT := preload("res://assets/materials/vfx/laser_beam_core.tres")
 
 var finished := false
 
 var _fire_left := 0.0
 var _next_tick := 0.0
 var _target: Node3D
-var _core: MeshInstance3D
-var _glow: MeshInstance3D
-var _core_mesh: CylinderMesh
-var _glow_mesh: CylinderMesh
+var _glow_ribbon: _BeamRibbon
+var _core_ribbon: _BeamRibbon
 var _spray: CPUParticles3D
 var _burst: CPUParticles3D
 var _bounce_count := 0
 var _bounce_range := 0.0
 var _acquire_range := 0.0
 var _hops: Array[Node3D] = []
-var _hop_hosts: Array[Node3D] = []
-var _hop_cores: Array[MeshInstance3D] = []
-var _hop_glows: Array[MeshInstance3D] = []
-var _hop_core_meshes: Array[CylinderMesh] = []
-var _hop_glow_meshes: Array[CylinderMesh] = []
+var _hop_glow_ribbons: Array[_BeamRibbon] = []
+var _hop_core_ribbons: Array[_BeamRibbon] = []
 
 
 func begin(
@@ -138,40 +137,33 @@ func _finish() -> void:
 
 
 func _ensure_visuals() -> void:
-	if _core != null:
+	if _glow_ribbon != null:
 		return
-	_core_mesh = CylinderMesh.new()
-	_core_mesh.top_radius = RADIUS_CORE
-	_core_mesh.bottom_radius = RADIUS_CORE
-	_core_mesh.height = 1.0
-	_glow_mesh = CylinderMesh.new()
-	_glow_mesh.top_radius = RADIUS_GLOW
-	_glow_mesh.bottom_radius = RADIUS_GLOW
-	_glow_mesh.height = 1.0
-	_core = _make_rod(
-		_core_mesh,
-		_make_mat(Color(1.0, 0.18, 0.12, 1.0), Color(1.0, 0.08, 0.04, 1.0), 4.2)
-	)
-	_glow = _make_rod(
-		_glow_mesh,
-		_make_mat(Color(1.0, 0.16, 0.08, 0.35), Color(0.95, 0.08, 0.04, 1.0), 2.4)
-	)
-	add_child(_glow)
-	add_child(_core)
+	_glow_ribbon = _make_beam_ribbon(BEAM_GLOW_WIDTH, _GLOW_MAT)
+	_core_ribbon = _make_beam_ribbon(BEAM_CORE_WIDTH, _CORE_MAT)
+	add_child(_glow_ribbon.mesh_instance)
+	add_child(_core_ribbon.mesh_instance)
 	_spray = _make_sparks(false)
 	_burst = _make_sparks(true)
 	add_child(_spray)
 	add_child(_burst)
 
 
-func _make_rod(mesh: CylinderMesh, mat: StandardMaterial3D) -> MeshInstance3D:
-	var rod := MeshInstance3D.new()
-	rod.mesh = mesh
-	rod.material_override = mat
-	rod.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	rod.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
-	rod.visible = false
-	return rod
+func _make_beam_ribbon(width: float, mat_template: ShaderMaterial) -> _BeamRibbon:
+	var ribbon := _BeamRibbon.new()
+	var quad := QuadMesh.new()
+	quad.size = Vector2(width, 1.0)
+	var mesh_instance := MeshInstance3D.new()
+	mesh_instance.mesh = quad
+	var mat := mat_template.duplicate() as ShaderMaterial
+	mesh_instance.material_override = mat
+	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mesh_instance.visible = false
+	mesh_instance.top_level = true
+	ribbon.mesh_instance = mesh_instance
+	ribbon.mesh = quad
+	ribbon.mat = mat
+	return ribbon
 
 
 func _make_sparks(one_shot: bool) -> CPUParticles3D:
@@ -209,42 +201,48 @@ func _make_sparks(one_shot: bool) -> CPUParticles3D:
 	return sparks
 
 
-func _make_mat(albedo: Color, emission: Color, energy: float) -> StandardMaterial3D:
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = albedo
-	mat.emission_enabled = true
-	mat.emission = emission
-	mat.emission_energy_multiplier = energy
-	if albedo.a < 1.0:
-		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	return mat
-
-
 func _show_beam(from: Vector3, to: Vector3) -> void:
 	_ensure_visuals()
 	visible = true
 	global_position = from
-	var dir := to - from
-	var length := dir.length()
+	var length := from.distance_to(to)
 	if length < 0.08:
 		_hide_beam()
 		visible = true
 		return
-	if absf(dir.normalized().dot(Vector3.UP)) > 0.98:
-		look_at(to, Vector3.FORWARD)
-	else:
-		look_at(to, Vector3.UP)
-	_core_mesh.height = length
-	_glow_mesh.height = length
-	var mid := Vector3(0.0, 0.0, -length * 0.5)
-	_core.position = mid
-	_glow.position = mid
-	_core.visible = true
-	_glow.visible = true
+	_apply_beam_ribbon(_glow_ribbon, from, to, length)
+	_apply_beam_ribbon(_core_ribbon, from, to, length)
 	_place_sparks(to)
 	if _spray != null:
 		_spray.emitting = true
+
+
+func _beam_basis(from: Vector3, to: Vector3) -> Basis:
+	var beam_dir := (to - from).normalized()
+	var mid := from.lerp(to, 0.5)
+	var to_cam := Vector3.UP
+	var cam := get_viewport().get_camera_3d()
+	if cam != null:
+		var raw := cam.global_position - mid
+		if raw.length_squared() > 0.0001:
+			to_cam = raw.normalized()
+	var side := beam_dir.cross(to_cam)
+	if side.length_squared() < 0.0001:
+		side = beam_dir.cross(Vector3.UP)
+	if side.length_squared() < 0.0001:
+		side = beam_dir.cross(Vector3.RIGHT)
+	side = side.normalized()
+	var normal := side.cross(beam_dir).normalized()
+	return Basis(side, beam_dir, normal)
+
+
+func _apply_beam_ribbon(ribbon: _BeamRibbon, from: Vector3, to: Vector3, length: float) -> void:
+	ribbon.mesh.size.y = length
+	var mid := from.lerp(to, 0.5)
+	ribbon.mesh_instance.global_transform = Transform3D(_beam_basis(from, to), mid)
+	ribbon.mesh_instance.visible = true
+	var tiles := maxf(length / BEAM_TILE_LENGTH_M, 1.0)
+	ribbon.mat.set_shader_parameter("beam_tile_count", tiles)
 
 
 func _place_sparks(at: Vector3) -> void:
@@ -264,10 +262,10 @@ func _pop_burst_at(at: Vector3) -> void:
 
 
 func _hide_beam() -> void:
-	if _core != null:
-		_core.visible = false
-	if _glow != null:
-		_glow.visible = false
+	if _glow_ribbon != null:
+		_glow_ribbon.mesh_instance.visible = false
+	if _core_ribbon != null:
+		_core_ribbon.mesh_instance.visible = false
 	if _spray != null:
 		_spray.emitting = false
 	_hide_hops()
@@ -313,33 +311,13 @@ func _rebuild_hops(pills: Array, rng: RandomNumberGenerator) -> void:
 
 
 func _ensure_hop_visuals(count: int) -> void:
-	while _hop_hosts.size() < count:
-		var host := Node3D.new()
-		host.top_level = true
-		var core_mesh := CylinderMesh.new()
-		core_mesh.top_radius = RADIUS_CORE
-		core_mesh.bottom_radius = RADIUS_CORE
-		core_mesh.height = 1.0
-		var glow_mesh := CylinderMesh.new()
-		glow_mesh.top_radius = RADIUS_GLOW
-		glow_mesh.bottom_radius = RADIUS_GLOW
-		glow_mesh.height = 1.0
-		var core := _make_rod(
-			core_mesh,
-			_make_mat(Color(1.0, 0.18, 0.12, 1.0), Color(1.0, 0.08, 0.04, 1.0), 4.2)
-		)
-		var glow := _make_rod(
-			glow_mesh,
-			_make_mat(Color(1.0, 0.16, 0.08, 0.35), Color(0.95, 0.08, 0.04, 1.0), 2.4)
-		)
-		host.add_child(glow)
-		host.add_child(core)
-		add_child(host)
-		_hop_hosts.append(host)
-		_hop_cores.append(core)
-		_hop_glows.append(glow)
-		_hop_core_meshes.append(core_mesh)
-		_hop_glow_meshes.append(glow_mesh)
+	while _hop_glow_ribbons.size() < count:
+		var glow_ribbon := _make_beam_ribbon(BEAM_GLOW_WIDTH, _GLOW_MAT)
+		var core_ribbon := _make_beam_ribbon(BEAM_CORE_WIDTH, _CORE_MAT)
+		add_child(glow_ribbon.mesh_instance)
+		add_child(core_ribbon.mesh_instance)
+		_hop_glow_ribbons.append(glow_ribbon)
+		_hop_core_ribbons.append(core_ribbon)
 
 
 func _drop_dead_hops() -> void:
@@ -360,9 +338,9 @@ func _show_hops() -> void:
 	for i in _hops.size():
 		var hop := _hops[i]
 		var hop_alive := _is_living(hop)
-		if i >= _hop_hosts.size() or not prev_alive or not hop_alive:
-			if i < _hop_hosts.size():
-				_hop_hosts[i].visible = false
+		if i >= _hop_glow_ribbons.size() or not prev_alive or not hop_alive:
+			if i < _hop_glow_ribbons.size():
+				_hide_hop_segment(i)
 			prev_alive = hop_alive
 			if hop_alive:
 				from = hop.global_position + Vector3(0.0, AIM_UP_M, 0.0)
@@ -371,37 +349,32 @@ func _show_hops() -> void:
 		_place_hop_segment(i, from, to)
 		from = to
 		prev_alive = true
-	for i in range(_hops.size(), _hop_hosts.size()):
-		_hop_hosts[i].visible = false
+	for i in range(_hops.size(), _hop_glow_ribbons.size()):
+		_hide_hop_segment(i)
 
 
 func _place_hop_segment(index: int, from: Vector3, to: Vector3) -> void:
-	var host := _hop_hosts[index]
-	var core := _hop_cores[index]
-	var glow := _hop_glows[index]
-	var core_mesh := _hop_core_meshes[index]
-	var glow_mesh := _hop_glow_meshes[index]
-	host.visible = true
-	host.global_position = from
-	var dir := to - from
-	var length := dir.length()
+	var length := from.distance_to(to)
 	if length < 0.08:
-		host.visible = false
+		_hide_hop_segment(index)
 		return
-	if absf(dir.normalized().dot(Vector3.UP)) > 0.98:
-		host.look_at(to, Vector3.FORWARD)
-	else:
-		host.look_at(to, Vector3.UP)
-	core_mesh.height = length
-	glow_mesh.height = length
-	var mid := Vector3(0.0, 0.0, -length * 0.5)
-	core.position = mid
-	glow.position = mid
-	core.visible = true
-	glow.visible = true
+	_apply_beam_ribbon(_hop_glow_ribbons[index], from, to, length)
+	_apply_beam_ribbon(_hop_core_ribbons[index], from, to, length)
+
+
+func _hide_hop_segment(index: int) -> void:
+	if index < _hop_glow_ribbons.size():
+		_hop_glow_ribbons[index].mesh_instance.visible = false
+	if index < _hop_core_ribbons.size():
+		_hop_core_ribbons[index].mesh_instance.visible = false
 
 
 func _hide_hops() -> void:
-	for host in _hop_hosts:
-		if is_instance_valid(host):
-			host.visible = false
+	for i in _hop_glow_ribbons.size():
+		_hide_hop_segment(i)
+
+
+class _BeamRibbon:
+	var mesh_instance: MeshInstance3D
+	var mesh: QuadMesh
+	var mat: ShaderMaterial

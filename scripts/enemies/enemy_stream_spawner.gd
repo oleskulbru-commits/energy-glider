@@ -5,11 +5,11 @@ extends Node3D
 ## New game waits for the first E.O.N. pickup. Try Again keeps spawning even
 ## before the E.O.N. is collected again.
 
-const SwarmPillScene := preload("res://scenes/enemies/swarm_pill.tscn")
-const ChargerPillScene := preload("res://scenes/enemies/charger_pill.tscn")
-const LaserDroneScene := preload("res://scenes/enemies/laser_drone.tscn")
-const MissileDroneScene := preload("res://scenes/enemies/missile_drone.tscn")
-const MachineGunDroneScene := preload("res://scenes/enemies/machine_gun_drone.tscn")
+const SwarmPillScene := preload("res://scenes/enemies/crawler/swarm_pill.tscn")
+const ChargerPillScene := preload("res://scenes/enemies/crawler/charger_pill.tscn")
+const LaserDroneScene := preload("res://scenes/enemies/rebel_drones/laser_drone.tscn")
+const MissileDroneScene := preload("res://scenes/enemies/rebel_drones/missile_drone.tscn")
+const MachineGunDroneScene := preload("res://scenes/enemies/rebel_drones/machine_gun_drone.tscn")
 const MachineGunDroneScript := preload("res://scripts/enemies/machine_gun_drone.gd")
 const SwarmPillScript := preload("res://scripts/enemies/swarm_pill.gd")
 const CombatDroneScript := preload("res://scripts/enemies/combat_drone.gd")

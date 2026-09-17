@@ -1,13 +1,13 @@
 class_name LaserDrone
 extends "res://scripts/enemies/combat_drone.gd"
 
-## Glass-cannon drone: shrinking HUD reticle telegraph, then one unavoidable 35-damage blast.
+## Glass-cannon drone: shrinking ground reticle telegraph, then one unavoidable 35-damage blast.
 
-const GliderHUDScript = preload("res://scripts/ui/glider_hud.gd")
 const GliderPhysicsScript = preload("res://scripts/player/glider_physics.gd")
 const LaserDroneTelegraphScript = preload("res://scripts/enemies/laser_drone_telegraph.gd")
+const LaserGroundReticleScript = preload("res://scripts/enemies/laser_ground_reticle.gd")
 const DroneLaserBlastScript = preload("res://scripts/enemies/drone_laser_blast.gd")
-const LaserDroneFlareScript = preload("res://scripts/enemies/laser_drone_flare.gd")
+const MuzzleFlashScript = preload("res://scripts/vfx/muzzle_flash.gd")
 
 const LASER_MAX_HEALTH := 15
 const TELEGRAPH_TOTAL_SEC := (
@@ -27,9 +27,11 @@ var _telegraph_armed := false
 var _telegraph_elapsed := 0.0
 var _reload_left := 0.0
 var _has_fired_blast := false
-var _ui_reticle_active := false
+var _ground_reticle_active := false
+var _ground_reticle: Node3D
 var _active_blast: Node3D
 var _flare: Node3D
+var _muzzle_flash: MuzzleFlashScript
 
 
 func _ready() -> void:
@@ -37,7 +39,8 @@ func _ready() -> void:
 	super._ready()
 	_max_health = LASER_MAX_HEALTH
 	_hp = LASER_MAX_HEALTH
-	_ensure_flare()
+	_flare = get_type_flare()
+	_ensure_muzzle_flash()
 	add_to_group("laser_drone")
 
 
@@ -119,7 +122,13 @@ func _steer(delta: float) -> void:
 		velocity = Vector3(velocity.x, 0.0, velocity.z).lerp(Vector3.ZERO, minf(delta * 6.0, 1.0))
 		velocity.y = 0.0
 		return
-	velocity = desired
+	var desired_dir := desired.normalized()
+	var target_speed := desired.length()
+	var turn_rate := FLIGHT_TURN_RATE_DEG
+	if movement_zone_for_distance(xz_distance_to_target()) == "flee":
+		turn_rate *= 1.25
+	_steer_heading_toward(desired_dir, turn_rate, delta)
+	_apply_flight_velocity(target_speed, delta)
 
 
 func _update_weapons(delta: float) -> void:
@@ -166,58 +175,52 @@ func _tick_charge(delta: float) -> void:
 		_telegraph_elapsed = 0.0
 
 
-func _get_hud() -> GliderHUD:
+func _ensure_reticle() -> void:
+	if _ground_reticle_active:
+		return
+	if _target == null or not is_instance_valid(_target):
+		return
 	var tree := get_tree()
 	if tree == null:
-		return null
-	return tree.get_first_node_in_group("glider_hud") as GliderHUD
-
-
-func _ensure_reticle() -> void:
-	if _ui_reticle_active:
 		return
-	var hud := _get_hud()
-	if hud == null:
-		return
-	hud.set_laser_target_telegraph_active(true)
-	_ui_reticle_active = true
+	_ground_reticle = LaserGroundReticleScript.spawn(tree, _target, _terrain)
+	_ground_reticle_active = true
 
 
-func _update_reticle(delta: float) -> void:
-	if not _ui_reticle_active:
+func _update_reticle(_delta: float) -> void:
+	if not _ground_reticle_active:
 		return
-	var hud := _get_hud()
-	if hud == null:
+	if _ground_reticle == null or not is_instance_valid(_ground_reticle):
 		return
-	hud.update_laser_target_telegraph(_telegraph_elapsed, delta)
-
-
-func _ensure_flare() -> void:
-	if _flare != null and is_instance_valid(_flare):
-		return
-	_flare = LaserDroneFlareScript.new()
-	_flare.name = "TargetFlare"
-	add_child(_flare)
+	_ground_reticle.update_telegraph(_telegraph_elapsed)
 
 
 func _update_flare() -> void:
-	_ensure_flare()
 	if _flare == null or not is_instance_valid(_flare):
-		return
-	if not _flare.has_method("set_charge_phase"):
+		_flare = get_type_flare()
+	if _flare == null:
 		return
 	if _attack_phase == AttackPhase.RELOAD:
 		_flare.set_reload_phase(true)
 		return
 	_flare.set_reload_phase(false)
 	if not _telegraph_armed:
-		if _flare.has_method("set_acquire_phase"):
-			_flare.set_acquire_phase(true)
+		_flare.set_acquire_phase(true)
 		return
-	if _flare.has_method("set_acquire_phase"):
-		_flare.set_acquire_phase(false)
+	_flare.set_acquire_phase(false)
 	var ratio := clampf(_telegraph_elapsed / TELEGRAPH_TOTAL_SEC, 0.0, 1.0)
 	_flare.set_charge_phase(true, ratio)
+
+
+func _ensure_muzzle_flash() -> void:
+	if _muzzle_flash != null and is_instance_valid(_muzzle_flash):
+		return
+	var visual := get_node_or_null("Visual") as Node3D
+	if visual == null:
+		visual = _visual
+	if visual == null:
+		return
+	_muzzle_flash = visual.find_child("MuzzleFlash", true, false) as MuzzleFlashScript
 
 
 func _fire_blast() -> bool:
@@ -235,17 +238,13 @@ func _fire_blast() -> bool:
 
 
 func _clear_reticle() -> void:
-	if not _ui_reticle_active:
-		return
-	var hud := _get_hud()
-	if hud != null:
-		hud.set_laser_target_telegraph_active(false)
-	_ui_reticle_active = false
+	if _ground_reticle != null and is_instance_valid(_ground_reticle):
+		_ground_reticle.queue_free()
+	_ground_reticle = null
+	_ground_reticle_active = false
 
 
-func _die(from_pos: Vector3) -> void:
+func _die(from_pos: Vector3, weapon_family: StringName = &"") -> void:
 	_clear_reticle()
-	if _active_blast != null and is_instance_valid(_active_blast):
-		_active_blast.queue_free()
-		_active_blast = null
-	super._die(from_pos)
+	_active_blast = null
+	super._die(from_pos, weapon_family)
