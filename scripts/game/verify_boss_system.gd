@@ -55,20 +55,20 @@ func _run() -> void:
 
 
 func _verify_indexes_and_hp() -> void:
-	for index in [1, 16, 24, 32, 40]:
+	for index in [8, 16, 24, 32, 40]:
 		_fail_unless(
 			BossDirectorScript.is_boss_tower(index),
 			"Tower %d should be a boss tower" % index
 		)
-	for index in [0, 2, 7, 8, 9, 15, 17, 23, 25, 31, 33, 39, 41, 1004]:
+	for index in [0, 1, 2, 7, 9, 15, 17, 23, 25, 31, 33, 39, 41, 1004]:
 		_fail_unless(
 			not BossDirectorScript.is_boss_tower(index),
 			"Tower %d should not be a boss tower" % index
 		)
-	_fail_unless(BossDirectorScript.boss_ordinal(1) == 1, "First boss ordinal should be 1")
+	_fail_unless(BossDirectorScript.boss_ordinal(8) == 1, "First boss ordinal should be 1")
 	_fail_unless(BossDirectorScript.boss_ordinal(40) == 5, "Fifth boss ordinal should be 5")
 	_fail_unless(
-		BossDirectorScript.max_health_for_tower(1) == 5000,
+		BossDirectorScript.max_health_for_tower(8) == 5000,
 		"First boss should have 5000 HP"
 	)
 	_fail_unless(
@@ -123,11 +123,11 @@ func _verify_spawn_geometry() -> void:
 func _verify_encounter_gates() -> void:
 	var empty: Dictionary = {}
 	_fail_unless(
-		BossDirectorScript.can_start_encounter(1, false, empty),
+		BossDirectorScript.can_start_encounter(8, false, empty),
 		"First boss should spawn when none are living"
 	)
 	_fail_unless(
-		not BossDirectorScript.can_start_encounter(1, true, empty),
+		not BossDirectorScript.can_start_encounter(8, true, empty),
 		"A new boss should not spawn while another is alive"
 	)
 	_fail_unless(
@@ -135,11 +135,11 @@ func _verify_encounter_gates() -> void:
 		"Second boss should wait until the first is defeated"
 	)
 	_fail_unless(
-		BossDirectorScript.can_start_encounter(16, false, {1: true}),
+		BossDirectorScript.can_start_encounter(16, false, {8: true}),
 		"Second boss should spawn after the first is defeated"
 	)
 	_fail_unless(
-		not BossDirectorScript.can_start_encounter(1, false, {1: true}),
+		not BossDirectorScript.can_start_encounter(8, false, {8: true}),
 		"A defeated boss should not spawn again"
 	)
 	_fail_unless(
@@ -1565,7 +1565,7 @@ func _verify_boss_shop() -> void:
 		and int(weights[4]) == 125,
 		"Boss shop weights should be 50 / 37.5 / 12.5 rare/epic/legendary"
 	)
-	for tower_index in [1, 16, 24, 32, 40]:
+	for tower_index in [8, 16, 24, 32, 40]:
 		var shop := UpgradeCatalogScript.roll_shop(
 			1, tower_index, 20, true, true, true, true, true, 0, -1, true
 		)
