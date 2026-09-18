@@ -14,6 +14,9 @@ const CombatDroneScript := preload("res://scripts/enemies/combat_drone.gd")
 @export var terrain_manager_path: NodePath
 @export var spawn_distance_m := 100.0
 @export var respawn_delay_sec := 2.0
+@export var spawn_mg := true
+@export var spawn_laser := true
+@export var spawn_missile := true
 
 var _rig: PlayerRig
 var _terrain: TerrainManager
@@ -38,6 +41,8 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	_sync_active_slots()
 	for kind: DroneKind in _respawn_left.keys():
+		if not _is_kind_enabled(kind):
+			continue
 		if _is_kind_active(kind):
 			continue
 		var left: float = _respawn_left[kind]
@@ -50,12 +55,17 @@ func _physics_process(delta: float) -> void:
 
 
 func _spawn_all() -> void:
-	_spawn_kind(DroneKind.MG)
-	_spawn_kind(DroneKind.LASER)
-	_spawn_kind(DroneKind.MISSILE)
+	if spawn_mg:
+		_spawn_kind(DroneKind.MG)
+	if spawn_laser:
+		_spawn_kind(DroneKind.LASER)
+	if spawn_missile:
+		_spawn_kind(DroneKind.MISSILE)
 
 
 func _spawn_kind(kind: DroneKind) -> void:
+	if not _is_kind_enabled(kind):
+		return
 	if _terrain == null or _rig == null:
 		return
 	var track := _rig.get_active_body()
@@ -104,6 +114,16 @@ func _kind_for_drone(drone: CombatDrone) -> DroneKind:
 	if drone is LaserDrone:
 		return DroneKind.LASER
 	return DroneKind.MISSILE
+
+
+func _is_kind_enabled(kind: DroneKind) -> bool:
+	match kind:
+		DroneKind.LASER:
+			return spawn_laser
+		DroneKind.MISSILE:
+			return spawn_missile
+		_:
+			return spawn_mg
 
 
 func _is_kind_active(kind: DroneKind) -> bool:
@@ -160,4 +180,5 @@ func _on_drone_exited(drone: CombatDrone) -> void:
 			_active_missile = null
 		_:
 			_active_mg = null
-	_respawn_left[kind] = respawn_delay_sec
+	if _is_kind_enabled(kind):
+		_respawn_left[kind] = respawn_delay_sec

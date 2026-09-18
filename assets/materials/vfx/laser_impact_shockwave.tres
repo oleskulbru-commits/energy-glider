@@ -1,0 +1,18 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://assets/vfx/shaders/laser_impact_shockwave.gdshader" id="1_shader"]
+[ext_resource type="Texture2D" uid="uid://c1msj7y6ymaxi" path="res://assets/vfx/effect_textures/fire_v5_vfx.png" id="2_tex"]
+
+[resource]
+resource_name = "laser_impact_shockwave"
+render_priority = 0
+shader = ExtResource("1_shader")
+shader_parameter/color_tint = Vector4(1.6, 0.21, 0.064, 1)
+shader_parameter/glow_strength = 2.5
+shader_parameter/fade = 1.0
+shader_parameter/ring_progress = 0.0
+shader_parameter/ring_width = 0.14
+shader_parameter/ring_softness = 0.035
+shader_parameter/radial_tiles = 4.0
+shader_parameter/scroll_speed = 6.0
+shader_parameter/fire_tex = ExtResource("2_tex")

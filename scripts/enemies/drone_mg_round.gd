@@ -6,6 +6,7 @@ extends Node3D
 const DroneMgRoundScript := preload("res://scripts/enemies/drone_mg_round.gd")
 const SandImpactDustScript = preload("res://scripts/enemies/sand_impact_dust.gd")
 const SandParticleVfxScript = preload("res://scripts/vfx/sand_particle_vfx.gd")
+const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 
 const SPEED_MPS := 140.0
 const MAX_LIFE_SEC := 1.2
@@ -31,7 +32,7 @@ static func fire(
 ) -> Node3D:
 	if tree == null:
 		return null
-	var parent := tree.current_scene
+	var parent := SceneUtilScript.world_parent(tree)
 	if parent == null:
 		return null
 	var tracer: Node3D = DroneMgRoundScript.new()

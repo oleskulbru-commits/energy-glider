@@ -7,6 +7,7 @@ const MachineGunDroneScript = preload("res://scripts/enemies/machine_gun_drone.g
 const DroneLaserBlastScript = preload("res://scripts/enemies/drone_laser_blast.gd")
 const LaserDroneTelegraphScript = preload("res://scripts/enemies/laser_drone_telegraph.gd")
 const LaserTargetReticleUIScript = preload("res://scripts/ui/laser_target_reticle_ui.gd")
+const LaserGroundReticleScript = preload("res://scripts/enemies/laser_ground_reticle.gd")
 const DroneRocketScript = preload("res://scripts/enemies/drone_rocket.gd")
 const GroundReticleScript = preload("res://scripts/enemies/ground_reticle.gd")
 const EnemyStreamSpawnerScript = preload("res://scripts/enemies/enemy_stream_spawner.gd")
@@ -211,8 +212,83 @@ func _verify_laser_rework() -> void:
 	)
 	_fail_unless(DroneLaserBlastScript.DAMAGE == 35, "Blast damage alias should be 35")
 	_fail_unless(
+		SandParticleVfxScript.burst_scene(SandParticleVfxScript.BurstPreset.LASER).resource_path
+		== "res://scenes/effects/laser_impact_fire_gpu.tscn",
+		"Laser impact should use fire_v2 burst scene"
+	)
+	_fail_unless(
 		is_equal_approx(DroneLaserBlastScript.SPEED_MPS, 120.0),
 		"Laser ground pulse should travel at 120 m/s"
+	)
+	var blast_source := FileAccess.get_file_as_string("res://scripts/enemies/drone_laser_blast.gd")
+	_fail_unless(
+		blast_source.find("drone_laser_blast.tscn") != -1,
+		"Laser ground pulse should instantiate drone_laser_blast.tscn"
+	)
+	_fail_unless(
+		blast_source.find("laser_pulse_shockwave.tres") == -1,
+		"Travel pulse should not use impact shockwave material"
+	)
+	_fail_unless(
+		blast_source.find("SceneUtilScript.world_parent") != -1,
+		"Laser ground pulse should spawn into the SubViewport world"
+	)
+	var blast_scene := FileAccess.get_file_as_string("res://scenes/effects/drone_laser_blast.tscn")
+	_fail_unless(
+		blast_scene.find("laser_tracer.tres") != -1,
+		"Laser tracer should use laser_tracer.tres material"
+	)
+	var tracer_shader := FileAccess.get_file_as_string("res://assets/vfx/shaders/laser_tracer.gdshader")
+	_fail_unless(
+		tracer_shader.find("fire_v3_vfx.png") != -1 or tracer_shader.find("fire_tex") != -1,
+		"Laser tracer shader should sample fire_v3"
+	)
+	_fail_unless(
+		tracer_shader.find("filter_nearest") != -1,
+		"Laser tracer shader should use nearest texture filtering"
+	)
+	_fail_unless(
+		tracer_shader.find("displacement_strength") != -1,
+		"Laser tracer shader should displace vertices from fire_v3"
+	)
+	var dust_source := FileAccess.get_file_as_string("res://scripts/enemies/sand_impact_dust.gd")
+	_fail_unless(
+		dust_source.find("SceneUtilScript.world_parent") != -1,
+		"SandImpactDust should spawn into the SubViewport world"
+	)
+	_fail_unless(
+		dust_source.find("laser_impact.tscn") != -1,
+		"Laser impact should spawn from laser_impact.tscn"
+	)
+	var laser_impact_scene := FileAccess.get_file_as_string("res://scenes/effects/laser_impact.tscn")
+	_fail_unless(
+		laser_impact_scene.find("ShockwaveRing") != -1
+		and laser_impact_scene.find("laser_impact_shockwave.tres") != -1,
+		"Laser impact scene should include fire_v5 ShockwaveRing"
+	)
+	var shockwave_shader := FileAccess.get_file_as_string(
+		"res://assets/vfx/shaders/laser_impact_shockwave.gdshader"
+	)
+	_fail_unless(
+		shockwave_shader.find("ring_progress") != -1 and shockwave_shader.find("filter_nearest") != -1,
+		"Laser impact shockwave should use polar ring shader with nearest fire_v5 sampling"
+	)
+	var shockwave_script := FileAccess.get_file_as_string("res://scripts/vfx/laser_impact_shockwave.gd")
+	_fail_unless(
+		shockwave_script.find("ring_progress") != -1 and shockwave_script.find("StandardMaterial3D") == -1,
+		"Laser impact shockwave should tween ring_progress on ShaderMaterial"
+	)
+	_fail_unless(
+		dust_source.find("material_for_laser_impact") != -1,
+		"Laser impact dust should keep fire_v2 material instead of sand"
+	)
+	var laser_drone_source := FileAccess.get_file_as_string("res://scripts/enemies/laser_drone.gd")
+	var die_idx := laser_drone_source.find("func _die(")
+	_fail_unless(die_idx != -1, "LaserDrone should define _die")
+	var die_snippet := laser_drone_source.substr(die_idx, 220)
+	_fail_unless(
+		die_snippet.find("queue_free") == -1,
+		"Laser drone death should not cancel an in-flight ground pulse"
 	)
 
 	_fail_unless(
@@ -236,37 +312,51 @@ func _verify_laser_rework() -> void:
 		"Reticle should still be in blink phase at 9 s"
 	)
 	_fail_unless(
-		LaserTargetReticleUIScript.bracket_half_spread(LaserDroneTelegraphScript.START_SCALE)
-		> LaserTargetReticleUIScript.bracket_half_spread(LaserDroneTelegraphScript.END_SCALE),
-		"Bracket reticle should close inward over the telegraph"
+		LaserTargetReticleUIScript.frame_index_at(0.0)
+		< LaserTargetReticleUIScript.frame_index_at(LaserDroneTelegraphScript.SHRINK_SEC),
+		"HUD reticle shrink should come from flipbook frames, not draw-rect scaling"
 	)
 	_fail_unless(
-		is_equal_approx(LaserDroneTelegraphScript.circle_trace_progress(8.0), 0.0),
-		"Ring trace should start at the blink phase"
-	)
-	_fail_unless(
-		is_equal_approx(LaserDroneTelegraphScript.circle_trace_progress(9.0), 0.5),
-		"Ring trace should be halfway through after 1 s of blink"
-	)
-	_fail_unless(
-		is_equal_approx(LaserDroneTelegraphScript.circle_trace_progress(10.0), 1.0),
-		"Ring trace should complete when the blast fires"
-	)
-	_fail_unless(
-		is_equal_approx(
-			LaserTargetReticleUIScript.outer_ring_radius(LaserDroneTelegraphScript.END_SCALE),
-			LaserTargetReticleUIScript.bracket_half_spread(LaserDroneTelegraphScript.END_SCALE)
-			+ LaserTargetReticleUIScript.BAR_LENGTH_PX
+		LaserDroneTelegraphScript.frame_index_for_telegraph(0.0, 60)
+		< LaserDroneTelegraphScript.frame_index_for_telegraph(
+			LaserDroneTelegraphScript.telegraph_total_sec(), 60
 		),
-		"Ring should pass through the outer tips of the bracket bars"
+		"Ground reticle flipbook should advance across the full telegraph"
+	)
+	_fail_unless(
+		LaserDroneTelegraphScript.frame_index_for_telegraph(8.5, 60) < 59,
+		"Ground reticle should keep animating during blink phase"
+	)
+	_fail_unless(
+		LaserDroneTelegraphScript.frame_index_for_telegraph(10.0, 60) == 59,
+		"Ground reticle should reach the final flipbook frame at fire time"
+	)
+	var ground_reticle_source := FileAccess.get_file_as_string(
+		"res://scripts/enemies/laser_ground_reticle.gd"
+	)
+	_fail_unless(
+		ground_reticle_source.find("circle_trace") == -1,
+		"Ground reticle should not use circle trace"
+	)
+	_fail_unless(
+		ground_reticle_source.find("ReticleLight") != -1,
+		"Ground reticle should include a red omni light"
+	)
+	_fail_unless(
+		ground_reticle_source.find("get_deck_world_basis") != -1,
+		"Ground reticle should align to deck forward on the ground"
+	)
+	_fail_unless(
+		ground_reticle_source.find("_build_conforming_mesh") != -1,
+		"Ground reticle should use a terrain-conforming mesh grid"
 	)
 	_fail_unless(
 		LaserDroneTelegraphScript.brackets_visible(8.06),
-		"Bracket bars should flash during the 2 s ring phase"
+		"Ground reticle should flash during the 2 s blink phase"
 	)
 	_fail_unless(
 		not LaserDroneTelegraphScript.brackets_visible(8.13),
-		"Bracket bars should alternate off during the ring phase"
+		"Ground reticle should alternate off during the blink phase"
 	)
 
 	var player := Node3D.new()
@@ -297,6 +387,14 @@ func _verify_laser_rework() -> void:
 	health.current = 50
 	var blast: DroneLaserBlast = DroneLaserBlastScript.fire(
 		self, Vector3(-20.0, 8.0, 0.0), player, null, 35
+	)
+	var tracer := blast.get_bolt_visual() as MeshInstance3D
+	_fail_unless(tracer != null, "Laser pulse should expose a Tracer mesh")
+	if tracer != null:
+		_fail_unless(tracer.mesh is CapsuleMesh, "Laser pulse tracer should use a CapsuleMesh")
+	_fail_unless(
+		blast.get_node_or_null("MuzzleFlash") != null,
+		"Laser pulse scene should include onboard MuzzleFlash"
 	)
 	_advance_blast_to_impact(blast)
 	_fail_unless(health.current == 15, "Laser pulse should deal 35 damage on impact")
@@ -345,10 +443,21 @@ func _verify_laser_rework() -> void:
 		"Laser should not arm while the player is outside lock-on range"
 	)
 	_fail_unless(
-		not bool(charge_laser.get("_ui_reticle_active")),
+		not bool(charge_laser.get("_ground_reticle_active")),
 		"Reticle should stay hidden until lock-on"
 	)
 	charge_laser.global_position = Vector3(-20.0, 8.0, 0.0)
+	for _i in 5:
+		charge_laser._update_weapons(step)
+	_fail_unless(
+		bool(charge_laser.get("_ground_reticle_active")),
+		"Ground reticle should appear once the player is in lock-on range"
+	)
+	var ground_reticle: Node3D = charge_laser.get("_ground_reticle")
+	_fail_unless(
+		ground_reticle != null and is_instance_valid(ground_reticle),
+		"Laser drone should own a ground reticle instance"
+	)
 	var frames := int(ceil(LaserDroneTelegraphScript.telegraph_total_sec() / step)) + 1
 	for _i in frames:
 		charge_laser._update_weapons(step)

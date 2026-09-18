@@ -29,40 +29,52 @@ func _run() -> void:
 		"LaserTargetReticleUI should reference reticle_1 flipbook"
 	)
 	_fail_unless(
-		source.find("draw_rect(") == -1,
-		"LaserTargetReticleUI should no longer draw procedural bracket rects"
+		source.find("draw_texture_rect(") == -1,
+		"LaserTargetReticleUI should draw flipbook via TextureRect, not draw_texture_rect"
 	)
 	_fail_unless(
 		source.find("hud_laser_reticle.gdshader") != -1,
 		"LaserTargetReticleUI should luminance-key flipbook frames with hud_laser_reticle shader"
 	)
 	_fail_unless(
-		source.find("FLIPBOOK_ART_SCALE") != -1,
-		"LaserTargetReticleUI should scale flipbook art to match procedural bracket extent"
+		source.find("FLIPBOOK_PIXEL_SCALE") != -1,
+		"LaserTargetReticleUI should upscale flipbook art by integer texel scale"
+	)
+	_fail_unless(
+		source.find("TextureRect") != -1 and source.find("flipbook_draw_rect") != -1,
+		"LaserTargetReticleUI should use a TextureRect flipbook with art-native draw rects"
+	)
+	_fail_unless(
+		source.find("scale_at(") == -1,
+		"LaserTargetReticleUI should not also shrink the flipbook draw rect during the shrink phase"
 	)
 	_fail_unless(
 		source.find("TEXTURE_FILTER_NEAREST") != -1,
 		"LaserTargetReticleUI should draw flipbook frames with nearest filtering"
 	)
 	_fail_unless(
-		source.find("pixel_perfect_flip_rect") != -1,
-		"LaserTargetReticleUI should snap flipbook draws to integer pixel blocks"
+		source.find("STRETCH_SCALE") != -1,
+		"Laser HUD flipbook should scale art to fill the integer draw rect"
 	)
 	_fail_unless(
-		source.find("GLOW_STRENGTH := 3.0") != -1,
-		"Laser HUD reticle glow should match drone streak strength"
+		source.find("GLOW_STRENGTH") != -1,
+		"Laser HUD reticle should define glow strength for the tint shader"
 	)
 	_fail_unless(ReticleShader != null, "HUD laser reticle shader should load")
 	var shader_source := FileAccess.get_file_as_string(
 		"res://assets/vfx/shaders/hud_laser_reticle.gdshader"
 	)
 	_fail_unless(
-		shader_source.find("step(char_threshold") != -1,
-		"HUD laser reticle shader should use hard luminance keying"
+		shader_source.find("blend_mix") != -1,
+		"HUD laser reticle shader should use blend_mix for readable red on bright scenes"
 	)
 	_fail_unless(
-		shader_source.find("char_softness") == -1,
-		"HUD laser reticle shader should not feather alpha with char_softness"
+		shader_source.find("smoothstep(char_threshold") != -1,
+		"HUD laser reticle shader should soften luminance keying"
+	)
+	_fail_unless(
+		shader_source.find("char_softness") != -1,
+		"HUD laser reticle shader should feather alpha with char_softness"
 	)
 
 	_fail_unless(LaserTargetReticleUIScript.frame_index_at(0.0) == 0, "Telegraph start should use frame 0")
@@ -85,25 +97,33 @@ func _run() -> void:
 	var reticle := LaserTargetReticleUIScript.new()
 	root.add_child(reticle)
 	await process_frame
+	var flipbook := reticle.get_node_or_null("Flipbook") as TextureRect
 	_fail_unless(
-		reticle.texture_filter == Control.TEXTURE_FILTER_NEAREST,
-		"Laser HUD reticle should use nearest texture filtering"
+		flipbook != null and flipbook.texture_filter == Control.TEXTURE_FILTER_NEAREST,
+		"Laser HUD flipbook should use nearest texture filtering"
 	)
-	_fail_unless(reticle.material == null, "Laser HUD reticle should only apply shader material during flipbook draw")
-	var snapped := LaserTargetReticleUIScript.pixel_perfect_flip_rect(
-		Vector2(100.3, 200.7), 250.4, frames[0]
+	_fail_unless(flipbook != null, "Laser HUD reticle should host a Flipbook TextureRect")
+	_fail_unless(
+		flipbook.material is ShaderMaterial,
+		"Laser HUD flipbook should keep hud_laser_reticle shader on the TextureRect"
+	)
+	_fail_unless(reticle.material == null, "Laser HUD reticle root should not carry flipbook material")
+	var snapped := LaserTargetReticleUIScript.flipbook_draw_rect(
+		Vector2(100.3, 200.7), frames[0]
 	)
 	_fail_unless(
 		is_equal_approx(snapped.size.x, snapped.size.y),
-		"Pixel-perfect flipbook rect should stay square"
+		"Flipbook draw rect should stay square"
 	)
 	_fail_unless(
 		is_equal_approx(snapped.position.x, roundf(snapped.position.x)),
-		"Pixel-perfect flipbook rect should use integer pixel origin"
+		"Flipbook draw rect should use integer pixel origin"
 	)
 	_fail_unless(
-		int(snapped.size.x) % int(roundf(frames[0].get_size().x)) == 0,
-		"Pixel-perfect flipbook rect should scale by whole texel multiples"
+		int(snapped.size.x)
+		== LaserTargetReticleUIScript.FLIPBOOK_PIXEL_SCALE
+		* LaserTargetReticleUIScript.flipbook_texel_size(frames[0]),
+		"Flipbook draw rect should scale by whole texel multiples"
 	)
 	reticle.show_telegraph()
 	reticle.update_telegraph(4.0, 0.0, Vector2(960.0, 540.0), true)
@@ -113,9 +133,17 @@ func _run() -> void:
 	reticle.queue_free()
 
 	_fail_unless(
-		LaserTargetReticleUIScript.bracket_half_spread(LaserDroneTelegraphScript.START_SCALE)
-		> LaserTargetReticleUIScript.bracket_half_spread(LaserDroneTelegraphScript.END_SCALE),
-		"HUD reticle extent should shrink over the telegraph"
+		LaserTargetReticleUIScript.frame_index_at(0.0)
+		< LaserTargetReticleUIScript.frame_index_at(LaserDroneTelegraphScript.SHRINK_SEC),
+		"HUD reticle shrink should come from flipbook frames, not draw-rect scaling"
+	)
+	_fail_unless(
+		is_equal_approx(
+			LaserTargetReticleUIScript.flipbook_diameter_px(frames[0]),
+			float(LaserTargetReticleUIScript.flipbook_texel_size(frames[0]))
+			* LaserTargetReticleUIScript.FLIPBOOK_PIXEL_SCALE
+		),
+		"HUD flipbook draw size should stay fixed to art texel scale"
 	)
 
 	print("Laser target reticle verification passed.")

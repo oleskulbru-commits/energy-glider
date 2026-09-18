@@ -109,6 +109,10 @@ func _verify_crawler_sand_wiring() -> void:
 		dust_source.find("shake_strength") != -1,
 		"SandImpactDust.spawn should accept optional camera shake"
 	)
+	_fail_unless(
+		dust_source.find("SceneUtilScript.world_parent") != -1,
+		"SandImpactDust should spawn into the SubViewport world"
+	)
 
 	var anim_source := FileAccess.get_file_as_string(
 		"res://scripts/enemies/crawler_anim_controller.gd"

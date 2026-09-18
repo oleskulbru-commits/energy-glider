@@ -10,18 +10,21 @@ enum BurstPreset {
 	DEATH,
 	CLIMB,
 	EXPLOSION,
+	LASER,
 }
 
 const SAND_PARTICLE_MATERIAL := preload("res://assets/materials/vfx/sand_particle.tres")
 const ROCKET_SMOKE_MATERIAL := preload("res://assets/materials/vfx/rocket_smoke_particle.tres")
 const DRONE_MISSILE_SMOKE_MATERIAL := preload("res://assets/materials/vfx/drone_missile_smoke_particle.tres")
 const FIRE_V1_PARTICLE_MATERIAL := preload("res://assets/materials/vfx/fire_v1_particle.tres")
+const FIRE_V2_PARTICLE_MATERIAL := preload("res://assets/materials/vfx/fire_v2_particle.tres")
 const LIGHT_BURST_SCENE := preload("res://scenes/effects/sand_burst_light_gpu.tscn")
 const HEAVY_BURST_SCENE := preload("res://scenes/effects/sand_burst_heavy_gpu.tscn")
 const MG_BURST_SCENE := preload("res://scenes/effects/sand_burst_mg_gpu.tscn")
 const DEATH_BURST_SCENE := preload("res://scenes/effects/sand_burst_death_gpu.tscn")
 const CLIMB_BURST_SCENE := preload("res://scenes/effects/sand_burst_climb_gpu.tscn")
 const EXPLOSION_BURST_SCENE := preload("res://scenes/effects/sand_burst_explosion_gpu.tscn")
+const LASER_IMPACT_FIRE_SCENE := preload("res://scenes/effects/laser_impact_fire_gpu.tscn")
 
 const DEFAULT_VISIBILITY_AABB := AABB(Vector3(-4.0, -2.0, -4.0), Vector3(8.0, 4.0, 8.0))
 const FREE_BUFFER_SEC := 0.1
@@ -56,6 +59,8 @@ static func burst_scene(preset: BurstPreset) -> PackedScene:
 			return CLIMB_BURST_SCENE
 		BurstPreset.EXPLOSION:
 			return EXPLOSION_BURST_SCENE
+		BurstPreset.LASER:
+			return LASER_IMPACT_FIRE_SCENE
 		_:
 			return HEAVY_BURST_SCENE
 
@@ -106,6 +111,13 @@ static func material_for_debris_flame_trail() -> StandardMaterial3D:
 	return material
 
 
+static func material_for_laser_impact() -> StandardMaterial3D:
+	var material := FIRE_V2_PARTICLE_MATERIAL.duplicate() as StandardMaterial3D
+	if material != null:
+		material.proximity_fade_distance = PROXIMITY_FADE_DISTANCE
+	return material
+
+
 static func tinted_emitter_material(source: Material) -> StandardMaterial3D:
 	var material := source.duplicate() as StandardMaterial3D
 	apply_hover_dust_look(material)
@@ -140,8 +152,11 @@ static func configure_gpu_emitter(
 		particles.draw_pass_1 = quad
 
 
-static func configure_gpu_burst(burst: GPUParticles3D) -> void:
-	configure_gpu_emitter(burst)
+static func configure_gpu_burst(
+	burst: GPUParticles3D,
+	material: StandardMaterial3D = null
+) -> void:
+	configure_gpu_emitter(burst, material)
 
 
 static func configure_gpu_hover_dust(
