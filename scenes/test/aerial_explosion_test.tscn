@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3 uid="uid://twr7d6yioc2p"]
+[gd_scene format=3 uid="uid://twr7d6yioc2p"]
 
 [ext_resource type="Script" uid="uid://cmwwy35wj6ydv" path="res://scripts/vfx/aerial_explosion_preview.gd" id="1_preview"]
 [ext_resource type="Resource" uid="uid://bo0prg4nrupay" path="res://assets/vfx/explosions/presets/aerial_explode_1.tres" id="2_preset"]

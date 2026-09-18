@@ -44,13 +44,13 @@ shading_mode = 0
 
 [sub_resource type="QuadMesh" id="QuadMesh_fqqya"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lwd6e"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_m50yr"]
 albedo_color = Color(1, 0.38039216, 0, 1)
 emission_enabled = true
 emission = Color(1, 0.38039216, 0, 1)
-emission_energy_multiplier = 0.0024414063
+emission_energy_multiplier = 0.3125
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_n5jpn"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lwd6e"]
 resource_name = "boost_cylinder"
 transparency = 1
 blend_mode = 1
@@ -63,22 +63,21 @@ emission_texture = ExtResource("3_sfwho")
 uv1_scale = Vector3(1, 0.75, 1)
 uv1_offset = Vector3(0, -0.745, 0)
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tcwaf"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_n5jpn"]
 albedo_color = Color(1, 0.38039216, 0, 1)
 emission_enabled = true
 emission = Color(1, 0.38039216, 0, 1)
-emission_energy_multiplier = 0.0024414063
+emission_energy_multiplier = 0.3125
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_u7krr"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tcwaf"]
 resource_name = "thruster_cylinder"
 transparency = 1
 blend_mode = 1
 cull_mode = 2
-albedo_color = Color(0.7101052, 0.8638905, 1, 0.125)
+albedo_color = Color(1, 0.38333333, 0, 1)
 albedo_texture = ExtResource("5_27tmn")
 emission_enabled = true
 emission = Color(0.30694196, 0.49831033, 1, 1)
-emission_energy_multiplier = 0.0078125
 emission_texture = ExtResource("5_27tmn")
 uv1_scale = Vector3(1, 0.75, 1)
 uv1_offset = Vector3(0, -0.745, 0)
@@ -163,7 +162,7 @@ transform = Transform3D(-0.052, 0, 0, 0, 2.272992e-09, 0.052, 0, -0.052, 2.27299
 inner_radius = 0.8
 sides = 12
 ring_sides = 3
-material = SubResource("StandardMaterial3D_lwd6e")
+material = SubResource("StandardMaterial3D_m50yr")
 
 [node name="BoostVfxPivot" type="Node3D" parent="Model/GliderRoot/GliderBoard/ThrusterSocket" parent_id_path=PackedInt32Array(678267291, 29369604) index="1" unique_id=1727138568]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, -0.023502886)
@@ -177,7 +176,8 @@ fade_out_duration = 0.25
 
 [node name="CylinderMesh2" type="MeshInstance3D" parent="Model/GliderRoot/GliderBoard/ThrusterSocket/BoostVfxPivot/BoostVfx" unique_id=812345602]
 transform = Transform3D(1.0000001, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
-material_override = SubResource("StandardMaterial3D_n5jpn")
+visible = false
+material_override = SubResource("StandardMaterial3D_lwd6e")
 cast_shadow = 0
 mesh = ExtResource("10_n5jpn")
 
@@ -201,19 +201,19 @@ fade_out_duration = 0.25
 
 [node name="OrbMesh2" type="MeshInstance3D" parent="Model/GliderRoot/GliderBoard/ThrusterSocket/ThrusterVfxPivot/ThrusterVfx" unique_id=912345603]
 transform = Transform3D(0.5000002, 0, 0, 0, 0.5000002, 0, 0, 0, 0.5000002, 0, -0.010239436, 8.731149e-11)
-material_override = SubResource("StandardMaterial3D_tcwaf")
+material_override = SubResource("StandardMaterial3D_n5jpn")
 cast_shadow = 0
 mesh = ExtResource("13_tcwaf")
 
 [node name="CylinderMesh2" type="MeshInstance3D" parent="Model/GliderRoot/GliderBoard/ThrusterSocket/ThrusterVfxPivot/ThrusterVfx" unique_id=912345604]
-material_override = SubResource("StandardMaterial3D_u7krr")
+material_override = SubResource("StandardMaterial3D_tcwaf")
 cast_shadow = 0
 mesh = ExtResource("15_u7krr")
 
 [node name="OmniLight3D" type="OmniLight3D" parent="Model/GliderRoot/GliderBoard/ThrusterSocket/ThrusterVfxPivot/ThrusterVfx" unique_id=305950188]
 transform = Transform3D(0.01120673, 0, 0, 0, 0.011206725, 1.6653345e-16, 0, -2.7755576e-16, 0.011206727, 0, -0.009264071, -2.1827873e-11)
 light_color = Color(1, 0.38039216, 0, 1)
-light_energy = 0.002984375
+light_energy = 0.382
 light_indirect_energy = 0.0
 shadow_enabled = true
 shadow_blur = 10.0

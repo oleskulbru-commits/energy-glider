@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://q2artkaib3v5"]
+[gd_scene format=3 uid="uid://18mtqrx20b7d"]
 
 [ext_resource type="Script" uid="uid://dfh6jpakbbivh" path="res://scripts/enemies/crawler_death_burst.gd" id="1_burst"]
 
