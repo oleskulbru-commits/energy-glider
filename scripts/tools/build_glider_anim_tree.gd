@@ -1,5 +1,6 @@
 extends SceneTree
 
+const GliderAnimClipsScript = preload("res://scripts/player/glider_anim_clips.gd")
 const OUT_PATH := "res://resources/anims/glider_anim_state_machine.tres"
 const XFADE := 0.5
 const XFADE_START := 0.05
@@ -25,7 +26,7 @@ func _initialize() -> void:
 		quit(1)
 		return
 
-	_ensure_state_loop_linear(OUT_PATH, ["grounded", "glide", "sail_up"])
+	_ensure_animation_loops(OUT_PATH, GliderAnimClipsScript.LOOP_LINEAR)
 
 	print("Saved ", OUT_PATH)
 	quit(0)
@@ -58,7 +59,7 @@ func _build_body_state_machine(
 	sm.add_node("locomotion", locomotion, Vector2(280, 0))
 	sm.add_node("jump_charge", _make_seek_timescaled_clip("Eve_Jump"), Vector2(560, -280))
 	sm.add_node("jump", _make_seek_timescaled_clip("Eve_Jump"), Vector2(560, -160))
-	sm.add_node("glide", _make_loop_clip("Eve_Glide"), Vector2(840, -160))
+	sm.add_node("glide", _make_glide_blendspace_clip(), Vector2(840, -160))
 	sm.add_node("boost", boost, Vector2(560, 0))
 	sm.add_node("brake", brake, Vector2(560, 120))
 	sm.add_node("landing", _make_clip("Eve_Land"), Vector2(1120, -160))
@@ -97,6 +98,8 @@ func _body_transition_xfade(from_state: String, to_state: String) -> float:
 		return JUMP_ENTER_XFADE
 	if to_state == "locomotion" and from_state == "grounded":
 		return JUMP_ENTER_XFADE
+	if to_state == "locomotion" and from_state == "brake":
+		return AIR_XFADE
 	if _uses_air_xfade(from_state, to_state):
 		return AIR_XFADE
 	return XFADE
@@ -112,7 +115,7 @@ func _build_sail_state_machine(ease: Curve) -> AnimationNodeStateMachine:
 
 	sm.add_transition("Start", "sail_down", _make_transition(XFADE_START, ease))
 
-	# deploy_forward→sail_up and deploy_reverse→sail_down are driven via start() in SailAnimController.
+	# deploy_forward→sail_up is driven via travel() in SailAnimController after deploy finishes.
 
 	for from_state in ["sail_down", "deploy_forward", "sail_up", "deploy_reverse"]:
 		for to_state in ["sail_down", "deploy_forward", "sail_up", "deploy_reverse"]:
@@ -126,27 +129,45 @@ func _build_sail_state_machine(ease: Curve) -> AnimationNodeStateMachine:
 func _build_locomotion_state_machine(ease: Curve) -> AnimationNodeStateMachine:
 	var sm := AnimationNodeStateMachine.new()
 	sm.add_node("enter", _make_clip("Eve_Idle_To_Forward"), Vector2(-280, 0))
-	sm.add_node("forward", _make_timescaled_clip("Eve_Forward"), Vector2(0, 0))
-	sm.add_node("turn_left", _make_clip("Eve_Turn_Left"), Vector2(280, -120))
-	sm.add_node("turn_right", _make_clip("Eve_Turn_Right"), Vector2(280, 120))
-	sm.add_node("strafe_left", _make_strafe_blend_clip("Eve_Turn_Left"), Vector2(560, -120))
-	sm.add_node("strafe_right", _make_strafe_blend_clip("Eve_Turn_Right"), Vector2(560, 120))
+	sm.add_node("move", _make_locomotion_blendspace_clip(), Vector2(0, 0))
 
 	sm.add_transition("Start", "enter", _make_transition(XFADE_START, ease))
-	sm.add_transition("enter", "forward", _make_auto_end_transition(AIR_XFADE, ease))
-	sm.add_transition("forward", "turn_left", _make_transition(XFADE, ease))
-	sm.add_transition("turn_left", "forward", _make_transition(XFADE, ease))
-	sm.add_transition("forward", "turn_right", _make_transition(XFADE, ease))
-	sm.add_transition("turn_right", "forward", _make_transition(XFADE, ease))
-	sm.add_transition("turn_left", "turn_right", _make_transition(XFADE, ease))
-	sm.add_transition("turn_right", "turn_left", _make_transition(XFADE, ease))
-	sm.add_transition("forward", "strafe_left", _make_transition(XFADE, ease))
-	sm.add_transition("strafe_left", "forward", _make_transition(XFADE, ease))
-	sm.add_transition("forward", "strafe_right", _make_transition(XFADE, ease))
-	sm.add_transition("strafe_right", "forward", _make_transition(XFADE, ease))
-	sm.add_transition("strafe_left", "strafe_right", _make_transition(XFADE, ease))
-	sm.add_transition("strafe_right", "strafe_left", _make_transition(XFADE, ease))
+	sm.add_transition("Start", "move", _make_transition(AIR_XFADE, ease))
+	sm.add_transition("enter", "move", _make_auto_end_transition(AIR_XFADE, ease))
 	return sm
+
+
+func _make_glide_blendspace_clip() -> AnimationNodeBlendTree:
+	var tree := AnimationNodeBlendTree.new()
+	var blend_space := AnimationNodeBlendSpace1D.new()
+	blend_space.min_space = -1.0
+	blend_space.max_space = 1.0
+	blend_space.add_blend_point(_make_loop_clip("Eve_Turn_Left"), -1.0)
+	blend_space.add_blend_point(_make_loop_clip("Eve_Glide"), 0.0)
+	blend_space.add_blend_point(_make_loop_clip("Eve_Turn_Right"), 1.0)
+	tree.add_node("blend_space", blend_space, Vector2(0, 0))
+	tree.connect_node(&"output", 0, &"blend_space")
+	return tree
+
+
+func _make_locomotion_blendspace_clip() -> AnimationNodeBlendTree:
+	var tree := AnimationNodeBlendTree.new()
+	var blend_space := AnimationNodeBlendSpace2D.new()
+	blend_space.min_space = Vector2(-1.0, 0.0)
+	blend_space.max_space = Vector2(1.0, 1.0)
+	blend_space.sync = true
+	blend_space.add_blend_point(_make_loop_clip("Eve_Forward"), Vector2(0.0, 0.0))
+	blend_space.add_blend_point(_make_loop_clip("Eve_Forward"), Vector2(0.0, 1.0))
+	blend_space.add_blend_point(_make_loop_clip("Eve_Turn_Left"), Vector2(-1.0, 0.0))
+	blend_space.add_blend_point(_make_loop_clip("Eve_Turn_Right"), Vector2(1.0, 0.0))
+	blend_space.add_blend_point(_make_loop_clip("Eve_Turn_Left"), Vector2(-1.0, 1.0))
+	blend_space.add_blend_point(_make_loop_clip("Eve_Turn_Right"), Vector2(1.0, 1.0))
+	var time_scale := AnimationNodeTimeScale.new()
+	tree.add_node("blend_space", blend_space, Vector2(0, 0))
+	tree.add_node("time_scale", time_scale, Vector2(280, 0))
+	tree.connect_node(&"time_scale", 0, &"blend_space")
+	tree.connect_node(&"output", 0, &"time_scale")
+	return tree
 
 
 func _build_brake_state_machine(ease: Curve) -> AnimationNodeStateMachine:
@@ -293,20 +314,10 @@ func _make_auto_end_transition(xfade: float, curve: Curve = null) -> AnimationNo
 	return transition
 
 
-func _ensure_state_loop_linear(file_path: String, state_names: Array) -> void:
+func _ensure_animation_loops(file_path: String, clip_names: Array) -> void:
 	var content := FileAccess.get_file_as_string(file_path)
-	for state_name in state_names:
-		var key := 'states/%s/node = SubResource("' % state_name
-		var key_pos := content.find(key)
-		if key_pos == -1:
-			push_warning("build_glider_anim_tree: missing state node line for %s" % state_name)
-			continue
-		var id_start := key_pos + key.length()
-		var id_end := content.find('"', id_start)
-		if id_end == -1:
-			continue
-		var sub_id := content.substr(id_start, id_end - id_start)
-		content = _insert_loop_mode_for_subresource(content, sub_id)
+	for clip_name in clip_names:
+		content = _insert_loop_mode_for_clip(content, String(clip_name))
 	var file := FileAccess.open(file_path, FileAccess.WRITE)
 	if file == null:
 		push_error("Failed to patch loop_mode in %s" % file_path)
@@ -314,23 +325,27 @@ func _ensure_state_loop_linear(file_path: String, state_names: Array) -> void:
 	file.store_string(content)
 
 
-func _insert_loop_mode_for_subresource(content: String, sub_id: String) -> String:
-	var header := '[sub_resource type="AnimationNodeAnimation" id="%s"]' % sub_id
-	var pos := content.find(header)
-	if pos == -1:
-		push_warning("build_glider_anim_tree: missing AnimationNodeAnimation subresource %s" % sub_id)
-		return content
-	var anim_key := "animation = "
-	var anim_pos := content.find(anim_key, pos)
-	if anim_pos == -1:
-		return content
-	var line_end := content.find("\n", anim_pos)
-	if line_end == -1:
-		return content
-	var block_end := content.find("\n\n", pos)
-	if block_end == -1:
-		block_end = content.length()
-	var block := content.substr(pos, block_end - pos)
-	if "loop_mode" in block:
-		return content
-	return content.insert(line_end + 1, "loop_mode = 1\n")
+func _insert_loop_mode_for_clip(content: String, clip_name: String) -> String:
+	var needle := 'animation = &"%s"' % clip_name
+	var search_from := 0
+	while true:
+		var anim_pos := content.find(needle, search_from)
+		if anim_pos == -1:
+			break
+		var header_pos := content.rfind('[sub_resource type="AnimationNodeAnimation"', anim_pos)
+		if header_pos == -1:
+			search_from = anim_pos + needle.length()
+			continue
+		var line_end := content.find("\n", anim_pos)
+		if line_end == -1:
+			break
+		var block_end := content.find("\n\n", header_pos)
+		if block_end == -1:
+			block_end = content.length()
+		var block := content.substr(header_pos, block_end - header_pos)
+		if "loop_mode" not in block:
+			content = content.insert(line_end + 1, "loop_mode = 1\n")
+			search_from = line_end + 12
+		else:
+			search_from = block_end
+	return content

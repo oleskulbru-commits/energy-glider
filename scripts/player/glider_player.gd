@@ -29,7 +29,7 @@ static func steering_mul(bonus: float) -> float:
 	return 1.0 + clampf(bonus, 0.0, UpgradeCatalog.STEERING_CAP)
 
 # Visual / terrain
-const BANK_ANGLE := 16.0
+const BANK_ANGLE := 21.0
 const STRAFE_BANK_ANGLE := 8.0
 const BANK_XFADE_DURATION := 1.0
 const BANK_RELEASE_BLEND := 0.35
@@ -1936,6 +1936,8 @@ func is_solar_charging() -> bool:
 
 
 func is_sail_deployed() -> bool:
+	if not is_grounded():
+		return false
 	return _input != null and _input.is_sail_deployed()
 
 

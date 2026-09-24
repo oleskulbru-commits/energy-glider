@@ -319,6 +319,8 @@ func _try_spawn_hit_fragments(
 		return
 	var hit_pos := _hit_fragment_spawn_pos(hit_dir)
 	var count := get_hit_fragment_count(is_crit, weapon_family, is_lethal)
+	if count <= 0:
+		return
 	var spark_color := _resolve_damage_spark_color() if is_lethal else Color(0.0, 0.0, 0.0, 0.0)
 	EnemyHitFragmentVfxScript.spawn(
 		get_tree(),
@@ -331,7 +333,8 @@ func _try_spawn_hit_fragments(
 		is_lethal,
 		weapon_family,
 		spark_color,
-		is_lethal
+		is_lethal,
+		_hit_fragment_priority(is_crit, is_lethal)
 	)
 	_hit_fragment_cooldown_left = HIT_FRAGMENT_COOLDOWN_SEC
 

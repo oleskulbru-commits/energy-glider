@@ -1,6 +1,7 @@
 class_name SailAnimController
 extends Node
 
+const GliderAnimClipsScript = preload("res://scripts/player/glider_anim_clips.gd")
 const GliderPlayerScript = preload("res://scripts/player/glider_player.gd")
 const GliderInputScript = preload("res://scripts/input/glider_input.gd")
 
@@ -34,6 +35,7 @@ func _ready() -> void:
 	if not _tree.active:
 		_tree.active = true
 	_anim_player = _tree.get_node(_tree.anim_player) as AnimationPlayer
+	GliderAnimClipsScript.apply_loop_linear(_anim_player)
 	_sail_playback = _tree.get(PARAM_SAIL_PLAYBACK) as AnimationNodeStateMachinePlayback
 	if _sail_playback == null:
 		push_warning("SailAnimController: sail playback missing — rebuild glider_anim_state_machine.tres")
@@ -146,8 +148,9 @@ func _begin_deploy_forward() -> void:
 
 
 func _begin_sail_up() -> void:
-	_sail_playback.start("sail_up")
+	_sail_playback.travel("sail_up")
 	_sail_state = &"sail_up"
+	_tree.advance(0.0)
 
 
 func _try_finish_deploy_forward() -> void:

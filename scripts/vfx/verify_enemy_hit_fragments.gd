@@ -24,8 +24,8 @@ func _run() -> void:
 		"Drone hit fragment kit should cache 6 meshes (got %d)" % drone_cache_size
 	)
 	_fail_unless(
-		EnemyHitFragmentVfxScript.KILL_LIFETIME_SEC == 3.0,
-		"Kill fragment lifetime should match death debris fall time (got %s)"
+		EnemyHitFragmentVfxScript.KILL_LIFETIME_SEC == 2.0,
+		"Kill fragment lifetime should be 2.0s (got %s)"
 		% str(EnemyHitFragmentVfxScript.KILL_LIFETIME_SEC)
 	)
 	_fail_unless(
@@ -57,6 +57,12 @@ func _run() -> void:
 	_fail_unless(
 		_count_rigid_bodies(wrapper) == 2,
 		"Normal hit should spawn 2 rigid bodies (got %d)" % _count_rigid_bodies(wrapper)
+	)
+	var chip_body := wrapper.get_child(0) as RigidBody3D
+	_fail_unless(chip_body != null, "Hit fragment wrapper should contain a rigid body")
+	_fail_unless(
+		not chip_body.continuous_cd,
+		"Hit fragment chips should not use continuous CCD"
 	)
 	_fail_unless(
 		_count_debris_sand_nodes(wrapper) == 0,

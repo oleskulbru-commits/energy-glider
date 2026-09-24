@@ -74,7 +74,7 @@ func _verify_sun_arc() -> void:
 
 	var noon_pos := DayNightCycleScript.sun_position_for_time(day_fraction * 0.5, day_fraction, max_elev)
 	_fail_unless(
-		is_equal_approx(rad_to_deg(asin(clampf(noon_pos.y, -1.0, 1.0))), max_elev, 0.5),
+		absf(rad_to_deg(asin(clampf(noon_pos.y, -1.0, 1.0))) - max_elev) < 0.5,
 		"Noon sun elevation should match max (got %.1f deg)" % rad_to_deg(asin(noon_pos.y))
 	)
 	_fail_unless(noon_pos.z > 0.5, "Noon sun should be in the southern sky (+Z)")

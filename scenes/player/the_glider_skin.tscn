@@ -4,13 +4,13 @@
 [ext_resource type="PackedScene" uid="uid://bse0a2e4wsg02" path="res://assets/3dmodels/player_models/Glider/Glider_Headlights_v001.glb" id="2_27tmn"]
 [ext_resource type="Script" uid="uid://dkdrw05t4sw8n" path="res://scripts/player/glider_anim_controller.gd" id="2_anim"]
 [ext_resource type="Script" uid="uid://dadugd2g76c8k" path="res://scripts/player/glider_boost_vfx.gd" id="2_boost_vfx"]
+[ext_resource type="Script" uid="uid://efxcarxsgv6b" path="res://scripts/player/glider_foot_ik.gd" id="2_foot_ik"]
 [ext_resource type="Script" uid="uid://b7k6f7mu0kx4v" path="res://scripts/player/glider_headlights.gd" id="2_headlights"]
 [ext_resource type="ArrayMesh" path="res://resources/meshes/glider_skin/gliderboard.res" id="2_m50yr"]
 [ext_resource type="Script" uid="uid://ccres3l856a06" path="res://scripts/player/glider_thruster_vfx.gd" id="2_thruster_vfx"]
 [ext_resource type="Texture2D" uid="uid://32caip4qxsom" path="res://assets/vfx/glider/fbx_boost_fbx/boost_loop/boost_loop_clip/glider_boost_loop0010.png" id="3_sfwho"]
-[ext_resource type="AnimationNodeBlendTree" uid="uid://bu685kyxu6cib" path="res://resources/anims/glider_anim_state_machine.tres" id="3_state_machine"]
+[ext_resource type="AnimationNodeBlendTree" uid="uid://bort31omuhanl" path="res://resources/anims/glider_anim_state_machine.tres" id="3_state_machine"]
 [ext_resource type="Script" uid="uid://di0wixewh5h62" path="res://scripts/player/sail_anim_controller.gd" id="4_sail_anim"]
-[ext_resource type="Texture2D" uid="uid://boip0revrqqan" path="res://assets/vfx/glider/fbx_thruster/thruster_clip/glider_thruster_flames0000.png" id="5_27tmn"]
 [ext_resource type="ArrayMesh" path="res://resources/meshes/glider_skin/glider_headlight_module.res" id="5_lwd6e"]
 [ext_resource type="Material" path="res://assets/materials/vfx/boost_cylinder.tres" id="6_boost_cylinder"]
 [ext_resource type="Material" uid="uid://ca74i1x15gqgv" path="res://assets/materials/vfx/thruster_cylinder.tres" id="7_thruster_cylinder"]
@@ -38,20 +38,17 @@
 [ext_resource type="Skin" path="res://resources/meshes/glider_skin/solar_panel_skin.res" id="33_m1dcy"]
 [ext_resource type="AnimationLibrary" path="res://resources/anims/glider_skin_anim_library.res" id="34_1rext"]
 [ext_resource type="Script" uid="uid://15ranw7vmmrj" path="res://scripts/player/glider_hover_thruster_vfx.gd" id="35_hover_thruster_vfx"]
+[ext_resource type="Material" path="res://assets/materials/vfx/thruster_orb_idle.tres" id="36_thruster_orb_idle"]
+[ext_resource type="Material" path="res://assets/materials/vfx/thruster_torus.tres" id="37_thruster_torus"]
+[ext_resource type="Material" path="res://assets/materials/vfx/thruster_cylinder_cruise.tres" id="38_thruster_cylinder_cruise"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_y3yyn"]
 shading_mode = 0
 
 [sub_resource type="QuadMesh" id="QuadMesh_fqqya"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_m50yr"]
-albedo_color = Color(1, 0.38039216, 0, 1)
-emission_enabled = true
-emission = Color(1, 0.38039216, 0, 1)
-emission_energy_multiplier = 0.3125
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lwd6e"]
-resource_name = "boost_cylinder"
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_u7krr"]
+resource_name = "boost_cylinder_scene"
 transparency = 1
 blend_mode = 1
 cull_mode = 2
@@ -60,25 +57,6 @@ albedo_texture = ExtResource("3_sfwho")
 emission_enabled = true
 emission = Color(1, 0, 0.08333349, 1)
 emission_texture = ExtResource("3_sfwho")
-uv1_scale = Vector3(1, 0.75, 1)
-uv1_offset = Vector3(0, -0.745, 0)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_n5jpn"]
-albedo_color = Color(1, 0.38039216, 0, 1)
-emission_enabled = true
-emission = Color(1, 0.38039216, 0, 1)
-emission_energy_multiplier = 0.3125
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tcwaf"]
-resource_name = "thruster_cylinder"
-transparency = 1
-blend_mode = 1
-cull_mode = 2
-albedo_color = Color(1, 0.38333333, 0, 1)
-albedo_texture = ExtResource("5_27tmn")
-emission_enabled = true
-emission = Color(0.30694196, 0.49831033, 1, 1)
-emission_texture = ExtResource("5_27tmn")
 uv1_scale = Vector3(1, 0.75, 1)
 uv1_offset = Vector3(0, -0.745, 0)
 
@@ -157,12 +135,24 @@ remote_path = NodePath("../../../SailPivot")
 update_rotation = false
 update_scale = false
 
+[node name="RemoteTransform3D" type="RemoteTransform3D" parent="Model/GliderRoot/GliderBoard/Foot_L" index="0" unique_id=884736629]
+remote_path = NodePath("../../../Hero_Rig/Skeleton3D/L_Foot")
+update_position = false
+update_rotation = false
+update_scale = false
+
+[node name="RemoteTransform3D" type="RemoteTransform3D" parent="Model/GliderRoot/GliderBoard/Foot_R" index="0" unique_id=884736630]
+remote_path = NodePath("../../../Hero_Rig/Skeleton3D/R_Foot")
+update_position = false
+update_rotation = false
+update_scale = false
+
 [node name="Thruster_Torus" type="CSGTorus3D" parent="Model/GliderRoot/GliderBoard/ThrusterSocket" parent_id_path=PackedInt32Array(678267291, 29369604) index="0" unique_id=211533916]
 transform = Transform3D(-0.052, 0, 0, 0, 2.272992e-09, 0.052, 0, -0.052, 2.2729922e-09, 0, -0.0019863993, -0.005043745)
 inner_radius = 0.8
 sides = 12
 ring_sides = 3
-material = SubResource("StandardMaterial3D_m50yr")
+material = ExtResource("37_thruster_torus")
 
 [node name="BoostVfxPivot" type="Node3D" parent="Model/GliderRoot/GliderBoard/ThrusterSocket" parent_id_path=PackedInt32Array(678267291, 29369604) index="1" unique_id=1727138568]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, -0.023502886)
@@ -176,8 +166,7 @@ fade_out_duration = 0.25
 
 [node name="CylinderMesh2" type="MeshInstance3D" parent="Model/GliderRoot/GliderBoard/ThrusterSocket/BoostVfxPivot/BoostVfx" unique_id=812345602]
 transform = Transform3D(1.0000001, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
-visible = false
-material_override = SubResource("StandardMaterial3D_lwd6e")
+material_override = SubResource("StandardMaterial3D_u7krr")
 cast_shadow = 0
 mesh = ExtResource("10_n5jpn")
 
@@ -201,12 +190,12 @@ fade_out_duration = 0.25
 
 [node name="OrbMesh2" type="MeshInstance3D" parent="Model/GliderRoot/GliderBoard/ThrusterSocket/ThrusterVfxPivot/ThrusterVfx" unique_id=912345603]
 transform = Transform3D(0.5000002, 0, 0, 0, 0.5000002, 0, 0, 0, 0.5000002, 0, -0.010239436, 8.731149e-11)
-material_override = SubResource("StandardMaterial3D_n5jpn")
+material_override = ExtResource("36_thruster_orb_idle")
 cast_shadow = 0
 mesh = ExtResource("13_tcwaf")
 
 [node name="CylinderMesh2" type="MeshInstance3D" parent="Model/GliderRoot/GliderBoard/ThrusterSocket/ThrusterVfxPivot/ThrusterVfx" unique_id=912345604]
-material_override = SubResource("StandardMaterial3D_tcwaf")
+material_override = ExtResource("38_thruster_cylinder_cruise")
 cast_shadow = 0
 mesh = ExtResource("15_u7krr")
 
@@ -231,8 +220,50 @@ skin = ExtResource("18_e2bcg")
 mesh = ExtResource("19_uab2v")
 skin = ExtResource("18_e2bcg")
 
+[node name="Left_LegIK" type="TwoBoneIK3D" parent="Model/GliderRoot/Hero_Rig/Skeleton3D" parent_id_path=PackedInt32Array(678267291, 836889355) index="3" unique_id=1971465098]
+active = false
+setting_count = 1
+settings/0/target_node = NodePath("../L_Foot")
+settings/0/pole_node = NodePath("../LKneeIK")
+settings/0/root_bone_name = "mixamorig_LeftUpLeg"
+settings/0/root_bone = 55
+settings/0/middle_bone_name = "mixamorig_LeftLeg"
+settings/0/middle_bone = 56
+settings/0/pole_direction = 0
+settings/0/end_bone_name = "mixamorig_LeftFoot"
+settings/0/end_bone = 57
+settings/0/use_virtual_end = false
+settings/0/extend_end_bone = false
+
+[node name="Right_LegIK" type="TwoBoneIK3D" parent="Model/GliderRoot/Hero_Rig/Skeleton3D" parent_id_path=PackedInt32Array(678267291, 836889355) index="4" unique_id=372747399]
+active = false
+setting_count = 1
+settings/0/target_node = NodePath("../R_Foot")
+settings/0/pole_node = NodePath("../RKneeIK")
+settings/0/root_bone_name = "mixamorig_RightUpLeg"
+settings/0/root_bone = 60
+settings/0/middle_bone_name = "mixamorig_RightLeg"
+settings/0/middle_bone = 61
+settings/0/pole_direction = 0
+settings/0/end_bone_name = "mixamorig_RightFoot"
+settings/0/end_bone = 62
+settings/0/use_virtual_end = false
+settings/0/extend_end_bone = false
+
+[node name="LKneeIK" type="Marker3D" parent="Model/GliderRoot/Hero_Rig/Skeleton3D" parent_id_path=PackedInt32Array(678267291, 836889355) index="5" unique_id=1359988756]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.3637358, 0.55065656, 0.6368815)
+
+[node name="RKneeIK" type="Marker3D" parent="Model/GliderRoot/Hero_Rig/Skeleton3D" parent_id_path=PackedInt32Array(678267291, 836889355) index="6" unique_id=1814187580]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6698624, 0.28521985, -0.41814733)
+
+[node name="L_Foot" type="Marker3D" parent="Model/GliderRoot/Hero_Rig/Skeleton3D" parent_id_path=PackedInt32Array(678267291, 836889355) index="7" unique_id=504940035]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.1825388, 0.1776443, 0.38902432)
+
+[node name="R_Foot" type="Marker3D" parent="Model/GliderRoot/Hero_Rig/Skeleton3D" parent_id_path=PackedInt32Array(678267291, 836889355) index="8" unique_id=1464472602]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.13529852, 0.184453, -0.35614252)
+
 [node name="SailPivot" parent="Model/GliderRoot" parent_id_path=PackedInt32Array(678267291, 82523037) index="2" unique_id=1845391848]
-transform = Transform3D(0.9999872, 0, 0, 0, 0.9999827, 0, 0, 0, 0.9999865, 0.0066010416, 0.0830713, 0.7217533)
+transform = Transform3D(0.99998707, 0, 0, 0, 0.99998254, 0, 0, 0, 0.99998647, 0.0066010416, 0.0830713, 0.7217533)
 
 [node name="MastBase" parent="Model/GliderRoot/SailPivot" index="2" unique_id=705383593]
 mesh = ExtResource("20_wkcqb")
@@ -294,15 +325,13 @@ tree_root = ExtResource("3_state_machine")
 anim_player = NodePath("../Model/AnimationPlayer")
 parameters/body/boost/loop/time_scale/scale = 1.0
 parameters/body/brake/loop/time_scale/scale = 1.0
+parameters/body/glide/blend_space/blend_position = 0.0
 parameters/body/jump/seek/seek_request = -1.0
 parameters/body/jump/time_scale/scale = 0.625
 parameters/body/jump_charge/seek/seek_request = -1.0
 parameters/body/jump_charge/time_scale/scale = 1.0
-parameters/body/locomotion/forward/time_scale/scale = 1.0
-parameters/body/locomotion/strafe_left/blend/blend_amount = 0.0
-parameters/body/locomotion/strafe_left/time_scale/scale = 1.0
-parameters/body/locomotion/strafe_right/blend/blend_amount = 0.0
-parameters/body/locomotion/strafe_right/time_scale/scale = 1.0
+parameters/body/locomotion/move/blend_space/blend_position = Vector2(0, 0)
+parameters/body/locomotion/move/time_scale/scale = 1.0
 parameters/sail/deploy_forward/seek/seek_request = 0.0
 parameters/sail/deploy_forward/time_scale/scale = 1.0
 parameters/sail/deploy_reverse/seek/seek_request = -1.0
@@ -313,6 +342,9 @@ parameters/blend/blend_amount = 1.0
 
 [node name="GliderAnimController" type="Node" parent="." unique_id=1801887011]
 script = ExtResource("2_anim")
+
+[node name="GliderFootIk" type="Node" parent="." unique_id=167137790]
+script = ExtResource("2_foot_ik")
 
 [node name="SailAnimController" type="Node" parent="." unique_id=1158879083]
 script = ExtResource("4_sail_anim")
