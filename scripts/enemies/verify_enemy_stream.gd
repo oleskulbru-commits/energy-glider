@@ -129,8 +129,8 @@ func _verify_spawn_grace() -> void:
 
 func _verify_charger() -> void:
 	_fail_unless(
-		is_equal_approx(EnemyStreamSpawnerScript.CHARGER_SPAWN_CHANCE, 1.0 / 6.0),
-		"Charger spawn chance should be 1/6 (1:5 vs crawlers)"
+		is_equal_approx(EnemyStreamSpawnerScript.CHARGER_SPAWN_CHANCE, 1.0 / 7.0),
+		"Charger spawn chance should be 1/7 (1:6 vs crawlers)"
 	)
 	_fail_unless(
 		EnemyStreamSpawnerScript.CHARGER_MIN_LEVEL == 4,

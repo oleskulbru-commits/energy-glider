@@ -29,6 +29,8 @@ var _life := 0.0
 var _spent := false
 var _impacting := false
 var _impact_left := 0.0
+var _air_mode := false
+var _air_impact := Vector3.ZERO
 
 @onready var _tracer: MeshInstance3D = $Tracer
 @onready var _muzzle_flash: MuzzleFlashScript = $MuzzleFlash
@@ -42,6 +44,23 @@ static func fire(
 	terrain: TerrainManager = null,
 	damage: int = DAMAGE
 ) -> DroneLaserBlast:
+	var blast := _spawn(tree)
+	blast.configure(origin, target, terrain, damage)
+	return blast
+
+
+static func fire_at_point(
+	tree: SceneTree,
+	origin: Vector3,
+	impact: Vector3,
+	damage: int = DAMAGE
+) -> DroneLaserBlast:
+	var blast := _spawn(tree)
+	blast.configure_air(origin, impact, damage)
+	return blast
+
+
+static func _spawn(tree: SceneTree) -> DroneLaserBlast:
 	var blast := BLAST_SCENE.instantiate() as DroneLaserBlast
 	if tree != null:
 		var parent := SceneUtilScript.world_parent(tree)
@@ -49,7 +68,6 @@ static func fire(
 			parent = tree.root
 		if parent != null:
 			parent.add_child(blast)
-	blast.configure(origin, target, terrain, damage)
 	return blast
 
 
@@ -89,6 +107,7 @@ func configure(
 	terrain: TerrainManager,
 	damage: int = DAMAGE
 ) -> void:
+	_air_mode = false
 	_terrain = terrain
 	_target = target
 	_damage = damage
@@ -102,6 +121,24 @@ func configure(
 		_muzzle_flash.flash()
 	set_process(true)
 	_try_impact_if_close()
+
+
+func configure_air(origin: Vector3, impact: Vector3, damage: int = DAMAGE) -> void:
+	_air_mode = true
+	_air_impact = impact
+	_terrain = null
+	_target = null
+	_damage = damage
+	_spent = false
+	_impacting = false
+	_impact_left = 0.0
+	_life = 0.0
+	global_position = origin
+	_update_tracer_scale(1.0)
+	if _muzzle_flash != null:
+		_muzzle_flash.flash()
+	_face_toward(impact - origin)
+	set_process(true)
 
 
 func is_finished() -> bool:
@@ -134,6 +171,9 @@ func _process(delta: float) -> void:
 		return
 	if _spent:
 		return
+	if _air_mode:
+		_process_air(delta)
+		return
 
 	var aim := _current_target_ground()
 	var flat := Vector3(global_position.x, 0.0, global_position.z)
@@ -162,6 +202,28 @@ func _process(delta: float) -> void:
 	_update_tracer_scale(pulse)
 
 
+func _process_air(delta: float) -> void:
+	var to := _air_impact - global_position
+	var dist := to.length()
+	if dist <= IMPACT_RADIUS_M:
+		global_position = _air_impact
+		_trigger_impact()
+		return
+	var step := SPEED_MPS * delta
+	if step >= dist:
+		global_position = _air_impact
+		_face_toward(to)
+		_trigger_impact()
+		return
+	var dir := to / dist
+	global_position += dir * step
+	_face_toward(dir)
+	if _light != null:
+		_light.light_energy = 8.0 + sin(_life * 32.0) * 3.0
+	var pulse := 1.0 + sin(_life * TRACER_PULSE_HZ) * TRACER_PULSE_AMPLITUDE
+	_update_tracer_scale(pulse)
+
+
 func _current_target_ground() -> Vector3:
 	if _target == null or not is_instance_valid(_target):
 		return global_position
@@ -183,12 +245,15 @@ func _trigger_impact() -> void:
 	_spent = true
 	_impacting = true
 	_impact_left = IMPACT_FLASH_SEC
-	global_position = _current_target_ground()
+	if _air_mode:
+		global_position = _air_impact
+	else:
+		global_position = _current_target_ground()
 	_set_travel_visible(false)
 	var tree := get_tree()
-	if tree != null:
+	if tree != null and not _air_mode:
 		_spawn_impact_fire(tree)
-	if tree != null and _target != null and is_instance_valid(_target):
+	if not _air_mode and tree != null and _target != null and is_instance_valid(_target):
 		apply_damage(tree, _damage, _target)
 	if _light != null:
 		_light.light_energy = 24.0
@@ -205,10 +270,13 @@ func _spawn_impact_fire(tree: SceneTree) -> void:
 
 
 func _face_toward(dir: Vector3) -> void:
-	var flat := Vector3(dir.x, 0.0, dir.z)
-	if flat.length_squared() < 0.0001:
+	if dir.length_squared() < 0.0001:
 		return
-	look_at(global_position + flat.normalized(), Vector3.UP)
+	var look := dir.normalized()
+	if absf(look.dot(Vector3.UP)) > 0.98:
+		look_at(global_position + look, Vector3.FORWARD)
+		return
+	look_at(global_position + look, Vector3.UP)
 
 
 func _update_tracer_scale(mult: float) -> void:

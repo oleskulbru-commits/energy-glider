@@ -3,6 +3,7 @@ extends Area3D
 
 ## Visible tracer; no gun mesh. Homes lightly on the locked pill.
 
+const SwarmPillScript := preload("res://scripts/enemies/swarm_pill.gd")
 const AerialExplosionVfxScript := preload("res://scripts/vfx/aerial_explosion_vfx.gd")
 
 const SPEED_MPS := 60.0
@@ -17,7 +18,7 @@ var _spent := false
 var _damage := DAMAGE
 var _speed := SPEED_MPS
 var _crit_chance := 0.0
-var _knockback_speed := SwarmPill.HIT_KNOCKBACK_SPEED
+var _knockback_speed := SwarmPillScript.HIT_KNOCKBACK_SPEED
 var _bounces_left := 0
 var _bounce_range := 0.0
 var _hit_ids: Dictionary = {}
@@ -37,7 +38,7 @@ func launch(
 	amount: int = DAMAGE,
 	speed_mps: float = SPEED_MPS,
 	crit_chance: float = 0.0,
-	knockback_speed: float = SwarmPill.HIT_KNOCKBACK_SPEED,
+	knockback_speed: float = SwarmPillScript.HIT_KNOCKBACK_SPEED,
 	bounces: int = 0,
 	bounce_range: float = 0.0
 ) -> void:
@@ -92,7 +93,7 @@ func _orient() -> void:
 func _on_body_entered(body: Node) -> void:
 	if _spent:
 		return
-	var pill := body as SwarmPill
+	var pill := body as SwarmPillScript
 	if pill == null or not pill.is_alive():
 		return
 	var id := pill.get_instance_id()
