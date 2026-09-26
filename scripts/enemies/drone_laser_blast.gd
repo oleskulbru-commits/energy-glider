@@ -251,7 +251,7 @@ func _trigger_impact() -> void:
 		global_position = _current_target_ground()
 	_set_travel_visible(false)
 	var tree := get_tree()
-	if tree != null:
+	if tree != null and not _air_mode:
 		_spawn_impact_fire(tree)
 	if not _air_mode and tree != null and _target != null and is_instance_valid(_target):
 		apply_damage(tree, _damage, _target)

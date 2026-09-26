@@ -175,6 +175,9 @@ func _get_spawn_slot_transform(slot_index: int) -> Transform3D:
 
 
 func _face_heading(delta: float) -> void:
+	if garrisoned and not _garrison_aggroed:
+		super._face_heading(delta)
+		return
 	if _firing_hail:
 		_apply_aim_facing(delta)
 		return

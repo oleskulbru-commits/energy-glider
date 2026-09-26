@@ -224,6 +224,9 @@ func _apply_flight_velocity(target_speed: float, delta: float) -> void:
 
 
 func _face_heading(delta: float) -> void:
+	if garrisoned and not _garrison_aggroed:
+		_look_at_point(_shield_siege_aim())
+		return
 	if _flight_heading.length_squared() < 0.0001:
 		return
 	var forward := Vector3(_flight_heading.x, 0.0, _flight_heading.z).normalized()
@@ -282,6 +285,17 @@ func _face_target() -> void:
 	var look := _target.global_position
 	if garrisoned and not _garrison_aggroed:
 		look = _shield_siege_aim()
+	_look_at_point(look)
+
+
+func _shield_siege_aim() -> Vector3:
+	var shield := garrison_shield()
+	if shield != null and shield.has_method("aim_mid_from"):
+		return shield.aim_mid_from(global_position)
+	return Vector3(garrison_anchor.x, global_position.y + 25.0, garrison_anchor.z)
+
+
+func _look_at_point(look: Vector3) -> void:
 	var to := look - global_position
 	if to.length_squared() < 0.0001:
 		return
@@ -291,13 +305,6 @@ func _face_target() -> void:
 			return
 		look = global_position + to.normalized()
 	look_at(look, Vector3.UP)
-
-
-func _shield_siege_aim() -> Vector3:
-	var shield := garrison_shield()
-	if shield != null and shield.has_method("aim_mid_from"):
-		return shield.aim_mid_from(global_position)
-	return Vector3(garrison_anchor.x, global_position.y + 25.0, garrison_anchor.z)
 
 
 ## Subclasses implement weapons. Base is a no-op.
