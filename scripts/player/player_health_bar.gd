@@ -26,7 +26,6 @@ func _ready() -> void:
 	_float_root = Node3D.new()
 	_float_root.name = "DamageFloats"
 	add_child(_float_root)
-	visible = true
 	call_deferred("_connect_health")
 
 
@@ -62,11 +61,14 @@ func _on_health_changed(current: int, max_health: int) -> void:
 	var ratio := 0.0
 	if max_health > 0:
 		ratio = clampf(float(current) / float(max_health), 0.0, 1.0)
+	var show_bar := current < max_health
+	if _bg != null:
+		_bg.visible = show_bar
 	if _fill_mesh != null:
 		_fill_mesh.size = Vector2(BAR_WIDTH * maxf(ratio, 0.001), BAR_HEIGHT)
 	if _fill != null:
 		_fill.position.x = -BAR_WIDTH * 0.5 + BAR_WIDTH * ratio * 0.5
-		_fill.visible = ratio > 0.001
+		_fill.visible = show_bar and ratio > 0.001
 		var mat := _fill.material_override as StandardMaterial3D
 		if mat != null:
 			mat.albedo_color = Color(
@@ -75,7 +77,6 @@ func _on_health_changed(current: int, max_health: int) -> void:
 				0.12,
 				1.0
 			)
-	visible = true
 
 
 func _billboard() -> void:
@@ -98,6 +99,7 @@ func _build_meshes() -> void:
 	_bg.mesh = bg_mesh
 	_bg.material_override = bg_mat
 	_bg.position = Vector3(0.0, 0.0, -0.01)
+	_bg.visible = false
 	add_child(_bg)
 
 	_fill_mesh = QuadMesh.new()
@@ -109,4 +111,5 @@ func _build_meshes() -> void:
 	_fill = MeshInstance3D.new()
 	_fill.mesh = _fill_mesh
 	_fill.material_override = fill_mat
+	_fill.visible = false
 	add_child(_fill)

@@ -1,0 +1,17 @@
+[gd_scene format=3 uid="uid://bnu2g14140cai"]
+
+[ext_resource type="Script" uid="uid://dr68sb0qs31xy" path="res://scripts/enemies/machine_gun_drone.gd" id="1_mg"]
+[ext_resource type="PackedScene" uid="uid://x801bq8u8wb5" path="res://scenes/enemies/rebel_drones/gun_drone_skin.tscn" id="2_skin"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_body"]
+size = Vector3(2.8, 2.8, 2.8)
+
+[node name="MachineGunDrone" type="CharacterBody3D" unique_id=1982476463]
+collision_layer = 8
+collision_mask = 0
+script = ExtResource("1_mg")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=649654844]
+shape = SubResource("BoxShape3D_body")
+
+[node name="Visual" parent="." unique_id=1735474374 instance=ExtResource("2_skin")]

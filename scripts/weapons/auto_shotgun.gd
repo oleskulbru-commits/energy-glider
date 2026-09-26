@@ -3,6 +3,7 @@ extends Node
 
 ## Instant cone blast. Pellets are visual only.
 
+const AerialExplosionVfxScript := preload("res://scripts/vfx/aerial_explosion_vfx.gd")
 const ShotgunPelletScene := preload("res://scenes/weapons/shotgun_pellet.tscn")
 
 const DAMAGE := 17
@@ -193,7 +194,18 @@ func _hit_pill(
 		dealt, hit_dir.normalized(), is_crit, knock, UpgradeCatalog.FAMILY_SHOTGUN
 	)
 	if killed:
-		KillSparks.spawn(get_tree(), pill.global_position)
+		if swarm.is_in_group("combat_drone"):
+			AerialExplosionVfxScript.spawn(
+				get_tree(),
+				pill.global_position,
+				null,
+				1.0,
+				null,
+				hit_dir.normalized(),
+				pill
+			)
+		else:
+			KillSparks.spawn(get_tree(), pill.global_position)
 
 
 func _spawn_visuals(origin: Vector3, aim: Vector3, range_m: float) -> void:

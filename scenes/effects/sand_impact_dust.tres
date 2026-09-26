@@ -1,0 +1,32 @@
+[gd_resource type="VisualShader" format=3 uid="uid://bh1d4wrqbkuyy"]
+
+[sub_resource type="VisualShaderNodeTexture2DParameter" id="VisualShaderNodeTexture2DParameter_uenn6"]
+parameter_name = "Image_Texture_Puff"
+texture_type = 1
+texture_repeat = 1
+
+[sub_resource type="VisualShaderNodeTexture" id="VisualShaderNodeTexture_8wn83"]
+expanded_output_ports = [0]
+source = 5
+texture_type = 1
+
+[sub_resource type="VisualShaderNodeColorParameter" id="VisualShaderNodeColorParameter_uenn6"]
+expanded_output_ports = [0]
+parameter_name = "Sand_Color"
+
+[sub_resource type="VisualShaderNodeClamp" id="VisualShaderNodeClamp_uenn6"]
+
+[resource]
+modes/cull = 2
+flags/unshaded = true
+flags/shadows_disabled = true
+nodes/fragment/0/position = Vector2(626.6667, 173.33333)
+nodes/fragment/2/node = SubResource("VisualShaderNodeTexture2DParameter_uenn6")
+nodes/fragment/2/position = Vector2(-426.66666, 106.666664)
+nodes/fragment/3/node = SubResource("VisualShaderNodeTexture_8wn83")
+nodes/fragment/3/position = Vector2(-13.333333, 160)
+nodes/fragment/4/node = SubResource("VisualShaderNodeColorParameter_uenn6")
+nodes/fragment/4/position = Vector2(26.666666, -213.33333)
+nodes/fragment/5/node = SubResource("VisualShaderNodeClamp_uenn6")
+nodes/fragment/5/position = Vector2(320, 213.33333)
+nodes/fragment/connections = PackedInt32Array(2, 0, 3, 2, 3, 1, 5, 0, 5, 0, 0, 1, 4, 0, 0, 0)

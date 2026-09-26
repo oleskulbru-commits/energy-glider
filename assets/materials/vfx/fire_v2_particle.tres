@@ -1,0 +1,24 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[ext_resource type="Texture2D" uid="uid://cy40i1y3dqnos" path="res://assets/vfx/effect_textures/fire_v2_vfx.png" id="1_fire"]
+
+[resource]
+resource_name = "fire_v2_particle"
+transparency = 1
+blend_mode = 1
+cull_mode = 2
+shading_mode = 0
+vertex_color_use_as_albedo = true
+vertex_color_is_srgb = true
+albedo_color = Color(3.2, 0.42, 0.13, 1)
+albedo_texture = ExtResource("1_fire")
+emission_enabled = true
+emission = Color(1.6, 0.21, 0.064, 1)
+emission_energy_multiplier = 2.5
+texture_filter = 0
+billboard_mode = 3
+billboard_keep_scale = true
+particles_anim_h_frames = 1
+particles_anim_v_frames = 1
+particles_anim_loop = false
+proximity_fade_enabled = true

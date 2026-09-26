@@ -1,10 +1,12 @@
 class_name DroneRocket
 extends Area3D
 
-## Lofted hail rocket using player rocket visuals. Reaches its mark in FLIGHT_SEC.
+## Lofted hail rocket with drone missile mesh and energy streak VFX.
 
-const RocketMissileScene = preload("res://scenes/weapons/rocket_missile.tscn")
-const DroneGroundBlastScript = preload("res://scripts/enemies/drone_ground_blast.gd")
+const DroneMissileProjectileScene = preload("res://scenes/enemies/rebel_drones/drone_missile_projectile.tscn")
+const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
+const AerialExplosionVfxScript := preload("res://scripts/vfx/aerial_explosion_vfx.gd")
+const DroneExplosionPreset := preload("res://assets/vfx/explosions/presets/aerial_explode_drone.tres")
 
 enum FlightMode { GROUND_ARC, AIR_LINEAR }
 
@@ -13,6 +15,8 @@ const BLAST_RADIUS_M := 2.2
 const BLAST_MAX_ABOVE_M := 4.0
 const AIR_BLAST_RADIUS_M := 2.0
 const FLIGHT_SEC := 1.2
+const STRAIGHT_SEC := 0.3
+const XFADE_SEC := 0.8
 const LOFT_PEAK_M := 8.0
 const PASS_THROUGH_SEC := 1.5
 const PASS_THROUGH_DISTANCE_M := 60.0
@@ -31,16 +35,28 @@ var _pass_vel := Vector3.ZERO
 var _pass_ttl := 0.0
 var _pass_traveled := 0.0
 var _flight_speed_mps := 0.0
+var _straight_left := 0.0
+var _xfade_left := 0.0
+var _launch_dir := Vector3.FORWARD
+var _straight_speed_mps := 0.0
+var _straight_ghost_pos := Vector3.ZERO
+var _smoke_trail: GPUParticles3D
+var _visual_scale := 1.0
+var _flight_sec := FLIGHT_SEC
 
 
 func launch_from_drone(
 	origin: Vector3,
 	impact: Vector3,
-	terrain: TerrainManager = null
+	terrain: TerrainManager = null,
+	spawn_transform: Transform3D = Transform3D.IDENTITY,
+	visual_template: Node = null,
+	visual_scale: float = 1.0
 ) -> void:
 	_flight_mode = FlightMode.GROUND_ARC
 	_pass_through = false
 	_terrain = terrain
+	_visual_scale = maxf(visual_scale, 0.01)
 	var ground_y := impact.y
 	if terrain != null:
 		ground_y = terrain.sample_height(impact.x, impact.z)
@@ -48,30 +64,71 @@ func launch_from_drone(
 	_impact = Vector3(impact.x, ground_y, impact.z)
 	_flight_t = 0.0
 	_spent = false
-	global_position = _origin
-	_dir = arc_velocity(_origin, _impact, 0.0)
-	_steal_player_visuals()
-	_orient()
+	_launch_dir = Vector3.ZERO
+	_flight_sec = FLIGHT_SEC * randf_range(0.9, 1.12)
+	_apply_spawn_transform(spawn_transform, origin)
+	_attach_projectile_visual(visual_template)
+	_begin_smoke_trail()
+	_begin_straight_phase()
 
 
-func launch_to_air_point(origin: Vector3, impact_3d: Vector3) -> void:
+func launch_to_air_point(
+	origin: Vector3,
+	impact_3d: Vector3,
+	spawn_transform: Transform3D = Transform3D.IDENTITY,
+	visual_template: Node = null,
+	visual_scale: float = 1.0
+) -> void:
 	_flight_mode = FlightMode.AIR_LINEAR
 	_pass_through = false
 	_terrain = null
+	_visual_scale = maxf(visual_scale, 0.01)
 	_origin = origin
 	_impact = impact_3d
 	_flight_t = 0.0
 	_spent = false
-	global_position = _origin
-	var delta := _impact - _origin
-	if delta.length_squared() < 0.0001:
-		_dir = Vector3.FORWARD
+	_launch_dir = Vector3.ZERO
+	_flight_sec = FLIGHT_SEC * randf_range(0.9, 1.12)
+	_apply_spawn_transform(spawn_transform, origin)
+	var travel := _impact - _origin
+	if travel.length_squared() < 0.0001:
 		_flight_speed_mps = 0.0
 	else:
-		_dir = delta.normalized()
-		_flight_speed_mps = delta.length() / FLIGHT_SEC
-	_steal_player_visuals()
+		_flight_speed_mps = travel.length() / _flight_sec
+	_attach_projectile_visual(visual_template)
+	_begin_smoke_trail()
+	_begin_straight_phase()
+
+
+func _apply_spawn_transform(spawn_transform: Transform3D, origin: Vector3) -> void:
+	if spawn_transform != Transform3D.IDENTITY:
+		global_position = spawn_transform.origin
+		_origin = global_position
+		var barrel_forward := spawn_transform.basis.z
+		if barrel_forward.length_squared() > 0.0001:
+			_launch_dir = barrel_forward.normalized()
+	else:
+		global_position = origin
+
+
+func _begin_straight_phase() -> void:
+	if _launch_dir.length_squared() < 0.0001:
+		_launch_dir = -global_transform.basis.z
+		if _launch_dir.length_squared() < 0.0001:
+			_launch_dir = -Vector3.FORWARD
+		else:
+			_launch_dir = _launch_dir.normalized()
+	_dir = _launch_dir
+	_straight_left = STRAIGHT_SEC
+	_xfade_left = 0.0
+	_straight_speed_mps = _flight_speed_mps
+	if _straight_speed_mps <= 0.0:
+		_straight_speed_mps = maxf(_origin.distance_to(_impact) / _flight_sec, 12.0)
 	_orient()
+
+
+func uses_drone_missile_visual() -> bool:
+	return get_node_or_null("ProjectileVisual") != null
 
 
 func _ready() -> void:
@@ -87,10 +144,22 @@ func _physics_process(delta: float) -> void:
 	if _pass_through:
 		_tick_pass_through(delta)
 		return
+	if _straight_left > 0.0:
+		delta = _consume_straight(delta)
+		if delta <= 0.0 or _spent:
+			return
+	if _xfade_left > 0.0:
+		delta = _consume_xfade(delta)
+		if delta <= 0.0 or _spent:
+			return
 	if _flight_mode == FlightMode.AIR_LINEAR:
 		_physics_process_air(delta)
 		return
-	_flight_t += delta / FLIGHT_SEC
+	_physics_process_ground(delta)
+
+
+func _physics_process_ground(delta: float) -> void:
+	_flight_t += delta / _flight_sec
 	if _flight_t >= 1.0:
 		global_position = _impact
 		_detonate()
@@ -100,8 +169,87 @@ func _physics_process(delta: float) -> void:
 	_orient()
 
 
+func _consume_straight(delta: float) -> float:
+	var step := minf(delta, _straight_left)
+	global_position += _launch_dir * _straight_speed_mps * step
+	_straight_left = maxf(_straight_left - step, 0.0)
+	if _flight_mode == FlightMode.AIR_LINEAR and _try_air_hit_at(global_position):
+		return 0.0
+	if _straight_left > 0.0:
+		return 0.0
+	_begin_homing()
+	return maxf(delta - step, 0.0)
+
+
+func _begin_homing() -> void:
+	_origin = global_position
+	_straight_ghost_pos = global_position
+	_flight_t = 0.0
+	_xfade_left = XFADE_SEC
+	_dir = _launch_dir
+	if _flight_mode == FlightMode.AIR_LINEAR:
+		var travel := _impact - _origin
+		if travel.length_squared() < 0.0001:
+			_flight_speed_mps = 0.0
+		else:
+			_flight_speed_mps = travel.length() / _flight_sec
+
+
+func _consume_xfade(delta: float) -> float:
+	var step := minf(delta, _xfade_left)
+	_xfade_left = maxf(_xfade_left - step, 0.0)
+	_straight_ghost_pos += _launch_dir * _straight_speed_mps * step
+	_flight_t += step / _flight_sec
+	var home := _sample_homing(_flight_t)
+	var home_pos: Vector3 = home[0]
+	var home_dir: Vector3 = home[1]
+	var weight := smoothstep(0.0, 1.0, (XFADE_SEC - _xfade_left) / XFADE_SEC)
+	global_position = _straight_ghost_pos.lerp(home_pos, weight)
+	_dir = _blend_dir(_launch_dir, home_dir, weight)
+	_orient()
+	if _flight_mode == FlightMode.AIR_LINEAR and _try_air_hit_at(global_position):
+		return 0.0
+	if _xfade_left > 0.0:
+		return 0.0
+	return maxf(delta - step, 0.0)
+
+
+func _sample_homing(flight_t: float) -> Array:
+	if _flight_mode == FlightMode.AIR_LINEAR:
+		var travel := _impact - _origin
+		var dir := _launch_dir
+		if travel.length_squared() > 0.0001:
+			dir = travel.normalized()
+		if flight_t >= 1.0:
+			return [_impact, dir]
+		return [_origin.lerp(_impact, flight_t), dir]
+	if flight_t >= 1.0:
+		return [_impact, arc_velocity(_origin, _impact, 1.0)]
+	return [
+		arc_position(_origin, _impact, flight_t),
+		arc_velocity(_origin, _impact, flight_t)
+	]
+
+
+func _blend_dir(from_dir: Vector3, to_dir: Vector3, weight: float) -> Vector3:
+	var from := from_dir
+	var to := to_dir
+	if from.length_squared() < 0.0001:
+		return to.normalized() if to.length_squared() > 0.0001 else Vector3.FORWARD
+	if to.length_squared() < 0.0001:
+		return from.normalized()
+	from = from.normalized()
+	to = to.normalized()
+	var align := from.dot(to)
+	if align > 0.999:
+		return from
+	if align < -0.999:
+		return from.lerp(to, weight).normalized()
+	return from.slerp(to, weight)
+
+
 func _physics_process_air(delta: float) -> void:
-	_flight_t += delta / FLIGHT_SEC
+	_flight_t += delta / _flight_sec
 	if _flight_t < 1.0:
 		global_position = _origin.lerp(_impact, _flight_t)
 		var travel := _impact - _origin
@@ -124,6 +272,7 @@ func _tick_pass_through(delta: float) -> void:
 	_pass_ttl -= delta
 	_orient()
 	if _pass_ttl <= 0.0 or _pass_traveled >= PASS_THROUGH_DISTANCE_M:
+		_stop_smoke_trail()
 		queue_free()
 
 
@@ -149,6 +298,8 @@ func _try_air_hit_at(point: Vector3) -> bool:
 	var health := get_tree().get_first_node_in_group("player_health")
 	if health != null and health.has_method("take_damage"):
 		health.take_damage(DAMAGE)
+	_spawn_explosion_at(point)
+	_stop_smoke_trail()
 	queue_free()
 	return true
 
@@ -203,9 +354,41 @@ func _detonate() -> void:
 				var health := get_tree().get_first_node_in_group("player_health")
 				if health != null and health.has_method("take_damage"):
 					health.take_damage(DAMAGE)
-	if _flight_mode == FlightMode.GROUND_ARC:
-		DroneGroundBlastScript.spawn(get_tree(), _impact, _terrain)
+	_spawn_explosion_at(_impact)
+	_stop_smoke_trail()
 	queue_free()
+
+
+func _spawn_explosion_at(point: Vector3) -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	AerialExplosionVfxScript.spawn(
+		tree,
+		point,
+		DroneExplosionPreset,
+		_visual_scale,
+		_terrain,
+		_dir,
+		null,
+		true
+	)
+
+
+func _begin_smoke_trail() -> void:
+	if _smoke_trail == null:
+		_smoke_trail = SandParticleVfxScript.create_missile_smoke_trail(
+			self,
+			SandParticleVfxScript.material_for_drone_missile_trail(),
+			SandParticleVfxScript.DRONE_TRAIL_COLOR,
+			_visual_scale
+		)
+	_smoke_trail.emitting = true
+
+
+func _stop_smoke_trail() -> void:
+	if _smoke_trail != null:
+		_smoke_trail.emitting = false
 
 
 func _find_player_body() -> Node3D:
@@ -223,35 +406,70 @@ func _find_player_body() -> Node3D:
 	return null
 
 
-func _steal_player_visuals() -> void:
-	# Build the same capsule/streak/trail as rocket_missile.tscn without running its script.
-	if get_node_or_null("Visual") != null:
+func _attach_projectile_visual(visual_template: Node = null) -> void:
+	if get_node_or_null("ProjectileVisual") != null:
 		return
-	var template: Node = RocketMissileScene.instantiate()
-	for child_name in ["Visual", "Streak", "Trail"]:
-		var src := template.get_node_or_null(child_name)
-		if src == null:
-			continue
-		var copy := src.duplicate()
-		if child_name == "Trail" and copy is CPUParticles3D:
-			_tint_trail_blue(copy as CPUParticles3D)
-		add_child(copy)
-	template.queue_free()
+	var visual_root := Node3D.new()
+	visual_root.name = "ProjectileVisual"
+	add_child(visual_root)
+	var from_template := false
+	if visual_template != null and _duplicate_template_visuals(visual_root, visual_template):
+		from_template = true
+		_tint_projectile_vfx(visual_root)
+		_align_projectile_visual(visual_root, from_template)
+		visual_root.scale = Vector3.ONE * _visual_scale
+		return
+	var fallback: Node3D = DroneMissileProjectileScene.instantiate()
+	visual_root.add_child(fallback)
+	_tint_projectile_vfx(visual_root)
+	_align_projectile_visual(visual_root, false)
+	visual_root.scale = Vector3.ONE * _visual_scale
 
 
-func _tint_trail_blue(trail: CPUParticles3D) -> void:
-	trail.color = TRAIL_COLOR
-	if trail.material_override is StandardMaterial3D:
-		var mat := (trail.material_override as StandardMaterial3D).duplicate()
-		mat.albedo_color = TRAIL_COLOR
-		mat.emission = TRAIL_EMISSION
-		trail.material_override = mat
+func _duplicate_template_visuals(visual_root: Node3D, visual_template: Node) -> bool:
+	var copied := false
+	if visual_template is MeshInstance3D or visual_template is CSGShape3D:
+		visual_root.add_child(visual_template.duplicate())
+		return true
+	for child in visual_template.get_children():
+		if child is Node3D:
+			visual_root.add_child(child.duplicate())
+			copied = true
+	return copied
+
+
+func _tint_projectile_vfx(root: Node) -> void:
+	var streak := root.find_child("Streak", true, false) as MeshInstance3D
+	if streak != null:
+		_tint_streak_blue(streak)
+
+
+func _tint_streak_blue(streak: MeshInstance3D) -> void:
+	var mat := streak.material_override
+	if mat is ShaderMaterial:
+		var shader_mat := (mat as ShaderMaterial).duplicate()
+		shader_mat.set_shader_parameter(
+			"ColorParameter",
+			Color(TRAIL_COLOR.r * 1.6, TRAIL_COLOR.g * 1.4, TRAIL_COLOR.b * 1.6, 0.85)
+		)
+		shader_mat.set_shader_parameter("GlowStrength", 3.0)
+		streak.material_override = shader_mat
+	elif mat is StandardMaterial3D:
+		var std_mat := (mat as StandardMaterial3D).duplicate()
+		std_mat.albedo_color = Color(TRAIL_COLOR.r, TRAIL_COLOR.g, TRAIL_COLOR.b, 0.65)
+		std_mat.emission = TRAIL_EMISSION
+		streak.material_override = std_mat
+
+
+func _align_projectile_visual(visual_root: Node3D, _from_template: bool) -> void:
+	# GLB missile meshes point +Z; DroneRocket travel forward is -Z (Basis.looking_at).
+	visual_root.basis = Basis.from_euler(Vector3(0.0, PI, 0.0))
 
 
 func _orient() -> void:
 	if _dir.length_squared() < 0.0001:
 		return
-	if absf(_dir.dot(Vector3.UP)) > 0.98:
-		look_at(global_position + _dir, Vector3.FORWARD)
-	else:
-		look_at(global_position + _dir, Vector3.UP)
+	var up := Vector3.UP
+	if absf(_dir.dot(up)) > 0.98:
+		up = Vector3.FORWARD
+	global_transform = Transform3D(Basis.looking_at(_dir, up), global_position)

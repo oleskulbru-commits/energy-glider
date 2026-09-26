@@ -3,7 +3,7 @@ extends Node3D
 
 ## Spawns a single crawler ahead of the player; respawns after death.
 
-const SwarmPillScene := preload("res://scenes/enemies/swarm_pill.tscn")
+const SwarmPillScene := preload("res://scenes/enemies/crawler/swarm_pill.tscn")
 
 @export var player_rig_path: NodePath
 @export var terrain_manager_path: NodePath

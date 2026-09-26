@@ -1,0 +1,5 @@
+[gd_scene format=3 uid="uid://dberb5o07a2m7"]
+
+[ext_resource type="PackedScene" uid="uid://dtuwxjc16646b" path="res://scenes/enemies/rebel_drones/missile_drone_skin.tscn" id="1_skin"]
+
+[node name="MissileDroneSkin" instance=ExtResource("1_skin")]

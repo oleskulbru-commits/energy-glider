@@ -1,0 +1,44 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://cwqau00c8ljr3"
+path.s3tc="res://.godot/imported/Rebel_Drone_Body_v001_forty_towers_drone_metallic.JPEG-forty_towers_drone_roughness.png-333e0ef7e7c0fd02dd22e0feb7053d6f.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
+generator_parameters={
+"md5": "be4ab6302649dce1cd92671a30f098c1"
+}
+
+[deps]
+
+source_file="res://assets/3dmodels/enemies/drones/Rebel_Drone_Body_v001_forty_towers_drone_metallic.JPEG-forty_towers_drone_roughness.png"
+dest_files=["res://.godot/imported/Rebel_Drone_Body_v001_forty_towers_drone_metallic.JPEG-forty_towers_drone_roughness.png-333e0ef7e7c0fd02dd22e0feb7053d6f.s3tc.ctex"]
+
+[params]
+
+compress/mode=2
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/uastc_level=0
+compress/rdo_quality_loss=0.0
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/channel_remap/red=0
+process/channel_remap/green=1
+process/channel_remap/blue=2
+process/channel_remap/alpha=3
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=0

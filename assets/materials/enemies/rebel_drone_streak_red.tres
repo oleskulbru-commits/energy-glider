@@ -1,0 +1,19 @@
+[gd_resource type="ShaderMaterial" format=3 uid="uid://dtnro5es3g7hl"]
+
+[ext_resource type="Shader" uid="uid://b3lteo6es52vm" path="res://scenes/enemies/rebel_drones/drone_missile_streak.gdshader" id="1_shader"]
+[ext_resource type="Texture2D" uid="uid://bx1nlmtb8xbbw" path="res://assets/vfx/effect_textures/full_smoke_puff.png" id="2_base_tex"]
+
+[sub_resource type="Gradient" id="Gradient_streak_mask"]
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_streak_mask"]
+gradient = SubResource("Gradient_streak_mask")
+fill_from = Vector2(0.97720796, 0.23646724)
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_shader")
+shader_parameter/ColorParameter = Color(1.6, 0.21, 0.064, 1)
+shader_parameter/GlowStrength = 3.0
+shader_parameter/SpeedXY = Vector2(0, -1)
+shader_parameter/Base_Texture = ExtResource("2_base_tex")
+shader_parameter/Streak_Mask = SubResource("GradientTexture2D_streak_mask")

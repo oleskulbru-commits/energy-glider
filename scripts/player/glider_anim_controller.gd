@@ -92,6 +92,18 @@ func _ready() -> void:
 		_bootstrap_playback()
 
 
+func force_landing_reaction() -> void:
+	if _root_playback == null or _tree == null or _glider == null:
+		return
+	if not _glider.is_grounded():
+		return
+	_landing_locomotion_warm = false
+	_jump_root_lock = false
+	_apply_root_start(&"landing")
+	_root_state = &"landing"
+	_tree.advance(0.0)
+
+
 func reset_animation_state() -> void:
 	_snap_jump_entry = false
 	_snap_jump_charge_entry = false

@@ -1,6 +1,6 @@
 extends SceneTree
 
-const SwarmPillScene := preload("res://scenes/enemies/swarm_pill.tscn")
+const SwarmPillScene := preload("res://scenes/enemies/crawler/swarm_pill.tscn")
 const FRACTURED_SCENE := preload(
 	"res://assets/3dmodels/enemies/crawler/crawler_fractured_v001.glb"
 )

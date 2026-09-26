@@ -30,10 +30,16 @@ extends Camera3D
 @export var land_recover_min_sec: float = 0.35
 @export var land_recover_max_sec: float = 0.85
 @export var speed_shake_enabled: bool = true
-@export var speed_shake_strength_at_max: float = 1.0
-@export var handheld_rot_amplitude_deg: float = 0.8
-@export var handheld_rot_frequency: float = 0.85
-@export var handheld_smoothing: float = 10.0
+@export var speed_shake_strength_at_max: float = 1.55
+@export var handheld_rot_amplitude_deg: float = 1.25
+@export var handheld_rot_frequency: float = 0.58
+@export var handheld_smoothing: float = 18.0
+@export var impact_shake_enabled: bool = true
+@export var max_impact_trauma: float = 1.35
+@export var impact_trauma_decay: float = 1.35
+@export var impact_rot_amplitude_deg: float = 3.6
+@export var impact_shake_frequency: float = 0.85
+@export var impact_shake_smoothing: float = 16.0
 
 const MIN_VELOCITY_YAW_SPEED := 1.5
 const SPEED_BLEND_START := 5.0
@@ -79,6 +85,10 @@ var _hard_snap := false
 var _handheld_time := 0.0
 var _handheld_rot := Vector3.ZERO
 var _handheld_rot_noise: FastNoiseLite
+var _impact_trauma := 0.0
+var _impact_time := 0.0
+var _impact_rot := Vector3.ZERO
+var _impact_rot_noise: FastNoiseLite
 
 
 func _ready() -> void:
@@ -89,6 +99,8 @@ func _ready() -> void:
 	_distance_target = _distance
 	_look_pitch_offset = _rest_pitch()
 	_setup_handheld_noise()
+	_setup_impact_noise()
+	add_to_group("glider_camera")
 
 
 func get_camera_node() -> Camera3D:
@@ -171,11 +183,22 @@ func follow(
 	_look_focus = look_target
 	look_at(_look_focus, Vector3.UP)
 	_apply_handheld_offset(delta, speed, snap, speed_bonus)
+	_apply_impact_offset(delta, snap)
 
 	var speed_t := clampf(speed / SPEED_FOV_REF, 0.0, 1.0)
 	var fov_t := 1.0 if snap else clampf(FOV_RATE * delta, 0.0, 1.0)
 	_fov_blend = lerpf(_fov_blend, speed_t, fov_t)
 	fov = lerpf(camera_fov, camera_fov + camera_fov_speed_boost, _fov_blend)
+
+
+func add_impact_trauma(amount: float) -> void:
+	if not impact_shake_enabled or amount <= 0.0:
+		return
+	_impact_trauma = minf(_impact_trauma + amount, max_impact_trauma)
+
+
+func get_impact_trauma() -> float:
+	return _impact_trauma
 
 
 func cycle_distance_preset() -> void:
@@ -249,6 +272,9 @@ func reset_follow_state() -> void:
 	_fall_pitch = 0.0
 	_reset_landing_recovery()
 	_reset_handheld()
+	_impact_trauma = 0.0
+	_impact_time = 0.0
+	_impact_rot = Vector3.ZERO
 	fov = camera_fov
 
 
@@ -296,6 +322,13 @@ func _setup_handheld_noise() -> void:
 	_handheld_rot_noise.frequency = handheld_rot_frequency
 
 
+func _setup_impact_noise() -> void:
+	_impact_rot_noise = FastNoiseLite.new()
+	_impact_rot_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	_impact_rot_noise.seed = 12007
+	_impact_rot_noise.frequency = impact_shake_frequency
+
+
 func _reset_handheld() -> void:
 	_handheld_time = 0.0
 	_handheld_rot = Vector3.ZERO
@@ -325,6 +358,36 @@ func _apply_handheld_offset(delta: float, speed: float, snap: bool, speed_bonus:
 	rotate_object_local(Vector3.UP, _handheld_rot.y)
 	rotate_object_local(Vector3.RIGHT, _handheld_rot.x)
 	rotate_object_local(Vector3.FORWARD, _handheld_rot.z)
+
+
+func _apply_impact_offset(delta: float, snap: bool) -> void:
+	if snap or not impact_shake_enabled:
+		_impact_trauma = 0.0
+		_impact_time = 0.0
+		_impact_rot = Vector3.ZERO
+		return
+	_impact_trauma = maxf(_impact_trauma - impact_trauma_decay * delta, 0.0)
+	if _impact_trauma <= 0.001:
+		_impact_rot = _impact_rot.lerp(Vector3.ZERO, clampf(impact_shake_smoothing * delta, 0.0, 1.0))
+		if _impact_rot.length_squared() <= 0.000001:
+			_impact_rot = Vector3.ZERO
+		if _impact_rot == Vector3.ZERO:
+			return
+	else:
+		_impact_time += delta
+		var amp := deg_to_rad(impact_rot_amplitude_deg) * _impact_trauma * _impact_trauma
+		var sample_rot := sample_handheld_rotation(
+			_impact_time,
+			_impact_rot_noise,
+			amp,
+			1.0
+		)
+		var smooth_t := clampf(impact_shake_smoothing * delta, 0.0, 1.0)
+		_impact_rot = _impact_rot.lerp(sample_rot, smooth_t)
+
+	rotate_object_local(Vector3.UP, _impact_rot.y)
+	rotate_object_local(Vector3.RIGHT, _impact_rot.x)
+	rotate_object_local(Vector3.FORWARD, _impact_rot.z)
 
 
 func _reset_landing_recovery() -> void:

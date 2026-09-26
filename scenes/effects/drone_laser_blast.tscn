@@ -1,0 +1,30 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/drone_laser_blast.gd" id="1_script"]
+[ext_resource type="PackedScene" uid="uid://m6el2htscaob" path="res://scenes/effects/muzzle_flash.tscn" id="2_muzzle"]
+[ext_resource type="Material" path="res://assets/materials/vfx/laser_pulse_muzzle.tres" id="3_muzzle_mat"]
+[ext_resource type="Material" path="res://assets/materials/vfx/laser_tracer.tres" id="4_tracer_mat"]
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_tracer"]
+radius = 0.18
+height = 1.0
+
+[node name="DroneLaserBlast" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="Tracer" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, 0)
+cast_shadow = 0
+mesh = SubResource("CapsuleMesh_tracer")
+material_override = ExtResource("4_tracer_mat")
+
+[node name="MuzzleFlash" parent="." instance=ExtResource("2_muzzle")]
+
+[node name="MuzzlePlanes" parent="MuzzleFlash" index="0"]
+material_override = ExtResource("3_muzzle_mat")
+
+[node name="TravelLight" type="OmniLight3D" parent="."]
+light_color = Color(1, 0.24, 0.1, 1)
+light_energy = 10.0
+omni_range = 28.0
+shadow_enabled = false

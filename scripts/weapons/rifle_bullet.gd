@@ -4,6 +4,7 @@ extends Area3D
 ## Visible tracer; no gun mesh. Homes lightly on the locked pill.
 
 const SwarmPillScript := preload("res://scripts/enemies/swarm_pill.gd")
+const AerialExplosionVfxScript := preload("res://scripts/vfx/aerial_explosion_vfx.gd")
 
 const SPEED_MPS := 60.0
 const LIFETIME_SEC := 2.4
@@ -104,7 +105,12 @@ func _on_body_entered(body: Node) -> void:
 		hit.damage, _dir, hit.is_crit, _knockback_speed, UpgradeCatalog.FAMILY_RIFLE
 	)
 	if killed:
-		KillSparks.spawn(get_tree(), pill.global_position)
+		if pill.is_in_group("combat_drone"):
+			AerialExplosionVfxScript.spawn(
+				get_tree(), pill.global_position, null, 1.0, null, _dir, pill
+			)
+		else:
+			KillSparks.spawn(get_tree(), pill.global_position)
 	if _try_bounce(pill.global_position):
 		return
 	_spent = true

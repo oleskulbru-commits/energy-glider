@@ -1,0 +1,18 @@
+[gd_scene format=3 uid="uid://bl8piqivuffqx"]
+
+[ext_resource type="Script" uid="uid://bftq7m2gapulr" path="res://scripts/enemies/swarm_pill.gd" id="1_pill"]
+[ext_resource type="PackedScene" uid="uid://chqjbyfsqqnww" path="res://scenes/enemies/crawler/crawler_skin.tscn" id="2_skin"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+radius = 0.3
+height = 0.6
+
+[node name="SwarmPill" type="CharacterBody3D" unique_id=1124160718]
+collision_layer = 8
+script = ExtResource("1_pill")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=158467615]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.32, 0)
+shape = SubResource("CapsuleShape3D_body")
+
+[node name="Visual" parent="." unique_id=541726104 instance=ExtResource("2_skin")]

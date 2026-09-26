@@ -8,6 +8,8 @@ const IDLE_MODULATE := Color(0.92, 0.88, 0.8, 1.0)
 const VOICE_DELAY_SEC := 1.0
 const PauseMenuScript = preload("res://scripts/ui/pause_menu.gd")
 
+@export var show_god_mode := true
+
 @onready var _root: Control = %Root
 @onready var _overlay_dim: ColorRect = _root.get_node("Dim") as ColorRect
 @onready var _overlay_center: CenterContainer = _root.get_node("Center") as CenterContainer
@@ -42,10 +44,15 @@ func _ready() -> void:
 	_rocket_button.pressed.connect(_on_weapon_pressed.bind(UpgradeCatalog.FAMILY_ROCKET))
 	_shotgun_button.pressed.connect(_on_weapon_pressed.bind(UpgradeCatalog.FAMILY_SHOTGUN))
 	_start_button.pressed.connect(_on_start_pressed)
-	_god_mode_button.pressed.connect(_on_god_mode_pressed)
-	if _god_mode_menu != null:
-		_god_mode_menu.back_requested.connect(_on_god_mode_back)
-		_god_mode_menu.started.connect(_on_god_mode_started)
+	if show_god_mode:
+		_god_mode_button.pressed.connect(_on_god_mode_pressed)
+		if _god_mode_menu != null:
+			_god_mode_menu.back_requested.connect(_on_god_mode_back)
+			_god_mode_menu.started.connect(_on_god_mode_started)
+	else:
+		_god_mode_button.visible = false
+		if _god_mode_menu != null:
+			_god_mode_menu.visible = false
 	_rifle_button.icon = UpgradeCatalog.icon_for(UpgradeCatalog.ID_UNLOCK_RIFLE)
 	_laser_button.icon = UpgradeCatalog.icon_for(UpgradeCatalog.ID_UNLOCK_LASER)
 	_tesla_button.icon = UpgradeCatalog.icon_for(UpgradeCatalog.ID_UNLOCK_TESLA)
@@ -59,7 +66,7 @@ func _bind_and_open() -> void:
 	var health := get_tree().get_first_node_in_group("player_health") as PlayerHealth
 	if health != null:
 		_rig = health.get_parent() as PlayerRig
-	if _god_mode_menu != null:
+	if show_god_mode and _god_mode_menu != null:
 		_god_mode_menu.bind_state(_state)
 	var director := get_tree().get_first_node_in_group("eon_director") as EonDirector
 	if director != null and director.has_signal("attempt_started"):

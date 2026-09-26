@@ -1,0 +1,21 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://bbqhh0w466g6h" path="res://scripts/enemies/sand_impact_dust.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://scenes/effects/laser_impact_fire_gpu.tscn" id="2_fire_burst"]
+[ext_resource type="Material" path="res://assets/materials/vfx/laser_impact_shockwave.tres" id="3_shockwave_mat"]
+[ext_resource type="Script" path="res://scripts/vfx/laser_impact_shockwave.gd" id="4_shockwave_script"]
+
+[sub_resource type="QuadMesh" id="QuadMesh_shockwave"]
+size = Vector2(3.75, 3.75)
+material = ExtResource("3_shockwave_mat")
+
+[node name="SandImpactDust" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="BurstRoot" parent="." instance=ExtResource("2_fire_burst")]
+
+[node name="ShockwaveRing" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, 0)
+cast_shadow = 0
+mesh = SubResource("QuadMesh_shockwave")
+script = ExtResource("4_shockwave_script")

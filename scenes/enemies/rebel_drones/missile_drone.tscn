@@ -1,0 +1,35 @@
+[gd_scene format=3 uid="uid://d06xplc6i3drw"]
+
+[ext_resource type="Script" uid="uid://cyq5r1vqvbkig" path="res://scripts/enemies/missile_drone.gd" id="1_missile"]
+[ext_resource type="PackedScene" uid="uid://dtuwxjc16646b" path="res://scenes/enemies/rebel_drones/missile_drone_skin.tscn" id="2_skin"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_body"]
+size = Vector3(2.8, 2.8, 2.8)
+
+[node name="MissileDrone" type="CharacterBody3D" unique_id=329018622]
+collision_layer = 8
+collision_mask = 0
+script = ExtResource("1_missile")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1039650279]
+shape = SubResource("BoxShape3D_body")
+
+[node name="Visual" parent="." unique_id=1994771147 instance=ExtResource("2_skin")]
+
+[node name="Missile 1" type="Node3D" parent="Visual" unique_id=756872612]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.059565645, -0.07567388, 0.5216783)
+
+[node name="Missile 2" type="Node3D" parent="Visual" unique_id=1042668138]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0024812631, -0.07636163, 0.5216783)
+
+[node name="Missile 3" type="Node3D" parent="Visual" unique_id=1066168202]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.053390436, -0.07560294, 0.5216783)
+
+[node name="Missile 4" type="Node3D" parent="Visual" unique_id=759190955]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.06130006, -0.12974393, 0.5216783)
+
+[node name="Missile 5" type="Node3D" parent="Visual" unique_id=1768939074]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.005008556, -0.13039096, 0.5216783)
+
+[node name="Missile 6" type="Node3D" parent="Visual" unique_id=1054560941]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.053871058, -0.131038, 0.5216783)

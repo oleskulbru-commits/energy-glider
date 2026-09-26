@@ -3,7 +3,7 @@ extends SceneTree
 const RunDamageStatsScript = preload("res://scripts/game/run_damage_stats.gd")
 const RunUpgradeStateScript = preload("res://scripts/game/run_upgrade_state.gd")
 const UpgradeCatalogScript = preload("res://scripts/game/upgrade_catalog.gd")
-const SwarmPillScene = preload("res://scenes/enemies/swarm_pill.tscn")
+const SwarmPillScene = preload("res://scenes/enemies/crawler/swarm_pill.tscn")
 
 var _failed := false
 

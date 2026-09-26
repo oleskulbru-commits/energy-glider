@@ -1,0 +1,21 @@
+[gd_resource type="VisualShader" format=3 uid="uid://jumdxmeqt3mk"]
+
+[sub_resource type="VisualShaderNodeTexture2DParameter" id="VisualShaderNodeTexture2DParameter_4qp2w"]
+parameter_name = "Base_Texture"
+texture_type = 1
+
+[sub_resource type="VisualShaderNodeTexture" id="VisualShaderNodeTexture_4qp2w"]
+output_port_for_preview = 0
+expanded_output_ports = [0]
+source = 5
+
+[resource]
+modes/cull = 2
+flags/unshaded = true
+flags/shadows_disabled = true
+preview_params/Base_Texture = "Resource(\"uid://8kipaftkan41\", \"res://assets/vfx/noise_textures/radial_smoke_puff.png\")"
+nodes/fragment/2/node = SubResource("VisualShaderNodeTexture2DParameter_4qp2w")
+nodes/fragment/2/position = Vector2(-786.6667, 133.33333)
+nodes/fragment/3/node = SubResource("VisualShaderNodeTexture_4qp2w")
+nodes/fragment/3/position = Vector2(-226.66667, 186.66667)
+nodes/fragment/connections = PackedInt32Array(2, 0, 3, 2, 3, 1, 0, 1)

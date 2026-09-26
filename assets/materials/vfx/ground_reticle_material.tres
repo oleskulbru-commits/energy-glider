@@ -1,0 +1,14 @@
+[gd_resource type="ShaderMaterial" format=3 uid="uid://cposbue15cp4x"]
+
+[ext_resource type="Shader" uid="uid://bp06r57qlmg5p" path="res://assets/vfx/shaders/ground_reticle.gdshader" id="1_shader"]
+[ext_resource type="Texture2D" uid="uid://lkiw8pfdvg26" path="res://assets/vfx/effect_textures/reticles/reticle_2_frame_.png" id="2_frame"]
+
+[resource]
+render_priority = -1
+shader = ExtResource("1_shader")
+shader_parameter/frame_tex = ExtResource("2_frame")
+shader_parameter/color_tint = Color(0.45483235, 0.7983809, 1.5999943, 1)
+shader_parameter/glow_strength = 2.25
+shader_parameter/alpha_scale = 0.75
+shader_parameter/char_threshold = 0.04
+shader_parameter/char_softness = 0.22
