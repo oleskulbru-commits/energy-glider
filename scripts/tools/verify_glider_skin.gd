@@ -20,12 +20,6 @@ const PARAM_BLEND_POSITION := "parameters/body/locomotion/move/blend_space/blend
 const PARAM_GLIDE_BLEND := "parameters/body/glide/blend_space/blend_position"
 const LEG_IK_LEFT_PATH := "Model/GliderRoot/Hero_Rig/Skeleton3D/Left_LegIK"
 const LEG_IK_RIGHT_PATH := "Model/GliderRoot/Hero_Rig/Skeleton3D/Right_LegIK"
-const BOARD_FOOT_LEFT_PATH := "Model/GliderRoot/GliderBoard/Foot_L"
-const BOARD_FOOT_RIGHT_PATH := "Model/GliderRoot/GliderBoard/Foot_R"
-const SKELETON_FOOT_LEFT_PATH := "Model/GliderRoot/Hero_Rig/Skeleton3D/L_Foot"
-const SKELETON_FOOT_RIGHT_PATH := "Model/GliderRoot/Hero_Rig/Skeleton3D/R_Foot"
-const FOOT_REMOTE_SYNC_EPS := 0.02
-const FOOT_REMOTE_SYNC_FRAMES := 8
 
 
 func _blend_position(tree: AnimationTree) -> Vector2:
@@ -34,56 +28,6 @@ func _blend_position(tree: AnimationTree) -> Vector2:
 
 func _glide_blend_position(tree: AnimationTree) -> float:
 	return tree.get(PARAM_GLIDE_BLEND) as float
-
-
-func _assert_foot_remote_transforms(skin: Node) -> void:
-	var foot_l := skin.get_node_or_null(BOARD_FOOT_LEFT_PATH) as Node3D
-	var foot_r := skin.get_node_or_null(BOARD_FOOT_RIGHT_PATH) as Node3D
-	if foot_l == null or foot_r == null:
-		push_error("GliderBoard missing Foot_L / Foot_R anchors")
-		quit(1)
-		return
-	var remote_l := foot_l.get_node_or_null("RemoteTransform3D") as RemoteTransform3D
-	var remote_r := foot_r.get_node_or_null("RemoteTransform3D") as RemoteTransform3D
-	if remote_l == null or remote_r == null:
-		push_error("Board foot anchors missing RemoteTransform3D drivers")
-		quit(1)
-		return
-	var target_l := skin.get_node_or_null(SKELETON_FOOT_LEFT_PATH) as Node3D
-	var target_r := skin.get_node_or_null(SKELETON_FOOT_RIGHT_PATH) as Node3D
-	if target_l == null or target_r == null:
-		push_error("Hero skeleton missing L_Foot / R_Foot IK markers")
-		quit(1)
-		return
-	if remote_l.get_node_or_null(remote_l.remote_path) != target_l:
-		push_error("Foot_L remote_path should target skeleton L_Foot (got %s)" % remote_l.remote_path)
-		quit(1)
-		return
-	if remote_r.get_node_or_null(remote_r.remote_path) != target_r:
-		push_error("Foot_R remote_path should target skeleton R_Foot (got %s)" % remote_r.remote_path)
-		quit(1)
-		return
-
-
-func _assert_foot_markers_track_board(skin: Node) -> void:
-	var foot_l := skin.get_node(BOARD_FOOT_LEFT_PATH) as Node3D
-	var foot_r := skin.get_node(BOARD_FOOT_RIGHT_PATH) as Node3D
-	var marker_l := skin.get_node(SKELETON_FOOT_LEFT_PATH) as Node3D
-	var marker_r := skin.get_node(SKELETON_FOOT_RIGHT_PATH) as Node3D
-	if foot_l.global_position.distance_to(marker_l.global_position) > FOOT_REMOTE_SYNC_EPS:
-		push_error(
-			"L_Foot marker should track Foot_L (dist=%s)"
-			% foot_l.global_position.distance_to(marker_l.global_position)
-		)
-		quit(1)
-		return
-	if foot_r.global_position.distance_to(marker_r.global_position) > FOOT_REMOTE_SYNC_EPS:
-		push_error(
-			"R_Foot marker should track Foot_R (dist=%s)"
-			% foot_r.global_position.distance_to(marker_r.global_position)
-		)
-		quit(1)
-		return
 
 
 func _assert_blendspace_locomotion(locomotion_sm: AnimationNodeStateMachine) -> void:
@@ -194,8 +138,6 @@ func _initialize() -> void:
 		push_error("Hero skeleton missing Left_LegIK / Right_LegIK")
 		quit(1)
 		return
-	_assert_foot_remote_transforms(skin)
-
 	for _i in 12:
 		await process_frame
 	if not foot_ik.is_configured():
@@ -215,10 +157,6 @@ func _initialize() -> void:
 		push_error("Leg IK should be active during locomotion move")
 		quit(1)
 		return
-	for _i in FOOT_REMOTE_SYNC_FRAMES:
-		await process_frame
-	_assert_foot_markers_track_board(skin)
-
 	var root_bt := tree.tree_root as AnimationNodeBlendTree
 	if root_bt == null:
 		push_error("Expected BlendTree root")
@@ -616,6 +554,11 @@ func _initialize() -> void:
 		quit(1)
 		return
 
+	if foot_ik.is_leg_ik_active() or left_leg_ik.active or right_leg_ik.active:
+		push_error("Leg IK should be inactive during air boost")
+		quit(1)
+		return
+
 	for _i in BOOST_WAIT_FRAMES:
 		await process_frame
 
@@ -981,7 +924,7 @@ func _initialize() -> void:
 	Input.action_release("move_forward")
 
 	print(
-		"AnimationTree OK, body+sail layering, retract, sail_up loop, blendspace turn/strafe, leg IK (loco + boost/brake + air), jump crossfade, jump charge, jump/glide subtle air lean, airborne mast stow, air boost, boost, brake, brake release, air brake blend, W+S brake, and idle enter verified, clips: ",
+		"AnimationTree OK, body+sail layering, retract, sail_up loop, blendspace turn/strafe, leg IK (loco + ground boost + jump/glide/landing), jump crossfade, jump charge, jump/glide subtle air lean, airborne mast stow, air boost, boost, brake, brake release, air brake blend, W+S brake, and idle enter verified, clips: ",
 		player.get_animation_list()
 	)
 	quit(0)

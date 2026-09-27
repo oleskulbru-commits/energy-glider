@@ -38,6 +38,8 @@ const JUMP_FINISH_EPSILON := 0.05
 const JUMP_CHARGE_XFADE := 0.5
 const JUMP_ENTER_XFADE := 0.05
 const JUMP_FROM_LOCO_XFADE := AIR_XFADE
+## Max wait for body playback to settle on jump after travel() (boost->jump xfade).
+const JUMP_ENTRY_SETTLE_SEC := AIR_XFADE + 0.15
 
 @export var use_blendspace_locomotion := true
 @export var blendspace_xfade := LOCO_BLEND_XFADE
@@ -427,7 +429,10 @@ func _is_jump_playback_settled() -> bool:
 		_jump_entry_in_flight = false
 		return true
 	if _jump_entry_in_flight:
-		return true
+		if _jump_elapsed >= JUMP_ENTRY_SETTLE_SEC:
+			_jump_entry_in_flight = false
+			return true
+		return false
 	if _is_root_blend_active(&"jump"):
 		return true
 	if _is_jump_to_glide_blend_active():
@@ -635,12 +640,12 @@ func _pick_root_state(speed: float) -> StringName:
 				return &"glide"
 		if not _is_jump_clip_finished():
 			return &"jump"
-		return &"jump"
+		return _jump_finished_exit_state(speed)
 
 	if _glider.is_gliding():
 		if _should_prefer_jump_over_glide(current):
 			return &"jump"
-		if _should_defer_air_boost() or (_jump_from_boost_takeoff and _root_state == &"jump"):
+		if _should_defer_air_boost():
 			return &"jump"
 		if _glider.consume_boost_anim_trigger():
 			_jump_root_lock = false
@@ -715,6 +720,22 @@ func _should_transition_jump_to_glide() -> bool:
 	return _glider.is_gliding() and _is_jump_clip_finished()
 
 
+func _jump_finished_exit_state(_speed: float) -> StringName:
+	_jump_root_lock = false
+	_jump_entry_in_flight = false
+	var from_boost := _jump_from_boost_takeoff
+	_jump_from_boost_takeoff = false
+	if _glider.is_gliding():
+		if _glider.is_boost_active() or from_boost:
+			_snap_boost_loop = true
+			return &"boost"
+		return &"glide"
+	if _glider.is_boost_active():
+		_snap_boost_loop = true
+		return &"boost"
+	return &"locomotion"
+
+
 func _should_defer_air_boost() -> bool:
 	return _should_hold_boost_jump_takeoff()
 
@@ -745,11 +766,17 @@ func _should_prefer_jump_over_glide(current: StringName) -> bool:
 
 
 func _tick_jump_elapsed(delta: float, next_root: StringName) -> void:
-	if next_root != &"jump":
+	if next_root != &"jump" and _root_state != &"jump":
 		return
 	if _root_playback == null:
 		return
-	if _root_playback.get_current_node() == &"jump":
+	var cur := _root_playback.get_current_node()
+	if (
+		cur == &"jump"
+		or _is_root_blend_active(&"jump")
+		or _jump_entry_in_flight
+		or _jump_root_lock
+	):
 		_jump_elapsed += delta
 
 
@@ -763,11 +790,11 @@ func _jump_clip_duration() -> float:
 
 
 func _is_jump_clip_finished() -> bool:
-	if _root_playback == null or _root_playback.get_current_node() != &"jump":
-		return false
 	var duration := _jump_clip_duration()
 	if duration > 0.0 and _jump_elapsed >= duration - JUMP_FINISH_EPSILON:
 		return true
+	if _root_playback == null or _root_playback.get_current_node() != &"jump":
+		return false
 	if _anim_player != null and _anim_player.current_animation == JUMP_CLIP:
 		var ap_length: float = _anim_player.get_animation(JUMP_CLIP).length
 		if ap_length > 0.0:
@@ -1057,25 +1084,25 @@ func _update_foot_ik(next_root: StringName) -> void:
 
 
 func _should_run_leg_ik(body: StringName, next_root: StringName) -> bool:
-	var loco_move := (
-		body == &"locomotion"
-		and _get_locomotion_playback_state() == &"move"
-	)
-	var board_clip := body in [
-		&"jump", &"jump_charge", &"glide", &"landing", &"boost", &"brake",
-	]
-	if loco_move or board_clip:
+	if _jump_from_boost_takeoff and (body == &"jump" or next_root == &"jump"):
+		return false
+	if _leg_ik_for_body_state(body):
 		return true
+	if body == &"boost" and _glider != null and not _glider.is_grounded():
+		return false
 	if next_root == &"":
 		return false
-	var next_loco_move := (
-		next_root == &"locomotion"
-		and _get_locomotion_playback_state() == &"move"
-	)
-	var next_board_clip := next_root in [
-		&"jump", &"jump_charge", &"glide", &"landing", &"boost", &"brake",
-	]
-	return next_loco_move or next_board_clip
+	return _leg_ik_for_body_state(next_root)
+
+
+func _leg_ik_for_body_state(body: StringName) -> bool:
+	if body == &"locomotion" and _get_locomotion_playback_state() == &"move":
+		return true
+	if body == &"boost" and _glider != null and _glider.is_grounded():
+		return true
+	if body in [&"jump", &"jump_charge", &"glide", &"landing"]:
+		return true
+	return false
 
 
 func _should_update_glide_steer(next_root: StringName) -> bool:

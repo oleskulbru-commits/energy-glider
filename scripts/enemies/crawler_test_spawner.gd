@@ -8,12 +8,13 @@ const SwarmPillScene := preload("res://scenes/enemies/crawler/swarm_pill.tscn")
 @export var player_rig_path: NodePath
 @export var terrain_manager_path: NodePath
 @export var spawn_distance_m := 15.0
-@export var respawn_delay_sec := 1.0
+@export var respawn_delay_sec := 0.0
 
 var _rig: PlayerRig
 var _terrain: TerrainManager
 var _active: SwarmPill
-var _respawn_left := 0.0
+var _respawn_seq := 0
+var _respawn_pending := false
 
 
 func _ready() -> void:
@@ -24,17 +25,14 @@ func _ready() -> void:
 	call_deferred("_spawn_one")
 
 
-func _physics_process(delta: float) -> void:
+func _physics_process(_delta: float) -> void:
 	if _active != null and is_instance_valid(_active) and not _active.is_queued_for_deletion():
 		return
 	_active = null
-	if _respawn_left > 0.0:
-		_respawn_left = maxf(_respawn_left - delta, 0.0)
-		if _respawn_left <= 0.0:
-			_spawn_one()
 
 
 func _spawn_one() -> void:
+	_respawn_pending = false
 	if _terrain == null or _rig == null:
 		return
 	var track := _rig.get_active_body()
@@ -47,6 +45,8 @@ func _spawn_one() -> void:
 	add_child(pill)
 	if not pill.died.is_connected(_on_enemy_died):
 		pill.died.connect(_on_enemy_died)
+	if not pill.tree_exiting.is_connected(_on_enemy_tree_exiting):
+		pill.tree_exiting.connect(_on_enemy_tree_exiting.bind(pill), CONNECT_ONE_SHOT)
 
 	var spawn_xz := _spawn_position_xz(track)
 	pill.global_position = Vector3(spawn_xz.x, track.global_position.y, spawn_xz.y)
@@ -70,5 +70,38 @@ func _spawn_position_xz(track: Node3D) -> Vector2:
 
 
 func _on_enemy_died() -> void:
+	_clear_active()
+	_schedule_respawn()
+
+
+func _on_enemy_tree_exiting(pill: SwarmPill) -> void:
+	if _active != pill:
+		return
+	_clear_active()
+	_schedule_respawn()
+
+
+func _clear_active() -> void:
 	_active = null
-	_respawn_left = respawn_delay_sec
+
+
+func _schedule_respawn() -> void:
+	if _respawn_pending:
+		return
+	_respawn_pending = true
+	_respawn_seq += 1
+	if respawn_delay_sec <= 0.0:
+		call_deferred("_spawn_one")
+		return
+	var seq := _respawn_seq
+	var tree := get_tree()
+	if tree == null:
+		return
+	var timer := tree.create_timer(respawn_delay_sec)
+	timer.timeout.connect(func() -> void: _spawn_one_after_death(seq), CONNECT_ONE_SHOT)
+
+
+func _spawn_one_after_death(seq: int) -> void:
+	if seq != _respawn_seq:
+		return
+	_spawn_one()
