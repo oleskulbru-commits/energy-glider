@@ -19,6 +19,8 @@ const SPLASH_RADIUS_M := 2.0
 const LOFT_PEAK_M := 4.0
 const PILL_MESH_RADIUS := 0.38
 const PILL_MESH_HEIGHT := 1.05
+## Match glider idle settle: below this tangent speed, lead as if the board is still.
+const LEAD_IDLE_SPEED_MPS := 0.35
 ## Vertical slop so a glider clipping the capsule still counts as a touch.
 const CONTACT_Y_BELOW_M := 1.2
 const CONTACT_Y_ABOVE_M := 1.5
@@ -264,13 +266,26 @@ func _align_airborne(flat_forward: Vector3) -> void:
 func _target_velocity() -> Vector3:
 	if _target == null or not is_instance_valid(_target):
 		return Vector3.ZERO
+	var world_vel := Vector3.ZERO
 	if _target is GliderPlayer:
-		return (_target as GliderPlayer).linear_velocity
-	if _target is CharacterBody3D:
-		return (_target as CharacterBody3D).velocity
-	if _target is RigidBody3D:
-		return (_target as RigidBody3D).linear_velocity
-	return Vector3.ZERO
+		world_vel = (_target as GliderPlayer).linear_velocity
+	elif _target is CharacterBody3D:
+		world_vel = (_target as CharacterBody3D).velocity
+	elif _target is RigidBody3D:
+		world_vel = (_target as RigidBody3D).linear_velocity
+	else:
+		return Vector3.ZERO
+	return lead_velocity_xz(world_vel, _target_ground_normal())
+
+
+func _target_ground_normal() -> Vector3:
+	if _target != null and is_instance_valid(_target) and _target is GliderPlayer:
+		var predictive := (_target as GliderPlayer).get_predictive_normal()
+		if predictive.length_squared() > 0.0001:
+			return predictive.normalized()
+	if _terrain != null and _target != null and is_instance_valid(_target):
+		return _terrain.sample_normal(_target.global_position.x, _target.global_position.z)
+	return Vector3.UP
 
 
 func _is_touching_target() -> bool:
@@ -343,6 +358,24 @@ static func is_body_contact(
 	if Vector2(delta.x, delta.z).length() > radius_m:
 		return false
 	return delta.y >= -y_below_m and delta.y <= y_above_m
+
+
+## Slope-tangent XZ for leap lead. Hover/floor correction along the normal is ignored;
+## idle boards (tangent speed under LEAD_IDLE_SPEED_MPS) aim at their current position.
+static func lead_velocity_xz(
+	world_vel: Vector3,
+	ground_normal: Vector3 = Vector3.UP,
+	idle_speed_mps: float = LEAD_IDLE_SPEED_MPS
+) -> Vector3:
+	var normal := ground_normal
+	if normal.length_squared() < 0.0001:
+		normal = Vector3.UP
+	else:
+		normal = normal.normalized()
+	var tangent := world_vel.slide(normal)
+	if tangent.length() <= idle_speed_mps:
+		return Vector3.ZERO
+	return Vector3(tangent.x, 0.0, tangent.z)
 
 
 static func intercept_xz(player_pos: Vector3, player_vel: Vector3, lead_sec: float) -> Vector3:

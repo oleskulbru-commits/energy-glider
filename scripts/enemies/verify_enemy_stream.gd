@@ -330,6 +330,32 @@ func _verify_leaper() -> void:
 		"Lead that would overshoot 50 m should clamp to 50 m"
 	)
 
+	var slope_normal := Vector3(0.4, 0.9, 0.0).normalized()
+	var hover_bounce := slope_normal * 0.8
+	var idle_lead: Vector3 = LeaperPillScript.lead_velocity_xz(hover_bounce, slope_normal)
+	_fail_unless(
+		idle_lead.is_zero_approx(),
+		"Hover bounce along a dune normal should not lead a leap"
+	)
+	var coast_phantom := Vector3(0.2, 0.0, 0.1)
+	_fail_unless(
+		LeaperPillScript.lead_velocity_xz(coast_phantom).is_zero_approx(),
+		"Sub-idle coast speed should aim at the player's current position"
+	)
+	var sliding := Vector3(-8.0, 2.0, 1.0)
+	var slide_lead: Vector3 = LeaperPillScript.lead_velocity_xz(sliding, Vector3.UP)
+	_fail_unless(
+		is_equal_approx(slide_lead.x, -8.0) and is_equal_approx(slide_lead.z, 1.0),
+		"Real slide speed should still lead the leap"
+	)
+	var still_aim: Vector3 = LeaperPillScript.landing_aim_xz(
+		origin, Vector3(-10.0, 2.0, 0.0), idle_lead
+	)
+	_fail_unless(
+		is_equal_approx(still_aim.x, -10.0) and is_equal_approx(still_aim.z, 0.0),
+		"An idle board should be landed on at its current XZ"
+	)
+
 	_fail_unless(
 		LeaperPillScript.is_body_contact(
 			Vector3(0.4, 0.6, 0.0), Vector3.ZERO, SwarmPillScript.CONTACT_RADIUS_M
