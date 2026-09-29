@@ -42,9 +42,10 @@ const PORTAL_COOLDOWN_MIN_SEC := 15.0
 const PORTAL_COOLDOWN_MAX_SEC := 25.0
 const PORTAL_LAND_LIFT_M := 1.2
 ## Fire when the hunter is outside near-melee range (still inside/near the night sphere).
-const NIGHT_CLAWS_RANGE_M := 40.0
-const NIGHT_CLAWS_WINDOW_SEC := 15.0
+const NIGHT_CLAWS_RANGE_M := 80.0
 const NIGHT_CLAWS_COOLDOWN_SEC := 10.0
+## Closing speed toward the boss above this suppresses Night Claws.
+const NIGHT_CLAWS_APPROACH_MPS := 2.0
 
 const NightScarabScene := preload("res://scenes/enemies/night_scarab.tscn")
 const NightScarabScript := preload("res://scripts/enemies/night_scarab.gd")
@@ -802,8 +803,6 @@ func _try_cast_night_claws() -> void:
 		return
 	if _relocate_count < 1:
 		return
-	if _stand_t >= NIGHT_CLAWS_WINDOW_SEC:
-		return
 	_resolve_hunt_target()
 	var player := _target
 	if player == null or not is_instance_valid(player):
@@ -816,6 +815,8 @@ func _try_cast_night_claws() -> void:
 	var dist := to.length()
 	if dist <= NIGHT_CLAWS_RANGE_M:
 		return
+	if is_approaching_boss(player, global_position, NIGHT_CLAWS_APPROACH_MPS):
+		return
 	var claws = NightClawsScript.new()
 	_world_host().add_child(claws)
 	claws.top_level = true
@@ -824,6 +825,31 @@ func _try_cast_night_claws() -> void:
 		claws.finished.connect(_on_night_claws_finished)
 	_night_claws = claws
 	_night_claws_cooldown_t = 0.0
+
+
+## True when the hunter's horizontal velocity closes on the boss faster than min_mps.
+static func is_approaching_boss(player: Node3D, boss_pos: Vector3, min_mps: float = NIGHT_CLAWS_APPROACH_MPS) -> bool:
+	if player == null or not is_instance_valid(player):
+		return false
+	var to_boss := Vector3(
+		boss_pos.x - player.global_position.x,
+		0.0,
+		boss_pos.z - player.global_position.z
+	)
+	var dist := to_boss.length()
+	if dist < 0.001:
+		return false
+	var vel := _node_horizontal_velocity(player)
+	return vel.dot(to_boss / dist) > min_mps
+
+
+static func _node_horizontal_velocity(node: Node3D) -> Vector3:
+	var vel := Vector3.ZERO
+	if node is RigidBody3D:
+		vel = (node as RigidBody3D).linear_velocity
+	elif node.get("velocity") != null:
+		vel = node.velocity as Vector3
+	return Vector3(vel.x, 0.0, vel.z)
 
 
 func _on_night_claws_finished() -> void:

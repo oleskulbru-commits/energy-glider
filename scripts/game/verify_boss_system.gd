@@ -704,17 +704,34 @@ func _verify_night_portal() -> void:
 
 func _verify_night_claws() -> void:
 	_fail_unless(
-		is_equal_approx(SunEaterScript.NIGHT_CLAWS_RANGE_M, 40.0),
-		"Night Claws should require >40 m range"
-	)
-	_fail_unless(
-		is_equal_approx(SunEaterScript.NIGHT_CLAWS_WINDOW_SEC, 15.0),
-		"Night Claws should only fire in the first 15 s after ascent"
+		is_equal_approx(SunEaterScript.NIGHT_CLAWS_RANGE_M, 80.0),
+		"Night Claws should require >80 m range"
 	)
 	_fail_unless(
 		is_equal_approx(SunEaterScript.NIGHT_CLAWS_COOLDOWN_SEC, 10.0),
 		"Night Claws cooldown should be 10 s"
 	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.NIGHT_CLAWS_APPROACH_MPS, 2.0),
+		"Night Claws should suppress when closing faster than 2 m/s"
+	)
+	var idle_hunter := TendrilStubBody.new()
+	root.add_child(idle_hunter)
+	idle_hunter.global_position = Vector3(100.0, 0.0, 0.0)
+	_fail_unless(
+		not SunEaterScript.is_approaching_boss(
+			idle_hunter, Vector3.ZERO, SunEaterScript.NIGHT_CLAWS_APPROACH_MPS
+		),
+		"A stationary hunter should not count as approaching"
+	)
+	idle_hunter.velocity = Vector3(-10.0, 0.0, 0.0)
+	_fail_unless(
+		SunEaterScript.is_approaching_boss(
+			idle_hunter, Vector3.ZERO, SunEaterScript.NIGHT_CLAWS_APPROACH_MPS
+		),
+		"A hunter closing on the boss should count as approaching"
+	)
+	idle_hunter.free()
 	_fail_unless(is_equal_approx(NightClawsScript.TELEGRAPH_SEC, 1.0), "Telegraph should last 1 s")
 	_fail_unless(is_equal_approx(NightClawsScript.RISE_SEC, 0.08), "Claws should shoot up in 0.08 s")
 	_fail_unless(is_equal_approx(NightClawsScript.HOLD_SEC, 1.0), "Claws should hold at peak for 1 s")
@@ -734,8 +751,8 @@ func _verify_night_claws() -> void:
 		is_equal_approx(NightClawsScript.PILL_HEIGHT_M, 10.0),
 		"Night Claw pills should be 10 m long"
 	)
-	_fail_unless(NightClawsScript.CLAW_COUNT_MIN == 150, "Night Claws should spawn at least 150 marks")
-	_fail_unless(NightClawsScript.CLAW_COUNT_MAX == 200, "Night Claws should spawn at most 200 marks")
+	_fail_unless(NightClawsScript.CLAW_COUNT_MIN == 100, "Night Claws should spawn at least 100 marks")
+	_fail_unless(NightClawsScript.CLAW_COUNT_MAX == 300, "Night Claws should spawn at most 300 marks")
 	_fail_unless(
 		is_equal_approx(NightClawsScript.ZONE_FORWARD_M, 100.0),
 		"Night Claws zone should extend 100 m forward"
@@ -804,11 +821,11 @@ func _verify_night_claws() -> void:
 	_fail_unless(claws != null, "After the first relocate, far players should trigger Night Claws")
 	_fail_unless(
 		claws.claw_count() >= NightClawsScript.CLAW_COUNT_MIN,
-		"Night Claws should spawn at least 150 marks"
+		"Night Claws should spawn at least 100 marks"
 	)
 	_fail_unless(
 		claws.claw_count() <= NightClawsScript.CLAW_COUNT_MAX,
-		"Night Claws should spawn at most 200 marks"
+		"Night Claws should spawn at most 300 marks"
 	)
 	_fail_unless(
 		claws.phase() == NightClawsScript.Phase.TELEGRAPH,
@@ -871,14 +888,33 @@ func _verify_night_claws() -> void:
 	boss.set("_night_claws", null)
 	boss.set("_stand_t", 1.0)
 	hunter.global_position = Vector3(30.0, 2.0, 0.0)
+	hunter.velocity = Vector3.ZERO
 	boss._physics_process(0.05)
-	_fail_unless(boss.living_night_claws() == null, "Night Claws must not fire when the player is within 40 m")
+	_fail_unless(boss.living_night_claws() == null, "Night Claws must not fire when the player is within 80 m")
 
 	hunter.global_position = Vector3(150.0, 2.0, 0.0)
-	boss.set("_stand_t", 16.0)
+	hunter.velocity = Vector3.ZERO
+	boss.set("_stand_t", 30.0)
 	boss.set("_night_claws_cooldown_t", 0.0)
 	boss._physics_process(0.05)
-	_fail_unless(boss.living_night_claws() == null, "Night Claws must not fire after the first 15 s of a stand")
+	_fail_unless(
+		boss.living_night_claws() != null,
+		"Night Claws should still fire late in a stand when the player is not approaching"
+	)
+
+	var late_claws = boss.living_night_claws()
+	if late_claws != null and is_instance_valid(late_claws):
+		late_claws.queue_free()
+	boss.set("_night_claws", null)
+	boss.set("_night_claws_cooldown_t", 0.0)
+	hunter.global_position = Vector3(150.0, 2.0, 0.0)
+	## Closing on the boss at the origin from +X.
+	hunter.velocity = Vector3(-8.0, 0.0, 0.0)
+	boss._physics_process(0.05)
+	_fail_unless(
+		boss.living_night_claws() == null,
+		"Night Claws must not fire while the player is moving toward the boss"
+	)
 
 	hunter.free()
 	boss.free()
@@ -1674,6 +1710,7 @@ class TendrilStubHealth extends Node:
 
 class TendrilStubBody extends Node3D:
 	var last_knockback := Vector3.ZERO
+	var velocity := Vector3.ZERO
 
 	func queue_knockback(velocity_delta: Vector3) -> void:
 		last_knockback = velocity_delta
