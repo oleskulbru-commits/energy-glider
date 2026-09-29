@@ -41,16 +41,17 @@ const PORTAL_AHEAD_M := 25.0
 const PORTAL_COOLDOWN_MIN_SEC := 15.0
 const PORTAL_COOLDOWN_MAX_SEC := 25.0
 const PORTAL_LAND_LIFT_M := 1.2
-const TENDRIL_RANGE_M := 100.0
-const TENDRIL_WINDOW_SEC := 10.0
-const TENDRIL_COOLDOWN_SEC := 10.0
+## Fire when the hunter is outside near-melee range (still inside/near the night sphere).
+const NIGHT_CLAWS_RANGE_M := 40.0
+const NIGHT_CLAWS_WINDOW_SEC := 15.0
+const NIGHT_CLAWS_COOLDOWN_SEC := 10.0
 
 const NightScarabScene := preload("res://scenes/enemies/night_scarab.tscn")
 const NightScarabScript := preload("res://scripts/enemies/night_scarab.gd")
 const FingerScene := preload("res://scenes/enemies/sun_eater_finger.tscn")
 const FingerReticleScript := preload("res://scripts/enemies/finger_reticle.gd")
 const NightPortalScript := preload("res://scripts/enemies/night_portal.gd")
-const BlackTendrilsScript := preload("res://scripts/enemies/black_tendrils.gd")
+const NightClawsScript := preload("res://scripts/enemies/night_claws.gd")
 const MathUtilScript := preload("res://scripts/util/math_util.gd")
 
 var tower_index := 0
@@ -97,8 +98,8 @@ var _suppress_damage_float := false
 var _portal
 var _portal_cooldown_t := -1.0
 var _portal_spawn_count := 0
-var _tendrils
-var _tendril_cooldown_t := 0.0
+var _night_claws
+var _night_claws_cooldown_t := 0.0
 
 
 func _ready() -> void:
@@ -155,7 +156,7 @@ func begin_ascent(ground_y: float) -> void:
 	_virtual_counts.clear()
 	_regen_accum = 0.0
 	_portal_spawn_count = 0
-	_tendril_cooldown_t = 0.0
+	_night_claws_cooldown_t = 0.0
 	_reset_finger_stand()
 	_clear_scarabs()
 	_clear_child_spheres()
@@ -572,12 +573,12 @@ func _world_host() -> Node:
 func _reset_finger_stand() -> void:
 	_clear_finger()
 	_clear_portal()
-	_clear_tendrils()
+	_clear_night_claws()
 	_finger_used_this_stand = false
 	_finger_phase = 0
 	_finger_phase_t = 0.0
 	_portal_cooldown_t = -1.0
-	_tendril_cooldown_t = 0.0
+	_night_claws_cooldown_t = 0.0
 
 
 func _cull_fingers() -> void:
@@ -770,77 +771,72 @@ func _clear_portal() -> void:
 	_portal = null
 
 
-func living_tendrils():
-	if _tendrils != null and is_instance_valid(_tendrils) and not _tendrils.is_done():
-		return _tendrils
+func living_night_claws():
+	if _night_claws != null and is_instance_valid(_night_claws) and not _night_claws.is_done():
+		return _night_claws
 	return null
 
 
-func tendril_cooldown_left() -> float:
-	return maxf(_tendril_cooldown_t, 0.0)
+func night_claws_cooldown_left() -> float:
+	return maxf(_night_claws_cooldown_t, 0.0)
 
 
-func _tick_tendrils(delta: float) -> void:
-	if _tendrils != null and (not is_instance_valid(_tendrils) or _tendrils.is_done()):
-		_tendrils = null
+func _tick_night_claws(delta: float) -> void:
+	if _night_claws != null:
+		if not is_instance_valid(_night_claws):
+			_night_claws = null
+		elif _night_claws.is_done():
+			_on_night_claws_finished()
 	if not _is_standing():
 		return
-	if living_tendrils() != null:
+	if living_night_claws() != null:
 		return
-	_tendril_cooldown_t = maxf(_tendril_cooldown_t - delta, 0.0)
-	if _tendril_cooldown_t > 0.0001:
+	_night_claws_cooldown_t = maxf(_night_claws_cooldown_t - delta, 0.0)
+	if _night_claws_cooldown_t > 0.0001:
 		return
-	_try_cast_tendrils()
+	_try_cast_night_claws()
 
 
-func _try_cast_tendrils() -> void:
-	if living_tendrils() != null:
+func _try_cast_night_claws() -> void:
+	if living_night_claws() != null:
 		return
 	if _relocate_count < 1:
 		return
-	if _stand_t >= TENDRIL_WINDOW_SEC:
+	if _stand_t >= NIGHT_CLAWS_WINDOW_SEC:
 		return
 	_resolve_hunt_target()
 	var player := _target
 	if player == null or not is_instance_valid(player):
 		return
-	var origin := _tendril_origin()
-	var to := Vector3(player.global_position.x - origin.x, 0.0, player.global_position.z - origin.z)
+	var to := Vector3(
+		player.global_position.x - global_position.x,
+		0.0,
+		player.global_position.z - global_position.z
+	)
 	var dist := to.length()
-	if dist <= TENDRIL_RANGE_M:
+	if dist <= NIGHT_CLAWS_RANGE_M:
 		return
-	var axis := to / dist
-	var dirs := BlackTendrilsScript.build_dirs(axis, _rng)
-	var max_len := dist + BlackTendrilsScript.OVERSHOOT_M
-	var tendrils = BlackTendrilsScript.new()
-	_world_host().add_child(tendrils)
-	tendrils.top_level = true
-	tendrils.configure(self, origin, dirs, max_len, dist, _terrain)
-	if not tendrils.finished.is_connected(_on_tendrils_finished):
-		tendrils.finished.connect(_on_tendrils_finished)
-	_tendrils = tendrils
-	_tendril_cooldown_t = 0.0
+	var claws = NightClawsScript.new()
+	_world_host().add_child(claws)
+	claws.top_level = true
+	claws.configure(self, player, _terrain, _rng)
+	if not claws.finished.is_connected(_on_night_claws_finished):
+		claws.finished.connect(_on_night_claws_finished)
+	_night_claws = claws
+	_night_claws_cooldown_t = 0.0
 
 
-func _tendril_origin() -> Vector3:
-	var pos := global_position
-	var ground_y := _ground_y
-	if _terrain != null:
-		ground_y = _terrain.sample_height(pos.x, pos.z)
-	return Vector3(pos.x, ground_y, pos.z)
+func _on_night_claws_finished() -> void:
+	_night_claws = null
+	_night_claws_cooldown_t = NIGHT_CLAWS_COOLDOWN_SEC
 
 
-func _on_tendrils_finished() -> void:
-	_tendrils = null
-	_tendril_cooldown_t = TENDRIL_COOLDOWN_SEC
-
-
-func _clear_tendrils() -> void:
-	if _tendrils != null and is_instance_valid(_tendrils):
-		if _tendrils.finished.is_connected(_on_tendrils_finished):
-			_tendrils.finished.disconnect(_on_tendrils_finished)
-		_tendrils.queue_free()
-	_tendrils = null
+func _clear_night_claws() -> void:
+	if _night_claws != null and is_instance_valid(_night_claws):
+		if _night_claws.finished.is_connected(_on_night_claws_finished):
+			_night_claws.finished.disconnect(_on_night_claws_finished)
+		_night_claws.queue_free()
+	_night_claws = null
 
 
 func _physics_process(delta: float) -> void:
@@ -863,7 +859,7 @@ func _physics_process(delta: float) -> void:
 			_begin_sink()
 	_tick_finger(delta)
 	_tick_portal(delta)
-	_tick_tendrils(delta)
+	_tick_night_claws(delta)
 	_tick_scarab_spawns(delta)
 	_tick_night_regen(delta)
 	_sync_night_volume()
@@ -896,7 +892,7 @@ func _die(_from_pos: Vector3, _weapon_family: StringName = &"") -> void:
 	_night_volume = null
 	_clear_finger()
 	_clear_portal()
-	_clear_tendrils()
+	_clear_night_claws()
 	_clear_scarabs()
 	_clear_child_spheres()
 	died.emit()
@@ -977,7 +973,7 @@ func _begin_sink() -> void:
 	_detach_follow_sphere()
 	_clear_finger()
 	_clear_portal()
-	_clear_tendrils()
+	_clear_night_claws()
 	_sinking = true
 	_bringing_night = false
 	_spreading = false
@@ -1356,7 +1352,7 @@ func _clear_scarabs() -> void:
 func _exit_tree() -> void:
 	_clear_finger()
 	_clear_portal()
-	_clear_tendrils()
+	_clear_night_claws()
 	_clear_scarabs()
 	_clear_child_spheres()
 	if _night_volume != null and is_instance_valid(_night_volume) and _night_volume.get_parent() != self:

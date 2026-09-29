@@ -21,7 +21,7 @@ const RifleBulletScript := preload("res://scripts/weapons/rifle_bullet.gd")
 const SwarmPillScript := preload("res://scripts/enemies/swarm_pill.gd")
 const FingerScript := preload("res://scripts/enemies/sun_eater_finger.gd")
 const NightPortalScript := preload("res://scripts/enemies/night_portal.gd")
-const BlackTendrilsScript := preload("res://scripts/enemies/black_tendrils.gd")
+const NightClawsScript := preload("res://scripts/enemies/night_claws.gd")
 const DamageFloatScript := preload("res://scripts/ui/damage_float.gd")
 
 var _failed := false
@@ -39,7 +39,7 @@ func _run() -> void:
 	_verify_boss_targeting()
 	_verify_finger_mechanic()
 	_verify_night_portal()
-	_verify_black_tendrils()
+	_verify_night_claws()
 	_verify_night_volume()
 	_verify_night_spread()
 	_verify_night_scarabs()
@@ -55,36 +55,36 @@ func _run() -> void:
 
 
 func _verify_indexes_and_hp() -> void:
-	for index in [8, 16, 24, 32, 40]:
+	for index in [1, 9, 17, 25, 33]:
 		_fail_unless(
 			BossDirectorScript.is_boss_tower(index),
 			"Tower %d should be a boss tower" % index
 		)
-	for index in [0, 1, 2, 7, 9, 15, 17, 23, 25, 31, 33, 39, 41, 1004]:
+	for index in [0, 2, 7, 8, 15, 16, 23, 24, 31, 32, 39, 40, 41, 1004]:
 		_fail_unless(
 			not BossDirectorScript.is_boss_tower(index),
 			"Tower %d should not be a boss tower" % index
 		)
-	_fail_unless(BossDirectorScript.boss_ordinal(8) == 1, "First boss ordinal should be 1")
-	_fail_unless(BossDirectorScript.boss_ordinal(40) == 5, "Fifth boss ordinal should be 5")
+	_fail_unless(BossDirectorScript.boss_ordinal(1) == 1, "First boss ordinal should be 1")
+	_fail_unless(BossDirectorScript.boss_ordinal(33) == 5, "Fifth boss ordinal should be 5")
 	_fail_unless(
-		BossDirectorScript.max_health_for_tower(8) == 5000,
+		BossDirectorScript.max_health_for_tower(1) == 5000,
 		"First boss should have 5000 HP"
 	)
 	_fail_unless(
-		BossDirectorScript.max_health_for_tower(16) == 10000,
+		BossDirectorScript.max_health_for_tower(9) == 10000,
 		"Second boss should have 10000 HP"
 	)
 	_fail_unless(
-		BossDirectorScript.max_health_for_tower(24) == 15000,
+		BossDirectorScript.max_health_for_tower(17) == 15000,
 		"Third boss should have 15000 HP"
 	)
 	_fail_unless(
-		BossDirectorScript.max_health_for_tower(32) == 20000,
+		BossDirectorScript.max_health_for_tower(25) == 20000,
 		"Fourth boss should have 20000 HP"
 	)
 	_fail_unless(
-		BossDirectorScript.max_health_for_tower(40) == 25000,
+		BossDirectorScript.max_health_for_tower(33) == 25000,
 		"Fifth boss should have 25000 HP"
 	)
 	_fail_unless(
@@ -123,23 +123,23 @@ func _verify_spawn_geometry() -> void:
 func _verify_encounter_gates() -> void:
 	var empty: Dictionary = {}
 	_fail_unless(
-		BossDirectorScript.can_start_encounter(8, false, empty),
+		BossDirectorScript.can_start_encounter(1, false, empty),
 		"First boss should spawn when none are living"
 	)
 	_fail_unless(
-		not BossDirectorScript.can_start_encounter(8, true, empty),
+		not BossDirectorScript.can_start_encounter(1, true, empty),
 		"A new boss should not spawn while another is alive"
 	)
 	_fail_unless(
-		not BossDirectorScript.can_start_encounter(16, false, empty),
+		not BossDirectorScript.can_start_encounter(9, false, empty),
 		"Second boss should wait until the first is defeated"
 	)
 	_fail_unless(
-		BossDirectorScript.can_start_encounter(16, false, {8: true}),
+		BossDirectorScript.can_start_encounter(9, false, {1: true}),
 		"Second boss should spawn after the first is defeated"
 	)
 	_fail_unless(
-		not BossDirectorScript.can_start_encounter(8, false, {8: true}),
+		not BossDirectorScript.can_start_encounter(1, false, {1: true}),
 		"A defeated boss should not spawn again"
 	)
 	_fail_unless(
@@ -229,7 +229,7 @@ func _verify_ascent_and_hp_lock() -> void:
 	_fail_unless(SunEaterScript.night_regen_heal(0.5) == 15, "Half a night second should heal 15")
 	var boss: SunEater = SunEaterScene.instantiate() as SunEater
 	root.add_child(boss)
-	boss.configure_encounter(8, 5000)
+	boss.configure_encounter(1, 5000)
 	boss.apply_level_hp(40)
 	boss.apply_difficulty(1.0)
 	_fail_unless(boss.get_max_health() == 5000, "Level HP curve should not scale the boss")
@@ -622,7 +622,7 @@ func _verify_night_portal() -> void:
 	root.add_child(boss)
 	boss.global_position = Vector3(40.0, 0.0, 0.0)
 	boss.configure(null, hunter)
-	boss.configure_encounter(8, 5000)
+	boss.configure_encounter(1, 5000)
 	boss.begin_ascent(0.0)
 	boss._physics_process(3.0)
 	boss.set("_portal_cooldown_t", 0.0)
@@ -702,17 +702,79 @@ func _verify_night_portal() -> void:
 	boss.free()
 
 
-func _verify_black_tendrils() -> void:
-	_fail_unless(is_equal_approx(SunEaterScript.TENDRIL_RANGE_M, 100.0), "Tendrils should require >100 m range")
-	_fail_unless(is_equal_approx(SunEaterScript.TENDRIL_WINDOW_SEC, 10.0), "Tendrils should only fire in the first 10 s after ascent")
-	_fail_unless(is_equal_approx(SunEaterScript.TENDRIL_COOLDOWN_SEC, 10.0), "Tendril cooldown should be 10 s")
-	_fail_unless(BlackTendrilsScript.WALL_COUNT == 3, "Tendrils should fire three walls")
-	_fail_unless(is_equal_approx(BlackTendrilsScript.WIDTH_M, NightPortalScript.BASE_WIDTH_M), "Walls should match portal starting width")
-	_fail_unless(is_equal_approx(BlackTendrilsScript.CONE_DEG, 45.0), "Tendrils should aim inside a 45° cone")
-	_fail_unless(is_equal_approx(BlackTendrilsScript.LINGER_SEC, 3.0), "Walls should linger 3 s after passing the player")
-	_fail_unless(BlackTendrilsScript.DAMAGE == 30, "Tendrils should deal 30 damage")
-	_fail_unless(is_equal_approx(BlackTendrilsScript.OVERSHOOT_M, 120.0), "Tendrils should overshoot the player by 120 m")
-	_fail_unless(is_equal_approx(BlackTendrilsScript.HEIGHT_M, 120.0), "Walls should be tall enough to read through dunes")
+func _verify_night_claws() -> void:
+	_fail_unless(
+		is_equal_approx(SunEaterScript.NIGHT_CLAWS_RANGE_M, 40.0),
+		"Night Claws should require >40 m range"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.NIGHT_CLAWS_WINDOW_SEC, 15.0),
+		"Night Claws should only fire in the first 15 s after ascent"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.NIGHT_CLAWS_COOLDOWN_SEC, 10.0),
+		"Night Claws cooldown should be 10 s"
+	)
+	_fail_unless(is_equal_approx(NightClawsScript.TELEGRAPH_SEC, 1.0), "Telegraph should last 1 s")
+	_fail_unless(is_equal_approx(NightClawsScript.RISE_SEC, 0.08), "Claws should shoot up in 0.08 s")
+	_fail_unless(is_equal_approx(NightClawsScript.HOLD_SEC, 1.0), "Claws should hold at peak for 1 s")
+	_fail_unless(is_equal_approx(NightClawsScript.RETRACT_SEC, 1.4), "Claws should descend slowly over 1.4 s")
+	_fail_unless(NightClawsScript.DAMAGE_RISE == 25, "Rising claws should deal 25 damage")
+	_fail_unless(NightClawsScript.DAMAGE_HOLD == 10, "Stationary claws should deal 10 damage")
+	_fail_unless(NightClawsScript.DAMAGE_RETRACT == 10, "Descending claws should deal 10 damage")
+	_fail_unless(
+		is_equal_approx(NightClawsScript.SPOT_DIAMETER_M, 1.0),
+		"Each claw mark should be 1 m wide"
+	)
+	_fail_unless(
+		is_equal_approx(NightClawsScript.PEAK_HEIGHT_M, 5.0),
+		"Night Claw pills should peak with tip ~10 m above ground"
+	)
+	_fail_unless(
+		is_equal_approx(NightClawsScript.PILL_HEIGHT_M, 10.0),
+		"Night Claw pills should be 10 m long"
+	)
+	_fail_unless(NightClawsScript.CLAW_COUNT_MIN == 150, "Night Claws should spawn at least 150 marks")
+	_fail_unless(NightClawsScript.CLAW_COUNT_MAX == 200, "Night Claws should spawn at most 200 marks")
+	_fail_unless(
+		is_equal_approx(NightClawsScript.ZONE_FORWARD_M, 100.0),
+		"Night Claws zone should extend 100 m forward"
+	)
+	_fail_unless(
+		is_equal_approx(NightClawsScript.ZONE_LATERAL_HALF_M, 50.0),
+		"Night Claws zone should extend 50 m sideways"
+	)
+
+	var layout_rng := RandomNumberGenerator.new()
+	layout_rng.seed = 4242
+	var anchor := Vector3(100.0, 0.0, 0.0)
+	var forward := Vector3(-1.0, 0.0, 0.0)
+	var layout := NightClawsScript.build_claw_positions(anchor, forward, 45, layout_rng, null)
+	_fail_unless(
+		layout.size() >= NightClawsScript.CLAW_COUNT_MIN,
+		"Layout should place at least the minimum claw count"
+	)
+	_fail_unless(
+		layout.size() <= NightClawsScript.CLAW_COUNT_MAX,
+		"Layout should not exceed the maximum claw count"
+	)
+	for i in layout.size():
+		var local := NightClawsScript.local_forward_right(layout[i], anchor, forward)
+		_fail_unless(
+			local.x >= -0.001 and local.x <= NightClawsScript.ZONE_FORWARD_M + 0.001,
+			"Claw %d should stay inside forward range" % i
+		)
+		_fail_unless(
+			local.y >= -NightClawsScript.ZONE_LATERAL_HALF_M - 0.001
+			and local.y <= NightClawsScript.ZONE_LATERAL_HALF_M + 0.001,
+			"Claw %d should stay inside lateral range" % i
+		)
+		for j in range(i + 1, layout.size()):
+			var sep := Vector2(layout[i].x - layout[j].x, layout[i].z - layout[j].z).length()
+			_fail_unless(
+				sep + 0.001 >= NightClawsScript.MIN_SPOT_SEP_M,
+				"Claw marks should not overlap"
+			)
 
 	var hunter := TendrilStubBody.new()
 	root.add_child(hunter)
@@ -724,112 +786,99 @@ func _verify_black_tendrils() -> void:
 	root.add_child(boss)
 	boss.global_position = Vector3(0.0, 0.0, 0.0)
 	boss.configure(null, hunter)
-	boss.configure_encounter(8, 5000)
+	boss.configure_encounter(1, 5000)
 	boss.begin_ascent(0.0)
 	boss._physics_process(3.0)
 	_fail_unless(boss.relocate_count() == 0, "First ascent should start at relocate_count 0")
-	boss.set("_tendril_cooldown_t", 0.0)
+	boss.set("_night_claws_cooldown_t", 0.0)
 	boss.set("_stand_t", 1.0)
 	boss._physics_process(0.05)
-	_fail_unless(boss.living_tendrils() == null, "First ascent must not cast Black Tendrils")
+	_fail_unless(boss.living_night_claws() == null, "First ascent must not cast Night Claws")
 
 	boss.set("_relocate_count", 1)
 	boss.set("_stand_t", 1.0)
-	boss.set("_tendril_cooldown_t", 0.0)
+	boss.set("_night_claws_cooldown_t", 0.0)
 	hunter.global_position = Vector3(150.0, 2.0, 0.0)
 	boss._physics_process(0.05)
-	var tendrils = boss.living_tendrils()
-	_fail_unless(tendrils != null, "After the first relocate, far players should trigger Black Tendrils")
-	var dirs: PackedVector3Array = tendrils.dirs()
-	_fail_unless(dirs.size() == 3, "Black Tendrils should spawn three directions")
-	var axis := Vector3(1.0, 0.0, 0.0)
-	var aim_dot := dirs[0].dot(axis)
-	_fail_unless(aim_dot > 0.999, "The first wall should aim directly at the player")
-	var half := deg_to_rad(BlackTendrilsScript.CONE_DEG * 0.5)
-	for i in dirs.size():
-		var ang := acos(clampf(dirs[i].dot(axis), -1.0, 1.0))
-		_fail_unless(ang <= half + 0.001, "Tendril %d should stay inside the 45° cone" % i)
+	var claws = boss.living_night_claws()
+	_fail_unless(claws != null, "After the first relocate, far players should trigger Night Claws")
 	_fail_unless(
-		is_equal_approx(tendrils.reach_m(), 150.0),
-		"Tendril reach should match the cast-time player distance"
+		claws.claw_count() >= NightClawsScript.CLAW_COUNT_MIN,
+		"Night Claws should spawn at least 150 marks"
 	)
 	_fail_unless(
-		absf(tendrils.max_length_m() - (150.0 + BlackTendrilsScript.OVERSHOOT_M)) < 0.01,
-		"Tendril max travel should overshoot the player"
+		claws.claw_count() <= NightClawsScript.CLAW_COUNT_MAX,
+		"Night Claws should spawn at most 200 marks"
 	)
-	_fail_unless(tendrils.walls().size() == 3, "Three wall Area3Ds should exist")
+	_fail_unless(
+		claws.phase() == NightClawsScript.Phase.TELEGRAPH,
+		"Night Claws should telegraph before striking"
+	)
 
-	# Aimed wall locks at cast — strafing should let it miss.
-	var locked_aim: Vector3 = tendrils.dirs()[0]
+	var locked: PackedVector3Array = claws.positions()
 	hunter.global_position = Vector3(140.0, 2.0, 40.0)
-	tendrils._physics_process(0.1)
-	var tracked: PackedVector3Array = tendrils.dirs()
+	claws._physics_process(0.5)
 	_fail_unless(
-		tracked[0].dot(locked_aim) > 0.999,
-		"The aimed wall must not home after cast"
+		claws.positions()[0].distance_to(locked[0]) < 0.001,
+		"Claw marks must stay fixed during telegraph"
 	)
 
-	hunter.global_position = Vector3(150.0, 2.0, 0.0)
-	var shoot_t: float = tendrils.reach_m() / BlackTendrilsScript.SPEED_M_S + 0.05
-	tendrils._physics_process(shoot_t)
+	claws._physics_process(NightClawsScript.TELEGRAPH_SEC - 0.01)
+	var hit_mark: Vector3 = locked[0]
+	hunter.global_position = Vector3(hit_mark.x, hit_mark.y + 2.0, hit_mark.z)
+	claws._physics_process(0.06)
 	_fail_unless(
-		tendrils.phase() == BlackTendrilsScript.Phase.LINGERING,
-		"Walls should linger once they pass the player"
+		claws.phase() == NightClawsScript.Phase.STRIKE,
+		"Night Claws should enter the strike after telegraph"
 	)
-	_fail_unless(
-		tendrils.traveled_m() + 0.001 >= tendrils.reach_m(),
-		"Walls should reach at least as far as the player"
-	)
-	var wall_mesh := tendrils.walls()[0].get_node("Mesh") as MeshInstance3D
-	_fail_unless(wall_mesh != null, "Each wall should have a mesh")
-	var box := wall_mesh.mesh as BoxMesh
-	_fail_unless(box != null, "Wall mesh should be a BoxMesh")
-	_fail_unless(
-		box.size.z + 0.001 >= tendrils.reach_m(),
-		"Walls should be solid slabs back to the boss, not thin sheets"
-	)
-	var under: PackedVector3Array = tendrils.dirs()
-	_fail_unless(
-		under[0].dot(locked_aim) > 0.999,
-		"Wall aim should stay frozen through the shot"
-	)
+	claws.apply_hit_for_test(hunter, 0)
+	_fail_unless(health.last_damage == 25, "Standing on a rising claw should deal 25 damage")
 
-	tendrils.apply_hit_for_test(hunter)
-	_fail_unless(health.last_damage == 30, "Hitting a tendril wall should deal 30 damage")
-	_fail_unless(hunter.last_knockback.length() > 0.1, "Hitting a tendril wall should shove sideways")
-	_fail_unless(is_equal_approx(hunter.last_knockback.x, 0.0), "Shove should be lateral to the wall travel")
-	_fail_unless(not is_equal_approx(hunter.last_knockback.z, 0.0), "Shove should push to either side")
-	_fail_unless(
-		absf(hunter.last_knockback.z) >= BlackTendrilsScript.SHOVE_SPEED - 0.01,
-		"Wall shove should be strong enough to eject the glider"
-	)
-
-	# Running back into a wall after cooldown should hit again.
-	tendrils._physics_process(BlackTendrilsScript.HIT_COOLDOWN_SEC + 0.05)
-	hunter.last_knockback = Vector3.ZERO
 	health.last_damage = 0
-	tendrils.apply_hit_for_test(hunter)
-	_fail_unless(health.last_damage == 30, "Re-entering a wall should deal damage again")
-	_fail_unless(hunter.last_knockback.length() > 0.1, "Re-entering a wall should shove again")
-
-	tendrils._physics_process(BlackTendrilsScript.LINGER_SEC)
-	_fail_unless(boss.living_tendrils() == null or tendrils.is_done(), "Tendrils should despawn after the linger")
+	claws._physics_process(NightClawsScript.RISE_SEC)
 	_fail_unless(
-		is_equal_approx(boss.tendril_cooldown_left(), SunEaterScript.TENDRIL_COOLDOWN_SEC),
-		"Finished tendrils should start a 10 s cooldown"
+		claws.phase() == NightClawsScript.Phase.HOLD,
+		"Night Claws should hold at full length after the rise"
+	)
+	hunter.global_position = Vector3(hit_mark.x, hit_mark.y + 2.0, hit_mark.z)
+	claws.apply_hit_for_test(hunter, 0)
+	_fail_unless(health.last_damage == 10, "Standing on a stationary claw should deal 10 damage")
+
+	health.last_damage = 0
+	claws._physics_process(NightClawsScript.HOLD_SEC)
+	_fail_unless(
+		claws.phase() == NightClawsScript.Phase.RETRACT,
+		"Night Claws should retract after the hold"
+	)
+	hunter.global_position = Vector3(hit_mark.x, hit_mark.y + 2.0, hit_mark.z)
+	claws.apply_hit_for_test(hunter, 0)
+	_fail_unless(health.last_damage == 10, "Standing on a descending claw should deal 10 damage")
+
+	health.last_damage = 0
+	hunter.global_position = Vector3(200.0, 2.0, 0.0)
+	var finish_left := NightClawsScript.RETRACT_SEC + 0.2
+	while finish_left > 0.0 and claws != null and is_instance_valid(claws) and not claws.is_done():
+		var step := minf(finish_left, 0.05)
+		claws._physics_process(step)
+		finish_left -= step
+	_fail_unless(claws == null or claws.is_done(), "Night Claws should finish after retract")
+	_fail_unless(
+		is_equal_approx(boss.night_claws_cooldown_left(), SunEaterScript.NIGHT_CLAWS_COOLDOWN_SEC),
+		"Finished Night Claws should start a 10 s cooldown"
 	)
 
-	boss.set("_tendril_cooldown_t", 0.0)
+	boss.set("_night_claws_cooldown_t", 0.0)
+	boss.set("_night_claws", null)
 	boss.set("_stand_t", 1.0)
-	hunter.global_position = Vector3(50.0, 2.0, 0.0)
+	hunter.global_position = Vector3(30.0, 2.0, 0.0)
 	boss._physics_process(0.05)
-	_fail_unless(boss.living_tendrils() == null, "Tendrils must not fire when the player is within 100 m")
+	_fail_unless(boss.living_night_claws() == null, "Night Claws must not fire when the player is within 40 m")
 
 	hunter.global_position = Vector3(150.0, 2.0, 0.0)
-	boss.set("_stand_t", 11.0)
-	boss.set("_tendril_cooldown_t", 0.0)
+	boss.set("_stand_t", 16.0)
+	boss.set("_night_claws_cooldown_t", 0.0)
 	boss._physics_process(0.05)
-	_fail_unless(boss.living_tendrils() == null, "Tendrils must not fire after the first 10 s of a stand")
+	_fail_unless(boss.living_night_claws() == null, "Night Claws must not fire after the first 15 s of a stand")
 
 	hunter.free()
 	boss.free()
@@ -1565,7 +1614,7 @@ func _verify_boss_shop() -> void:
 		and int(weights[4]) == 125,
 		"Boss shop weights should be 50 / 37.5 / 12.5 rare/epic/legendary"
 	)
-	for tower_index in [8, 16, 24, 32, 40]:
+	for tower_index in [1, 9, 17, 25, 33]:
 		var shop := UpgradeCatalogScript.roll_shop(
 			1, tower_index, 20, true, true, true, true, true, 0, -1, true
 		)
