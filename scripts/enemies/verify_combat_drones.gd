@@ -292,6 +292,28 @@ func _verify_laser_rework() -> void:
 		"Reticle should reach minimum scale at 8 s"
 	)
 	_fail_unless(
+		not LaserDroneTelegraphScript.power_on_lit(0.0),
+		"Reticle power-on glitch should start dark"
+	)
+	_fail_unless(
+		not LaserDroneTelegraphScript.reticle_lit(0.04),
+		"Reticle should flicker off during power-on glitch"
+	)
+	_fail_unless(
+		LaserDroneTelegraphScript.reticle_lit(0.5),
+		"Reticle should stay lit after power-on glitch"
+	)
+	_fail_unless(
+		LaserDroneTelegraphScript.power_off_lit(0.0),
+		"Reticle power-off glitch should start lit"
+	)
+	_fail_unless(
+		not LaserDroneTelegraphScript.power_off_lit(
+			LaserDroneTelegraphScript.POWER_OFF_GLITCH_SEC
+		),
+		"Reticle power-off glitch should end dark"
+	)
+	_fail_unless(
 		not LaserDroneTelegraphScript.is_blinking(7.5),
 		"Reticle should not blink before 8 s"
 	)
@@ -331,23 +353,31 @@ func _verify_laser_rework() -> void:
 		"Ground reticle should not use circle trace"
 	)
 	_fail_unless(
-		ground_reticle_source.find("ReticleLight") != -1,
-		"Ground reticle should include a red omni light"
+		ground_reticle_source.find("ReticleProjector") != -1,
+		"Ground reticle should include a spot light projector"
 	)
 	_fail_unless(
-		ground_reticle_source.find("get_deck_world_basis") != -1,
-		"Ground reticle should align to deck forward on the ground"
+		ground_reticle_source.find("_update_world_anchor") != -1,
+		"Ground reticle should anchor in world space at hover height"
 	)
 	_fail_unless(
-		ground_reticle_source.find("_build_conforming_mesh") != -1,
-		"Ground reticle should use a terrain-conforming mesh grid"
+		ground_reticle_source.find("light_projector") != -1,
+		"Ground reticle should project flipbook frames onto the ground"
 	)
 	_fail_unless(
-		LaserDroneTelegraphScript.brackets_visible(8.06),
+		ground_reticle_source.find("reticle_lit") != -1,
+		"Ground reticle should use shared reticle_lit telegraph visibility"
+	)
+	_fail_unless(
+		ground_reticle_source.find("begin_power_off") != -1,
+		"Ground reticle should support power-off shutdown glitch"
+	)
+	_fail_unless(
+		LaserDroneTelegraphScript.reticle_lit(8.06),
 		"Ground reticle should flash during the 2 s blink phase"
 	)
 	_fail_unless(
-		not LaserDroneTelegraphScript.brackets_visible(8.13),
+		not LaserDroneTelegraphScript.reticle_lit(8.13),
 		"Ground reticle should alternate off during the blink phase"
 	)
 
@@ -453,6 +483,15 @@ func _verify_laser_rework() -> void:
 	var frames := int(ceil(LaserDroneTelegraphScript.telegraph_total_sec() / step)) + 1
 	for _i in frames:
 		charge_laser._update_weapons(step)
+	var power_off_frames := int(
+		ceil(LaserDroneTelegraphScript.POWER_OFF_GLITCH_SEC / step)
+	) + 1
+	for _i in power_off_frames:
+		charge_laser._update_weapons(step)
+	_fail_unless(
+		not bool(charge_laser.get("_ground_reticle_active")),
+		"Ground reticle should despawn after power-off glitch"
+	)
 	var active_blast: DroneLaserBlast = charge_laser.get("_active_blast")
 	_advance_blast_to_impact(active_blast)
 	_fail_unless(

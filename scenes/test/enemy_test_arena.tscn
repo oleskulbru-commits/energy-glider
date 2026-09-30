@@ -67,7 +67,7 @@ script = ExtResource("11_drone_spawner")
 player_rig_path = NodePath("../PlayerRig")
 terrain_manager_path = NodePath("../TerrainManager")
 spawn_mg = false
-spawn_laser = false
+spawn_missile = false
 
 [node name="RunUpgradeState" type="Node" parent="SubViewport/EnemyTestArena" unique_id=1260987770]
 script = ExtResource("9_upgrades")

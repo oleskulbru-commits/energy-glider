@@ -29,6 +29,7 @@ var _reload_left := 0.0
 var _has_fired_blast := false
 var _ground_reticle_active := false
 var _ground_reticle: Node3D
+var _reticle_power_off_left := 0.0
 var _active_blast: Node3D
 var _flare: Node3D
 var _muzzle_flash: MuzzleFlashScript
@@ -155,6 +156,9 @@ func _tick_reload(delta: float) -> void:
 
 
 func _tick_charge(delta: float) -> void:
+	if _reticle_power_off_left > 0.0:
+		_tick_reticle_power_off(delta)
+		return
 	if not _telegraph_armed:
 		_update_flare()
 		if not _is_player_in_lock_on_range():
@@ -169,28 +173,68 @@ func _tick_charge(delta: float) -> void:
 		return
 	if _fire_blast():
 		_has_fired_blast = true
-		_clear_reticle()
-		_attack_phase = AttackPhase.RELOAD
-		_reload_left = RELOAD_SEC
-		_telegraph_elapsed = 0.0
+		_begin_reticle_power_off()
+		if _reticle_power_off_left <= 0.0:
+			_finish_charge_after_telegraph()
+
+
+func _begin_reticle_power_off() -> void:
+	if _ground_reticle == null or not is_instance_valid(_ground_reticle):
+		_reticle_power_off_left = 0.0
+		return
+	_ground_reticle.begin_power_off()
+	_reticle_power_off_left = LaserDroneTelegraphScript.POWER_OFF_GLITCH_SEC
+
+
+func _tick_reticle_power_off(delta: float) -> void:
+	_reticle_power_off_left = maxf(_reticle_power_off_left - delta, 0.0)
+	_update_flare()
+	if not _ground_reticle_active:
+		if _reticle_power_off_left <= 0.0:
+			_finish_charge_after_telegraph()
+		return
+	if _ground_reticle == null or not is_instance_valid(_ground_reticle):
+		_ground_reticle_active = false
+		_ground_reticle = null
+		if _reticle_power_off_left <= 0.0:
+			_finish_charge_after_telegraph()
+		return
+	var finished: bool = _ground_reticle.tick_power_off(delta)
+	if finished or _reticle_power_off_left <= 0.0:
+		_finish_charge_after_telegraph()
+
+
+func _finish_charge_after_telegraph() -> void:
+	_reticle_power_off_left = 0.0
+	_clear_reticle()
+	_attack_phase = AttackPhase.RELOAD
+	_reload_left = RELOAD_SEC
+	_telegraph_armed = false
+	_telegraph_elapsed = 0.0
 
 
 func _ensure_reticle() -> void:
 	if _ground_reticle_active:
-		return
+		if _ground_reticle != null and is_instance_valid(_ground_reticle):
+			return
+		_ground_reticle = null
+		_ground_reticle_active = false
 	if _target == null or not is_instance_valid(_target):
 		return
 	var tree := get_tree()
 	if tree == null:
 		return
 	_ground_reticle = LaserGroundReticleScript.spawn(tree, _target, _terrain)
-	_ground_reticle_active = true
+	_ground_reticle_active = _ground_reticle != null and is_instance_valid(_ground_reticle)
 
 
 func _update_reticle(_delta: float) -> void:
 	if not _ground_reticle_active:
 		return
 	if _ground_reticle == null or not is_instance_valid(_ground_reticle):
+		_ground_reticle_active = false
+		_ground_reticle = null
+		_ensure_reticle()
 		return
 	_ground_reticle.update_telegraph(_telegraph_elapsed)
 

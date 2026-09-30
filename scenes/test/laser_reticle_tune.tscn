@@ -1,0 +1,48 @@
+[gd_scene format=3 uid="uid://cr0dnfcbl2e8f"]
+
+[ext_resource type="PackedScene" uid="uid://xl8sa2wcaqiu" path="res://scenes/player/the_glider_skin.tscn" id="1_skin"]
+[ext_resource type="Environment" uid="uid://c16k12ob5acay" path="res://assets/environment/game_world_env.tres" id="2_env"]
+[ext_resource type="Material" uid="uid://suwp2571pfe0" path="res://assets/materials/sand.tres" id="3_sand"]
+[ext_resource type="Script" uid="uid://c3x6p07h23wms" path="res://scripts/test/laser_reticle_tune.gd" id="4_tune"]
+[ext_resource type="Texture2D" uid="uid://c1ufc0ibh7t8w" path="res://assets/vfx/effect_textures/reticles/reticle_1_frame_0060.png" id="5_projector"]
+
+[sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_tune"]
+
+[node name="LaserReticleTune" type="Node3D" unique_id=2066109623]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1530328300]
+environment = ExtResource("2_env")
+camera_attributes = SubResource("CameraAttributesPractical_tune")
+
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=329249891]
+transform = Transform3D(0.05233616, -0.27525946, 0.95994455, 0, 0.96126115, 0.27563742, -0.99862975, -0.01442579, 0.050308745, 0, 80, 0)
+light_color = Color(0.86, 0.8, 0.78, 1)
+light_energy = 1.01
+shadow_enabled = true
+shadow_opacity = 0.85
+
+[node name="Ground" type="CSGBox3D" parent="." unique_id=1221931823]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.400252, 0)
+size = Vector3(24, 0.8005039, 24)
+material = ExtResource("3_sand")
+
+[node name="GliderSkin" parent="." unique_id=526417881 instance=ExtResource("1_skin")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.755, 0)
+
+[node name="LaserGroundReticle" type="Node3D" parent="GliderSkin" unique_id=837807954]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.5771947, 0.5)
+script = ExtResource("4_tune")
+
+[node name="ReticleProjector" type="SpotLight3D" parent="GliderSkin/LaserGroundReticle" unique_id=263117801]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0, 0)
+light_color = Color(1.2, 0.06, 0.015, 1)
+light_energy = 16.0
+light_projector = ExtResource("5_projector")
+light_size = 1.0
+light_specular = 16.0
+spot_range = 10.0
+spot_angle = 50.0
+spot_angle_attenuation = 0.007289316
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=291214176]
+transform = Transform3D(0.9396926, 0.17101005, -0.30070576, 0, 0.8660254, 0.5, 0.34729636, -0.46984628, 0.81379765, 4.5, 3.2, 6.8)

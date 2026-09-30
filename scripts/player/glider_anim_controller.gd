@@ -40,6 +40,9 @@ const JUMP_ENTER_XFADE := 0.05
 const JUMP_FROM_LOCO_XFADE := AIR_XFADE
 ## Max wait for body playback to settle on jump after travel() (boost->jump xfade).
 const JUMP_ENTRY_SETTLE_SEC := AIR_XFADE + 0.15
+## Force body root onto _root_state if playback stays mismatched after crossfade.
+const ROOT_DESYNC_FORCE_SEC := 0.65
+const NESTED_ENTER_END_EPSILON := 0.05
 
 @export var use_blendspace_locomotion := true
 @export var blendspace_xfade := LOCO_BLEND_XFADE
@@ -91,6 +94,7 @@ var _jump_elapsed := 0.0
 var _jump_entry_in_flight := false
 var _jump_from_boost_takeoff := false
 var _locomotion_crossfade_warm := false
+var _root_desync_elapsed := 0.0
 
 
 func _ready() -> void:
@@ -153,6 +157,7 @@ func reset_animation_state() -> void:
 	_blendspace_position = LOCO_BLEND_FORWARD
 	_glide_blend_position = 0.0
 	_locomotion_travel_cooldown = 0.0
+	_root_desync_elapsed = 0.0
 	if _tree == null:
 		return
 	_bootstrap_playback()
@@ -308,6 +313,7 @@ func _process(_delta: float) -> void:
 	_tick_jump_elapsed(_delta, next_root)
 
 	_repair_brake_enter()
+	_repair_boost_loop()
 	_repair_root_playback(next_root)
 	if _root_playback != null and next_root == &"jump_charge":
 		var charge_root := _root_playback.get_current_node()
@@ -322,6 +328,8 @@ func _process(_delta: float) -> void:
 				_jump_root_lock = false
 				_jump_entry_in_flight = false
 		_repair_boost_loop()
+		_repair_brake_enter()
+		_repair_root_desync_watchdog(next_root)
 		_sync_root_playback_after_advance(next_root)
 
 
@@ -359,6 +367,13 @@ func _prep_boost_brake_nested_after_exit() -> void:
 
 func _apply_root_travel(state: StringName, xfade: float = ROOT_GROUND_XFADE) -> void:
 	if _root_playback == null:
+		return
+	var cur := _root_playback.get_current_node()
+	if cur == state:
+		_root_blend_target = &""
+		_root_blend_time = 0.0
+		return
+	if _root_blend_target == state and _root_blend_time > 0.0:
 		return
 	_root_playback.travel(state)
 	_root_blend_target = state
@@ -557,21 +572,89 @@ func _repair_brake_enter() -> void:
 		return
 	if not _glider.is_braking():
 		return
-	if _brake_playback.get_current_node() not in [&"enter", &"Start"]:
+	var sub := _brake_playback.get_current_node()
+	if sub == &"loop":
+		return
+	if sub not in [&"enter", &"Start"]:
+		return
+	if not _should_start_brake_loop() and not _nested_enter_clip_finished(_brake_playback):
 		return
 	_brake_playback.start("loop")
+	_advance_animation_tree(0.0)
 
 
 func _repair_boost_loop() -> void:
 	if _boost_playback == null or _root_state != &"boost":
 		return
-	if not _glider.is_boost_active() or not _is_airborne_for_boost():
+	if not _glider.is_boost_active():
 		return
-	if _boost_playback.get_current_node() == &"loop":
+	var sub := _boost_playback.get_current_node()
+	if sub == &"loop":
 		return
-	if _boost_playback.get_current_node() not in [&"enter", &"Start"]:
+	if sub not in [&"enter", &"Start"]:
 		return
-	_boost_playback.start(&"loop")
+	if _nested_enter_clip_finished(_boost_playback):
+		_boost_playback.start(&"loop")
+		_advance_animation_tree(0.0)
+		return
+	if _is_airborne_for_boost():
+		_boost_playback.start(&"loop")
+		_advance_animation_tree(0.0)
+
+
+func _nested_enter_clip_finished(playback: AnimationNodeStateMachinePlayback) -> bool:
+	var length := playback.get_current_length()
+	if length <= 0.0:
+		return false
+	return playback.get_current_play_position() >= length - NESTED_ENTER_END_EPSILON
+
+
+func _repair_root_desync_watchdog(target: StringName) -> void:
+	if _root_playback == null or target == &"":
+		_root_desync_elapsed = 0.0
+		return
+	var cur := _root_playback.get_current_node()
+	if cur == target:
+		_root_desync_elapsed = 0.0
+		return
+	if _should_skip_root_sync(target, cur):
+		return
+	_root_desync_elapsed += get_process_delta_time()
+	if _root_desync_elapsed < ROOT_DESYNC_FORCE_SEC:
+		return
+	_root_desync_elapsed = 0.0
+	_force_root_playback_to(target, cur)
+
+
+func _force_root_playback_to(target: StringName, _cur: StringName) -> void:
+	_root_blend_target = &""
+	_root_blend_time = 0.0
+	_jump_entry_in_flight = false
+	match target:
+		&"boost":
+			_apply_root_start(&"boost")
+			if _boost_playback != null:
+				_start_boost_substate()
+		&"brake":
+			_apply_root_start(&"brake")
+			if _brake_playback != null:
+				_start_brake_substate()
+		&"jump":
+			_apply_root_start(&"jump")
+		&"grounded":
+			_prep_boost_brake_nested_after_exit()
+			_apply_root_start(&"grounded")
+		&"locomotion":
+			_apply_root_start(&"locomotion")
+			if _locomotion_playback != null:
+				_locomotion_playback.start("move")
+		&"glide":
+			_apply_root_start(&"glide")
+		&"jump_charge":
+			_reset_jump_charge_pose()
+			_apply_root_start(&"jump_charge")
+		_:
+			_apply_root_start(target)
 	_advance_animation_tree(0.0)
 
 
@@ -743,11 +826,13 @@ func _should_defer_air_boost() -> bool:
 func _should_hold_boost_jump_takeoff() -> bool:
 	if not _jump_from_boost_takeoff:
 		return false
+	if _is_jump_clip_finished():
+		return false
 	if _jump_entry_in_flight:
 		return true
 	if _is_root_blend_active(&"jump"):
 		return true
-	if _root_state == &"jump" and _jump_root_lock and not _is_jump_clip_finished():
+	if _root_state == &"jump" and _jump_root_lock:
 		return true
 	return false
 

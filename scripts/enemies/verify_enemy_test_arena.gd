@@ -3,7 +3,7 @@ extends SceneTree
 const ArenaScene := preload("res://scenes/test/enemy_test_arena.tscn")
 const CrawlerTestSpawnerScript := preload("res://scripts/enemies/crawler_test_spawner.gd")
 const DroneTestSpawnerScript := preload("res://scripts/enemies/drone_test_spawner.gd")
-const MissileDroneScript := preload("res://scripts/enemies/missile_drone.gd")
+const LaserDroneScript := preload("res://scripts/enemies/laser_drone.gd")
 const SwarmPillScript := preload("res://scripts/enemies/swarm_pill.gd")
 const UpgradeCatalogScript := preload("res://scripts/game/upgrade_catalog.gd")
 
@@ -42,9 +42,9 @@ func _run() -> void:
 	var drone_spawner := arena.get_node_or_null("DroneTestSpawner") as DroneTestSpawnerScript
 	_fail_unless(drone_spawner != null, "Missing DroneTestSpawner")
 	_fail_unless(not drone_spawner.spawn_mg, "Test arena should not spawn MG drones")
-	_fail_unless(not drone_spawner.spawn_laser, "Test arena should not spawn laser drones")
-	_fail_unless(drone_spawner.spawn_missile, "Test arena should spawn missile drones")
-	_assert_missile_spawned(drone_spawner._active_missile)
+	_fail_unless(drone_spawner.spawn_laser, "Test arena should spawn laser drones")
+	_fail_unless(not drone_spawner.spawn_missile, "Test arena should not spawn missile drones")
+	_assert_laser_spawned(drone_spawner._active_laser)
 
 	var first_id := spawner._active.get_instance_id()
 	_fail_unless(
@@ -65,10 +65,10 @@ func _run() -> void:
 	quit(0)
 
 
-func _assert_missile_spawned(drone: MissileDroneScript) -> void:
-	_fail_unless(drone != null, "Spawner did not spawn missile drone")
-	_fail_unless(is_instance_valid(drone), "Missile drone invalid")
-	_fail_unless(drone.is_alive(), "Spawned missile drone should be alive")
+func _assert_laser_spawned(drone: LaserDroneScript) -> void:
+	_fail_unless(drone != null, "Spawner did not spawn laser drone")
+	_fail_unless(is_instance_valid(drone), "Laser drone invalid")
+	_fail_unless(drone.is_alive(), "Spawned laser drone should be alive")
 
 
 func _assert_crawler_spawned(pill: SwarmPillScript) -> void:
