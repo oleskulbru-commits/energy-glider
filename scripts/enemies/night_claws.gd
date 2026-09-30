@@ -213,6 +213,15 @@ func forward_xz() -> Vector3:
 	return _forward
 
 
+func contains_xz(world_pos: Vector3) -> bool:
+	var local := local_forward_right(world_pos, _anchor, _forward)
+	return (
+		local.x >= -0.001
+		and local.x <= ZONE_FORWARD_M + 0.001
+		and absf(local.y) <= ZONE_LATERAL_HALF_M + 0.001
+	)
+
+
 func is_done() -> bool:
 	return _phase == Phase.DONE or is_queued_for_deletion()
 

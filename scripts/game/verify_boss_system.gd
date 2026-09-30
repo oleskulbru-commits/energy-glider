@@ -40,6 +40,7 @@ func _run() -> void:
 	_verify_finger_mechanic()
 	_verify_night_portal()
 	_verify_night_claws()
+	_verify_portal_queues_during_claws()
 	_verify_night_volume()
 	_verify_night_spread()
 	_verify_night_scarabs()
@@ -916,6 +917,100 @@ func _verify_night_claws() -> void:
 		"Night Claws must not fire while the player is moving toward the boss"
 	)
 
+	hunter.free()
+	boss.free()
+
+
+func _verify_portal_queues_during_claws() -> void:
+	var hunter := TendrilStubBody.new()
+	root.add_child(hunter)
+	hunter.global_position = Vector3(150.0, 2.0, 0.0)
+	## Face -X so the claw rectangle opens toward the boss / -X.
+	hunter.velocity = Vector3(-5.0, 0.0, 0.0)
+	var boss: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(boss)
+	boss.global_position = Vector3.ZERO
+	boss.configure(null, hunter)
+	boss.configure_encounter(1, 5000)
+	boss.begin_ascent(0.0)
+	boss._physics_process(3.0)
+	boss.set("_relocate_count", 1)
+
+	var leftover := NightVolumeScript.new()
+	leftover.name = "PortalDestForClaws"
+	leftover.follow_host = false
+	leftover.configure(NightVolumeScript.RADIUS_M, false)
+	root.add_child(leftover)
+	leftover.global_position = Vector3(200.0, 0.0, 50.0)
+	leftover.mark_formed()
+	var children: Array = boss.get("_child_volumes")
+	children.append(leftover)
+	boss.set("_child_volumes", children)
+
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 77
+	var claws: NightClaws = NightClawsScript.new()
+	root.add_child(claws)
+	claws.configure(boss, hunter, null, rng)
+	boss.set("_night_claws", claws)
+	_fail_unless(claws.contains_xz(hunter.global_position), "Hunter should start inside the claw zone")
+	_fail_unless(
+		claws.contains_xz(hunter.global_position + Vector3(-40.0, 0.0, 0.0)),
+		"A point 40 m along claw forward should stay in-zone"
+	)
+	_fail_unless(
+		not claws.contains_xz(hunter.global_position + Vector3(40.0, 0.0, 0.0)),
+		"A point behind the claw anchor should be out of zone"
+	)
+	_fail_unless(
+		not claws.contains_xz(hunter.global_position + Vector3(0.0, 0.0, 80.0)),
+		"A point past lateral half-width should be out of zone"
+	)
+
+	boss.set("_portal_cooldown_t", 0.0)
+	boss.set("_portal_pending", false)
+	boss._physics_process(0.05)
+	_fail_unless(boss.living_portal() == null, "Portal must not cast while the player is in active Night Claws")
+	_fail_unless(boss.portal_pending(), "Portal should queue while claws cover the player")
+
+	boss.call("_on_night_claws_finished")
+	_fail_unless(boss.living_portal() != null, "Queued portal should cast immediately when claws finish")
+	_fail_unless(not boss.portal_pending(), "Portal pending should clear after the flush cast")
+
+	var flushed = boss.living_portal()
+	if flushed != null and is_instance_valid(flushed):
+		flushed.queue_free()
+	boss.set("_portal", null)
+	boss.set("_portal_pending", false)
+	boss.set("_portal_cooldown_t", 0.0)
+
+	claws = NightClawsScript.new()
+	root.add_child(claws)
+	hunter.global_position = Vector3(150.0, 2.0, 0.0)
+	hunter.velocity = Vector3(-5.0, 0.0, 0.0)
+	claws.configure(boss, hunter, null, rng)
+	boss.set("_night_claws", claws)
+	boss._physics_process(0.05)
+	_fail_unless(boss.living_portal() == null, "Portal should queue again while claws are active")
+	_fail_unless(boss.portal_pending(), "Portal should be pending again during claws")
+
+	## Leave the claw rectangle while claws are still alive.
+	hunter.global_position = Vector3(150.0, 2.0, 80.0)
+	_fail_unless(not claws.contains_xz(hunter.global_position), "Hunter should be outside the claw zone")
+	boss._physics_process(0.05)
+	_fail_unless(
+		boss.living_portal() != null,
+		"Queued portal should cast immediately when the player leaves the claw zone"
+	)
+	_fail_unless(
+		boss.living_night_claws() != null,
+		"Leaving the claw zone should flush the portal without ending Night Claws"
+	)
+	_fail_unless(not boss.portal_pending(), "Portal pending should clear after leave-zone flush")
+
+	if claws != null and is_instance_valid(claws):
+		claws.queue_free()
+	leftover.free()
 	hunter.free()
 	boss.free()
 

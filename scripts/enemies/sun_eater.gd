@@ -99,6 +99,7 @@ var _suppress_damage_float := false
 var _portal
 var _portal_cooldown_t := -1.0
 var _portal_spawn_count := 0
+var _portal_pending := false
 var _night_claws
 var _night_claws_cooldown_t := 0.0
 
@@ -157,6 +158,7 @@ func begin_ascent(ground_y: float) -> void:
 	_virtual_counts.clear()
 	_regen_accum = 0.0
 	_portal_spawn_count = 0
+	_portal_pending = false
 	_night_claws_cooldown_t = 0.0
 	_reset_finger_stand()
 	_clear_scarabs()
@@ -579,6 +581,7 @@ func _reset_finger_stand() -> void:
 	_finger_phase = 0
 	_finger_phase_t = 0.0
 	_portal_cooldown_t = -1.0
+	_portal_pending = false
 	_night_claws_cooldown_t = 0.0
 
 
@@ -631,6 +634,10 @@ func portal_cooldown_left() -> float:
 	return maxf(_portal_cooldown_t, 0.0)
 
 
+func portal_pending() -> bool:
+	return _portal_pending
+
+
 static func roll_portal_cooldown_sec(rng: RandomNumberGenerator) -> float:
 	if rng == null:
 		return PORTAL_COOLDOWN_MIN_SEC
@@ -675,6 +682,17 @@ func portal_destination_volumes() -> Array[NightVolume]:
 	return dests
 
 
+func _should_defer_portal_for_claws() -> bool:
+	var claws = living_night_claws()
+	if claws == null:
+		return false
+	_resolve_hunt_target()
+	var player := _target
+	if player == null or not is_instance_valid(player):
+		return false
+	return claws.contains_xz(player.global_position)
+
+
 func _tick_portal(delta: float) -> void:
 	if _portal != null and (not is_instance_valid(_portal) or _portal.is_done()):
 		_portal = null
@@ -689,6 +707,9 @@ func _tick_portal(delta: float) -> void:
 	_portal_cooldown_t = maxf(_portal_cooldown_t - delta, 0.0)
 	if _portal_cooldown_t > 0.0001:
 		return
+	if _should_defer_portal_for_claws():
+		_portal_pending = true
+		return
 	_try_cast_portal()
 
 
@@ -697,9 +718,13 @@ func _try_cast_portal() -> void:
 		return
 	if portal_destination_volumes().is_empty():
 		return
+	if _should_defer_portal_for_claws():
+		_portal_pending = true
+		return
 	_resolve_hunt_target()
 	var player := _target
 	if player == null or not is_instance_valid(player):
+		_portal_pending = false
 		_roll_portal_cooldown()
 		return
 	var facing := _portal_facing_xz(player)
@@ -714,6 +739,7 @@ func _try_cast_portal() -> void:
 	_portal = portal
 	_portal_spawn_count += 1
 	_portal_cooldown_t = 0.0
+	_portal_pending = false
 	portal_cast.emit()
 	_play_portal_vo()
 
@@ -770,6 +796,7 @@ func _clear_portal() -> void:
 			_portal.finished.disconnect(_on_portal_finished)
 		_portal.queue_free()
 	_portal = null
+	_portal_pending = false
 
 
 func living_night_claws():
@@ -855,6 +882,8 @@ static func _node_horizontal_velocity(node: Node3D) -> Vector3:
 func _on_night_claws_finished() -> void:
 	_night_claws = null
 	_night_claws_cooldown_t = NIGHT_CLAWS_COOLDOWN_SEC
+	if _portal_pending and living_portal() == null:
+		_try_cast_portal()
 
 
 func _clear_night_claws() -> void:
@@ -884,8 +913,8 @@ func _physics_process(delta: float) -> void:
 		if _stand_t >= RELOCATE_PERIOD_SEC:
 			_begin_sink()
 	_tick_finger(delta)
-	_tick_portal(delta)
 	_tick_night_claws(delta)
+	_tick_portal(delta)
 	_tick_scarab_spawns(delta)
 	_tick_night_regen(delta)
 	_sync_night_volume()
