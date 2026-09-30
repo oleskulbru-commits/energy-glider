@@ -27,6 +27,8 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 const LaserTargetReticleUIScript = preload("res://scripts/ui/laser_target_reticle_ui.gd")
 const DeathStatsPanelScript = preload("res://scripts/ui/death_stats_panel.gd")
 const RunDamageStatsScript = preload("res://scripts/game/run_damage_stats.gd")
+const AimReticleShader := preload("res://assets/vfx/shaders/aim_lock_reticle_3d.gdshader")
+const AimReticleTexture := preload("res://assets/ui/player_aim_reticle.png")
 
 const DAMAGE_FLASH_COLOR := Color(0.92, 0.1, 0.06, 1.0)
 const DAMAGE_FLASH_HEAVY_THRESHOLD := 10
@@ -38,6 +40,10 @@ const AIM_BORDER_IDLE := Color(0.85, 0.72, 0.55, 0.35)
 const AIM_BORDER_ACTIVE := Color(0.45, 0.92, 0.55, 1.0)
 const AIM_BORDER_IDLE_PX := 1
 const AIM_BORDER_ACTIVE_PX := 2
+const AIM_RETICLE_TINT := Color(0.35, 1.15, 0.45, 0.5)
+const AIM_RETICLE_GLOW := 1.6
+const AIM_RETICLE_SIZE_M := 4.5
+const AIM_RETICLE_LIFT_M := 0.5
 
 @onready var _power_label: Label = %PowerLabel
 @onready var _power_percent_label: Label = %PowerPercent
@@ -101,6 +107,8 @@ const AIM_BORDER_ACTIVE_PX := 2
 @onready var _speed_label: Label = %SpeedLabel
 @onready var _weapon_tray: HBoxContainer = %WeaponTray
 @onready var _aim_chip: PanelContainer = %AimChip
+@onready var _aim_reticle_layer: Control = %AimReticleLayer
+@onready var _aim_reticle_template: TextureRect = %AimReticle
 @onready var _laser_target_reticle: LaserTargetReticleUIScript = %LaserTargetReticle
 
 var _rig: PlayerRig
@@ -115,6 +123,8 @@ var _day_night: DayNightCycle
 var _power_fill: StyleBoxFlat
 var _battery_fill: StyleBoxFlat
 var _aim_panel: StyleBoxFlat
+var _aim_reticle_material: ShaderMaterial
+var _aim_reticle_pool: Array[MeshInstance3D] = []
 var _solar_pulse_time := 0.0
 var _day_summary_timer := 0.0
 var _night_warning_timer := 0.0
@@ -221,6 +231,7 @@ func _ready() -> void:
 	if _aim_chip != null:
 		_aim_panel = _make_aim_panel_style()
 		_aim_chip.add_theme_stylebox_override("panel", _aim_panel)
+	_setup_aim_reticle()
 	if _stop_chip != null:
 		_stop_chip.visible = false
 		_stop_chip.gui_input.connect(_on_stop_chip_gui_input)
@@ -1035,10 +1046,166 @@ func _update_stop_chip() -> void:
 
 
 func _update_aim_chip() -> void:
-	if _aim_panel == null:
-		return
 	var aiming := _rig != null and _rig.is_weapon_aiming()
-	_apply_aim_border(aiming)
+	if _aim_panel != null:
+		_apply_aim_border(aiming)
+	_update_aim_lock_reticles(aiming)
+
+
+func _setup_aim_reticle() -> void:
+	_aim_reticle_material = ShaderMaterial.new()
+	_aim_reticle_material.shader = AimReticleShader
+	_aim_reticle_material.set_shader_parameter("albedo_tex", AimReticleTexture)
+	_aim_reticle_material.set_shader_parameter("color_tint", AIM_RETICLE_TINT)
+	_aim_reticle_material.set_shader_parameter("glow_strength", AIM_RETICLE_GLOW)
+	if _aim_reticle_layer != null:
+		_aim_reticle_layer.visible = false
+		_aim_reticle_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if _aim_reticle_template != null:
+		_aim_reticle_template.visible = false
+
+
+func _update_aim_lock_reticles(aiming: bool) -> void:
+	if not aiming:
+		_hide_aim_reticle_pool()
+		return
+	_ensure_camera()
+	var locks := _collect_aim_lock_targets()
+	_ensure_aim_reticle_pool(locks.size())
+	var muzzle := _aim_muzzle_origin()
+	var shown := 0
+	for lock in locks:
+		var world_pos := WeaponTargeting.lock_point(lock, muzzle) + Vector3.UP * AIM_RETICLE_LIFT_M
+		if _camera != null and _camera.is_position_behind(world_pos):
+			continue
+		var marker := _aim_reticle_pool[shown]
+		_place_aim_reticle(marker, world_pos)
+		marker.visible = true
+		shown += 1
+	for i in range(shown, _aim_reticle_pool.size()):
+		_aim_reticle_pool[i].visible = false
+
+
+func _collect_aim_lock_targets() -> Array[Node3D]:
+	var out: Array[Node3D] = []
+	if _rig == null:
+		return out
+	var seen: Dictionary = {}
+	for path in ["AutoRifle", "AutoLaser", "AutoTesla", "AutoRocket", "AutoShotgun"]:
+		var weapon := _rig.get_node_or_null(path)
+		if weapon == null or not weapon.has_method("preview_lock"):
+			continue
+		var lock := weapon.call("preview_lock") as Node3D
+		if lock == null or not is_instance_valid(lock):
+			continue
+		var id := lock.get_instance_id()
+		if seen.has(id):
+			continue
+		seen[id] = true
+		out.append(lock)
+	return out
+
+
+func _aim_muzzle_origin() -> Vector3:
+	if _player == null or not is_instance_valid(_player):
+		return Vector3.ZERO
+	return _player.global_position + Vector3.UP * AutoRifle.MUZZLE_UP_M
+
+
+func _ensure_camera() -> void:
+	if _camera != null:
+		return
+	if _rig == null:
+		return
+	_camera = _rig.get_node_or_null("Glider/GliderCamera") as GliderCamera
+	if _camera == null:
+		_camera = _rig.get_node_or_null("Glider/Camera3D") as GliderCamera
+
+
+func _ensure_aim_reticle_pool(count: int) -> void:
+	_ensure_camera()
+	while _aim_reticle_pool.size() < count:
+		_aim_reticle_pool.append(_make_aim_reticle_marker())
+
+
+func _make_aim_reticle_marker() -> MeshInstance3D:
+	var marker := MeshInstance3D.new()
+	marker.name = "AimLockReticle3D"
+	marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var quad := QuadMesh.new()
+	quad.size = Vector2(AIM_RETICLE_SIZE_M, AIM_RETICLE_SIZE_M)
+	marker.mesh = quad
+	marker.material_override = _aim_reticle_material
+	## Face the camera every frame via billboard flag on a StandardMaterial fallback path;
+	## ShaderMaterial quads need manual facing in _place_aim_reticle.
+	marker.visible = false
+	var host := _aim_world_host()
+	host.add_child(marker)
+	return marker
+
+
+func _aim_world_host() -> Node:
+	if _rig != null and is_instance_valid(_rig):
+		return _rig
+	var tree := get_tree()
+	if tree != null and tree.current_scene != null:
+		return tree.current_scene
+	return self
+
+
+func _place_aim_reticle(marker: MeshInstance3D, world_pos: Vector3) -> void:
+	var quad := marker.mesh as QuadMesh
+	if quad != null:
+		quad.size = Vector2(AIM_RETICLE_SIZE_M, AIM_RETICLE_SIZE_M)
+	marker.global_position = world_pos
+	_ensure_camera()
+	if _camera == null:
+		return
+	var to_cam := _camera.global_position - world_pos
+	if to_cam.length_squared() < 0.0001:
+		return
+	## QuadMesh faces +Z; looking_at aims -Z at the camera, then flip 180°.
+	marker.global_basis = Basis.looking_at(to_cam, Vector3.UP).rotated(Vector3.UP, PI)
+
+
+func _hide_aim_reticle_pool() -> void:
+	for marker in _aim_reticle_pool:
+		if marker != null and is_instance_valid(marker):
+			marker.visible = false
+
+
+func _clear_aim_reticle_pool() -> void:
+	for marker in _aim_reticle_pool:
+		if marker != null and is_instance_valid(marker):
+			marker.queue_free()
+	_aim_reticle_pool.clear()
+
+
+func _exit_tree() -> void:
+	_clear_aim_reticle_pool()
+
+
+## Test helper: show/hide pooled 3D markers at explicit world positions.
+func set_aim_lock_reticles_for_test(world_positions: Array) -> void:
+	_setup_aim_reticle()
+	if world_positions.is_empty():
+		_hide_aim_reticle_pool()
+		return
+	_ensure_aim_reticle_pool(world_positions.size())
+	for i in world_positions.size():
+		var marker := _aim_reticle_pool[i]
+		_place_aim_reticle(marker, world_positions[i] as Vector3)
+		marker.visible = true
+	for i in range(world_positions.size(), _aim_reticle_pool.size()):
+		_aim_reticle_pool[i].visible = false
+
+
+func visible_aim_lock_reticle_count() -> int:
+	var n := 0
+	for marker in _aim_reticle_pool:
+		if marker != null and is_instance_valid(marker) and marker.visible:
+			n += 1
+	return n
 
 
 func _make_aim_panel_style() -> StyleBoxFlat:

@@ -1,10 +1,11 @@
-[gd_scene load_steps=6 format=3 uid="uid://cglider_hud001"]
+[gd_scene load_steps=7 format=3 uid="uid://cglider_hud001"]
 
 [ext_resource type="Script" path="res://scripts/ui/glider_hud.gd" id="1_hud"]
 [ext_resource type="Theme" path="res://themes/hud_theme.tres" id="2_theme"]
 [ext_resource type="Script" path="res://scripts/ui/compass_bar.gd" id="3_compass"]
 [ext_resource type="Script" path="res://scripts/ui/laser_target_reticle_ui.gd" id="4_laser_reticle"]
 [ext_resource type="PackedScene" path="res://scenes/ui/death_stats_panel.tscn" id="5_death_stats"]
+[ext_resource type="Texture2D" uid="uid://bbbb8k71nevng" path="res://assets/ui/player_aim_reticle.png" id="6_aim_reticle"]
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_night"]
 
@@ -722,6 +723,26 @@ theme_type_variation = &"HudValue"
 text = "0 m/s"
 horizontal_alignment = 2
 vertical_alignment = 1
+
+[node name="AimReticleLayer" type="Control" parent="."]
+unique_name_in_owner = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="AimReticle" type="TextureRect" parent="AimReticleLayer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 0
+offset_right = 256.0
+offset_bottom = 256.0
+mouse_filter = 2
+texture = ExtResource("6_aim_reticle")
+expand_mode = 1
+stretch_mode = 5
 
 [node name="LaserTargetReticle" type="Control" parent="."]
 unique_name_in_owner = true

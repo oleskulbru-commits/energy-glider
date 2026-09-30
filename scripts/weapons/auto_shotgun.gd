@@ -290,6 +290,43 @@ static func pick_target(
 	return candidates[rng.randi_range(0, candidates.size() - 1)]
 
 
+## Deterministic primary lock for HUD (magnet, else closest in 3D acquire). No cone spray.
+static func preview_primary_target(
+	pills: Array,
+	origin: Vector3,
+	facing: Vector3,
+	range_m: float
+) -> Node3D:
+	var magnet := WeaponTargeting.find_magnet(
+		pills, origin, facing, range_m, true, BELOW_XZ_EPS_M
+	)
+	if magnet != null:
+		return magnet
+	var best: Node3D = null
+	var best_d := INF
+	for pill in collect_candidates(pills, origin, facing, range_m):
+		var d := origin.distance_to(WeaponTargeting.lock_point(pill, origin))
+		if d < best_d:
+			best_d = d
+			best = pill
+	return best
+
+
+func preview_lock() -> Node3D:
+	var state := _upgrade_state()
+	if state == null or not state.has_shotgun:
+		return null
+	var tree := get_tree()
+	if tree == null:
+		return null
+	return preview_primary_target(
+		tree.get_nodes_in_group("swarm_pill"),
+		_muzzle_origin(),
+		_facing_xz(),
+		_current_range()
+	)
+
+
 ## Cone + range in full 3D so a pitched-down blast still catches sand-level pills.
 static func pills_in_cone(
 	origin: Vector3,

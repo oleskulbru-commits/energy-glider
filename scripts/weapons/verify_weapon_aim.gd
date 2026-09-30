@@ -1,7 +1,12 @@
 extends SceneTree
 
 const AutoRifleScript = preload("res://scripts/weapons/auto_rifle.gd")
+const AutoShotgunScript = preload("res://scripts/weapons/auto_shotgun.gd")
+const AutoLaserScript = preload("res://scripts/weapons/auto_laser.gd")
+const AutoTeslaScript = preload("res://scripts/weapons/auto_tesla.gd")
+const AutoRocketScript = preload("res://scripts/weapons/auto_rocket.gd")
 const PlayerRigScript = preload("res://scripts/player/player_rig.gd")
+const SwarmPillScript = preload("res://scripts/enemies/swarm_pill.gd")
 const HUDScene := preload("res://scenes/ui/glider_hud.tscn")
 
 
@@ -14,6 +19,8 @@ func _run() -> void:
 	_verify_aim_uses_look()
 	_verify_zero_look_falls_back()
 	_verify_aim_chip_border()
+	_verify_preview_primary_locks()
+	_verify_aim_lock_reticles_hud()
 	print("Weapon aim verification passed.")
 	quit(0)
 
@@ -78,7 +85,57 @@ func _verify_aim_chip_border() -> void:
 		panel.border_color.is_equal_approx(GliderHUD.AIM_BORDER_ACTIVE),
 		"Held Aim border should turn green"
 	)
+	var template := hud.get_node_or_null("%AimReticle") as TextureRect
+	_fail_unless(template != null, "HUD should keep an AimReticle texture template")
+	_fail_unless(template.texture != null, "AimReticle template should use the player aim texture")
+	_fail_unless(not template.visible, "AimReticle template should stay hidden")
+	_fail_unless(hud.get_node_or_null("%AimReticleLayer") != null, "HUD should include AimReticleLayer")
 	hud.queue_free()
+
+
+func _verify_preview_primary_locks() -> void:
+	var origin := Vector3(0.0, 1.0, 0.0)
+	var facing := Vector3(-1.0, 0.0, 0.0)
+	var near_front := _make_pill(Vector3(-20.0, 0.0, 0.0))
+	var far_front := _make_pill(Vector3(-40.0, 0.0, 0.0))
+	var behind := _make_pill(Vector3(20.0, 0.0, 0.0))
+	var pills: Array = [near_front, far_front, behind]
+	var rifle := AutoRifleScript.preview_primary_target(pills, origin, facing, 75.0)
+	_fail_unless(rifle == near_front, "Rifle preview should pick the closest front candidate")
+	var shotgun := AutoShotgunScript.preview_primary_target(pills, origin, facing, 40.0)
+	_fail_unless(shotgun == near_front, "Shotgun preview should pick the closest front candidate")
+	var laser := AutoLaserScript.preview_primary_target(pills, origin, facing, 45.0)
+	_fail_unless(laser == near_front, "Laser preview should pick one primary, not bounce hops")
+	var tesla := AutoTeslaScript.preview_primary_target(pills, origin, facing, 20.0)
+	_fail_unless(tesla == near_front, "Tesla preview should pick one primary")
+	var rocket := AutoRocketScript.preview_primary_target(pills, origin, facing, 75.0)
+	_fail_unless(rocket != null and rocket != behind, "Rocket preview should stay on a front lock")
+	_fail_unless(
+		AutoRifleScript.preview_primary_target([behind], origin, facing, 75.0) == null,
+		"Preview must not lock a behind-only candidate"
+	)
+	near_front.free()
+	far_front.free()
+	behind.free()
+
+
+func _verify_aim_lock_reticles_hud() -> void:
+	var hud: GliderHUD = HUDScene.instantiate() as GliderHUD
+	root.add_child(hud)
+	hud.set_aim_lock_reticles_for_test([])
+	_fail_unless(hud.visible_aim_lock_reticle_count() == 0, "No aim lock reticles when not aiming")
+	hud.set_aim_lock_reticles_for_test([Vector3(10.0, 2.0, 0.0), Vector3(20.0, 2.0, 5.0)])
+	_fail_unless(hud.visible_aim_lock_reticle_count() == 2, "Each lock should show one world aim reticle")
+	hud.set_aim_lock_reticles_for_test([])
+	_fail_unless(hud.visible_aim_lock_reticle_count() == 0, "Clearing locks should hide aim reticles")
+	hud.queue_free()
+
+
+func _make_pill(pos: Vector3) -> SwarmPill:
+	var pill: SwarmPill = SwarmPillScript.new()
+	root.add_child(pill)
+	pill.global_position = pos
+	return pill
 
 
 func _fail_unless(ok: bool, message: String) -> void:

@@ -285,3 +285,28 @@ static func pick_unique_target(
 	if rng == null:
 		return candidates[0]
 	return candidates[rng.randi_range(0, candidates.size() - 1)]
+
+
+## One primary lock for HUD (not one per beam). No bounce hops.
+static func preview_primary_target(
+	pills: Array,
+	origin: Vector3,
+	facing: Vector3,
+	range_m: float
+) -> Node3D:
+	return AutoRifle.preview_primary_target(pills, origin, facing, range_m)
+
+
+func preview_lock() -> Node3D:
+	var state := _upgrade_state()
+	if state == null or not state.has_laser:
+		return null
+	var tree := get_tree()
+	if tree == null:
+		return null
+	return preview_primary_target(
+		tree.get_nodes_in_group("swarm_pill"),
+		_muzzle_origin(),
+		_facing_xz(),
+		_current_range()
+	)

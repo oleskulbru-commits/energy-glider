@@ -210,6 +210,30 @@ static func pick_best_target(
 	return ranked[0]
 
 
+static func preview_primary_target(
+	pills: Array,
+	origin: Vector3,
+	facing: Vector3,
+	range_m: float
+) -> Node3D:
+	return pick_best_target(pills, origin, facing, range_m)
+
+
+func preview_lock() -> Node3D:
+	var state := _upgrade_state()
+	if state == null or not state.has_rocket:
+		return null
+	var tree := get_tree()
+	if tree == null:
+		return null
+	return preview_primary_target(
+		tree.get_nodes_in_group("swarm_pill"),
+		_muzzle_origin(),
+		_facing_xz(),
+		_current_range()
+	)
+
+
 static func rank_targets(
 	pills: Array,
 	origin: Vector3,

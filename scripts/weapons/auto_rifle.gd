@@ -243,6 +243,48 @@ static func pick_target(
 	return candidates[rng.randi_range(0, candidates.size() - 1)]
 
 
+## Deterministic primary lock for HUD aim markers (magnet, else closest in cone). No bounce.
+static func preview_primary_target(
+	pills: Array,
+	origin: Vector3,
+	facing: Vector3,
+	range_m: float
+) -> Node3D:
+	var magnet := WeaponTargeting.find_magnet(pills, origin, facing, range_m)
+	if magnet != null:
+		return magnet
+	return closest_candidate(collect_candidates(pills, origin, facing, range_m), origin)
+
+
+static func closest_candidate(candidates: Array, origin: Vector3) -> Node3D:
+	var best: Node3D = null
+	var best_d := INF
+	for node in candidates:
+		var pill := node as Node3D
+		if pill == null or not is_instance_valid(pill):
+			continue
+		var d := xz_distance(origin, WeaponTargeting.lock_point(pill, origin))
+		if d < best_d:
+			best_d = d
+			best = pill
+	return best
+
+
+func preview_lock() -> Node3D:
+	var state := _upgrade_state()
+	if state == null or not state.has_rifle:
+		return null
+	var tree := get_tree()
+	if tree == null:
+		return null
+	return preview_primary_target(
+		tree.get_nodes_in_group("swarm_pill"),
+		_muzzle_origin(),
+		_facing_xz(),
+		_current_range()
+	)
+
+
 static func range_for(base: float, bonus: float) -> float:
 	return minf(maxf(base, 0.0) * (1.0 + maxf(bonus, 0.0)), RANGE_ABSOLUTE_MAX)
 
