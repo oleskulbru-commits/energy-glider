@@ -5,6 +5,8 @@ const REST_MODULATE := Color(0.58, 0.52, 0.44, 1.0)
 const LIT_MODULATE := Color(1.0, 1.0, 1.0, 1.0)
 const GLOW_PAD_SCALE := 0.06
 const GLOW_FADE_TIME := 0.22
+const MENU_THEME_DELAY := 2.0
+const MENU_THEME_FADE_TIME := 1.0
 
 @export var play_hover_texture: Texture2D
 @export var small_hover_texture: Texture2D
@@ -16,10 +18,13 @@ var vestiges: int = 0
 @onready var _quit_button: TextureButton = %QuitButton
 @onready var _hover_glow: TextureRect = %HoverGlow
 @onready var _vestiges_label: Label = %VestigesLabel
+@onready var _menu_theme: AudioStreamPlayer = %MenuTheme
 
 var _buttons: Array[TextureButton] = []
 var _hovered_button: TextureButton
 var _glow_tween: Tween
+var _theme_fade_tween: Tween
+var _starting_game := false
 
 
 func _ready() -> void:
@@ -38,6 +43,7 @@ func _ready() -> void:
 	_hover_glow.modulate.a = 0.0
 	_hover_glow.visible = false
 	resized.connect(_place_glow_if_hovered)
+	_play_menu_theme()
 	call_deferred("_focus_play")
 
 
@@ -55,6 +61,27 @@ func _cover_window() -> void:
 
 
 func _on_play_pressed() -> void:
+	if _starting_game:
+		return
+	_starting_game = true
+	_play_button.disabled = true
+	if _theme_fade_tween != null and _theme_fade_tween.is_valid():
+		_theme_fade_tween.kill()
+	var from_volume := db_to_linear(_menu_theme.volume_db)
+	if not _menu_theme.playing or from_volume <= 0.001:
+		_start_game()
+		return
+	_theme_fade_tween = create_tween()
+	_theme_fade_tween.tween_method(_set_theme_linear_volume, from_volume, 0.0, MENU_THEME_FADE_TIME)
+	_theme_fade_tween.tween_callback(_start_game)
+
+
+func _set_theme_linear_volume(linear: float) -> void:
+	_menu_theme.volume_db = linear_to_db(maxf(linear, 0.0001))
+
+
+func _start_game() -> void:
+	_menu_theme.stop()
 	get_tree().change_scene_to_file(GAME_SCENE)
 
 
@@ -64,6 +91,23 @@ func _on_unlocks_pressed() -> void:
 
 func _on_quit_pressed() -> void:
 	get_tree().quit()
+
+
+func _play_menu_theme() -> void:
+	var theme := _menu_theme.stream as AudioStreamMP3
+	if theme != null:
+		theme.loop = true
+	_set_theme_linear_volume(0.0)
+	_theme_fade_tween = create_tween()
+	_theme_fade_tween.tween_interval(MENU_THEME_DELAY)
+	_theme_fade_tween.tween_callback(_begin_menu_theme)
+	_theme_fade_tween.tween_method(_set_theme_linear_volume, 0.0, 1.0, MENU_THEME_FADE_TIME)
+
+
+func _begin_menu_theme() -> void:
+	if _starting_game or _menu_theme.playing:
+		return
+	_menu_theme.play()
 
 
 func _focus_play() -> void:

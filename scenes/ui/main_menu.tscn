@@ -1,4 +1,4 @@
-[gd_scene load_steps=21 format=3]
+[gd_scene load_steps=22 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/main_menu.gd" id="1_menu"]
 [ext_resource type="Shader" path="res://shaders/black_key.gdshader" id="2_key"]
@@ -11,6 +11,7 @@
 [ext_resource type="Texture2D" path="res://assets/ui/main_menu/hover_glow_small.png" id="7_glow_small"]
 [ext_resource type="Texture2D" path="res://assets/ui/main_menu/vestiges.jpg" id="8_vestiges"]
 [ext_resource type="FontFile" path="res://assets/fonts/Rajdhani-Bold.ttf" id="9_font"]
+[ext_resource type="AudioStream" path="res://assets/audio/ui/main_menu_theme.mp3" id="10_theme"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_key"]
 shader = ExtResource("2_key")
@@ -183,3 +184,7 @@ material = SubResource("ShaderMaterial_key")
 texture = SubResource("AtlasTexture_vestiges")
 expand_mode = 1
 stretch_mode = 5
+
+[node name="MenuTheme" type="AudioStreamPlayer" parent="."]
+unique_name_in_owner = true
+stream = ExtResource("10_theme")
