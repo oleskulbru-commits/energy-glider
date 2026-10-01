@@ -340,7 +340,8 @@ func take_damage(
 	if garrisoned:
 		_alert_garrison_pack()
 	var is_lethal := _hp <= 0
-	_try_spawn_hit_fragments(hit_dir, is_crit, weapon_family, is_lethal)
+	if not is_lethal:
+		_try_spawn_hit_fragments(hit_dir, is_crit, weapon_family, false)
 	_try_spawn_hit_sparks(hit_dir, is_crit, weapon_family, is_lethal)
 	if is_lethal:
 		if stats != null:
@@ -457,8 +458,9 @@ func get_hit_fragment_count(
 	_weapon_family: StringName = &"",
 	is_lethal: bool = false
 ) -> int:
+	# Lethal crawlers use CrawlerDeathBurst (fractured GLB), not hit-fragment chips.
 	if is_lethal:
-		return 4
+		return 0
 	if is_crit:
 		return 1
 	return 0
