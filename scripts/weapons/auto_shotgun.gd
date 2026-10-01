@@ -152,12 +152,16 @@ func _facing_xz() -> Vector3:
 	return Vector3.ZERO
 
 
+func _is_aiming() -> bool:
+	return _rig != null and _rig.is_weapon_aiming()
+
+
 func _fire_volley() -> bool:
 	var origin := _muzzle_origin()
 	var facing := _facing_xz()
 	var range_m := _current_range()
 	var pills := get_tree().get_nodes_in_group("swarm_pill")
-	var target := pick_target(pills, origin, facing, range_m, _rng)
+	var target := pick_target(pills, origin, facing, range_m, _rng, _is_aiming())
 	if target == null:
 		return false
 	var aim := aim_vector(origin, WeaponTargeting.lock_point(target, origin), facing)
@@ -275,8 +279,11 @@ static func pick_target(
 	origin: Vector3,
 	facing: Vector3,
 	range_m: float,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	aimed: bool = false
 ) -> Node3D:
+	if aimed:
+		return preview_primary_target(pills, origin, facing, range_m)
 	var magnet := WeaponTargeting.find_magnet(
 		pills, origin, facing, range_m, true, BELOW_XZ_EPS_M
 	)

@@ -77,7 +77,8 @@ func _spawn_beam() -> bool:
 		facing,
 		range_m,
 		_claimed_lock_ids(),
-		_rng
+		_rng,
+		_is_aiming()
 	)
 	if target == null:
 		return false
@@ -178,6 +179,14 @@ func _facing_xz() -> Vector3:
 	return Vector3.ZERO
 
 
+func is_weapon_aiming() -> bool:
+	return _rig != null and _rig.is_weapon_aiming()
+
+
+func _is_aiming() -> bool:
+	return is_weapon_aiming()
+
+
 func _pills() -> Array:
 	return get_tree().get_nodes_in_group("swarm_pill")
 
@@ -270,8 +279,12 @@ static func pick_unique_target(
 	facing: Vector3,
 	range_m: float,
 	exclude: Dictionary,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	aimed: bool = false
 ) -> Node3D:
+	## Held aim stays on the reticle lock, even if another beam already claimed it.
+	if aimed:
+		return preview_primary_target(pills, origin, facing, range_m)
 	var magnet := WeaponTargeting.find_magnet(pills, origin, facing, range_m)
 	if magnet != null:
 		return magnet

@@ -142,7 +142,8 @@ func _fire_at_current_target() -> bool:
 		origin,
 		facing,
 		_current_range(),
-		_rng
+		_rng,
+		_is_aiming()
 	)
 	if target == null:
 		return false
@@ -171,6 +172,10 @@ func _facing_xz() -> Vector3:
 	if _rig != null:
 		return _rig.weapon_facing_xz()
 	return Vector3.ZERO
+
+
+func _is_aiming() -> bool:
+	return _rig != null and _rig.is_weapon_aiming()
 
 
 func _fire(origin: Vector3, target: Node3D) -> void:
@@ -232,8 +237,12 @@ static func pick_target(
 	origin: Vector3,
 	facing: Vector3,
 	range_m: float,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	aimed: bool = false
 ) -> Node3D:
+	## Held aim fires the same lock the reticle draws. Idle fire still spreads.
+	if aimed:
+		return preview_primary_target(pills, origin, facing, range_m)
 	var magnet := WeaponTargeting.find_magnet(pills, origin, facing, range_m)
 	if magnet != null:
 		return magnet
@@ -243,7 +252,7 @@ static func pick_target(
 	return candidates[rng.randi_range(0, candidates.size() - 1)]
 
 
-## Deterministic primary lock for HUD aim markers (magnet, else closest in cone). No bounce.
+## Deterministic primary lock shared by the aim reticle and held-aim fire. No bounce.
 static func preview_primary_target(
 	pills: Array,
 	origin: Vector3,

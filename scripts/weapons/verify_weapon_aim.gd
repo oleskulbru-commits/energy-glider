@@ -20,6 +20,7 @@ func _run() -> void:
 	_verify_zero_look_falls_back()
 	_verify_aim_chip_border()
 	_verify_preview_primary_locks()
+	_verify_aimed_fire_matches_reticle()
 	_verify_aim_lock_reticles_hud()
 	print("Weapon aim verification passed.")
 	quit(0)
@@ -117,6 +118,49 @@ func _verify_preview_primary_locks() -> void:
 	near_front.free()
 	far_front.free()
 	behind.free()
+
+
+func _verify_aimed_fire_matches_reticle() -> void:
+	var origin := Vector3(0.0, 1.0, 0.0)
+	var facing := Vector3(-1.0, 0.0, 0.0)
+	var near := _make_pill(Vector3(-12.0, 0.0, 2.0))
+	var mid := _make_pill(Vector3(-24.0, 0.0, -6.0))
+	var far := _make_pill(Vector3(-40.0, 0.0, 8.0))
+	var pills: Array = [far, mid, near]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var rifle_lock := AutoRifleScript.preview_primary_target(pills, origin, facing, 75.0)
+	var shotgun_lock := AutoShotgunScript.preview_primary_target(pills, origin, facing, 40.0)
+	var laser_lock := AutoLaserScript.preview_primary_target(pills, origin, facing, 45.0)
+	var tesla_lock := AutoTeslaScript.preview_primary_target(pills, origin, facing, 20.0)
+	_fail_unless(rifle_lock == near, "Reticle lock should be the closest front target")
+	_fail_unless(shotgun_lock == near, "Shotgun reticle should mark the closest target")
+	_fail_unless(laser_lock == near, "Laser reticle should mark the closest target")
+	_fail_unless(tesla_lock == near, "Tesla reticle should mark the closest target in range")
+	var saw_other := false
+	for _i in 24:
+		var rifle_shot := AutoRifleScript.pick_target(pills, origin, facing, 75.0, rng, true)
+		var shotgun_shot := AutoShotgunScript.pick_target(pills, origin, facing, 40.0, rng, true)
+		var laser_shot := AutoLaserScript.pick_unique_target(
+			pills, origin, facing, 45.0, {near.get_instance_id(): true}, rng, true
+		)
+		var tesla_shots := AutoTeslaScript.pick_unique_targets(
+			pills, origin, facing, 20.0, 1, rng, {near.get_instance_id(): true}, true
+		)
+		_fail_unless(rifle_shot == rifle_lock, "Aimed rifle should fire the reticle lock")
+		_fail_unless(shotgun_shot == shotgun_lock, "Aimed shotgun should fire the reticle lock")
+		_fail_unless(laser_shot == laser_lock, "Aimed laser should fire the reticle lock")
+		_fail_unless(
+			tesla_shots.size() == 1 and tesla_shots[0] == tesla_lock,
+			"Aimed tesla should strike the reticle lock"
+		)
+		var idle := AutoRifleScript.pick_target(pills, origin, facing, 75.0, rng, false)
+		if idle != null and idle != rifle_lock:
+			saw_other = true
+	_fail_unless(saw_other, "Idle fire should still spread across the cone")
+	near.free()
+	mid.free()
+	far.free()
 
 
 func _verify_aim_lock_reticles_hud() -> void:

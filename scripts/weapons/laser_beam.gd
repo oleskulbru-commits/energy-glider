@@ -73,7 +73,10 @@ func advance(
 	if _fire_left <= 0.0:
 		_finish()
 		return
-	if not _is_target_alive():
+	var owner := get_parent() as AutoLaser
+	if owner != null and owner.is_weapon_aiming():
+		_follow_aim_lock(origin, facing, pills, rng)
+	elif not _is_target_alive():
 		_retarget(origin, facing, pills, rng)
 	if _is_target_alive():
 		_show_beam(origin, _aim_point())
@@ -98,6 +101,24 @@ func _deal_tick(
 	_drop_dead_hops()
 	for i in _hops.size():
 		_hurt_living(_hops[i], damage_bonus, crit_chance, rng, false, i + 1)
+
+
+## While aim is held, the live beam stays on the reticle lock.
+func _follow_aim_lock(
+	origin: Vector3, facing: Vector3, pills: Array, rng: RandomNumberGenerator
+) -> void:
+	var next := AutoLaser.pick_unique_target(
+		pills, origin, facing, _acquire_range, {}, rng, true
+	)
+	if next == _target:
+		return
+	var owner := get_parent() as AutoLaser
+	if owner != null:
+		owner._release_primary(self)
+	_target = next
+	if owner != null and next != null:
+		owner._claim_primary(self, next)
+	_rebuild_hops(pills, rng)
 
 
 func _retarget(

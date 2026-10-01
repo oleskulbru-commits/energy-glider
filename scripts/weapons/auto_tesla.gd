@@ -74,7 +74,9 @@ func _fire_one() -> bool:
 	var facing := _facing_xz()
 	var range_m := _current_range()
 	var pills := _pills()
-	var targets := pick_unique_targets(pills, origin, facing, range_m, 1, _rng, _volley_exclude)
+	var targets := pick_unique_targets(
+		pills, origin, facing, range_m, 1, _rng, _volley_exclude, _is_aiming()
+	)
 	if targets.is_empty():
 		return false
 	var target := targets[0]
@@ -147,6 +149,10 @@ func _facing_xz() -> Vector3:
 	return Vector3.ZERO
 
 
+func _is_aiming() -> bool:
+	return _rig != null and _rig.is_weapon_aiming()
+
+
 func _pills() -> Array:
 	return get_tree().get_nodes_in_group("swarm_pill")
 
@@ -216,11 +222,21 @@ static func pick_unique_targets(
 	range_m: float,
 	count: int,
 	rng: RandomNumberGenerator,
-	exclude: Dictionary = {}
+	exclude: Dictionary = {},
+	aimed: bool = false
 ) -> Array[Node3D]:
 	var found: Array[Node3D] = []
 	var want := maxi(count, 0)
-	if want <= 0 or rng == null:
+	if want <= 0:
+		return found
+	if aimed:
+		var primary := preview_primary_target(pills, origin, facing, range_m)
+		if primary == null:
+			return found
+		for _i in want:
+			found.append(primary)
+		return found
+	if rng == null:
 		return found
 	var magnet := WeaponTargeting.find_magnet(pills, origin, facing, range_m)
 	if magnet != null:
