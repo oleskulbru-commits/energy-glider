@@ -6,7 +6,7 @@ extends Node
 const RifleBulletScene := preload("res://scenes/weapons/rifle_bullet.tscn")
 const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 
-const DAMAGE := 10
+const DAMAGE := 20
 const RANGE_M := 75.0
 const RANGE_ABSOLUTE_MAX := 200.0
 const FIRE_INTERVAL_SEC := 2.3
@@ -142,7 +142,8 @@ func _fire_at_current_target() -> bool:
 		origin,
 		facing,
 		_current_range(),
-		_rng
+		_rng,
+		_is_aiming()
 	)
 	if target == null:
 		return false
@@ -168,17 +169,20 @@ func _muzzle_origin() -> Vector3:
 
 
 func _facing_xz() -> Vector3:
-	var glider := _rig.get_glider() if _rig != null else null
-	if glider == null:
-		return Vector3.ZERO
-	return MathUtil.yaw_forward(glider.get_yaw())
+	if _rig != null:
+		return _rig.weapon_facing_xz()
+	return Vector3.ZERO
+
+
+func _is_aiming() -> bool:
+	return _rig != null and _rig.is_weapon_aiming()
 
 
 func _fire(origin: Vector3, target: Node3D) -> void:
 	var bullet: RifleBullet = RifleBulletScene.instantiate() as RifleBullet
 	var parent := SceneUtilScript.world_parent(get_tree(), _rig)
 	parent.add_child(bullet)
-	var aim := target.global_position + Vector3(0.0, 0.7, 0.0) - origin
+	var aim := RifleBullet.aim_point_for(target, origin) - origin
 	bullet.launch(
 		origin,
 		target,
@@ -220,9 +224,9 @@ static func collect_candidates(
 			continue
 		if pill is SwarmPill and not (pill as SwarmPill).is_alive():
 			continue
-		if xz_distance(origin, pill.global_position) > range_m:
+		if not WeaponTargeting.in_xz_range(origin, pill, range_m):
 			continue
-		if not is_in_front(origin, facing, pill.global_position):
+		if not WeaponTargeting.is_lock_in_front(origin, facing, pill):
 			continue
 		found.append(pill)
 	return found
@@ -233,15 +237,61 @@ static func pick_target(
 	origin: Vector3,
 	facing: Vector3,
 	range_m: float,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	aimed: bool = false
 ) -> Node3D:
-	var magnet := WeaponTargeting.find_laser_drone_magnet(pills, origin, facing, range_m)
+	## Held aim fires the same lock the reticle draws. Idle fire still spreads.
+	if aimed:
+		return preview_primary_target(pills, origin, facing, range_m)
+	var magnet := WeaponTargeting.find_magnet(pills, origin, facing, range_m)
 	if magnet != null:
 		return magnet
 	var candidates := collect_candidates(pills, origin, facing, range_m)
 	if candidates.is_empty():
 		return null
 	return candidates[rng.randi_range(0, candidates.size() - 1)]
+
+
+## Deterministic primary lock shared by the aim reticle and held-aim fire. No bounce.
+static func preview_primary_target(
+	pills: Array,
+	origin: Vector3,
+	facing: Vector3,
+	range_m: float
+) -> Node3D:
+	var magnet := WeaponTargeting.find_magnet(pills, origin, facing, range_m)
+	if magnet != null:
+		return magnet
+	return closest_candidate(collect_candidates(pills, origin, facing, range_m), origin)
+
+
+static func closest_candidate(candidates: Array, origin: Vector3) -> Node3D:
+	var best: Node3D = null
+	var best_d := INF
+	for node in candidates:
+		var pill := node as Node3D
+		if pill == null or not is_instance_valid(pill):
+			continue
+		var d := xz_distance(origin, WeaponTargeting.lock_point(pill, origin))
+		if d < best_d:
+			best_d = d
+			best = pill
+	return best
+
+
+func preview_lock() -> Node3D:
+	var state := _upgrade_state()
+	if state == null or not state.has_rifle:
+		return null
+	var tree := get_tree()
+	if tree == null:
+		return null
+	return preview_primary_target(
+		tree.get_nodes_in_group("swarm_pill"),
+		_muzzle_origin(),
+		_facing_xz(),
+		_current_range()
+	)
 
 
 static func range_for(base: float, bonus: float) -> float:
@@ -259,7 +309,14 @@ static func pick_bounce_target(
 	exclude: Dictionary,
 	rng: RandomNumberGenerator
 ) -> Node3D:
-	var magnet := WeaponTargeting.find_laser_drone_magnet_bounce(pills, from, bounce_range)
+	var bounce_pills: Array = []
+	for node in pills:
+		if node == null or not is_instance_valid(node):
+			continue
+		if exclude.has(node.get_instance_id()):
+			continue
+		bounce_pills.append(node)
+	var magnet := WeaponTargeting.find_magnet_bounce(bounce_pills, from, bounce_range)
 	if magnet != null:
 		return magnet
 	var found: Array[Node3D] = []
@@ -271,7 +328,7 @@ static func pick_bounce_target(
 			continue
 		if exclude.has(pill.get_instance_id()):
 			continue
-		if xz_distance(from, pill.global_position) > bounce_range:
+		if not WeaponTargeting.in_xz_range(from, pill, bounce_range):
 			continue
 		found.append(pill)
 	if found.is_empty() or rng == null:
@@ -291,14 +348,14 @@ static func build_bounce_chain(
 		return chain
 	var exclude: Dictionary = {}
 	exclude[start.get_instance_id()] = true
-	var from := start.global_position
+	var from := WeaponTargeting.lock_point(start, start.global_position)
 	for _i in bounce_count:
 		var next := pick_bounce_target(pills, from, bounce_range, exclude, rng)
 		if next == null:
 			break
 		chain.append(next)
 		exclude[next.get_instance_id()] = true
-		from = next.global_position
+		from = WeaponTargeting.lock_point(next, from)
 	return chain
 
 

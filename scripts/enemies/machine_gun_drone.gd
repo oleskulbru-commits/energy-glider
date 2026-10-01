@@ -1,17 +1,18 @@
 class_name MachineGunDrone
 extends "res://scripts/enemies/combat_drone.gd"
 
-## Invulnerable yellow cube. Align: locked X, mirrors player Z. Charge: steers toward player with a turn cap.
+## Green cube. Align: locked X, mirrors player Z. Charge: steers toward player with a turn cap.
 
 const DroneLaserBlastScript = preload("res://scripts/enemies/drone_laser_blast.gd")
 const DroneMgRoundScript = preload("res://scripts/enemies/drone_mg_round.gd")
 
 const CHARGE_TRIGGER_M := 100.0
 const CHARGE_SPEED_MPS := 28.0
-const CHARGE_TURN_RATE_DEG := 36.0
+const CHARGE_TURN_RATE_DEG := 72.0
 const MG_FIRE_INTERVAL_SEC := 0.05
 const PASS_DAMAGE := 15
-const PASS_HIT_HALF_XZ_M := CUBE_SIZE_M * DRONE_SIZE_MULT * 0.5
+## Wider than the cube so a near-miss flyby still counts as a hit.
+const PASS_HIT_HALF_XZ_M := 2.5
 const PASS_HIT_ABOVE_M := CUBE_SIZE_M * DRONE_SIZE_MULT * 0.5
 ## Drone cruises above the player; reach down through that gap for overhead passes.
 const PASS_HIT_BELOW_M := CRUISE_HEIGHT_M + 2.0
@@ -25,6 +26,7 @@ var _phase := FlyPhase.ALIGN
 var _lane_forward := Vector3(-1.0, 0.0, 0.0)
 var _hold_x := 0.0
 var _charge_heading := Vector3(1.0, 0.0, 0.0)
+var _charge_clearance_m := CRUISE_HEIGHT_M
 var _pass_damage_dealt := false
 var _exit_left := 0.0
 var _mg_cooldown := 0.0
@@ -34,8 +36,7 @@ var _tracer_size_ref: MeshInstance3D
 
 
 func _ready() -> void:
-	_cube_color = Color(0.95, 0.78, 0.12)
-	invulnerable = true
+	_cube_color = Color(0.22, 0.82, 0.32)
 	super._ready()
 	add_to_group("machine_gun_drone")
 	_cache_gun_barrel()
@@ -134,6 +135,24 @@ func _begin_charge() -> void:
 	)
 	_phase = FlyPhase.CHARGE
 	_charge_heading = charge_heading_xz(global_position, _target.global_position)
+	_charge_clearance_m = terrain_clearance_m(global_position, _terrain)
+
+
+func _snap_to_cruise_height(instant: bool, delta: float = 0.016) -> void:
+	if _phase == FlyPhase.CHARGE or _phase == FlyPhase.EXIT:
+		global_position.y = follow_terrain_y(
+			_sample_ground_y(global_position),
+			_charge_clearance_m
+		)
+		velocity.y = 0.0
+		return
+	super._snap_to_cruise_height(instant, delta)
+
+
+func _sample_ground_y(world: Vector3) -> float:
+	if _terrain == null:
+		return 0.0
+	return _terrain.sample_height(world.x, world.z)
 
 
 func _tick_charge_steering(delta: float) -> void:
@@ -256,6 +275,18 @@ static func ahead_offset_m(
 		fwd = fwd.normalized()
 	var offset := Vector3(drone_pos.x - player_pos.x, 0.0, drone_pos.z - player_pos.z)
 	return offset.dot(fwd)
+
+
+## Keep a constant hover over local sand so a charge rides hills and valleys.
+static func follow_terrain_y(ground_y: float, clearance_m: float) -> float:
+	return ground_y + maxf(clearance_m, 0.0)
+
+
+static func terrain_clearance_m(world: Vector3, terrain: TerrainManager) -> float:
+	var ground_y := 0.0
+	if terrain != null:
+		ground_y = terrain.sample_height(world.x, world.z)
+	return maxf(CRUISE_HEIGHT_M, world.y - ground_y)
 
 
 ## Locked at spawn X; mirrors player Z while aligning. Height comes from cruise snap.

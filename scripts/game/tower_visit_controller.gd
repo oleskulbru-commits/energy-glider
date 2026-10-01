@@ -3,6 +3,7 @@ extends Node
 
 ## Opens the upgrade menu the first time a west tower is entered within 20 m this life.
 ## Also heals once per tower per life: tower N restores N * 5 HP (capped at max).
+## A bonus on level N uses the same heal as westbound tower N.
 
 const VISIT_RADIUS_M := 20.0
 const VISIT_HEAL_PER_TOWER_INDEX := 5
@@ -45,12 +46,28 @@ func _process(_delta: float) -> void:
 	_menu.open_for(tower, _state, _rig)
 
 
+func open_boss_reward(tower: UpgradeTower) -> void:
+	if tower == null or _state == null or _menu == null:
+		return
+	if _menu.is_open():
+		return
+	if _rig != null:
+		var glider := _rig.get_glider()
+		if glider != null and glider.is_run_ended():
+			return
+	if _state.has_visited_this_life(tower.tower_index):
+		return
+	_state.mark_visited_this_life(tower.tower_index)
+	_apply_visit_heal(tower)
+	_menu.open_for(tower, _state, _rig)
+
+
 static func visit_heal_amount(tower_index: int) -> int:
 	return maxi(tower_index, 0) * VISIT_HEAL_PER_TOWER_INDEX
 
 
 func _apply_visit_heal(tower: UpgradeTower) -> void:
-	var amount := visit_heal_amount(tower.tower_index)
+	var amount := visit_heal_amount(tower.visit_heal_level())
 	if amount <= 0:
 		return
 	var health := _rig.get_node_or_null("PlayerHealth") as PlayerHealth
@@ -67,14 +84,32 @@ static func xz_distance(a: Vector3, b: Vector3) -> float:
 static func find_visit_tower(tree: SceneTree, origin: Vector3) -> UpgradeTower:
 	if tree == null:
 		return null
+	if _is_boss_blocking_upgrades(tree):
+		return null
 	var best: UpgradeTower = null
 	var best_dist := VISIT_RADIUS_M
 	for node in tree.get_nodes_in_group("upgrade_tower"):
 		var tower := node as UpgradeTower
 		if tower == null or not tower.is_upgrade_stop():
 			continue
+		if tower.is_bonus and _is_bonus_visit_locked(tree, tower):
+			continue
 		var dist := xz_distance(origin, tower.global_position)
 		if dist <= best_dist:
 			best_dist = dist
 			best = tower
 	return best
+
+
+static func _is_bonus_visit_locked(tree: SceneTree, tower: UpgradeTower) -> bool:
+	var garrison := tree.get_first_node_in_group("bonus_tower_garrison")
+	if garrison == null or not garrison.has_method("is_visit_locked"):
+		return false
+	return bool(garrison.is_visit_locked(tower))
+
+
+static func _is_boss_blocking_upgrades(tree: SceneTree) -> bool:
+	var director := tree.get_first_node_in_group("boss_director")
+	if director == null or not director.has_method("is_blocking_upgrades"):
+		return false
+	return bool(director.is_blocking_upgrades())

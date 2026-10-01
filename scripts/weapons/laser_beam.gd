@@ -3,6 +3,8 @@ extends Node3D
 
 ## Scrolling streak beam, camera-facing ribbon. Clock keeps running with no target.
 
+const SwarmPillScript := preload("res://scripts/enemies/swarm_pill.gd")
+
 const AIM_UP_M := 0.7
 const BEAM_GLOW_WIDTH := 0.28
 const BEAM_CORE_WIDTH := 0.10
@@ -23,6 +25,7 @@ var _burst: CPUParticles3D
 var _bounce_count := 0
 var _bounce_range := 0.0
 var _acquire_range := 0.0
+var _muzzle := Vector3.ZERO
 var _hops: Array[Node3D] = []
 var _hop_glow_ribbons: Array[_BeamRibbon] = []
 var _hop_core_ribbons: Array[_BeamRibbon] = []
@@ -63,13 +66,17 @@ func advance(
 ) -> void:
 	if acquire_range >= 0.0:
 		_acquire_range = acquire_range
+	_muzzle = origin
 	if finished:
 		return
 	_fire_left -= delta
 	if _fire_left <= 0.0:
 		_finish()
 		return
-	if not _is_target_alive():
+	var owner := get_parent() as AutoLaser
+	if owner != null and owner.is_weapon_aiming():
+		_follow_aim_lock(origin, facing, pills, rng)
+	elif not _is_target_alive():
 		_retarget(origin, facing, pills, rng)
 	if _is_target_alive():
 		_show_beam(origin, _aim_point())
@@ -90,10 +97,28 @@ func _deal_tick(
 	crit_chance: float = 0.0,
 	rng: RandomNumberGenerator = null
 ) -> void:
-	_hurt_living(_target, damage_bonus, crit_chance, rng, true)
+	_hurt_living(_target, damage_bonus, crit_chance, rng, true, 0)
 	_drop_dead_hops()
-	for hop in _hops:
-		_hurt_living(hop, damage_bonus, crit_chance, rng, false)
+	for i in _hops.size():
+		_hurt_living(_hops[i], damage_bonus, crit_chance, rng, false, i + 1)
+
+
+## While aim is held, the live beam stays on the reticle lock.
+func _follow_aim_lock(
+	origin: Vector3, facing: Vector3, pills: Array, rng: RandomNumberGenerator
+) -> void:
+	var next := AutoLaser.pick_unique_target(
+		pills, origin, facing, _acquire_range, {}, rng, true
+	)
+	if next == _target:
+		return
+	var owner := get_parent() as AutoLaser
+	if owner != null:
+		owner._release_primary(self)
+	_target = next
+	if owner != null and next != null:
+		owner._claim_primary(self, next)
+	_rebuild_hops(pills, rng)
 
 
 func _retarget(
@@ -124,7 +149,7 @@ func _is_target_alive() -> bool:
 
 
 func _aim_point() -> Vector3:
-	return _target.global_position + Vector3(0.0, AIM_UP_M, 0.0)
+	return WeaponTargeting.lock_point(_target, _muzzle)
 
 
 func _finish() -> void:
@@ -276,17 +301,35 @@ func _hurt_living(
 	damage_bonus: float,
 	crit_chance: float,
 	rng: RandomNumberGenerator,
-	pop_burst: bool
+	pop_burst: bool,
+	hop_index: int = 0
 ) -> void:
 	if not _is_living(node):
 		return
-	var pill := node as SwarmPill
+	_hurt_pill(node as SwarmPillScript, damage_bonus, crit_chance, rng, pop_burst, hop_index)
+
+
+func _hurt_pill(
+	pill: SwarmPillScript,
+	damage_bonus: float,
+	crit_chance: float,
+	rng: RandomNumberGenerator,
+	pop_burst: bool,
+	hop_index: int = 0
+) -> void:
 	if pill == null:
 		return
 	var is_crit := AutoRifle.roll_crit(crit_chance, rng)
-	var amount := AutoRifle.crit_damage_for(AutoLaser.damage_for(damage_bonus), is_crit)
-	var at := pill.global_position + Vector3(0.0, AIM_UP_M, 0.0)
-	pill.take_damage(amount, Vector3.ZERO, is_crit, SwarmPill.HIT_KNOCKBACK_SPEED, UpgradeCatalog.FAMILY_LASER)
+	var base := AutoLaser.bounce_tick_damage(AutoLaser.damage_for(damage_bonus), hop_index)
+	var amount := AutoRifle.crit_damage_for(base, is_crit)
+	var at := WeaponTargeting.lock_point(pill, _muzzle)
+	pill.take_damage(
+		amount,
+		Vector3.ZERO,
+		is_crit,
+		SwarmPillScript.HIT_KNOCKBACK_SPEED,
+		UpgradeCatalog.FAMILY_LASER
+	)
 	if pop_burst:
 		_pop_burst_at(at)
 
@@ -343,9 +386,9 @@ func _show_hops() -> void:
 				_hide_hop_segment(i)
 			prev_alive = hop_alive
 			if hop_alive:
-				from = hop.global_position + Vector3(0.0, AIM_UP_M, 0.0)
+				from = WeaponTargeting.lock_point(hop, from)
 			continue
-		var to := hop.global_position + Vector3(0.0, AIM_UP_M, 0.0)
+		var to := WeaponTargeting.lock_point(hop, from)
 		_place_hop_segment(i, from, to)
 		from = to
 		prev_alive = true

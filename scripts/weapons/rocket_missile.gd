@@ -4,6 +4,7 @@ extends Area3D
 ## Lofted homing missile with drone mesh visual and sand-texture smoke trail.
 
 const AutoRocketScript := preload("res://scripts/weapons/auto_rocket.gd")
+const SwarmPillScript := preload("res://scripts/enemies/swarm_pill.gd")
 const DroneMissileProjectileScene := preload("res://scenes/enemies/rebel_drones/drone_missile_projectile.tscn")
 const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
 const AerialExplosionVfxScript := preload("res://scripts/vfx/aerial_explosion_vfx.gd")
@@ -13,7 +14,7 @@ const LIFETIME_SEC := 8.0
 const LOFT_M := 6.0
 const BOOST_SEC := LOFT_M / SPEED_MPS
 const HOMING := 0.85
-const DAMAGE := 18
+const DAMAGE := 28
 const KNOCKBACK_SPEED := 20.0
 const AIM_UP_M := 0.7
 
@@ -149,14 +150,14 @@ func _aim_vector() -> Vector3:
 	if _target == null or not is_instance_valid(_target):
 		_target = null
 		return Vector3.ZERO
-	return _target.global_position + Vector3(0.0, AIM_UP_M, 0.0) - global_position
+	return WeaponTargeting.lock_point(_target, global_position) - global_position
 
 
 func _is_lock_alive() -> bool:
 	if _target == null or not is_instance_valid(_target):
 		return false
-	if _target is SwarmPill:
-		return (_target as SwarmPill).is_alive()
+	if _target is SwarmPillScript:
+		return (_target as SwarmPillScript).is_alive()
 	return true
 
 
@@ -202,7 +203,7 @@ func _orient() -> void:
 func _on_body_entered(body: Node) -> void:
 	if _spent:
 		return
-	var pill := body as SwarmPill
+	var pill := body as SwarmPillScript
 	if pill == null or not pill.is_alive():
 		return
 	var hit := _resolve_hit()

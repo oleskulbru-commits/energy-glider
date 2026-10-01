@@ -1,0 +1,1953 @@
+extends SceneTree
+
+const BossDirectorScript := preload("res://scripts/game/boss_director.gd")
+const SunEaterScene := preload("res://scenes/enemies/sun_eater.tscn")
+const SunEaterScript := preload("res://scripts/enemies/sun_eater.gd")
+const NightVolumeScript := preload("res://scripts/world/night_volume.gd")
+const DayNightCycleScript := preload("res://scripts/world/day_night_cycle.gd")
+const UpgradeCatalogScript := preload("res://scripts/game/upgrade_catalog.gd")
+const TowerVisitControllerScript := preload("res://scripts/game/tower_visit_controller.gd")
+const UpgradeTowerScript := preload("res://scripts/world/upgrade_tower.gd")
+const EnemyStreamSpawnerScript := preload("res://scripts/enemies/enemy_stream_spawner.gd")
+const NightScarabScene := preload("res://scenes/enemies/night_scarab.tscn")
+const NightScarabScript := preload("res://scripts/enemies/night_scarab.gd")
+const AutoRifleScript := preload("res://scripts/weapons/auto_rifle.gd")
+const AutoShotgunScript := preload("res://scripts/weapons/auto_shotgun.gd")
+const AutoTeslaScript := preload("res://scripts/weapons/auto_tesla.gd")
+const AutoLaserScript := preload("res://scripts/weapons/auto_laser.gd")
+const AutoRocketScript := preload("res://scripts/weapons/auto_rocket.gd")
+const WeaponTargetingScript := preload("res://scripts/weapons/weapon_targeting.gd")
+const RifleBulletScript := preload("res://scripts/weapons/rifle_bullet.gd")
+const SwarmPillScript := preload("res://scripts/enemies/swarm_pill.gd")
+const FingerScript := preload("res://scripts/enemies/sun_eater_finger.gd")
+const NightPortalScript := preload("res://scripts/enemies/night_portal.gd")
+const NightClawsScript := preload("res://scripts/enemies/night_claws.gd")
+const DamageFloatScript := preload("res://scripts/ui/damage_float.gd")
+
+var _failed := false
+
+
+func _init() -> void:
+	call_deferred("_run")
+
+
+func _run() -> void:
+	_verify_indexes_and_hp()
+	_verify_spawn_geometry()
+	_verify_encounter_gates()
+	_verify_sun_eater_theme()
+	_verify_ascent_and_hp_lock()
+	_verify_boss_targeting()
+	_verify_finger_mechanic()
+	_verify_night_portal()
+	_verify_night_claws()
+	_verify_portal_queues_during_claws()
+	_verify_night_volume()
+	_verify_night_spread()
+	_verify_night_scarabs()
+	_verify_boss_relocate()
+	_verify_stream_halt()
+	await _verify_visit_lock()
+	_verify_boss_shop()
+	if _failed:
+		quit(1)
+		return
+	print("Boss system verification passed.")
+	quit(0)
+
+
+func _verify_indexes_and_hp() -> void:
+	for index in [1, 9, 17, 25, 33]:
+		_fail_unless(
+			BossDirectorScript.is_boss_tower(index),
+			"Tower %d should be a boss tower" % index
+		)
+	for index in [0, 2, 7, 8, 15, 16, 23, 24, 31, 32, 39, 40, 41, 1004]:
+		_fail_unless(
+			not BossDirectorScript.is_boss_tower(index),
+			"Tower %d should not be a boss tower" % index
+		)
+	_fail_unless(BossDirectorScript.boss_ordinal(1) == 1, "First boss ordinal should be 1")
+	_fail_unless(BossDirectorScript.boss_ordinal(33) == 5, "Fifth boss ordinal should be 5")
+	_fail_unless(
+		BossDirectorScript.max_health_for_tower(1) == 5000,
+		"First boss should have 5000 HP"
+	)
+	_fail_unless(
+		BossDirectorScript.max_health_for_tower(9) == 10000,
+		"Second boss should have 10000 HP"
+	)
+	_fail_unless(
+		BossDirectorScript.max_health_for_tower(17) == 15000,
+		"Third boss should have 15000 HP"
+	)
+	_fail_unless(
+		BossDirectorScript.max_health_for_tower(25) == 20000,
+		"Fourth boss should have 20000 HP"
+	)
+	_fail_unless(
+		BossDirectorScript.max_health_for_tower(33) == 25000,
+		"Fifth boss should have 25000 HP"
+	)
+	_fail_unless(
+		BossDirectorScript.max_health_for_tower(7) == 0,
+		"Non-boss towers should not have boss HP"
+	)
+
+
+func _verify_spawn_geometry() -> void:
+	_fail_unless(
+		is_equal_approx(BossDirectorScript.SPAWN_TRIGGER_EAST_M, 200.0),
+		"Boss should trigger 200 m east of the tower"
+	)
+	_fail_unless(
+		is_equal_approx(BossDirectorScript.SPAWN_EAST_OF_TOWER_M, 100.0),
+		"Boss should spawn 100 m east of the tower"
+	)
+	_fail_unless(
+		is_equal_approx(BossDirectorScript.spawn_x_for_tower(-14000.0), -13900.0),
+		"Spawn X should sit 100 m east of the tower"
+	)
+	_fail_unless(
+		BossDirectorScript.has_reached_trigger(-13800.0, -14000.0),
+		"Player 200 m east of the tower should trigger the spawn"
+	)
+	_fail_unless(
+		not BossDirectorScript.has_reached_trigger(-13799.0, -14000.0),
+		"Player more than 200 m east should not trigger yet"
+	)
+	_fail_unless(
+		BossDirectorScript.has_reached_trigger(-14500.0, -14000.0),
+		"Player west of the tower should still count as past the trigger"
+	)
+
+
+func _verify_encounter_gates() -> void:
+	var empty: Dictionary = {}
+	_fail_unless(
+		BossDirectorScript.can_start_encounter(1, false, empty),
+		"First boss should spawn when none are living"
+	)
+	_fail_unless(
+		not BossDirectorScript.can_start_encounter(1, true, empty),
+		"A new boss should not spawn while another is alive"
+	)
+	_fail_unless(
+		not BossDirectorScript.can_start_encounter(9, false, empty),
+		"Second boss should wait until the first is defeated"
+	)
+	_fail_unless(
+		BossDirectorScript.can_start_encounter(9, false, {1: true}),
+		"Second boss should spawn after the first is defeated"
+	)
+	_fail_unless(
+		not BossDirectorScript.can_start_encounter(1, false, {1: true}),
+		"A defeated boss should not spawn again"
+	)
+	_fail_unless(
+		not BossDirectorScript.can_start_encounter(9, false, empty),
+		"Non-boss towers should not start an encounter"
+	)
+
+
+func _verify_sun_eater_theme() -> void:
+	_fail_unless(
+		is_equal_approx(BossDirectorScript.THEME_FADE_SEC, 5.0),
+		"Sun Eater theme should fade out over 5 seconds"
+	)
+	var director := BossDirectorScript.new()
+	root.add_child(director)
+	var theme := director.get_node("SunEaterTheme") as AudioStreamPlayer
+	_fail_unless(theme != null, "Boss director should own the Sun Eater theme player")
+	_fail_unless(theme.stream != null, "Sun Eater theme stream should load")
+	_fail_unless(theme.stream.loop, "Sun Eater theme should loop for the fight")
+	director.call("_play_theme")
+	_fail_unless(theme.playing, "Theme should start when the Sun Eater spawns")
+	_fail_unless(is_equal_approx(theme.volume_db, 0.0), "Theme should start at full volume, without a fade in")
+	_fail_unless(float(director.get("_theme_fade_t")) < 0.0, "Spawn should not start the fade")
+	director.call("_on_player_run_ended")
+	_fail_unless(float(director.get("_theme_fade_t")) < 0.0, "A missing player should not fade the theme")
+	director.call("_fade_theme")
+	_fail_unless(is_equal_approx(theme.volume_db, 0.0), "Fade out should begin at full volume")
+	var fade_mark := float(director.get("_theme_fade_t"))
+	director.call("_fade_theme")
+	_fail_unless(
+		is_equal_approx(float(director.get("_theme_fade_t")), fade_mark),
+		"A second death should not restart the 5 second fade"
+	)
+	director._process(2.5)
+	_fail_unless(
+		is_equal_approx(theme.volume_db, linear_to_db(0.5)),
+		"Theme should be half loudness halfway through the fade"
+	)
+	director._process(2.5)
+	_fail_unless(not theme.playing, "Theme should stop after the 5 second fade")
+	_fail_unless(is_equal_approx(theme.volume_db, 0.0), "A finished fade should leave the player at full volume")
+	director.call("_play_theme")
+	_fail_unless(theme.playing, "A later Sun Eater should start the theme again")
+	_fail_unless(is_equal_approx(theme.volume_db, 0.0), "A later Sun Eater should start at full volume")
+	_fail_unless(float(director.get("_theme_fade_t")) < 0.0, "A new spawn should cancel an old fade")
+	theme.stop()
+	director.free()
+
+
+func _verify_ascent_and_hp_lock() -> void:
+	_fail_unless(
+		is_equal_approx(SunEaterScript.ASCENT_SEC, 3.0),
+		"Sun Eater ascent should take 3 seconds"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.BRING_THE_NIGHT_SEC, 8.0),
+		"Bring the Night should fade in over 8 seconds after ascent"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.RELOCATE_PERIOD_SEC, 40.0),
+		"Boss should relocate after 40 seconds standing"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.BURIED_WAIT_SEC, 2.0),
+		"Boss should wait 2 seconds underground before respawning"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.MIN_RELOCATE_SEP_M, 100.0),
+		"Relocate picks should prefer 100 m from previous stands"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.diameter_for_relocate(0), 160.0),
+		"First night sphere should be 160 m"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.diameter_for_relocate(1), 160.0),
+		"Later boss night spheres should stay 160 m"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.diameter_for_relocate(2), 160.0),
+		"Hopped boss night spheres should not grow"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.sink_y(12.0, 0.0), 12.0),
+		"Sink should start standing"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.sink_y(12.0, 1.5), -38.0),
+		"Sink should be halfway after 1.5 seconds"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.sink_y(12.0, 3.0), -88.0),
+		"Sink should finish fully buried"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.HEIGHT_M, 100.0),
+		"Sun Eater should be as tall as the 100 m tower"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.RADIUS_M, 7.0),
+		"Sun Eater radius should be half the original 14 m"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.buried_y(12.0), -88.0),
+		"Buried pose should hide the full 100 m pill"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.standing_y(12.0), 12.0),
+		"Standing pose should rest on the ground"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.rise_y(12.0, 0.0), -88.0),
+		"Ascent should start fully buried"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.rise_y(12.0, 1.5), -38.0),
+		"Ascent should be halfway after 1.5 seconds"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.rise_y(12.0, 3.0), 12.0),
+		"Ascent should finish standing after 3 seconds"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.NIGHT_REGEN_PER_SEC, 30.0),
+		"Clock night should regenerate the boss at 30 HP per second"
+	)
+	_fail_unless(SunEaterScript.night_regen_heal(1.0) == 30, "One night second should heal 30")
+	_fail_unless(SunEaterScript.night_regen_heal(0.5) == 15, "Half a night second should heal 15")
+	var boss: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(boss)
+	boss.configure_encounter(1, 5000)
+	boss.apply_level_hp(40)
+	boss.apply_difficulty(1.0)
+	_fail_unless(boss.get_max_health() == 5000, "Level HP curve should not scale the boss")
+	_fail_unless(boss.get_health() == 5000, "Retry difficulty should not scale the boss")
+	boss.begin_ascent(12.0)
+	_fail_unless(
+		is_equal_approx(boss.global_position.y, -88.0),
+		"Boss should start the rise underground"
+	)
+	boss._physics_process(3.0)
+	_fail_unless(
+		is_equal_approx(boss.global_position.y, 12.0),
+		"Boss should stand still on the ground after 3 seconds"
+	)
+	boss.take_damage(100)
+	_fail_unless(boss.get_health() == 4900, "Damage should stick before clock night")
+	boss._physics_process(1.0)
+	_fail_unless(boss.get_health() == 4900, "The boss should not regenerate during the day")
+	boss.begin_clock_night()
+	boss._physics_process(1.0)
+	_fail_unless(boss.get_health() == 4930, "Clock night should regenerate 30 HP per second")
+	boss._physics_process(1.0)
+	_fail_unless(boss.get_health() == 4960, "Night regen should keep stacking")
+	boss._physics_process(2.0)
+	_fail_unless(boss.get_health() == 5000, "Night regen should stop at max HP")
+	boss.take_damage(100)
+	var night_cycle: DayNightCycle = DayNightCycleScript.new()
+	night_cycle.day_phase_sec = 240.0
+	night_cycle.night_phase_sec = 240.0
+	root.add_child(night_cycle)
+	night_cycle.set_process(false)
+	night_cycle.time_normalized = 0.75
+	boss._physics_process(1.0)
+	_fail_unless(boss.is_night_unleashed(), "A night clock should keep the night phase")
+	_fail_unless(boss.get_health() == 4930, "Regen should continue while the clock is still night")
+	night_cycle.time_normalized = 0.1
+	boss._physics_process(1.0)
+	_fail_unless(not boss.is_night_unleashed(), "Dawn should end the night phase")
+	_fail_unless(boss.get_health() == 4930, "Night regen should stop at dawn")
+	night_cycle.free()
+	boss.free()
+
+
+func _verify_boss_targeting() -> void:
+	_fail_unless(
+		SunEaterScript.PILL_COLOR.r < 0.08
+		and SunEaterScript.PILL_COLOR.g < 0.08
+		and SunEaterScript.PILL_COLOR.b < 0.08,
+		"Sun Eater pill should be black"
+	)
+	var boss: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(boss)
+	boss.global_position = Vector3(0.0, 0.0, 0.0)
+	boss.begin_ascent(0.0)
+	boss._physics_process(3.0)
+	var muzzle := Vector3(12.0, 2.0, 0.0)
+	var lock := boss.closest_aim_point(muzzle)
+	_fail_unless(
+		lock.y < 20.0,
+		"Weapons beside the boss should lock a low point on the capsule, not the 50 m center"
+	)
+	_fail_unless(
+		not lock.is_equal_approx(boss.hit_center()),
+		"Closest aim must not snap to the capsule center when the player is near the base"
+	)
+	_fail_unless(
+		WeaponTargetingScript.in_3d_range(muzzle, boss, AutoShotgunScript.RANGE_M),
+		"Shotgun range should reach the nearby surface of the 100 m pill"
+	)
+	_fail_unless(
+		WeaponTargetingScript.in_xz_range(muzzle, boss, AutoTeslaScript.RANGE_M),
+		"Tesla range should reach the nearby surface of the 100 m pill"
+	)
+	_fail_unless(
+		WeaponTargetingScript.in_xz_range(muzzle, boss, AutoRifleScript.RANGE_M),
+		"Rifle range should reach the nearby surface of the 100 m pill"
+	)
+	var high := Vector3(12.0, 40.0, 0.0)
+	var high_lock := boss.closest_aim_point(high)
+	_fail_unless(
+		high_lock.y > 25.0 and high_lock.y < 55.0,
+		"A lock beside the shaft should sit on the nearby hull, not the feet or the tip"
+	)
+	_fail_unless(
+		WeaponTargetingScript.in_3d_range(high, boss, AutoShotgunScript.RANGE_M),
+		"Shotgun should acquire the hull when flying beside the boss"
+	)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1
+	var facing := Vector3(-1.0, 0.0, 0.0)
+	var rifle_pick := AutoRifleScript.pick_target([boss], muzzle, facing, AutoShotgunScript.RANGE_M, rng)
+	_fail_unless(rifle_pick == boss, "Short-range acquire should still pick the Sun Eater")
+	var shotgun_pick := AutoShotgunScript.pick_target(
+		[boss], muzzle, facing, AutoShotgunScript.RANGE_M, rng
+	)
+	_fail_unless(shotgun_pick == boss, "Shotgun should pick the Sun Eater by its hull, not its center")
+	var rifle_aim := RifleBulletScript.aim_point_for(boss, muzzle)
+	_fail_unless(
+		rifle_aim.is_equal_approx(lock),
+		"Rifle tracers should home to the closest point on the boss pill"
+	)
+	var wall := SwarmPillScript.new()
+	root.add_child(wall)
+	wall.global_position = Vector3(9.0, 0.0, 0.0)
+	var swarm: Array = [boss, wall]
+	_fail_unless(
+		AutoRifleScript.pick_target(swarm, muzzle, facing, AutoRifleScript.RANGE_M, rng) == boss,
+		"Rifle should magnet to the Sun Eater over closer scarabs"
+	)
+	_fail_unless(
+		AutoShotgunScript.pick_target(swarm, muzzle, facing, AutoShotgunScript.RANGE_M, rng) == boss,
+		"Shotgun should magnet to the Sun Eater over closer scarabs"
+	)
+	_fail_unless(
+		AutoLaserScript.pick_unique_target(swarm, muzzle, facing, AutoLaserScript.RANGE_M, {}, rng)
+		== boss,
+		"Laser should magnet to the Sun Eater over closer scarabs"
+	)
+	_fail_unless(
+		AutoRocketScript.pick_best_target(swarm, muzzle, facing, AutoRocketScript.RANGE_M) == boss,
+		"Rockets should magnet to the Sun Eater over closer scarabs"
+	)
+	var tesla_picks := AutoTeslaScript.pick_unique_targets(
+		swarm, muzzle, facing, AutoTeslaScript.RANGE_M, 3, rng
+	)
+	_fail_unless(tesla_picks.size() == 3, "Tesla volley should still fire three strikes")
+	_fail_unless(
+		tesla_picks[0] == boss and tesla_picks[1] == boss and tesla_picks[2] == boss,
+		"All Tesla strikes should magnet to the Sun Eater"
+	)
+	var bounce := AutoRifleScript.pick_bounce_target(swarm, muzzle, 50.0, {}, rng)
+	_fail_unless(bounce == boss, "Bounce chains should magnet to the Sun Eater while it lives")
+	var hit_boss: Dictionary = {}
+	hit_boss[boss.get_instance_id()] = true
+	var bounce_off := AutoRifleScript.pick_bounce_target(swarm, muzzle, 50.0, hit_boss, rng)
+	_fail_unless(bounce_off == wall, "A bounce off the Sun Eater should chain to another pill")
+	var chain := AutoRifleScript.build_bounce_chain(boss, swarm, 1, 50.0, rng)
+	_fail_unless(chain.size() == 1 and chain[0] == wall, "Rifle bounce from the boss should not retarget the boss")
+	var drone := SwarmPillScript.new()
+	root.add_child(drone)
+	drone.add_to_group(WeaponTargetingScript.LASER_DRONE_GROUP)
+	drone.global_position = Vector3(8.0, 0.0, 0.0)
+	_fail_unless(
+		AutoRifleScript.pick_target([boss, drone, wall], muzzle, facing, AutoRifleScript.RANGE_M, rng)
+		== boss,
+		"The Sun Eater should outrank the red drone magnet"
+	)
+	var far := Vector3(100.0, 2.0, 0.0)
+	wall.global_position = Vector3(90.0, 0.0, 0.0)
+	_fail_unless(
+		AutoRifleScript.pick_target(swarm, far, facing, AutoRifleScript.RANGE_M, rng) == wall,
+		"Out-of-range boss should leave weapons free to hit the scarab wall"
+	)
+	_fail_unless(
+		AutoShotgunScript.pick_target(swarm, far, facing, AutoShotgunScript.RANGE_M, rng) == wall,
+		"Short-range weapons should treat nearby scarabs as a wall when the boss is too far"
+	)
+	boss.set("_hp", 0)
+	_fail_unless(not boss.is_alive(), "Test boss should be dead")
+	wall.global_position = Vector3(9.0, 0.0, 0.0)
+	_fail_unless(
+		AutoRifleScript.pick_target(swarm, muzzle, facing, AutoRifleScript.RANGE_M, rng) == wall,
+		"Weapons should free up for the scarab wall after the boss dies"
+	)
+	drone.free()
+	wall.free()
+	boss.free()
+
+
+func _verify_finger_mechanic() -> void:
+	_fail_unless(is_equal_approx(SunEaterScript.FINGER_TELEGRAPH_SEC, 20.0), "Finger telegraph should start at 20 s")
+	_fail_unless(is_equal_approx(SunEaterScript.FINGER_FOLLOW_SEC, 2.0), "Finger reticle should follow for 2 s")
+	_fail_unless(is_equal_approx(SunEaterScript.FINGER_LOCK_WAIT_SEC, 0.8), "Locked reticle should wait 0.8 s before the slam")
+	_fail_unless(SunEaterScript.finger_count_for_stand(0) == 1, "First stand should fire one Finger")
+	_fail_unless(SunEaterScript.finger_count_for_stand(1) == 2, "Second stand should fire two Fingers")
+	_fail_unless(SunEaterScript.finger_count_for_stand(2) == 3, "Third stand should fire three Fingers")
+	_fail_unless(is_equal_approx(SunEaterScript.finger_lock_wait_sec(0), 0.8), "The original Finger should give 0.8 s to dodge")
+	_fail_unless(is_equal_approx(SunEaterScript.finger_lock_wait_sec(1), 0.6), "The second Finger should lock-to-slam in 0.6 s")
+	_fail_unless(is_equal_approx(SunEaterScript.finger_lock_wait_sec(2), 0.4), "The third Finger should lock-to-slam in 0.4 s")
+	_fail_unless(is_equal_approx(SunEaterScript.finger_lock_wait_sec(3), 0.0), "The fourth Finger should home with no lock wait")
+	_fail_unless(not SunEaterScript.finger_is_homing(2), "The third Finger should still lock")
+	_fail_unless(SunEaterScript.finger_is_homing(3), "The fourth Finger should home")
+	_fail_unless(SunEaterScript.finger_is_homing(5), "Later Fingers should keep homing")
+	_fail_unless(is_equal_approx(SunEaterScript.finger_slam_sec(0), 0.8), "The original Finger should land after 0.8 s")
+	_fail_unless(is_equal_approx(SunEaterScript.finger_slam_sec(1), 1.0), "The second Finger should land 0.2 s after the first")
+	_fail_unless(is_equal_approx(SunEaterScript.finger_slam_sec(3), 1.4), "The homing Finger should slam 0.6 s after the first")
+	_fail_unless(is_equal_approx(SunEaterScript.finger_lock_sec(0), 0.0), "The original Finger should lock as soon as follow ends")
+	_fail_unless(is_equal_approx(SunEaterScript.finger_lock_sec(1), 0.4), "The second Finger should keep following for 0.4 s after the first locks")
+	_fail_unless(is_equal_approx(SunEaterScript.finger_lock_sec(2), 0.8), "The third Finger should keep following for 0.8 s after the first locks")
+	_fail_unless(SunEaterScript.finger_count_for_stand(3) == 4, "Three resurfaces should fire four Fingers")
+	_fail_unless(is_equal_approx(FingerScript.LINGER_SEC, 10.0), "Embedded Finger should stay 10 s")
+	_fail_unless(is_equal_approx(FingerScript.FADE_SEC, 1.0), "Finger should fade over 1 s")
+	_fail_unless(is_equal_approx(FingerScript.IMPACT_RADIUS_M, 10.0), "Finger blast should be a 10 m disk")
+	_fail_unless(FingerScript.CENTER_DAMAGE == 100, "Finger center damage should be 100")
+	_fail_unless(FingerScript.EDGE_DAMAGE == 30, "Finger edge damage should be 30")
+	_fail_unless(FingerScript.impact_damage_at(0.0) == 100, "Center of the slam should deal 100")
+	_fail_unless(FingerScript.impact_damage_at(5.0) == 65, "Mid-radius slam should deal 65")
+	_fail_unless(FingerScript.impact_damage_at(10.0) == 30, "Rim of the slam should deal 30")
+	_fail_unless(FingerScript.impact_damage_at(10.01) == 0, "Outside the 10 m disk should deal no slam damage")
+	var forced := FingerScript.redirect_hit(10, false)
+	_fail_unless(int(forced["amount"]) == 20 and bool(forced["is_crit"]), "A non-crit into the Finger should become a 2x crit")
+	var natural := FingerScript.redirect_hit(20, true)
+	_fail_unless(int(natural["amount"]) == 30 and bool(natural["is_crit"]), "A natural crit into the Finger should become 3x")
+	_fail_unless(
+		WeaponTargetingScript.MAGNET_GROUPS[0] == WeaponTargetingScript.FINGER_GROUP,
+		"The Finger should magnet ahead of the boss"
+	)
+
+	var hunter := Node3D.new()
+	root.add_child(hunter)
+	hunter.global_position = Vector3(120.0, 12.0, 50.0)
+	var boss: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(boss)
+	boss.global_position = Vector3(100.0, 0.0, 50.0)
+	boss.configure(null, hunter)
+	boss.configure_encounter(1, 5000)
+	boss.begin_ascent(12.0)
+	boss._physics_process(3.0)
+	boss._physics_process(16.0)
+	_fail_unless(boss.finger_reticle() == null, "Finger reticle should not appear before 20 s of standing")
+	boss._physics_process(1.0)
+	var reticle = boss.finger_reticle()
+	_fail_unless(reticle != null, "Finger reticle should appear at 20 s of standing")
+	_fail_unless(reticle.is_following(), "Finger reticle should follow the player at first")
+	_fail_unless(
+		Vector2(reticle.global_position.x - 120.0, reticle.global_position.z - 50.0).length() < 0.2,
+		"Follow reticle should sit on the player"
+	)
+	hunter.global_position = Vector3(130.0, 12.0, 55.0)
+	reticle._physics_process(0.016)
+	_fail_unless(
+		Vector2(reticle.global_position.x - 130.0, reticle.global_position.z - 55.0).length() < 0.2,
+		"Follow reticle should stay locked to the moving player"
+	)
+	boss._physics_process(2.0)
+	_fail_unless(reticle.is_locked(), "Finger reticle should lock after 2 s")
+	var locked: Vector3 = reticle.locked_position()
+	hunter.global_position = Vector3(200.0, 12.0, 80.0)
+	reticle._physics_process(0.016)
+	_fail_unless(
+		reticle.locked_position().is_equal_approx(locked),
+		"Locked reticle should stop following the player"
+	)
+	boss._physics_process(0.7)
+	_fail_unless(boss.living_finger() == null, "The first stand should not slam before 0.8 s")
+	_fail_unless(boss.living_fingers().is_empty(), "The first stand should fire only one Finger")
+	boss._physics_process(0.1)
+	var finger = boss.living_finger()
+	_fail_unless(finger != null, "The Finger should spawn after the 0.8 s lock wait")
+	_fail_unless(finger.is_in_group(WeaponTargetingScript.FINGER_GROUP), "The Finger should join its magnet group")
+	_fail_unless(not finger.is_in_group("boss"), "The Finger must not count as a second boss")
+	_fail_unless(finger.is_slamming(), "The Finger should slam down from the boss")
+	finger._physics_process(FingerScript.SLAM_SEC)
+	_fail_unless(finger.is_embedded(), "The Finger should embed after the slam")
+	_fail_unless(finger.is_alive(), "An embedded Finger should be targetable")
+
+	var muzzle := Vector3(142.0, 2.0, 55.0)
+	var facing := Vector3(-1.0, 0.0, 0.0)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 2
+	var pills: Array = [boss, finger]
+	_fail_unless(
+		AutoRifleScript.pick_target(pills, muzzle, facing, AutoRifleScript.RANGE_M, rng) == finger,
+		"Rifle should magnet to the Finger over the boss"
+	)
+	_fail_unless(
+		AutoShotgunScript.pick_target(pills, muzzle, facing, AutoShotgunScript.RANGE_M, rng) == finger,
+		"Shotgun should magnet to the Finger over the boss"
+	)
+	_fail_unless(
+		AutoLaserScript.pick_unique_target(pills, muzzle, facing, AutoLaserScript.RANGE_M, {}, rng)
+		== finger,
+		"Laser should magnet to the Finger over the boss"
+	)
+	_fail_unless(
+		AutoRocketScript.pick_best_target(pills, muzzle, facing, AutoRocketScript.RANGE_M) == finger,
+		"Rockets should magnet to the Finger over the boss"
+	)
+	var tesla_picks := AutoTeslaScript.pick_unique_targets(
+		pills, muzzle, facing, AutoTeslaScript.RANGE_M, 3, rng
+	)
+	_fail_unless(
+		tesla_picks.size() == 3 and tesla_picks[0] == finger,
+		"Tesla should magnet to the Finger over the boss"
+	)
+
+	var hp_before := boss.get_health()
+	finger.take_damage(10, Vector3.ZERO, false, 0.0, &"rifle")
+	_fail_unless(boss.get_health() == hp_before - 20, "A non-crit Finger hit should deal 2x to the boss")
+	_fail_unless(finger.get_health() == 1, "The Finger should not spend its own HP")
+	var float_near_finger := false
+	for node in root.get_tree().get_nodes_in_group(DamageFloatScript.GROUP):
+		var label := node as Label3D
+		if label == null:
+			continue
+		var host := label.get_parent() as Node3D
+		if host == null:
+			continue
+		var to_finger := Vector2(
+			host.global_position.x - finger.global_position.x,
+			host.global_position.z - finger.global_position.z
+		)
+		var to_boss := Vector2(
+			host.global_position.x - boss.global_position.x,
+			host.global_position.z - boss.global_position.z
+		)
+		if to_finger.length() < to_boss.length() and label.text == "20":
+			float_near_finger = true
+			break
+	_fail_unless(float_near_finger, "Finger hits should show crit numbers on the spear")
+	finger.take_damage(20, Vector3.ZERO, true, 0.0, &"rifle")
+	_fail_unless(boss.get_health() == hp_before - 50, "A natural crit Finger hit should deal 3x to the boss")
+
+	finger._physics_process(FingerScript.LINGER_SEC)
+	_fail_unless(finger.is_alive(), "The Finger should stay targetable after 10 s")
+	_fail_unless(finger.is_fading(), "The Finger should start fading 10 s after embed")
+	finger._physics_process(FingerScript.FADE_SEC)
+	_fail_unless(not finger.is_alive(), "The Finger should despawn after the fade")
+	_fail_unless(finger.is_queued_for_deletion(), "The faded Finger should leave the world")
+	_fail_unless(boss.finger_used_this_stand(), "A stand should only fire The Finger once")
+	boss._physics_process(1.0)
+	_fail_unless(boss.finger_reticle() == null, "The same stand must not start a second Finger")
+
+	boss._begin_relocate_ascent()
+	_fail_unless(not boss.finger_used_this_stand(), "A new location should allow The Finger again")
+	hunter.global_position = Vector3(boss.global_position.x + 10.0, 12.0, boss.global_position.z)
+	boss._physics_process(3.0)
+	boss._physics_process(17.0)
+	_fail_unless(boss.finger_reticle() != null, "Relocate stands should telegraph The Finger again")
+	boss._physics_process(2.0)
+	var rings: Array = boss.finger_reticles()
+	_fail_unless(rings.size() == 2, "Second stand should show a locked ring and a chasing ring")
+	_fail_unless(rings[0].is_locked(), "The first ring should lock after 2 s")
+	_fail_unless(rings[1].is_following(), "The extra ring should keep following")
+	var first_lock: Vector3 = rings[0].locked_position()
+	hunter.global_position = Vector3(boss.global_position.x + 40.0, 12.0, boss.global_position.z + 25.0)
+	rings[1]._physics_process(0.016)
+	_fail_unless(rings[0].locked_position().is_equal_approx(first_lock), "The first ring should stay locked")
+	_fail_unless(
+		Vector2(rings[1].global_position.x - hunter.global_position.x, rings[1].global_position.z - hunter.global_position.z).length() < 0.2,
+		"The extra ring should chase the player"
+	)
+	boss._physics_process(0.7)
+	_fail_unless(boss.living_fingers().is_empty(), "Neither Finger should slam before 0.8 s")
+	_fail_unless(boss.finger_reticle() != null, "The extra warning ring should stay after it locks")
+	boss._physics_process(0.1)
+	_fail_unless(boss.living_fingers().size() == 1, "The original Finger should land at 0.8 s")
+	_fail_unless(boss.finger_reticle() != null, "The warning ring should stay until the last spear launches")
+	var first_volley = boss.living_fingers()[0]
+	boss._physics_process(0.2)
+	_fail_unless(boss.living_fingers().size() == 2, "The extra Finger should land 0.2 s after the original")
+	_fail_unless(boss.finger_reticle() == null, "The warning ring should clear after the last spear launches")
+	var second_volley = boss.living_fingers()[1]
+	var first_xz := Vector2(first_volley.slam_impact().x, first_volley.slam_impact().z)
+	var second_xz := Vector2(second_volley.slam_impact().x, second_volley.slam_impact().z)
+	_fail_unless(first_xz.distance_to(second_xz) > 1.0, "The extra Finger should lock closer to the moved player")
+	hunter.free()
+	boss.free()
+
+	var homing_hunter := Node3D.new()
+	root.add_child(homing_hunter)
+	homing_hunter.global_position = Vector3(0.0, 4.0, 0.0)
+	var homing := FingerScript.new()
+	root.add_child(homing)
+	homing.configure(null, homing_hunter, 0.0)
+	homing.begin_slam(null, Vector3(0.0, 40.0, 0.0), Vector3(0.0, 0.0, 0.0), null, true)
+	_fail_unless(homing.is_homing(), "The fourth Finger should track the player")
+	homing_hunter.global_position = Vector3(18.0, 4.0, 12.0)
+	homing._physics_process(FingerScript.SLAM_SEC)
+	_fail_unless(homing.is_embedded(), "A homing Finger should still embed")
+	_fail_unless(
+		Vector2(homing.slam_impact().x - 18.0, homing.slam_impact().z - 12.0).length() < 0.2,
+		"A homing Finger should land on the player"
+	)
+	homing.free()
+	homing_hunter.free()
+
+
+func _verify_night_portal() -> void:
+	_fail_unless(is_equal_approx(SunEaterScript.PORTAL_AHEAD_M, 25.0), "Portal should open 25 m ahead")
+	_fail_unless(is_equal_approx(SunEaterScript.PORTAL_COOLDOWN_MIN_SEC, 15.0), "Portal cooldown min should be 15 s")
+	_fail_unless(is_equal_approx(SunEaterScript.PORTAL_COOLDOWN_MAX_SEC, 25.0), "Portal cooldown max should be 25 s")
+	_fail_unless(is_equal_approx(NightPortalScript.OPEN_SEC, 0.5), "Portal should open over 0.5 s")
+	_fail_unless(is_equal_approx(NightPortalScript.LIVE_SEC, 2.5), "Portal should stay live for 2.5 s")
+	_fail_unless(is_equal_approx(NightPortalScript.CLOSE_SEC, 0.3), "Portal should close over 0.3 s")
+	_fail_unless(is_equal_approx(NightPortalScript.BASE_WIDTH_M, 6.0), "First portal should be 6 m wide")
+	_fail_unless(is_equal_approx(NightPortalScript.WIDTH_STEP_M, 4.0), "Each portal spawn should add 4 m of width")
+	_fail_unless(is_equal_approx(NightPortalScript.width_for_spawn(0), 6.0), "Spawn 0 should be 6 m")
+	_fail_unless(is_equal_approx(NightPortalScript.width_for_spawn(1), 10.0), "Spawn 1 should be 10 m")
+	_fail_unless(is_equal_approx(NightPortalScript.width_for_spawn(2), 14.0), "Spawn 2 should be 14 m")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 9
+	for _i in 20:
+		var wait := SunEaterScript.roll_portal_cooldown_sec(rng)
+		_fail_unless(
+			wait >= 15.0 - 0.0001 and wait <= 25.0 + 0.0001,
+			"Portal cooldown rolls should stay inside 15–25 s"
+		)
+
+	var hunter := Node3D.new()
+	root.add_child(hunter)
+	hunter.global_position = Vector3(0.0, 2.0, 0.0)
+	hunter.rotation.y = 0.0
+	var boss: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(boss)
+	boss.global_position = Vector3(40.0, 0.0, 0.0)
+	boss.configure(null, hunter)
+	boss.configure_encounter(1, 5000)
+	boss.begin_ascent(0.0)
+	boss._physics_process(3.0)
+	boss.set("_portal_cooldown_t", 0.0)
+	boss._physics_process(0.1)
+	_fail_unless(boss.living_portal() == null, "Portal should wait until a night sphere is operational")
+	_fail_unless(boss.formed_night_volumes().is_empty(), "Sanity: night sphere is not formed yet")
+
+	var volume := boss.follow_night_volume()
+	_fail_unless(volume != null, "Boss should carry a follow night volume")
+	volume.mark_formed()
+	_fail_unless(not boss.formed_night_volumes().is_empty(), "Marked night sphere should count as formed")
+	boss.set("_portal_cooldown_t", 0.0)
+	boss._physics_process(0.05)
+	_fail_unless(boss.living_portal() == null, "Portal should not cast when only the boss sphere exists")
+	_fail_unless(boss.portal_destination_volumes().is_empty(), "Boss sphere must not be a portal destination")
+
+	var leftover := NightVolumeScript.new()
+	leftover.name = "PortalDestSphere"
+	leftover.follow_host = false
+	leftover.configure(NightVolumeScript.RADIUS_M, false)
+	root.add_child(leftover)
+	leftover.global_position = Vector3(200.0, 0.0, 50.0)
+	leftover.mark_formed()
+	var children: Array = boss.get("_child_volumes")
+	children.append(leftover)
+	boss.set("_child_volumes", children)
+	_fail_unless(boss.portal_destination_volumes().size() == 1, "Leftover spheres should be portal destinations")
+	boss.set("_portal_cooldown_t", 0.0)
+	boss._physics_process(0.05)
+	var portal = boss.living_portal()
+	_fail_unless(portal != null, "Portal should cast once a non-boss night sphere exists")
+	_fail_unless(is_equal_approx(portal.width_m(), 6.0), "The first portal should be 6 m wide")
+	var ahead := Vector2(portal.global_position.x - hunter.global_position.x, portal.global_position.z - hunter.global_position.z)
+	_fail_unless(
+		absf(ahead.length() - SunEaterScript.PORTAL_AHEAD_M) < 0.5,
+		"Portal should sit ~25 m ahead of the player (got %.2f)" % ahead.length()
+	)
+	_fail_unless(not portal.is_live(), "Portal should not be enterable while opening")
+	portal._physics_process(NightPortalScript.OPEN_SEC)
+	_fail_unless(portal.is_live(), "Portal should become live after the open")
+
+	boss.set("_finger_used_this_stand", false)
+	boss.set("_finger_phase", 1)
+	boss.set("_stand_t", SunEaterScript.FINGER_TELEGRAPH_SEC + 1.0)
+	boss._physics_process(0.0)
+	_fail_unless(boss.living_portal() != null, "Casting a portal must not clear Finger state")
+	_fail_unless(int(boss.get("_finger_phase")) == 1, "Finger phase should survive a portal cast")
+
+	var hp_before := boss.get_health()
+	var traveler := Node3D.new()
+	root.add_child(traveler)
+	traveler.global_position = Vector3(10.0, 2.0, 10.0)
+	traveler.rotation.y = 1.2
+	boss.deliver_portal_teleport(traveler)
+	_fail_unless(boss.get_health() == hp_before, "Portal teleport must not damage the boss")
+	_fail_unless(
+		Vector2(traveler.global_position.x - leftover.global_position.x, traveler.global_position.z - leftover.global_position.z).length() < 0.2,
+		"Portal should drop the player at a leftover night sphere, not the boss sphere"
+	)
+	_fail_unless(
+		Vector2(traveler.global_position.x - volume.global_position.x, traveler.global_position.z - volume.global_position.z).length() > 1.0,
+		"Portal must not drop the player on the boss's current night sphere"
+	)
+	_fail_unless(is_equal_approx(traveler.rotation.y, 1.2), "Portal teleport should keep the player yaw")
+
+	portal.begin_close()
+	portal._physics_process(NightPortalScript.CLOSE_SEC)
+	_fail_unless(boss.living_portal() == null or portal.is_done(), "Closed portal should leave the world")
+	boss.set("_portal_cooldown_t", 0.0)
+	boss._physics_process(0.05)
+	var second = boss.living_portal()
+	_fail_unless(second != null, "A second portal should cast after cooldown")
+	_fail_unless(is_equal_approx(second.width_m(), 10.0), "The second portal should be 10 m wide")
+	traveler.free()
+	leftover.free()
+	hunter.free()
+	boss.free()
+
+
+func _verify_night_claws() -> void:
+	_fail_unless(
+		is_equal_approx(SunEaterScript.NIGHT_CLAWS_RANGE_M, 80.0),
+		"Night Claws should require >80 m range"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.NIGHT_CLAWS_COOLDOWN_SEC, 10.0),
+		"Night Claws cooldown should be 10 s"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.NIGHT_CLAWS_APPROACH_MPS, 2.0),
+		"Night Claws should suppress when closing faster than 2 m/s"
+	)
+	var idle_hunter := TendrilStubBody.new()
+	root.add_child(idle_hunter)
+	idle_hunter.global_position = Vector3(100.0, 0.0, 0.0)
+	_fail_unless(
+		not SunEaterScript.is_approaching_boss(
+			idle_hunter, Vector3.ZERO, SunEaterScript.NIGHT_CLAWS_APPROACH_MPS
+		),
+		"A stationary hunter should not count as approaching"
+	)
+	idle_hunter.velocity = Vector3(-10.0, 0.0, 0.0)
+	_fail_unless(
+		SunEaterScript.is_approaching_boss(
+			idle_hunter, Vector3.ZERO, SunEaterScript.NIGHT_CLAWS_APPROACH_MPS
+		),
+		"A hunter closing on the boss should count as approaching"
+	)
+	idle_hunter.free()
+	_fail_unless(is_equal_approx(NightClawsScript.TELEGRAPH_SEC, 1.0), "Telegraph should last 1 s")
+	_fail_unless(is_equal_approx(NightClawsScript.RISE_SEC, 0.08), "Claws should shoot up in 0.08 s")
+	_fail_unless(is_equal_approx(NightClawsScript.HOLD_SEC, 1.0), "Claws should hold at peak for 1 s")
+	_fail_unless(is_equal_approx(NightClawsScript.RETRACT_SEC, 1.4), "Claws should descend slowly over 1.4 s")
+	_fail_unless(NightClawsScript.DAMAGE_RISE == 25, "Rising claws should deal 25 damage")
+	_fail_unless(NightClawsScript.DAMAGE_HOLD == 10, "Stationary claws should deal 10 damage")
+	_fail_unless(NightClawsScript.DAMAGE_RETRACT == 10, "Descending claws should deal 10 damage")
+	_fail_unless(
+		is_equal_approx(NightClawsScript.SPOT_DIAMETER_M, 1.0),
+		"Each claw mark should be 1 m wide"
+	)
+	_fail_unless(
+		is_equal_approx(NightClawsScript.PEAK_HEIGHT_M, 5.0),
+		"Night Claw pills should peak with tip ~10 m above ground"
+	)
+	_fail_unless(
+		is_equal_approx(NightClawsScript.PILL_HEIGHT_M, 10.0),
+		"Night Claw pills should be 10 m long"
+	)
+	_fail_unless(NightClawsScript.CLAW_COUNT_MIN == 100, "Night Claws should spawn at least 100 marks")
+	_fail_unless(NightClawsScript.CLAW_COUNT_MAX == 300, "Night Claws should spawn at most 300 marks")
+	_fail_unless(
+		is_equal_approx(NightClawsScript.ZONE_FORWARD_M, 100.0),
+		"Night Claws zone should extend 100 m forward"
+	)
+	_fail_unless(
+		is_equal_approx(NightClawsScript.ZONE_LATERAL_HALF_M, 50.0),
+		"Night Claws zone should extend 50 m sideways"
+	)
+
+	var layout_rng := RandomNumberGenerator.new()
+	layout_rng.seed = 4242
+	var anchor := Vector3(100.0, 0.0, 0.0)
+	var forward := Vector3(-1.0, 0.0, 0.0)
+	var layout := NightClawsScript.build_claw_positions(anchor, forward, 45, layout_rng, null)
+	_fail_unless(
+		layout.size() >= NightClawsScript.CLAW_COUNT_MIN,
+		"Layout should place at least the minimum claw count"
+	)
+	_fail_unless(
+		layout.size() <= NightClawsScript.CLAW_COUNT_MAX,
+		"Layout should not exceed the maximum claw count"
+	)
+	for i in layout.size():
+		var local := NightClawsScript.local_forward_right(layout[i], anchor, forward)
+		_fail_unless(
+			local.x >= -0.001 and local.x <= NightClawsScript.ZONE_FORWARD_M + 0.001,
+			"Claw %d should stay inside forward range" % i
+		)
+		_fail_unless(
+			local.y >= -NightClawsScript.ZONE_LATERAL_HALF_M - 0.001
+			and local.y <= NightClawsScript.ZONE_LATERAL_HALF_M + 0.001,
+			"Claw %d should stay inside lateral range" % i
+		)
+		for j in range(i + 1, layout.size()):
+			var sep := Vector2(layout[i].x - layout[j].x, layout[i].z - layout[j].z).length()
+			_fail_unless(
+				sep + 0.001 >= NightClawsScript.MIN_SPOT_SEP_M,
+				"Claw marks should not overlap"
+			)
+
+	var hunter := TendrilStubBody.new()
+	root.add_child(hunter)
+	hunter.global_position = Vector3(150.0, 2.0, 0.0)
+	var health := TendrilStubHealth.new()
+	hunter.add_child(health)
+	health.add_to_group("player_health")
+	var boss: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(boss)
+	boss.global_position = Vector3(0.0, 0.0, 0.0)
+	boss.configure(null, hunter)
+	boss.configure_encounter(1, 5000)
+	boss.begin_ascent(0.0)
+	boss._physics_process(3.0)
+	_fail_unless(boss.relocate_count() == 0, "First ascent should start at relocate_count 0")
+	boss.set("_night_claws_cooldown_t", 0.0)
+	boss.set("_stand_t", 1.0)
+	boss._physics_process(0.05)
+	_fail_unless(boss.living_night_claws() == null, "First ascent must not cast Night Claws")
+
+	boss.set("_relocate_count", 1)
+	boss.set("_stand_t", 1.0)
+	boss.set("_night_claws_cooldown_t", 0.0)
+	hunter.global_position = Vector3(150.0, 2.0, 0.0)
+	boss._physics_process(0.05)
+	var claws = boss.living_night_claws()
+	_fail_unless(claws != null, "After the first relocate, far players should trigger Night Claws")
+	_fail_unless(
+		claws.claw_count() >= NightClawsScript.CLAW_COUNT_MIN,
+		"Night Claws should spawn at least 100 marks"
+	)
+	_fail_unless(
+		claws.claw_count() <= NightClawsScript.CLAW_COUNT_MAX,
+		"Night Claws should spawn at most 300 marks"
+	)
+	_fail_unless(
+		claws.phase() == NightClawsScript.Phase.TELEGRAPH,
+		"Night Claws should telegraph before striking"
+	)
+
+	var locked: PackedVector3Array = claws.positions()
+	hunter.global_position = Vector3(140.0, 2.0, 40.0)
+	claws._physics_process(0.5)
+	_fail_unless(
+		claws.positions()[0].distance_to(locked[0]) < 0.001,
+		"Claw marks must stay fixed during telegraph"
+	)
+
+	claws._physics_process(NightClawsScript.TELEGRAPH_SEC - 0.01)
+	var hit_mark: Vector3 = locked[0]
+	hunter.global_position = Vector3(hit_mark.x, hit_mark.y + 2.0, hit_mark.z)
+	claws._physics_process(0.06)
+	_fail_unless(
+		claws.phase() == NightClawsScript.Phase.STRIKE,
+		"Night Claws should enter the strike after telegraph"
+	)
+	claws.apply_hit_for_test(hunter, 0)
+	_fail_unless(health.last_damage == 25, "Standing on a rising claw should deal 25 damage")
+
+	health.last_damage = 0
+	claws._physics_process(NightClawsScript.RISE_SEC)
+	_fail_unless(
+		claws.phase() == NightClawsScript.Phase.HOLD,
+		"Night Claws should hold at full length after the rise"
+	)
+	hunter.global_position = Vector3(hit_mark.x, hit_mark.y + 2.0, hit_mark.z)
+	claws.apply_hit_for_test(hunter, 0)
+	_fail_unless(health.last_damage == 10, "Standing on a stationary claw should deal 10 damage")
+
+	health.last_damage = 0
+	claws._physics_process(NightClawsScript.HOLD_SEC)
+	_fail_unless(
+		claws.phase() == NightClawsScript.Phase.RETRACT,
+		"Night Claws should retract after the hold"
+	)
+	hunter.global_position = Vector3(hit_mark.x, hit_mark.y + 2.0, hit_mark.z)
+	claws.apply_hit_for_test(hunter, 0)
+	_fail_unless(health.last_damage == 10, "Standing on a descending claw should deal 10 damage")
+
+	health.last_damage = 0
+	hunter.global_position = Vector3(200.0, 2.0, 0.0)
+	var finish_left := NightClawsScript.RETRACT_SEC + 0.2
+	while finish_left > 0.0 and claws != null and is_instance_valid(claws) and not claws.is_done():
+		var step := minf(finish_left, 0.05)
+		claws._physics_process(step)
+		finish_left -= step
+	_fail_unless(claws == null or claws.is_done(), "Night Claws should finish after retract")
+	_fail_unless(
+		is_equal_approx(boss.night_claws_cooldown_left(), SunEaterScript.NIGHT_CLAWS_COOLDOWN_SEC),
+		"Finished Night Claws should start a 10 s cooldown"
+	)
+
+	boss.set("_night_claws_cooldown_t", 0.0)
+	boss.set("_night_claws", null)
+	boss.set("_stand_t", 1.0)
+	hunter.global_position = Vector3(30.0, 2.0, 0.0)
+	hunter.velocity = Vector3.ZERO
+	boss._physics_process(0.05)
+	_fail_unless(boss.living_night_claws() == null, "Night Claws must not fire when the player is within 80 m")
+
+	hunter.global_position = Vector3(150.0, 2.0, 0.0)
+	hunter.velocity = Vector3.ZERO
+	boss.set("_stand_t", 30.0)
+	boss.set("_night_claws_cooldown_t", 0.0)
+	boss._physics_process(0.05)
+	_fail_unless(
+		boss.living_night_claws() != null,
+		"Night Claws should still fire late in a stand when the player is not approaching"
+	)
+
+	var late_claws = boss.living_night_claws()
+	if late_claws != null and is_instance_valid(late_claws):
+		late_claws.queue_free()
+	boss.set("_night_claws", null)
+	boss.set("_night_claws_cooldown_t", 0.0)
+	hunter.global_position = Vector3(150.0, 2.0, 0.0)
+	## Closing on the boss at the origin from +X.
+	hunter.velocity = Vector3(-8.0, 0.0, 0.0)
+	boss._physics_process(0.05)
+	_fail_unless(
+		boss.living_night_claws() == null,
+		"Night Claws must not fire while the player is moving toward the boss"
+	)
+
+	var previous_scene := current_scene
+	var claw_scene := Node3D.new()
+	claw_scene.name = "ClawScene"
+	root.add_child(claw_scene)
+	current_scene = claw_scene
+	boss.set("_relocate_count", 1)
+	boss.set("_stand_t", 1.0)
+	boss.set("_night_claws_cooldown_t", 0.0)
+	boss.set("_night_claws", null)
+	hunter.global_position = Vector3(150.0, 2.0, 0.0)
+	hunter.velocity = Vector3.ZERO
+	boss._physics_process(0.05)
+	var telegraph = boss.living_night_claws()
+	_fail_unless(telegraph != null, "Interrupt test should cast Night Claws")
+	_fail_unless(
+		_count_live_claw_marks(claw_scene) == telegraph.claw_count(),
+		"Telegraph marks should be parented to the scene"
+	)
+	boss.call("_begin_sink")
+	_fail_unless(boss.living_night_claws() == null, "Sink should drop the claw caster")
+	_fail_unless(
+		_count_live_claw_marks(claw_scene) == 0,
+		"Sink should free telegraph marks"
+	)
+	_fail_unless(_count_live_claw_pills(claw_scene) == 0, "Sink should not leave claw pills")
+
+	boss.set("_sinking", false)
+	var strike: NightClaws = NightClawsScript.new()
+	claw_scene.add_child(strike)
+	var strike_rng := RandomNumberGenerator.new()
+	strike_rng.seed = 3
+	strike.configure(boss, hunter, null, strike_rng)
+	boss.set("_night_claws", strike)
+	strike._physics_process(NightClawsScript.TELEGRAPH_SEC + 0.02)
+	_fail_unless(
+		strike.phase() == NightClawsScript.Phase.STRIKE,
+		"Interrupt test should reach the strike"
+	)
+	_fail_unless(_count_live_claw_marks(claw_scene) == 0, "Strike should already have cleared marks")
+	_fail_unless(
+		_count_live_claw_pills(claw_scene) == strike.claw_count(),
+		"Strike pills should be parented to the scene"
+	)
+	boss.call("_die", Vector3.ZERO, &"")
+	_fail_unless(
+		_count_live_claw_pills(claw_scene) == 0,
+		"Death should free claw pills"
+	)
+	current_scene = previous_scene
+	claw_scene.free()
+
+	hunter.free()
+	if is_instance_valid(boss) and not boss.is_queued_for_deletion():
+		boss.free()
+
+
+func _verify_portal_queues_during_claws() -> void:
+	var hunter := TendrilStubBody.new()
+	root.add_child(hunter)
+	hunter.global_position = Vector3(150.0, 2.0, 0.0)
+	## Face -X so the claw rectangle opens toward the boss / -X.
+	hunter.velocity = Vector3(-5.0, 0.0, 0.0)
+	var boss: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(boss)
+	boss.global_position = Vector3.ZERO
+	boss.configure(null, hunter)
+	boss.configure_encounter(1, 5000)
+	boss.begin_ascent(0.0)
+	boss._physics_process(3.0)
+	boss.set("_relocate_count", 1)
+
+	var leftover := NightVolumeScript.new()
+	leftover.name = "PortalDestForClaws"
+	leftover.follow_host = false
+	leftover.configure(NightVolumeScript.RADIUS_M, false)
+	root.add_child(leftover)
+	leftover.global_position = Vector3(200.0, 0.0, 50.0)
+	leftover.mark_formed()
+	var children: Array = boss.get("_child_volumes")
+	children.append(leftover)
+	boss.set("_child_volumes", children)
+
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 77
+	var claws: NightClaws = NightClawsScript.new()
+	root.add_child(claws)
+	claws.configure(boss, hunter, null, rng)
+	boss.set("_night_claws", claws)
+	_fail_unless(claws.contains_xz(hunter.global_position), "Hunter should start inside the claw zone")
+	_fail_unless(
+		claws.contains_xz(hunter.global_position + Vector3(-40.0, 0.0, 0.0)),
+		"A point 40 m along claw forward should stay in-zone"
+	)
+	_fail_unless(
+		not claws.contains_xz(hunter.global_position + Vector3(40.0, 0.0, 0.0)),
+		"A point behind the claw anchor should be out of zone"
+	)
+	_fail_unless(
+		not claws.contains_xz(hunter.global_position + Vector3(0.0, 0.0, 80.0)),
+		"A point past lateral half-width should be out of zone"
+	)
+
+	boss.set("_portal_cooldown_t", 0.0)
+	boss.set("_portal_pending", false)
+	boss._physics_process(0.05)
+	_fail_unless(boss.living_portal() == null, "Portal must not cast while the player is in active Night Claws")
+	_fail_unless(boss.portal_pending(), "Portal should queue while claws cover the player")
+
+	boss.call("_on_night_claws_finished")
+	_fail_unless(boss.living_portal() != null, "Queued portal should cast immediately when claws finish")
+	_fail_unless(not boss.portal_pending(), "Portal pending should clear after the flush cast")
+
+	var flushed = boss.living_portal()
+	if flushed != null and is_instance_valid(flushed):
+		flushed.queue_free()
+	boss.set("_portal", null)
+	boss.set("_portal_pending", false)
+	boss.set("_portal_cooldown_t", 0.0)
+
+	claws = NightClawsScript.new()
+	root.add_child(claws)
+	hunter.global_position = Vector3(150.0, 2.0, 0.0)
+	hunter.velocity = Vector3(-5.0, 0.0, 0.0)
+	claws.configure(boss, hunter, null, rng)
+	boss.set("_night_claws", claws)
+	boss._physics_process(0.05)
+	_fail_unless(boss.living_portal() == null, "Portal should queue again while claws are active")
+	_fail_unless(boss.portal_pending(), "Portal should be pending again during claws")
+
+	## Leave the claw rectangle while claws are still alive.
+	hunter.global_position = Vector3(150.0, 2.0, 80.0)
+	_fail_unless(not claws.contains_xz(hunter.global_position), "Hunter should be outside the claw zone")
+	boss._physics_process(0.05)
+	_fail_unless(
+		boss.living_portal() != null,
+		"Queued portal should cast immediately when the player leaves the claw zone"
+	)
+	_fail_unless(
+		boss.living_night_claws() != null,
+		"Leaving the claw zone should flush the portal without ending Night Claws"
+	)
+	_fail_unless(not boss.portal_pending(), "Portal pending should clear after leave-zone flush")
+
+	if claws != null and is_instance_valid(claws):
+		claws.queue_free()
+	leftover.free()
+	hunter.free()
+	boss.free()
+
+
+func _verify_night_volume() -> void:
+	_fail_unless(
+		is_equal_approx(NightVolumeScript.DIAMETER_M, 160.0),
+		"Night volume sphere should be 160 m across"
+	)
+	_fail_unless(
+		is_equal_approx(NightVolumeScript.RADIUS_M, 80.0),
+		"Night volume sphere radius should be 80 m"
+	)
+	_fail_unless(
+		is_equal_approx(NightVolumeScript.EDGE_FADE_M, 14.0),
+		"Night volume should soften ~14 m at the edges"
+	)
+	var boss: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(boss)
+	boss.global_position = Vector3(100.0, 0.0, 50.0)
+	boss.begin_ascent(12.0)
+	var volume := boss.get_node("NightVolume") as NightVolume
+	_fail_unless(volume != null, "Sun Eater should carry a NightVolume")
+	_fail_unless(
+		is_equal_approx(boss.global_position.y, -88.0),
+		"Boss should start the rise underground"
+	)
+	_fail_unless(
+		is_equal_approx(volume.global_position.y, 12.0),
+		"Sphere center should sit on standing terrain while the boss is buried"
+	)
+	_fail_unless(
+		is_equal_approx(volume.global_position.x, 100.0)
+		and is_equal_approx(volume.global_position.z, 50.0),
+		"Night volume should track the boss XZ"
+	)
+	_fail_unless(is_equal_approx(volume.fade, 0.0), "Night volume should be invisible at ascent start")
+	var center := Vector3(100.0, 12.0, 50.0)
+	_fail_unless(
+		is_equal_approx(volume.blend_at_world(center), 0.0),
+		"Camera blend should stay 0 until the volume fades in"
+	)
+	boss._physics_process(3.0)
+	_fail_unless(
+		is_equal_approx(boss.global_position.y, 12.0),
+		"Boss should stand on the ground after ascent"
+	)
+	_fail_unless(
+		is_equal_approx(volume.fade, 0.0),
+		"Bring the Night should not start until the boss has finished rising"
+	)
+	_fail_unless(
+		is_equal_approx(volume.global_position.y, 12.0),
+		"Sphere center should stay on standing terrain after ascent"
+	)
+	boss._physics_process(4.0)
+	_fail_unless(
+		is_equal_approx(volume.fade, 0.5),
+		"Bring the Night should be half opacity after 4 seconds"
+	)
+	boss._physics_process(4.0)
+	_fail_unless(is_equal_approx(volume.fade, 1.0), "Bring the Night should be fully faded in after 8 seconds")
+	var mesh := volume.get_node("Mesh") as MeshInstance3D
+	_fail_unless(mesh != null, "Night volume should have a sphere mesh")
+	_fail_unless(mesh.mesh is SphereMesh, "Bring the Night hull should be a sphere")
+	_fail_unless(
+		is_equal_approx(mesh.global_position.y, 12.0),
+		"Sphere mesh should be centered on standing terrain"
+	)
+	_fail_unless(
+		volume.blend_at_world(center) > 0.95,
+		"Camera at the sphere center should read as full local night"
+	)
+	_fail_unless(
+		volume.blend_at_world(Vector3(100.0, 12.0, 50.0)) > 0.95,
+		"Local night should reach standing terrain height"
+	)
+	_fail_unless(
+		is_equal_approx(volume.blend_at_world(Vector3(280.0, center.y, 50.0)), 0.0),
+		"Camera outside the 160 m sphere should not blend into night"
+	)
+	var cycle: DayNightCycle = DayNightCycleScript.new()
+	cycle.day_phase_sec = 240.0
+	cycle.night_phase_sec = 240.0
+	cycle.start_offset_sec = 48.0
+	root.add_child(cycle)
+	_fail_unless(not cycle.is_night(), "Clock should still be daytime")
+	_fail_unless(
+		cycle.get_daylight_blend() > 0.99,
+		"Clock daylight blend should ignore the night volume"
+	)
+	var camera := Camera3D.new()
+	root.add_child(camera)
+	camera.global_position = Vector3(280.0, center.y, 50.0)
+	camera.make_current()
+	_fail_unless(
+		cycle.get_night_blend() < 0.05,
+		"Headlight night blend should stay off when the camera is outside the volume"
+	)
+	camera.global_position = center
+	_fail_unless(
+		cycle.get_night_blend() > 0.95,
+		"Headlight night blend should rise when the camera is inside the volume"
+	)
+	_fail_unless(not cycle.is_night(), "Local night should not flip the clock is_night() gate")
+	camera.free()
+	cycle.free()
+	boss.free()
+
+
+func _verify_night_spread() -> void:
+	_fail_unless(
+		is_equal_approx(SunEaterScript.CHILD_DIAMETER_M, 80.0),
+		"Spread spheres should be half the 160 m boss sphere"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.CHILD_RADIUS_M, 40.0),
+		"Spread sphere radius should be 40 m"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.SPREAD_RADIUS_M, 400.0),
+		"Spread picks should stay inside a 400 m circle"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.SPREAD_WAIT_SEC, 6.0),
+		"Spread should wait 6 seconds between fully formed spheres"
+	)
+	_fail_unless(
+		is_equal_approx(SunEaterScript.CHILD_FORM_SEC, 6.0),
+		"Child spheres should fade in over 6 seconds"
+	)
+	var boss_r := NightVolumeScript.RADIUS_M
+	var child_r := SunEaterScript.CHILD_RADIUS_M
+	_fail_unless(
+		SunEaterScript.spheres_overlap_xz(Vector2.ZERO, boss_r, Vector2(119.0, 0.0), child_r),
+		"119 m from the boss sphere should overlap a child sphere"
+	)
+	_fail_unless(
+		not SunEaterScript.spheres_overlap_xz(Vector2.ZERO, boss_r, Vector2(120.0, 0.0), child_r),
+		"120 m from the boss sphere should be a valid child center"
+	)
+	_fail_unless(
+		SunEaterScript.spheres_overlap_xz(Vector2.ZERO, child_r, Vector2(79.0, 0.0), child_r),
+		"Two children 79 m apart should overlap"
+	)
+	_fail_unless(
+		not SunEaterScript.spheres_overlap_xz(Vector2.ZERO, child_r, Vector2(80.0, 0.0), child_r),
+		"Two children 80 m apart should not overlap"
+	)
+	var boss_only: Array[Dictionary] = [{"xz": Vector2.ZERO, "r": boss_r}]
+	_fail_unless(
+		not SunEaterScript.can_place_xz(Vector2(119.0, 0.0), child_r, boss_only),
+		"Placement should reject overlap with the boss sphere"
+	)
+	_fail_unless(
+		SunEaterScript.can_place_xz(Vector2(120.0, 0.0), child_r, boss_only),
+		"Placement should allow a child on the 120 m ring"
+	)
+	var packed: Array[Dictionary] = [{"xz": Vector2.ZERO, "r": 400.0}]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var blocked := SunEaterScript.try_pick_child_xz(rng, Vector2.ZERO, packed)
+	_fail_unless(not blocked.is_finite(), "A full 400 m ring should stop further picks")
+	rng.seed = 11
+	var picked := SunEaterScript.try_pick_child_xz(rng, Vector2.ZERO, boss_only)
+	_fail_unless(picked.is_finite(), "An empty ring around the boss should still have room")
+	_fail_unless(
+		picked.length() >= boss_r + child_r,
+		"A random child center should sit outside the boss sphere"
+	)
+	_fail_unless(
+		picked.length() <= SunEaterScript.SPREAD_RADIUS_M,
+		"A random child center should stay inside the 400 m disk"
+	)
+	var boss: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(boss)
+	boss._rng.seed = 21
+	boss.global_position = Vector3(100.0, 0.0, 50.0)
+	boss.begin_ascent(12.0)
+	boss._physics_process(3.0)
+	boss._physics_process(8.0)
+	_fail_unless(
+		boss.child_night_volumes().is_empty(),
+		"No child sphere should spawn until 6 seconds after the boss sphere is formed"
+	)
+	_fail_unless(is_equal_approx(boss.bring_the_night_fade(), 1.0), "Boss sphere should be fully formed")
+	boss._physics_process(6.0)
+	_fail_unless(
+		boss.child_night_volumes().size() == 1,
+		"First child sphere should spawn after the 6 second wait"
+	)
+	var child := boss.child_night_volumes()[0]
+	_fail_unless(is_equal_approx(child.radius_m, 40.0), "Child sphere should be half size")
+	_fail_unless(is_equal_approx(child.fade, 0.0), "A newly spawned child should start at zero opacity")
+	_fail_unless(
+		is_equal_approx(child.global_position.y, 12.0),
+		"Child sphere center should sit on standing terrain"
+	)
+	var from_boss := Vector2(child.global_position.x - 100.0, child.global_position.z - 50.0)
+	_fail_unless(
+		from_boss.length() >= boss_r + child_r,
+		"Child sphere should not overlap the boss sphere"
+	)
+	boss._physics_process(6.0)
+	_fail_unless(is_equal_approx(child.fade, 1.0), "Child sphere should finish fading in after 6 seconds")
+	boss._physics_process(6.0)
+	_fail_unless(
+		boss.child_night_volumes().size() == 2,
+		"A second child should spawn 6 seconds after the first finishes"
+	)
+	var second := boss.child_night_volumes()[1]
+	var between := Vector2(
+		second.global_position.x - child.global_position.x,
+		second.global_position.z - child.global_position.z
+	)
+	_fail_unless(
+		between.length() >= child_r + child_r,
+		"Child spheres should not overlap each other"
+	)
+	boss.free()
+
+
+func _verify_night_scarabs() -> void:
+	_fail_unless(is_equal_approx(NightScarabScript.MOVE_SPEED, 12.0), "Night scarabs should move at 12 m/s by day")
+	_fail_unless(is_equal_approx(NightScarabScript.NIGHT_MOVE_SPEED, 21.0), "Night scarabs should move at 21 m/s at clock night")
+	_fail_unless(is_equal_approx(NightScarabScript.STREAM_AHEAD_MIN_M, 20.0), "Night scarabs should spawn from 20 m ahead")
+	_fail_unless(is_equal_approx(NightScarabScript.STREAM_AHEAD_MAX_M, 80.0), "Night scarabs should spawn out to 80 m ahead")
+	_fail_unless(NightScarabScript.STREAM_CAP == 200, "Boss-night scarabs should cap at 200 living bodies")
+	_fail_unless(is_equal_approx(NightScarabScript.FULL_SIM_RANGE_M, 50.0), "Far scarabs should drop full physics past 50 m")
+	_fail_unless(is_equal_approx(NightScarabScript.VISIBLE_RANGE_M, 100.0), "Scarabs should hide past 100 m")
+	_fail_unless(is_equal_approx(SunEaterScript.SCARAB_LIVE_ENTER_PAD_M, 100.0), "Spheres should go live within 100 m of their volume")
+	_fail_unless(is_equal_approx(SunEaterScript.SCARAB_LIVE_LEAVE_PAD_M, 140.0), "Spheres should stay live until 140 m past their volume")
+	_fail_unless(SunEaterScript.MATERIALIZE_PER_FRAME == 24, "Approaching a sphere should restore at most 24 scarabs per frame")
+	_fail_unless(NightScarabScript.SCARAB_CONTACT_DAMAGE == 2, "Night scarabs should deal 2 damage")
+	_fail_unless(NightScarabScript.SCARAB_MAX_HEALTH == 15, "Night scarabs should have 15 HP")
+	_fail_unless(NightScarabScript.is_escape_spawn(5), "Every 5th scarab should be able to leave")
+	_fail_unless(not NightScarabScript.is_escape_spawn(4), "The 4th scarab should stay bound")
+	_fail_unless(NightScarabScript.is_escape_spawn(10), "The 10th scarab should be able to leave")
+	_fail_unless(
+		not NightScarabScript.should_hunt_player(false, false),
+		"Bound scarabs should roam while the player is outside the sphere"
+	)
+	_fail_unless(
+		NightScarabScript.should_hunt_player(true, false),
+		"Bound scarabs should hunt when the player enters the sphere"
+	)
+	_fail_unless(
+		NightScarabScript.should_hunt_player(false, true),
+		"Unshackled scarabs should hunt even if the player is outside"
+	)
+	_fail_unless(is_equal_approx(SunEaterScript.SCARAB_DAY_RATE, 1.0), "Daytime spheres should spawn 1 scarab per second")
+	_fail_unless(SunEaterScript.SCARAB_CAP == 500, "Daytime sphere army should cap at 500")
+	_fail_unless(
+		EnemyStreamSpawnerScript.should_spawn_boss_night_scarabs(true, true, false),
+		"Clock night with a living boss should spawn the scarab stream"
+	)
+	_fail_unless(
+		not EnemyStreamSpawnerScript.should_spawn_boss_night_scarabs(false, true, false),
+		"Daytime should keep sphere filling, not the scarab stream"
+	)
+	_fail_unless(
+		not EnemyStreamSpawnerScript.should_spawn_boss_night_scarabs(true, false, false),
+		"Clock night with no boss should keep the regular crawler stream"
+	)
+	_fail_unless(
+		not EnemyStreamSpawnerScript.should_spawn_boss_night_scarabs(true, true, true),
+		"Scarabs should stop when the run has ended"
+	)
+
+	var kit := NightScarabScene.instantiate()
+	root.add_child(kit)
+	_fail_unless(kit.get_max_health() == 15, "Night scarab kit HP should be 15")
+	_fail_unless(kit.get_health() == 15, "Night scarab should spawn at full 15 HP")
+	_fail_unless(kit.contact_damage == 2, "Night scarab kit damage should be 2")
+	_fail_unless(is_equal_approx(kit.move_speed, 12.0), "Night scarab kit speed should be 12")
+	kit.apply_level_hp(40)
+	kit.apply_difficulty(1.0)
+	_fail_unless(kit.get_max_health() == 15, "Level HP curve should not scale night scarabs")
+	_fail_unless(kit.contact_damage == 2, "Retry difficulty should not scale night scarab damage")
+	_fail_unless(kit._blocks_behind_despawn(), "Daytime scarabs should never despawn when the player drives past")
+	kit.mark_stream_hunter()
+	_fail_unless(not kit._blocks_behind_despawn(), "Clock-night stream scarabs should despawn behind the glider")
+	kit.unshackle()
+	kit.apply_night_speed()
+	_fail_unless(is_equal_approx(kit.move_speed, 21.0), "Unshackled night scarabs should hunt at 21 m/s")
+	kit._physics_process(0.016)
+	_fail_unless(
+		not kit.is_queued_for_deletion(),
+		"A scarab with no hunt target must keep living"
+	)
+	kit.free()
+
+	var volume := NightVolumeScript.new()
+	root.add_child(volume)
+	volume.configure(40.0, false)
+	volume.snap_to_standing(Vector3.ZERO, 0.0)
+	volume.set_fade(1.0)
+	_fail_unless(volume.is_formed(), "A fade-1 volume should count as formed")
+	volume.set_fade(0.5)
+	_fail_unless(volume.is_formed(), "A sphere that finished forming should keep counting as formed")
+	volume.set_fade(1.0)
+	_fail_unless(volume.contains_xz(Vector3(10.0, 4.0, 0.0)), "A point inside the disk should count")
+	_fail_unless(not volume.contains_xz(Vector3(41.0, 0.0, 0.0)), "A point past the radius should be outside")
+	var vol_mesh := volume.get_node("Mesh") as MeshInstance3D
+	_fail_unless(vol_mesh.material_override is ShaderMaterial, "Night spheres should keep the volumetric shader")
+	var sphere_mesh := vol_mesh.mesh as SphereMesh
+	_fail_unless(sphere_mesh != null and sphere_mesh.radial_segments == 64, "Night sphere mesh should use 64 radial segments")
+	_fail_unless(sphere_mesh != null and sphere_mesh.rings == 32, "Night sphere mesh should use 32 rings")
+	var clamped := volume.clamp_xz(Vector3(80.0, 1.0, 0.0), 1.0)
+	_fail_unless(
+		clamped.x <= 39.01,
+		"Clamp should pull a point back inside the wander radius"
+	)
+	_fail_unless(volume.contains_xz(clamped), "Clamped points should remain inside the sphere")
+
+	var player := Node3D.new()
+	root.add_child(player)
+	player.global_position = Vector3(200.0, 0.0, 0.0)
+	var wanderer := NightScarabScene.instantiate()
+	root.add_child(wanderer)
+	wanderer.global_position = Vector3(5.0, 0.0, 0.0)
+	wanderer.configure(null, player)
+	wanderer.bind_sphere(volume, false)
+	wanderer._update_chase(0.1)
+	_fail_unless(not wanderer.is_unshackled(), "A normal spawn should stay bound")
+	_fail_unless(not wanderer.is_hunting_in_sphere(), "Player outside should leave the scarab roaming")
+	wanderer.global_position = Vector3(80.0, 0.0, 0.0)
+	wanderer._after_move(0.016)
+	_fail_unless(
+		Vector2(wanderer.global_position.x, wanderer.global_position.z).length() <= 39.01,
+		"Roaming scarabs must not leave their night sphere"
+	)
+	player.global_position = Vector3(8.0, 0.0, 0.0)
+	wanderer._update_chase(0.1)
+	_fail_unless(wanderer.is_hunting_in_sphere(), "Player inside the sphere should make the scarab hunt")
+	player.global_position = Vector3(200.0, 0.0, 0.0)
+	wanderer._update_chase(0.1)
+	_fail_unless(not wanderer.is_hunting_in_sphere(), "Player leaving the sphere should return the scarab to roam")
+	wanderer.unshackle()
+	_fail_unless(wanderer.is_unshackled(), "Unshackle should release the scarab from its sphere")
+	_fail_unless(is_equal_approx(wanderer.move_speed, 12.0), "A daytime escaper should keep 12 m/s")
+	_fail_unless(
+		wanderer._blocks_behind_despawn(),
+		"Daytime scarabs should never despawn when the player drives past them"
+	)
+	player.global_position = Vector3(-80.0, 0.0, 0.0)
+	wanderer._physics_process(0.016)
+	_fail_unless(
+		is_instance_valid(wanderer),
+		"An unshackled scarab behind the player must stay in the world"
+	)
+	wanderer.free()
+	player.free()
+	volume.free()
+
+	var lonely: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(lonely)
+	lonely.global_position = Vector3(100.0, 0.0, 50.0)
+	lonely.configure(null, null)
+	lonely.begin_ascent(12.0)
+	lonely._physics_process(3.0)
+	lonely._physics_process(8.0)
+	lonely._spread_full = true
+	_fail_unless(
+		lonely.formed_night_volumes().size() == 1,
+		"A formed boss sphere should fill even with no hunt target"
+	)
+	lonely._physics_process(1.0)
+	_fail_unless(
+		lonely.living_scarab_count() == 1,
+		"Daytime spawn should fill formed spheres even without a hunt target"
+	)
+	_fail_unless(
+		lonely.living_scarabs()[0].get_parent() != lonely,
+		"Scarabs should live in the world, not inside the boss body"
+	)
+	lonely.living_scarabs()[0]._physics_process(0.016)
+	_fail_unless(
+		not lonely.living_scarabs()[0].is_queued_for_deletion(),
+		"A daytime scarab must survive a physics tick without a hunt target"
+	)
+	lonely.free()
+
+	var spread: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(spread)
+	spread._rng.seed = 21
+	spread.global_position = Vector3(100.0, 0.0, 50.0)
+	spread.configure(null, null)
+	spread.begin_ascent(12.0)
+	spread._physics_process(3.0)
+	spread._physics_process(8.0)
+	_fail_unless(spread.living_scarab_count() == 0, "Boss sphere still waits until the first formed second")
+	for _step in 5:
+		spread._physics_process(1.0)
+	_fail_unless(spread.child_night_volumes().is_empty(), "Later spheres should wait 6 seconds after the boss sphere")
+	_fail_unless(spread.living_scarab_count() == 5, "Boss sphere should keep filling while waiting to spread")
+	spread._physics_process(1.0)
+	_fail_unless(spread.child_night_volumes().size() == 1, "A later night sphere should appear after the wait")
+	var child_sphere := spread.child_night_volumes()[0]
+	_fail_unless(child_sphere.is_spawn_ready(), "A placed later sphere should spawn scarabs immediately")
+	_fail_unless(
+		spread.formed_night_volumes().size() == 2,
+		"Boss and later spheres should both count as spawners"
+	)
+	_fail_unless(
+		_scarabs_bound_to(spread, child_sphere) >= 1,
+		"A later night sphere must start spawning scarabs during the day"
+	)
+	_fail_unless(
+		_scarabs_bound_to(spread, child_sphere) + _scarabs_bound_to(spread, spread.get_node("NightVolume"))
+		== spread.living_scarab_count(),
+		"Every daytime scarab should belong to a night sphere"
+	)
+	var child_pos := child_sphere.global_position
+	_fail_unless(
+		Vector2(child_pos.x - 100.0, child_pos.z - 50.0).length() >= 120.0,
+		"Later sphere scarabs should live in the offset sphere, not the boss hull"
+	)
+	for scarab in spread.living_scarabs():
+		if scarab.home_volume() != child_sphere:
+			continue
+		var from_child := Vector2(
+			scarab.global_position.x - child_pos.x,
+			scarab.global_position.z - child_pos.z
+		)
+		_fail_unless(
+			from_child.length() <= child_sphere.radius_m,
+			"Later-sphere scarabs must spawn inside that sphere"
+		)
+	spread._physics_process(6.0)
+	_fail_unless(child_sphere.is_formed(), "Later sphere should still finish fading in")
+	var child_count := _scarabs_bound_to(spread, child_sphere)
+	spread._physics_process(1.0)
+	_fail_unless(
+		_scarabs_bound_to(spread, child_sphere) == child_count + 1,
+		"A later sphere should keep spawning 1 scarab per second by day"
+	)
+	spread._physics_process(5.0)
+	_fail_unless(spread.child_night_volumes().size() == 2, "Spread should keep planting later spheres")
+	_fail_unless(
+		_scarabs_bound_to(spread, spread.child_night_volumes()[1]) >= 1,
+		"Every later night sphere must spawn scarabs during the day"
+	)
+	spread.free()
+
+	var boss: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(boss)
+	var hunter := Node3D.new()
+	root.add_child(hunter)
+	hunter.global_position = Vector3(100.0, 12.0, 50.0)
+	boss.global_position = Vector3(100.0, 0.0, 50.0)
+	boss.configure(null, hunter)
+	boss.begin_ascent(12.0)
+	boss._physics_process(3.0)
+	boss._physics_process(8.0)
+	boss._spread_full = true
+	_fail_unless(boss.formed_night_volumes().size() == 1, "Boss sphere should spawn scarabs once fully formed")
+	_fail_unless(boss.living_scarab_count() == 0, "Scarabs should not spawn until the first formed second")
+	boss._physics_process(1.0)
+	_fail_unless(boss.living_scarab_count() == 1, "A formed sphere should spawn 1 scarab per second by day")
+	_fail_unless(
+		boss.living_scarabs()[0].get_parent() != boss,
+		"Daytime scarabs should not be nested under the boss body"
+	)
+	_fail_unless(not boss.living_scarabs()[0].is_unshackled(), "The first scarab should stay bound")
+	boss._physics_process(9.0)
+	_fail_unless(boss.living_scarab_count() == 10, "Ten seconds should yield ten scarabs from one sphere")
+	_fail_unless(boss.living_scarabs()[4].is_unshackled(), "Every 5th scarab should be able to leave the sphere")
+	_fail_unless(boss.living_scarabs()[9].is_unshackled(), "The 10th scarab should also be able to leave")
+	for i in range(10):
+		if i == 4 or i == 9:
+			continue
+		_fail_unless(
+			not boss.living_scarabs()[i].is_unshackled(),
+			"Non-fifth scarabs should stay bound to their sphere"
+		)
+	var night_volume := boss.get_node("NightVolume") as NightVolume
+	boss.begin_clock_night()
+	_fail_unless(boss.is_night_unleashed(), "Clock night should hide Bring the Night visuals")
+	_fail_unless(not night_volume.visuals_enabled(), "Formed night spheres should vanish at clock night")
+	var mesh := night_volume.get_node("Mesh") as MeshInstance3D
+	_fail_unless(mesh == null or not mesh.visible, "Night sphere meshes should hide at clock night")
+	_fail_unless(boss.living_scarab_count() == 0, "Clock night should drop the sphere army")
+	_fail_unless(boss.virtual_scarab_count() == 0, "Clock night should drop virtual sphere scarabs")
+	boss._physics_process(2.0)
+	_fail_unless(
+		boss.living_scarab_count() == 0,
+		"Clock night scarabs should come from the stream, not the Sun Eater"
+	)
+	var dawn_cycle: DayNightCycle = DayNightCycleScript.new()
+	dawn_cycle.day_phase_sec = 240.0
+	dawn_cycle.night_phase_sec = 240.0
+	root.add_child(dawn_cycle)
+	dawn_cycle.set_process(false)
+	dawn_cycle.time_normalized = 0.75
+	boss._physics_process(1.0)
+	_fail_unless(boss.is_night_unleashed(), "Clock night should stay unleashed while the clock is night")
+	_fail_unless(not night_volume.visuals_enabled(), "Sphere visuals should stay hidden through the night")
+	dawn_cycle.time_normalized = 0.1
+	boss._physics_process(1.0)
+	_fail_unless(not boss.is_night_unleashed(), "Dawn should release the night latch")
+	_fail_unless(night_volume.visuals_enabled(), "Dawn should restore day sphere visuals")
+	var dawn_mesh := night_volume.get_node("Mesh") as MeshInstance3D
+	_fail_unless(dawn_mesh != null and dawn_mesh.visible, "Dawn should show the night sphere mesh")
+	_fail_unless(boss.living_scarab_count() >= 1, "Dawn should resume the daytime scarab army")
+	dawn_cycle.free()
+	hunter.free()
+	boss.free()
+
+	var far_player := Node3D.new()
+	root.add_child(far_player)
+	far_player.global_position = Vector3(500.0, 12.0, 50.0)
+	var ghost: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(ghost)
+	ghost.global_position = Vector3(100.0, 0.0, 50.0)
+	ghost.configure(null, far_player)
+	ghost.begin_ascent(12.0)
+	ghost._physics_process(3.0)
+	ghost._physics_process(8.0)
+	ghost._spread_full = true
+	var home := ghost.get_node("NightVolume") as NightVolume
+	ghost._physics_process(0.016)
+	_fail_unless(not ghost.is_volume_hot(home), "A player 400 m away should leave the boss sphere cold")
+	ghost._physics_process(10.0)
+	_fail_unless(ghost.living_scarab_count() == 2, "Every 5th daytime credit should spawn an escaper")
+	_fail_unless(ghost.living_scarabs()[0].is_unshackled(), "Cold-sphere 5th scarab must be a living escaper")
+	_fail_unless(ghost.living_scarabs()[1].is_unshackled(), "Cold-sphere 10th scarab must be a living escaper")
+	_fail_unless(ghost.virtual_scarab_count(home) == 8, "Eight daytime credits should stay virtual")
+	_fail_unless(ghost.scarab_population() == 10, "Living plus virtual should count toward the 500 cap")
+
+	far_player.global_position = Vector3(100.0, 12.0, 50.0)
+	ghost._physics_process(0.016)
+	_fail_unless(ghost.is_volume_hot(home), "Entering radius+100 should heat the sphere")
+	_fail_unless(ghost.virtual_scarab_count(home) == 0, "Hot spheres should drain their virtual count")
+	_fail_unless(ghost.living_scarab_count() == 10, "Materialize should restore the bound army plus the escapers")
+
+	far_player.global_position = Vector3(300.0, 12.0, 50.0)
+	ghost._physics_process(0.016)
+	_fail_unless(ghost.is_volume_hot(home), "Hysteresis should keep a sphere live inside the leave pad")
+
+	far_player.global_position = Vector3(500.0, 12.0, 50.0)
+	ghost._physics_process(0.016)
+	_fail_unless(not ghost.is_volume_hot(home), "Leaving radius+140 should cool the sphere")
+	_fail_unless(ghost.living_scarab_count() == 2, "Folding should keep the daytime escapers")
+	_fail_unless(ghost.living_scarabs()[0].is_unshackled(), "A remaining living scarab should be an escaper")
+	_fail_unless(ghost.living_scarabs()[1].is_unshackled(), "Both remaining living scarabs should be escapers")
+	_fail_unless(ghost.virtual_scarab_count(home) == 8, "Bound scarabs should return to the virtual count")
+	ghost.free()
+	far_player.free()
+
+	var overlap_player := Node3D.new()
+	root.add_child(overlap_player)
+	overlap_player.global_position = Vector3(200.0, 12.0, 50.0)
+	var overlap: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(overlap)
+	overlap.global_position = Vector3(200.0, 0.0, 50.0)
+	overlap.configure(null, overlap_player)
+	overlap.begin_ascent(12.0)
+	overlap._physics_process(3.0)
+	overlap._physics_process(8.0)
+	overlap._spread_full = true
+	var leftover := NightVolumeScript.new()
+	overlap.add_child(leftover)
+	leftover.configure(NightVolume.RADIUS_M, false)
+	leftover.snap_to_standing(Vector3(100.0, 0.0, 50.0), 12.0)
+	leftover.set_fade(1.0)
+	overlap._child_volumes.append(leftover)
+	overlap._physics_process(0.016)
+	_fail_unless(overlap.is_volume_hot(leftover), "A leftover 160 m sphere 100 m away should stay live")
+	overlap_player.free()
+	overlap.free()
+
+
+func _verify_boss_relocate() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	var prev: Array[Vector2] = [Vector2.ZERO]
+	var pick := SunEaterScript.try_pick_boss_xz(rng, Vector2.ZERO, prev)
+	_fail_unless(pick.is_finite(), "Relocate should find a point in the night disk")
+	_fail_unless(
+		pick.length() <= SunEaterScript.SPREAD_RADIUS_M + 0.01,
+		"Relocate must stay inside the 400 m night-sphere disk"
+	)
+	_fail_unless(
+		pick.distance_to(Vector2.ZERO) >= SunEaterScript.MIN_RELOCATE_SEP_M - 0.01,
+		"Relocate should sit at least 100 m from previous stands when there is room"
+	)
+	rng.seed = 9
+	var cramped := SunEaterScript.try_pick_boss_xz(
+		rng, Vector2.ZERO, prev, 50.0, 100.0, 64
+	)
+	_fail_unless(
+		cramped.length() <= 50.01,
+		"A packed disk must still pick inside the allowed area"
+	)
+	_fail_unless(
+		cramped.length() >= 49.0,
+		"When 100 m is impossible, relocate should pick as far as possible"
+	)
+
+	var boss: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(boss)
+	boss._rng.seed = 21
+	boss.global_position = Vector3(100.0, 0.0, 50.0)
+	boss.configure_encounter(1, 5000)
+	boss.begin_ascent(12.0)
+	boss._spread_full = true
+	boss._physics_process(3.0)
+	boss._physics_process(8.0)
+	_fail_unless(boss.is_blocking_stream(), "Stream should halt after the first ascent")
+	_fail_unless(not boss.is_sinking(), "Boss should still be standing after Bring the Night")
+	var leftover := boss.follow_night_volume()
+	_fail_unless(leftover != null, "First stand should have a follow night sphere")
+	_fail_unless(is_equal_approx(leftover.radius_m, 80.0), "First night sphere radius should be 80 m")
+	_fail_unless(boss.batch_size() == 1, "First stay should plant one child sphere at a time")
+	var scarabs_before := boss.living_scarab_count()
+	boss._physics_process(40.0)
+	_fail_unless(boss.is_sinking(), "Boss should start sinking after 40 seconds standing")
+	_fail_unless(not leftover.follow_host, "The old night sphere should stay behind as a static volume")
+	_fail_unless(leftover.is_spawn_ready(), "The leftover sphere should keep spawning scarabs")
+	_fail_unless(
+		leftover in boss.child_night_volumes(),
+		"The leftover sphere should remain in the spawn list"
+	)
+	_fail_unless(
+		is_equal_approx(boss.global_position.y, 12.0),
+		"Sink should not consume the stand tick"
+	)
+	boss._physics_process(1.5)
+	_fail_unless(
+		is_equal_approx(boss.global_position.y, SunEaterScript.sink_y(12.0, 1.5)),
+		"Boss should descend through the terrain"
+	)
+	_fail_unless(boss.is_blocking_stream(), "Stream should stay halted while the boss sinks")
+	boss._physics_process(1.5)
+	_fail_unless(boss.is_buried_waiting(), "Boss should wait underground after sinking")
+	_fail_unless(
+		is_equal_approx(boss.global_position.y, -88.0),
+		"Buried wait should sit fully underground"
+	)
+	_fail_unless(boss.is_blocking_stream(), "Stream should stay halted while the boss is buried")
+	var old_xz := Vector2(100.0, 50.0)
+	boss._physics_process(2.0)
+	_fail_unless(boss.relocate_count() == 1, "First hop should count as one relocate")
+	_fail_unless(boss.batch_size() == 2, "Each hop should add one child sphere per wave")
+	_fail_unless(
+		is_equal_approx(boss.night_sphere_diameter(), 160.0),
+		"The new night sphere should stay 160 m after the first hop"
+	)
+	_fail_unless(boss.get_health() == 5000, "Relocate must not reset boss HP")
+	_fail_unless(
+		boss.living_scarab_count() >= scarabs_before,
+		"Relocate must not wipe the collected scarabs"
+	)
+	_fail_unless(is_instance_valid(leftover), "The leftover night sphere must survive the hop")
+	var new_xz := Vector2(boss.global_position.x, boss.global_position.z)
+	_fail_unless(
+		new_xz.distance_to(old_xz) >= 100.0 - 0.01,
+		"New stand should be at least 100 m from the previous one"
+	)
+	_fail_unless(
+		new_xz.distance_to(boss.origin_xz()) <= SunEaterScript.SPREAD_RADIUS_M + 0.01,
+		"New stand must stay inside the original night-sphere disk"
+	)
+	_fail_unless(boss.is_blocking_stream(), "Stream should stay halted while the boss re-rises")
+	_fail_unless(not boss.has_finished_ascent(), "Re-ascent should not look like the first rise is still pending for stream")
+	var follow := boss.follow_night_volume()
+	_fail_unless(follow != leftover, "A new follow sphere should grow at the new stand")
+	_fail_unless(is_equal_approx(follow.radius_m, 80.0), "New follow sphere should match the original 160 m sphere")
+	boss._physics_process(3.0)
+	_fail_unless(boss.has_finished_ascent(), "Boss should stand again after relocate ascent")
+	boss._physics_process(8.0)
+	_fail_unless(follow.is_formed(), "The new larger sphere should fade in over 8 seconds")
+	boss._spread_full = false
+	var children_before := boss.child_night_volumes().size()
+	boss._physics_process(6.0)
+	_fail_unless(
+		boss.child_night_volumes().size() == children_before + 2,
+		"After the first hop, a wave should plant two child spheres at once"
+	)
+	boss.free()
+
+
+func _verify_stream_halt() -> void:
+	_fail_unless(
+		EnemyStreamSpawnerScript.should_spawn_stream(true, true, false, false),
+		"Regular stream should spawn while no ascended boss is blocking"
+	)
+	_fail_unless(
+		not EnemyStreamSpawnerScript.should_spawn_stream(true, true, false, true),
+		"An ascended boss should halt regular enemy stream spawns"
+	)
+	_fail_unless(
+		not EnemyStreamSpawnerScript.should_spawn_stream(true, true, true, false),
+		"A finished run should still halt the stream"
+	)
+	var boss: SunEater = SunEaterScene.instantiate() as SunEater
+	root.add_child(boss)
+	boss.begin_ascent(12.0)
+	_fail_unless(not boss.has_finished_ascent(), "Stream should keep running while the boss is still rising")
+	_fail_unless(not boss.is_blocking_stream(), "Stream should keep running until the first ascent finishes")
+	boss._physics_process(2.9)
+	_fail_unless(not boss.has_finished_ascent(), "Ascent should not finish before 3 seconds")
+	boss._physics_process(0.1)
+	_fail_unless(boss.has_finished_ascent(), "Stream should halt once the boss has fully ascended")
+	_fail_unless(boss.is_blocking_stream(), "An ascended boss should block the regular stream")
+	boss._spread_full = true
+	boss._physics_process(8.0)
+	boss._physics_process(40.0)
+	boss._physics_process(3.0)
+	_fail_unless(boss.is_buried_waiting(), "Boss should be underground after a relocate sink")
+	_fail_unless(boss.is_blocking_stream(), "Stream should stay halted while the boss is buried")
+	boss._physics_process(2.0)
+	_fail_unless(not boss.has_finished_ascent(), "Relocate rise should still count as ascending")
+	_fail_unless(boss.is_blocking_stream(), "Stream should stay halted while the boss re-rises")
+	boss.free()
+
+
+func _verify_visit_lock() -> void:
+	var tower: UpgradeTower = UpgradeTowerScript.new()
+	tower.tower_index = 9
+	root.add_child(tower)
+	tower.global_position = Vector3(-1000.0, 0.0, 0.0)
+	await process_frame
+	var open := TowerVisitControllerScript.find_visit_tower(self, Vector3(-1000.0, 0.0, 0.0))
+	_fail_unless(open == tower, "Towers should stay visitable when no boss is alive")
+	var blocker := FakeBossDirector.new()
+	blocker.blocking = true
+	root.add_child(blocker)
+	blocker.add_to_group("boss_director")
+	await process_frame
+	var locked := TowerVisitControllerScript.find_visit_tower(self, Vector3(-1000.0, 0.0, 0.0))
+	_fail_unless(locked == null, "A living boss should lock every upgrade tower")
+	blocker.blocking = false
+	var unlocked := TowerVisitControllerScript.find_visit_tower(self, Vector3(-1000.0, 0.0, 0.0))
+	_fail_unless(unlocked == tower, "Towers should unlock after the boss is defeated")
+	blocker.free()
+	tower.free()
+
+
+func _verify_boss_shop() -> void:
+	var weights := UpgradeCatalogScript.boss_rarity_weights()
+	_fail_unless(
+		weights.size() == 5
+		and int(weights[0]) == 0
+		and int(weights[1]) == 0
+		and int(weights[2]) == 500
+		and int(weights[3]) == 375
+		and int(weights[4]) == 125,
+		"Boss shop weights should be 50 / 37.5 / 12.5 rare/epic/legendary"
+	)
+	for tower_index in [1, 9, 17, 25, 33]:
+		var shop := UpgradeCatalogScript.roll_shop(
+			1, tower_index, 20, true, true, true, true, true, 0, -1, true
+		)
+		_fail_unless(shop.size() == 5, "Boss shop %d should still offer 5 cards" % tower_index)
+		_fail_unless(not _has_duplicate(shop), "Boss shop %d should not repeat a card" % tower_index)
+		for id in shop:
+			var offer := StringName(id)
+			if UpgradeCatalogScript.is_weapon_unlock(offer):
+				continue
+			var rarity := UpgradeCatalogScript.rarity_of(offer)
+			_fail_unless(
+				rarity == UpgradeCatalogScript.RARITY_RARE
+				or rarity == UpgradeCatalogScript.RARITY_EPIC
+				or rarity == UpgradeCatalogScript.RARITY_LEGENDARY,
+				"Boss shop cards should be rare, epic, or legendary"
+			)
+
+
+func _has_duplicate(shop: PackedStringArray) -> bool:
+	var seen: Dictionary = {}
+	for id in shop:
+		var base := String(UpgradeCatalogScript.weapon_base_id(StringName(id)))
+		if seen.has(base):
+			return true
+		seen[base] = true
+	return false
+
+
+func _scarabs_bound_to(boss: SunEater, volume: NightVolume) -> int:
+	var count := 0
+	for scarab in boss.living_scarabs():
+		if scarab.home_volume() == volume:
+			count += 1
+	return count
+
+
+func _count_live_claw_marks(host: Node) -> int:
+	var count := 0
+	for child in host.get_children():
+		if child is NightClawReticle and is_instance_valid(child) and not child.is_queued_for_deletion():
+			count += 1
+	return count
+
+
+func _count_live_claw_pills(host: Node) -> int:
+	var count := 0
+	for child in host.get_children():
+		if child is MeshInstance3D and is_instance_valid(child) and not child.is_queued_for_deletion():
+			count += 1
+	return count
+
+
+func _fail_unless(condition: bool, message: String) -> void:
+	if condition:
+		return
+	_failed = true
+	push_error(message)
+
+
+class FakeBossDirector extends Node:
+	var blocking := false
+
+	func is_blocking_upgrades() -> bool:
+		return blocking
+
+
+class TendrilStubHealth extends Node:
+	var last_damage := 0
+
+	func take_damage(amount: int) -> void:
+		last_damage = amount
+
+
+class TendrilStubBody extends Node3D:
+	var last_knockback := Vector3.ZERO
+	var velocity := Vector3.ZERO
+
+	func queue_knockback(velocity_delta: Vector3) -> void:
+		last_knockback = velocity_delta

@@ -1,10 +1,11 @@
-[gd_scene load_steps=6 format=3 uid="uid://cglider_hud001"]
+[gd_scene load_steps=7 format=3 uid="uid://cglider_hud001"]
 
 [ext_resource type="Script" path="res://scripts/ui/glider_hud.gd" id="1_hud"]
 [ext_resource type="Theme" path="res://themes/hud_theme.tres" id="2_theme"]
 [ext_resource type="Script" path="res://scripts/ui/compass_bar.gd" id="3_compass"]
 [ext_resource type="Script" path="res://scripts/ui/laser_target_reticle_ui.gd" id="4_laser_reticle"]
 [ext_resource type="PackedScene" path="res://scenes/ui/death_stats_panel.tscn" id="5_death_stats"]
+[ext_resource type="Texture2D" uid="uid://bbbb8k71nevng" path="res://assets/ui/player_aim_reticle.png" id="6_aim_reticle"]
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_night"]
 
@@ -28,14 +29,37 @@ theme_override_constants/separation = 4
 
 [node name="DayLabel" type="Label" parent="TopCenter/VBox"]
 unique_name_in_owner = true
+visible = false
 theme_type_variation = &"HudLabel"
-text = "DAY 1"
+text = ""
 horizontal_alignment = 1
 
 [node name="CompassBar" type="Control" parent="TopCenter/VBox"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(640, 36)
 script = ExtResource("3_compass")
+
+[node name="BossHealthPanel" type="PanelContainer" parent="TopCenter/VBox"]
+unique_name_in_owner = true
+visible = false
+theme_type_variation = &"HudPanel"
+custom_minimum_size = Vector2(520, 0)
+
+[node name="BossHealthVBox" type="VBoxContainer" parent="TopCenter/VBox/BossHealthPanel"]
+theme_override_constants/separation = 6
+
+[node name="BossHealthLabel" type="Label" parent="TopCenter/VBox/BossHealthPanel/BossHealthVBox"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "SUN EATER"
+horizontal_alignment = 1
+
+[node name="BossHealthBar" type="ProgressBar" parent="TopCenter/VBox/BossHealthPanel/BossHealthVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(480, 14)
+max_value = 5000.0
+show_percentage = false
+value = 5000.0
 
 [node name="TopLeft" type="MarginContainer" parent="."]
 anchors_preset = 0
@@ -63,6 +87,18 @@ text = "OBJECTIVE"
 unique_name_in_owner = true
 theme_type_variation = &"HudLabel"
 text = "Retrieve the E.O.N"
+autowrap_mode = 2
+
+[node name="BonusObjectiveTitle" type="Label" parent="TopLeft/TopLeftVBox/ObjectivePanel/ObjectiveVBox"]
+unique_name_in_owner = true
+visible = false
+theme_type_variation = &"HudLabel"
+text = "BONUS OBJECTIVE"
+
+[node name="BonusObjectiveLabel" type="Label" parent="TopLeft/TopLeftVBox/ObjectivePanel/ObjectiveVBox"]
+unique_name_in_owner = true
+visible = false
+theme_type_variation = &"HudLabel"
 autowrap_mode = 2
 
 [node name="IntegrityPanel" type="PanelContainer" parent="TopLeft/TopLeftVBox"]
@@ -94,7 +130,7 @@ text = "Kill button - press k"
 anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
-offset_top = -220.0
+offset_top = -268.0
 offset_right = 280.0
 grow_vertical = 0
 theme_override_constants/margin_left = 24
@@ -102,6 +138,28 @@ theme_override_constants/margin_bottom = 24
 
 [node name="BottomLeftVBox" type="VBoxContainer" parent="BottomLeft"]
 theme_override_constants/separation = 8
+
+[node name="AimChip" type="PanelContainer" parent="BottomLeft/BottomLeftVBox"]
+unique_name_in_owner = true
+mouse_filter = 2
+theme_type_variation = &"HudPanel"
+
+[node name="AimRow" type="HBoxContainer" parent="BottomLeft/BottomLeftVBox/AimChip"]
+theme_override_constants/separation = 8
+mouse_filter = 2
+
+[node name="AimLabel" type="Label" parent="BottomLeft/BottomLeftVBox/AimChip/AimRow"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+text = "Aim"
+vertical_alignment = 1
+
+[node name="AimHint" type="Label" parent="BottomLeft/BottomLeftVBox/AimChip/AimRow"]
+unique_name_in_owner = true
+theme_type_variation = &"HudMuted"
+theme_override_font_sizes/font_size = 12
+text = "Hold right-click"
+vertical_alignment = 1
 
 [node name="WeaponTray" type="HBoxContainer" parent="BottomLeft/BottomLeftVBox"]
 unique_name_in_owner = true
@@ -388,7 +446,7 @@ theme_type_variation = &"HudOverlay"
 [node name="DaySummaryLabel" type="Label" parent="DaySummaryPanel"]
 unique_name_in_owner = true
 theme_type_variation = &"HudStoppedTitle"
-text = "DAY COMPLETE"
+text = ""
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -414,6 +472,32 @@ theme_override_font_sizes/font_size = 16
 text = "Night has arrived. Get to an upgrade tower or face the darkness."
 horizontal_alignment = 1
 vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="BonusRadarPanel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -360.0
+offset_top = 96.0
+offset_right = 360.0
+offset_bottom = 300.0
+grow_horizontal = 2
+grow_vertical = 1
+mouse_filter = 2
+theme = ExtResource("2_theme")
+theme_type_variation = &"HudOverlay"
+
+[node name="BonusRadarLabel" type="Label" parent="BonusRadarPanel"]
+unique_name_in_owner = true
+theme_type_variation = &"HudLabel"
+theme_override_colors/font_color = Color(0.98, 0.94, 0.82, 1)
+theme_override_font_sizes/font_size = 18
+text = "Your radar has picked up a bonus tower to the north-west."
+horizontal_alignment = 1
+vertical_alignment = 0
 autowrap_mode = 2
 
 [node name="SafeChip" type="PanelContainer" parent="."]
@@ -583,6 +667,7 @@ horizontal_alignment = 2
 
 [node name="StopChip" type="PanelContainer" parent="."]
 unique_name_in_owner = true
+visible = false
 anchors_preset = 3
 anchor_left = 1.0
 anchor_top = 1.0
@@ -606,6 +691,7 @@ vertical_alignment = 1
 
 [node name="SailChip" type="PanelContainer" parent="."]
 unique_name_in_owner = true
+visible = false
 anchors_preset = 3
 anchor_left = 1.0
 anchor_top = 1.0
@@ -645,8 +731,29 @@ text = "0 m/s"
 horizontal_alignment = 2
 vertical_alignment = 1
 
+[node name="AimReticleLayer" type="Control" parent="."]
+unique_name_in_owner = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="AimReticle" type="TextureRect" parent="AimReticleLayer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 0
+offset_right = 256.0
+offset_bottom = 256.0
+mouse_filter = 2
+texture = ExtResource("6_aim_reticle")
+expand_mode = 1
+stretch_mode = 5
+
 [node name="LaserTargetReticle" type="Control" parent="."]
 unique_name_in_owner = true
+visible = false
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0

@@ -3,9 +3,9 @@ extends Node
 
 ## Instant sky-strikes. Chamber clock matches the shotgun; hops are lightning-fast.
 
-const DAMAGE := 23
+const DAMAGE := 37
 const RANGE_M := 20.0
-const FIRE_INTERVAL_SEC := 3.0
+const FIRE_INTERVAL_SEC := 3.5
 const BURST_GAP_SEC := 0.12
 const STUN_SEC := 1.0
 
@@ -74,7 +74,9 @@ func _fire_one() -> bool:
 	var facing := _facing_xz()
 	var range_m := _current_range()
 	var pills := _pills()
-	var targets := pick_unique_targets(pills, origin, facing, range_m, 1, _rng, _volley_exclude)
+	var targets := pick_unique_targets(
+		pills, origin, facing, range_m, 1, _rng, _volley_exclude, _is_aiming()
+	)
 	if targets.is_empty():
 		return false
 	var target := targets[0]
@@ -82,7 +84,7 @@ func _fire_one() -> bool:
 	var bounce_range := AutoRifle.bounce_range_for(range_m)
 	var bonus := _damage_bonus()
 	var crit := _crit_chance()
-	_strike_chain(target, pills, bounce_n, bounce_range, bonus, crit)
+	_strike_chain(target, pills, bounce_n, bounce_range, bonus, crit, origin)
 	_volley_exclude[target.get_instance_id()] = true
 	return true
 
@@ -93,25 +95,23 @@ func _strike_chain(
 	bounce_n: int,
 	bounce_range: float,
 	bonus: float,
-	crit: float
+	crit: float,
+	origin: Vector3
 ) -> void:
-	_strike(start, bonus, crit)
+	_strike(start, bonus, crit, origin)
 	var hops := AutoRifle.build_bounce_chain(start, pills, bounce_n, bounce_range, _rng)
-	var prev := start
+	var from := WeaponTargeting.lock_point(start, origin)
 	for hop in hops:
-		TeslaStrike.spawn_link(
-			get_tree(),
-			TeslaStrike.aim_point_for(prev),
-			TeslaStrike.aim_point_for(hop)
-		)
+		var to := WeaponTargeting.lock_point(hop, from)
+		TeslaStrike.spawn_link(get_tree(), from, to)
 		_hurt(hop, bonus, crit)
-		prev = hop
+		from = to
 
 
-func _strike(target: Node3D, bonus: float, crit: float) -> void:
+func _strike(target: Node3D, bonus: float, crit: float, origin: Vector3) -> void:
 	if target == null or not is_instance_valid(target):
 		return
-	TeslaStrike.spawn(get_tree(), TeslaStrike.aim_point_for(target))
+	TeslaStrike.spawn(get_tree(), TeslaStrike.aim_point_for(target, origin))
 	_hurt(target, bonus, crit)
 
 
@@ -144,10 +144,13 @@ func _muzzle_origin() -> Vector3:
 
 
 func _facing_xz() -> Vector3:
-	var glider := _rig.get_glider() if _rig != null else null
-	if glider == null:
-		return Vector3.ZERO
-	return MathUtil.yaw_forward(glider.get_yaw())
+	if _rig != null:
+		return _rig.weapon_facing_xz()
+	return Vector3.ZERO
+
+
+func _is_aiming() -> bool:
+	return _rig != null and _rig.is_weapon_aiming()
 
 
 func _pills() -> Array:
@@ -219,13 +222,23 @@ static func pick_unique_targets(
 	range_m: float,
 	count: int,
 	rng: RandomNumberGenerator,
-	exclude: Dictionary = {}
+	exclude: Dictionary = {},
+	aimed: bool = false
 ) -> Array[Node3D]:
 	var found: Array[Node3D] = []
 	var want := maxi(count, 0)
-	if want <= 0 or rng == null:
+	if want <= 0:
 		return found
-	var magnet := WeaponTargeting.find_laser_drone_magnet(pills, origin, facing, range_m)
+	if aimed:
+		var primary := preview_primary_target(pills, origin, facing, range_m)
+		if primary == null:
+			return found
+		for _i in want:
+			found.append(primary)
+		return found
+	if rng == null:
+		return found
+	var magnet := WeaponTargeting.find_magnet(pills, origin, facing, range_m)
 	if magnet != null:
 		for _i in want:
 			found.append(magnet)
@@ -245,3 +258,28 @@ static func pick_unique_targets(
 	for i in take:
 		found.append(candidates[i])
 	return found
+
+
+## Single next primary for HUD. No bounce chain.
+static func preview_primary_target(
+	pills: Array,
+	origin: Vector3,
+	facing: Vector3,
+	range_m: float
+) -> Node3D:
+	return AutoRifle.preview_primary_target(pills, origin, facing, range_m)
+
+
+func preview_lock() -> Node3D:
+	var state := _upgrade_state()
+	if state == null or not state.has_tesla:
+		return null
+	var tree := get_tree()
+	if tree == null:
+		return null
+	return preview_primary_target(
+		tree.get_nodes_in_group("swarm_pill"),
+		_muzzle_origin(),
+		_facing_xz(),
+		_current_range()
+	)

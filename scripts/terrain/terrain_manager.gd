@@ -13,6 +13,7 @@ const RUN_SESSION_PATH := "user://run_session.cfg"
 @export var world_seed: int = 42
 @export var sand_material: Material
 @export var track_node_path: NodePath
+@export var stream_chunks := true
 
 var run_origin: Vector2 = Vector2.ZERO
 var _height_sampler: DuneHeight
@@ -40,7 +41,8 @@ func _ready() -> void:
 	if Engine.is_editor_hint():
 		return
 	_prewarm_height_cache()
-	_request_initial_chunks()
+	if stream_chunks:
+		_request_initial_chunks()
 
 
 func _apply_session_seed() -> void:
@@ -100,7 +102,7 @@ func sample_normal(world_x: float, world_z: float, epsilon: float = 1.0) -> Vect
 
 
 func _process(_delta: float) -> void:
-	if Engine.is_editor_hint():
+	if Engine.is_editor_hint() or not stream_chunks:
 		return
 	_update_streaming()
 	_finalize_meshes()

@@ -6,7 +6,7 @@ extends Node
 const AerialExplosionVfxScript := preload("res://scripts/vfx/aerial_explosion_vfx.gd")
 const ShotgunPelletScene := preload("res://scenes/weapons/shotgun_pellet.tscn")
 
-const DAMAGE := 17
+const DAMAGE := 32
 const RANGE_M := 15.0
 const FIRE_INTERVAL_SEC := 2.5
 const BURST_GAP_SEC := 0.5
@@ -147,10 +147,13 @@ func _muzzle_origin() -> Vector3:
 
 
 func _facing_xz() -> Vector3:
-	var glider := _rig.get_glider() if _rig != null else null
-	if glider == null:
-		return Vector3.ZERO
-	return MathUtil.yaw_forward(glider.get_yaw())
+	if _rig != null:
+		return _rig.weapon_facing_xz()
+	return Vector3.ZERO
+
+
+func _is_aiming() -> bool:
+	return _rig != null and _rig.is_weapon_aiming()
 
 
 func _fire_volley() -> bool:
@@ -158,10 +161,10 @@ func _fire_volley() -> bool:
 	var facing := _facing_xz()
 	var range_m := _current_range()
 	var pills := get_tree().get_nodes_in_group("swarm_pill")
-	var target := pick_target(pills, origin, facing, range_m, _rng)
+	var target := pick_target(pills, origin, facing, range_m, _rng, _is_aiming())
 	if target == null:
 		return false
-	var aim := aim_vector(origin, target.global_position, facing)
+	var aim := aim_vector(origin, WeaponTargeting.lock_point(target, origin), facing)
 	var amount := damage_for(_damage_bonus())
 	var knock := knockback_speed_for(_pushback_bonus())
 	var crit := _crit_chance()
@@ -261,7 +264,7 @@ static func collect_candidates(
 			continue
 		if pill is SwarmPill and not (pill as SwarmPill).is_alive():
 			continue
-		var pos := pill.global_position
+		var pos := WeaponTargeting.lock_point(pill, origin)
 		if origin.distance_to(pos) > range_m:
 			continue
 		var xz := AutoRifle.xz_distance(origin, pos)
@@ -276,9 +279,12 @@ static func pick_target(
 	origin: Vector3,
 	facing: Vector3,
 	range_m: float,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	aimed: bool = false
 ) -> Node3D:
-	var magnet := WeaponTargeting.find_laser_drone_magnet(
+	if aimed:
+		return preview_primary_target(pills, origin, facing, range_m)
+	var magnet := WeaponTargeting.find_magnet(
 		pills, origin, facing, range_m, true, BELOW_XZ_EPS_M
 	)
 	if magnet != null:
@@ -289,6 +295,43 @@ static func pick_target(
 	if rng == null:
 		return candidates[0]
 	return candidates[rng.randi_range(0, candidates.size() - 1)]
+
+
+## Deterministic primary lock for HUD (magnet, else closest in 3D acquire). No cone spray.
+static func preview_primary_target(
+	pills: Array,
+	origin: Vector3,
+	facing: Vector3,
+	range_m: float
+) -> Node3D:
+	var magnet := WeaponTargeting.find_magnet(
+		pills, origin, facing, range_m, true, BELOW_XZ_EPS_M
+	)
+	if magnet != null:
+		return magnet
+	var best: Node3D = null
+	var best_d := INF
+	for pill in collect_candidates(pills, origin, facing, range_m):
+		var d := origin.distance_to(WeaponTargeting.lock_point(pill, origin))
+		if d < best_d:
+			best_d = d
+			best = pill
+	return best
+
+
+func preview_lock() -> Node3D:
+	var state := _upgrade_state()
+	if state == null or not state.has_shotgun:
+		return null
+	var tree := get_tree()
+	if tree == null:
+		return null
+	return preview_primary_target(
+		tree.get_nodes_in_group("swarm_pill"),
+		_muzzle_origin(),
+		_facing_xz(),
+		_current_range()
+	)
 
 
 ## Cone + range in full 3D so a pitched-down blast still catches sand-level pills.
@@ -310,7 +353,7 @@ static func pills_in_cone(
 			continue
 		if pill is SwarmPill and not (pill as SwarmPill).is_alive():
 			continue
-		var to := pill.global_position + Vector3(0.0, AIM_UP_M, 0.0) - origin
+		var to := WeaponTargeting.lock_point(pill, origin) - origin
 		var dist := to.length()
 		if dist > range_m:
 			continue

@@ -26,9 +26,9 @@ const DroneDebrisFlameVfxScript = preload("res://scripts/enemies/drone_debris_fl
 const SandParticleVfxScript = preload("res://scripts/vfx/sand_particle_vfx.gd")
 const DroneDamageSparkVfxScript = preload("res://scripts/vfx/drone_damage_spark_vfx.gd")
 const EnemyHitFragmentVfxScript = preload("res://scripts/vfx/enemy_hit_fragment_vfx.gd")
-const LaserDroneSkinScene = preload("res://scenes/enemies/laser_drone_skin.tscn")
-const MissileDroneScene = preload("res://scenes/enemies/missile_drone.tscn")
-const LaserDroneScene = preload("res://scenes/enemies/laser_drone.tscn")
+const LaserDroneSkinScene = preload("res://scenes/enemies/rebel_drones/laser_drone_skin.tscn")
+const MissileDroneScene = preload("res://scenes/enemies/rebel_drones/missile_drone.tscn")
+const LaserDroneScene = preload("res://scenes/enemies/rebel_drones/laser_drone.tscn")
 
 var _failed := false
 
@@ -171,8 +171,12 @@ func _verify_laser_rework() -> void:
 	_fail_unless(LaserDroneScript.BLAST_DAMAGE == 35, "Laser blast should deal 35")
 	_fail_unless(is_equal_approx(LaserDroneScript.RELOAD_SEC, 5.0), "Laser reload should be 5 s")
 	_fail_unless(
-		is_equal_approx(LaserDroneScript.ENGAGE_INNER_M, 35.0),
-		"Laser flee band should start inside 35 m"
+		is_equal_approx(LaserDroneScript.ENGAGE_INNER_M, 50.0),
+		"Laser flee band should start inside 50 m"
+	)
+	_fail_unless(
+		is_equal_approx(LaserDroneScript.CHASE_UNTIL_M, 150.0),
+		"Laser should chase until 150 m"
 	)
 	_fail_unless(
 		is_equal_approx(LaserDroneScript.LOCK_ON_RANGE_M, 180.0),
@@ -180,15 +184,19 @@ func _verify_laser_rework() -> void:
 	)
 	_fail_unless(
 		LaserDroneScript.movement_zone_for_distance(200.0) == "acquire",
-		"Beyond 180 m should be acquire"
+		"Beyond 150 m should be acquire"
+	)
+	_fail_unless(
+		LaserDroneScript.movement_zone_for_distance(165.0) == "acquire",
+		"150-180 m should still chase while lock-on is allowed"
 	)
 	_fail_unless(
 		LaserDroneScript.movement_zone_for_distance(100.0) == "engage",
-		"35-180 m should be engage"
+		"50-150 m should be engage"
 	)
 	_fail_unless(
 		LaserDroneScript.movement_zone_for_distance(20.0) == "flee",
-		"Inside 35 m should flee"
+		"Inside 50 m should flee"
 	)
 	_fail_unless(
 		is_equal_approx(LaserDroneScript.acquire_speed_for_player_bonus(0.0), 26.6),
@@ -401,7 +409,7 @@ func _verify_laser_rework() -> void:
 	)
 	laser.global_position = Vector3(-20.0, 8.0, 0.0)
 	var flee := laser.desired_velocity_xz()
-	_fail_unless(flee.x < 0.0, "Laser should flee away from the player inside 35 m")
+	_fail_unless(flee.x < 0.0, "Laser should flee away from the player inside 50 m")
 	_fail_unless(is_equal_approx(flee.length(), 15.0), "Laser flee should use drone move speed")
 
 	var health: PlayerHealth = PlayerHealthScript.new()
@@ -571,7 +579,7 @@ func _verify_laser_drone_weapon_magnet() -> void:
 	_fail_unless(shotgun_pick == laser, "Shotgun should magnet to in-range laser drone")
 
 	var bounce := AutoRifleScript.pick_bounce_target(
-		pills, origin, 50.0, exclude, rng
+		pills, origin, 50.0, {}, rng
 	)
 	_fail_unless(
 		bounce == laser,
@@ -630,134 +638,60 @@ func _verify_laser_spawn_rules() -> void:
 		EnemyStreamSpawnerScript.drone_spawn_thresholds_from_plan(level8_plan).size() == 4,
 		"Spawn plan should expose one threshold per slot"
 	)
-	_fail_unless(
-		not EnemyStreamSpawnerScript.can_spawn_laser_now(0.0, true),
-		"Active laser should block another laser spawn"
-	)
-	_fail_unless(
-		not EnemyStreamSpawnerScript.can_spawn_laser_now(1.0, false),
-		"Kill cooldown should block laser spawn"
-	)
-	_fail_unless(
-		EnemyStreamSpawnerScript.can_spawn_laser_now(0.0, false),
-		"Laser should spawn when no active laser and no cooldown"
-	)
-	_fail_unless(
-		not EnemyStreamSpawnerScript.can_spawn_mg_now(true),
-		"Active MG drone should block another MG spawn"
-	)
-	_fail_unless(
-		EnemyStreamSpawnerScript.can_spawn_mg_now(false),
-		"MG drone should spawn when none is active"
-	)
-	_fail_unless(
-		EnemyStreamSpawnerScript.can_spawn_laser(0, 2, 0.0, false),
-		"Legacy laser budget helper should allow first spawn"
-	)
-	_fail_unless(
-		not EnemyStreamSpawnerScript.can_spawn_laser(0, 2, 1.0, false),
-		"Legacy laser budget helper should respect cooldown"
-	)
-	_fail_unless(
-		not EnemyStreamSpawnerScript.can_spawn_laser(0, 2, 0.0, true),
-		"Legacy laser budget helper should respect active laser"
-	)
-	_fail_unless(
-		not EnemyStreamSpawnerScript.can_spawn_laser(2, 2, 0.0, false),
-		"Legacy laser budget helper should respect exhausted budget"
-	)
-	_fail_unless(
-		is_equal_approx(EnemyStreamSpawnerScript.LASER_KILL_COOLDOWN_SEC, 45.0),
-		"Laser respawn cooldown should be 45 s after kill or despawn"
-	)
-	_fail_unless(
-		not EnemyStreamSpawnerScript.should_start_laser_cooldown_on_exit(null, null),
-		"Exiting laser should not start cooldown when spawner already cleared active ref"
-	)
-	var fake_active := LaserDroneScript.new()
-	_fail_unless(
-		EnemyStreamSpawnerScript.should_start_laser_cooldown_on_exit(fake_active, fake_active),
-		"Despawned active laser should start respawn cooldown"
-	)
-	fake_active.free()
-	_verify_singleton_spawn_plan_deferral()
+	_verify_due_drone_spawns_are_uncapped()
 
 
-func _verify_singleton_spawn_plan_deferral() -> void:
+func _verify_due_drone_spawns_are_uncapped() -> void:
 	var plan: Array = [
 		EnemyStreamSpawnerScript.DroneSpawnSlot.new(
 			EnemyStreamSpawnerScript.DroneType.LASER, 0.2
 		),
 		EnemyStreamSpawnerScript.DroneSpawnSlot.new(
+			EnemyStreamSpawnerScript.DroneType.LASER, 0.35
+		),
+		EnemyStreamSpawnerScript.DroneSpawnSlot.new(
 			EnemyStreamSpawnerScript.DroneType.MISSILE, 0.5
+		),
+		EnemyStreamSpawnerScript.DroneSpawnSlot.new(
+			EnemyStreamSpawnerScript.DroneType.MACHINE_GUN, 0.7
 		),
 	]
 	var late_x := _player_x_at_segment_progress(8, 0.6)
-	var blocked := EnemyStreamSpawnerScript.collect_due_drone_spawns(
-		plan, 0, [], late_x, 8, 0.0, true, false
-	)
-	_fail_unless(int(blocked.cursor) == 2, "Blocked singleton slot should advance the plan cursor")
-	_fail_unless(blocked.pending.size() == 1, "Blocked laser slot should be deferred")
-	_fail_unless(blocked.spawns.size() == 1, "Missile slot should still spawn on schedule")
-	var missile_slot: EnemyStreamSpawnerScript.DroneSpawnSlot = blocked.spawns[0]
+	var due := EnemyStreamSpawnerScript.collect_due_drone_spawns(plan, 0, late_x, 8)
+	_fail_unless(int(due.cursor) == 3, "All slots past the player should spawn in order")
+	_fail_unless(due.spawns.size() == 3, "Due slots should all spawn, including a second laser")
 	_fail_unless(
-		missile_slot.drone_type == EnemyStreamSpawnerScript.DroneType.MISSILE,
-		"Deferred laser should not block later missile spawns"
+		(due.spawns[0] as EnemyStreamSpawnerScript.DroneSpawnSlot).drone_type
+		== EnemyStreamSpawnerScript.DroneType.LASER,
+		"First due slot should keep its rolled laser type"
+	)
+	_fail_unless(
+		(due.spawns[1] as EnemyStreamSpawnerScript.DroneSpawnSlot).drone_type
+		== EnemyStreamSpawnerScript.DroneType.LASER,
+		"A live laser should not block the next laser slot"
+	)
+	_fail_unless(
+		(due.spawns[2] as EnemyStreamSpawnerScript.DroneSpawnSlot).drone_type
+		== EnemyStreamSpawnerScript.DroneType.MISSILE,
+		"Later missile slots should still spawn on schedule"
 	)
 
 	var early_x := _player_x_at_segment_progress(8, 0.3)
-	var ready := EnemyStreamSpawnerScript.collect_due_drone_spawns(
-		plan, 0, [], early_x, 8, 0.0, false, false
-	)
-	_fail_unless(int(ready.cursor) == 1, "Progress gate should stop before the missile threshold")
-	_fail_unless(ready.pending.is_empty(), "Ready laser slot should not be deferred")
+	var ready := EnemyStreamSpawnerScript.collect_due_drone_spawns(plan, 0, early_x, 8)
+	_fail_unless(int(ready.cursor) == 1, "Progress gate should stop before later thresholds")
 	_fail_unless(ready.spawns.size() == 1, "Only the first due slot should spawn early")
 
-	var deferred_laser: EnemyStreamSpawnerScript.DroneSpawnSlot = blocked.pending[0]
-	var flushed := EnemyStreamSpawnerScript.collect_due_drone_spawns(
-		plan, 2, [deferred_laser], late_x, 8, 0.0, false, false
-	)
-	_fail_unless(flushed.pending.is_empty(), "Deferred laser should clear once singleton is free")
-	_fail_unless(flushed.spawns.size() == 1, "Deferred laser should spawn when singleton frees")
-	_fail_unless(
-		(flushed.spawns[0] as EnemyStreamSpawnerScript.DroneSpawnSlot).drone_type
-		== EnemyStreamSpawnerScript.DroneType.LASER,
-		"Deferred singleton slot should keep its original type"
-	)
-	_verify_level_change_clears_pending_singletons()
+	var remaining := EnemyStreamSpawnerScript.collect_due_drone_spawns(plan, 3, late_x, 8)
+	_fail_unless(remaining.spawns.is_empty(), "MG slot at 0.7 should wait until later progress")
 
-
-func _verify_level_change_clears_pending_singletons() -> void:
-	var leftover: EnemyStreamSpawnerScript.DroneSpawnSlot = (
-		EnemyStreamSpawnerScript.DroneSpawnSlot.new(
-			EnemyStreamSpawnerScript.DroneType.LASER, 0.95
-		)
+	var all_due := EnemyStreamSpawnerScript.collect_due_drone_spawns(
+		plan, 0, _player_x_at_segment_progress(8, 0.95), 8
 	)
-	var new_plan: Array = [
-		EnemyStreamSpawnerScript.DroneSpawnSlot.new(
-			EnemyStreamSpawnerScript.DroneType.MISSILE, 0.5
-		),
-	]
-	var early_x := _player_x_at_segment_progress(6, 0.1)
-	var stale := EnemyStreamSpawnerScript.collect_due_drone_spawns(
-		new_plan, 0, [leftover], early_x, 6, 0.0, false, false
-	)
+	_fail_unless(all_due.spawns.size() == 4, "Full-segment progress should spawn every rolled type")
 	_fail_unless(
-		stale.spawns.size() == 1,
-		"Uncleared pending singletons flush immediately once the singleton is free"
-	)
-	_fail_unless(
-		(stale.spawns[0] as EnemyStreamSpawnerScript.DroneSpawnSlot).drone_type
-		== EnemyStreamSpawnerScript.DroneType.LASER,
-		"Stale pending slots keep their original drone type"
-	)
-
-	var fresh := EnemyStreamSpawnerScript.collect_due_drone_spawns(
-		new_plan, 0, [], early_x, 6, 0.0, false, false
-	)
-	_fail_unless(
-		fresh.spawns.is_empty() and fresh.pending.is_empty(),
-		"Level transitions must clear pending singletons before rebuilding the plan"
+		(all_due.spawns[3] as EnemyStreamSpawnerScript.DroneSpawnSlot).drone_type
+		== EnemyStreamSpawnerScript.DroneType.MACHINE_GUN,
+		"MG slots should spawn even if another MG could already be alive"
 	)
 
 
@@ -1115,6 +1049,10 @@ func _verify_machine_gun_drone() -> void:
 	)
 	_fail_unless(MachineGunDroneScript.PASS_DAMAGE == 15, "MG pass-by damage should be 15")
 	_fail_unless(
+		is_equal_approx(MachineGunDroneScript.PASS_HIT_HALF_XZ_M, 2.5),
+		"MG pass hitbox should be 2.5 m half-width"
+	)
+	_fail_unless(
 		MachineGunDroneScript.should_begin_charge(100.0),
 		"MG drone should begin charge at 100 m ahead on lane"
 	)
@@ -1166,6 +1104,26 @@ func _verify_machine_gun_drone() -> void:
 		"Charge should run along X while Z stays mirrored"
 	)
 
+	_fail_unless(
+		is_equal_approx(MachineGunDroneScript.CHARGE_TURN_RATE_DEG, 72.0),
+		"MG charge should turn at 72 deg/s"
+	)
+	_fail_unless(
+		is_equal_approx(MachineGunDroneScript.follow_terrain_y(12.0, 8.0), 20.0),
+		"Charge height should rise with a hill"
+	)
+	_fail_unless(
+		is_equal_approx(MachineGunDroneScript.follow_terrain_y(-4.0, 8.0), 4.0),
+		"Charge height should drop into a valley"
+	)
+	_fail_unless(
+		is_equal_approx(
+			MachineGunDroneScript.terrain_clearance_m(Vector3(0.0, 11.0, 0.0), null),
+			11.0
+		),
+		"Charge should lock the hover gap it had when it started"
+	)
+
 	var start_heading := Vector3(-1.0, 0.0, 0.0)
 	var turn_target := Vector3(0.0, 0.0, -1.0)
 	var turned := CombatDroneScript.rotate_heading_toward(
@@ -1176,14 +1134,22 @@ func _verify_machine_gun_drone() -> void:
 		turned_deg <= MachineGunDroneScript.CHARGE_TURN_RATE_DEG + 0.01,
 		"MG charge turn rate should cap per second"
 	)
+	_fail_unless(
+		turned_deg >= MachineGunDroneScript.CHARGE_TURN_RATE_DEG - 0.01,
+		"MG charge should spend the full turn budget toward a 90 deg target"
+	)
 
 	_fail_unless(
 		MachineGunDroneScript.player_in_pass_hitbox(Vector3(0.4, 0.0, 0.0), Vector3.ZERO),
-		"Pass damage should require overlap with the drone cube on XZ"
+		"Pass damage should hit when the drone overlaps the player"
 	)
 	_fail_unless(
 		MachineGunDroneScript.player_in_pass_hitbox(Vector3(0.0, 8.0, 0.0), Vector3(0.0, 1.0, 0.0)),
 		"Pass damage should hit when the drone passes overhead above the player"
+	)
+	_fail_unless(
+		MachineGunDroneScript.player_in_pass_hitbox(Vector3(0.0, 0.0, 1.8), Vector3.ZERO),
+		"Pass damage should hit a near-miss beside the cube"
 	)
 	_fail_unless(
 		not MachineGunDroneScript.player_in_pass_hitbox(
@@ -1194,8 +1160,20 @@ func _verify_machine_gun_drone() -> void:
 
 	var mg = MachineGunDroneScript.new()
 	root.add_child(mg)
-	_fail_unless(mg.invulnerable, "MG drone should spawn invulnerable")
-	_fail_unless(not mg.take_damage(999), "Invulnerable MG drone should ignore damage")
+	var blue: MissileDrone = MissileDroneScript.new()
+	root.add_child(blue)
+	_fail_unless(not mg.invulnerable, "MG drone should be killable")
+	_fail_unless(
+		mg.get_max_health() == CombatDroneScript.DRONE_MAX_HEALTH,
+		"MG drone should use combat-drone HP"
+	)
+	_fail_unless(
+		mg.get_max_health() == blue.get_max_health() and mg.get_health() == blue.get_health(),
+		"MG drone HP should match the blue missile drone"
+	)
+	_fail_unless(not mg.take_damage(10), "Partial MG damage should not kill")
+	_fail_unless(mg.get_health() == CombatDroneScript.DRONE_MAX_HEALTH - 10, "MG drone should lose HP")
+	blue.free()
 
 	var rig := Node3D.new()
 	root.add_child(rig)
@@ -1262,14 +1240,28 @@ func _verify_machine_gun_drone() -> void:
 		"MG drones should roll near one third of slots"
 	)
 
-	var invuln: CombatDrone = MachineGunDroneScript.new()
-	root.add_child(invuln)
-	invuln.global_position = Vector3(-12.0, 0.0, 0.0)
+	var killable: CombatDrone = MachineGunDroneScript.new()
+	root.add_child(killable)
+	killable.global_position = Vector3(-12.0, 0.0, 0.0)
 	var candidates := AutoRifleScript.collect_candidates(
-		[invuln], Vector3.ZERO, Vector3(-1.0, 0.0, 0.0), 40.0
+		[killable], Vector3.ZERO, Vector3(-1.0, 0.0, 0.0), 40.0
 	)
-	_fail_unless(candidates.is_empty(), "Invulnerable drones should be skipped by weapon targeting")
-	invuln.free()
+	_fail_unless(candidates.size() == 1, "Killable MG drone should be a weapon target")
+	_fail_unless(
+		killable.take_damage(CombatDroneScript.DRONE_MAX_HEALTH),
+		"Full MG HP should kill the drone"
+	)
+	killable.free()
+
+	var skipped: CombatDrone = CombatDroneScript.new()
+	root.add_child(skipped)
+	skipped.invulnerable = true
+	skipped.global_position = Vector3(-12.0, 0.0, 0.0)
+	var skipped_candidates := AutoRifleScript.collect_candidates(
+		[skipped], Vector3.ZERO, Vector3(-1.0, 0.0, 0.0), 40.0
+	)
+	_fail_unless(skipped_candidates.is_empty(), "Invulnerable drones should be skipped by weapon targeting")
+	skipped.free()
 
 
 func _verify_flight_heading_inertia() -> void:

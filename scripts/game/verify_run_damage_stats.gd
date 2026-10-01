@@ -14,9 +14,11 @@ func _init() -> void:
 
 func _run() -> void:
 	_verify_overkill_records_actual_damage()
+	_verify_weapon_kills()
 	_verify_ranking_and_reset()
 	_verify_upgrade_summary_bundles_projectiles()
 	if _failed:
+		quit(1)
 		return
 	print("Run damage stats verification passed.")
 	quit(0)
@@ -33,7 +35,48 @@ func _verify_overkill_records_actual_damage() -> void:
 		stats.damage_for(UpgradeCatalogScript.FAMILY_RIFLE) == 1,
 		"Overkill should only record remaining HP as damage dealt"
 	)
+	_fail_unless(
+		stats.kills_for(UpgradeCatalogScript.FAMILY_RIFLE) == 1,
+		"Lethal tagged overkill should credit one rifle kill"
+	)
 	pill.queue_free()
+	stats.queue_free()
+
+
+func _verify_weapon_kills() -> void:
+	var stats := RunDamageStatsScript.new()
+	root.add_child(stats)
+	var wounded: SwarmPill = SwarmPillScene.instantiate() as SwarmPill
+	root.add_child(wounded)
+	wounded.take_damage(10, Vector3.ZERO, false, SwarmPill.HIT_KNOCKBACK_SPEED, UpgradeCatalogScript.FAMILY_RIFLE)
+	_fail_unless(
+		stats.kills_for(UpgradeCatalogScript.FAMILY_RIFLE) == 0,
+		"Non-lethal tagged hit should not increment kills"
+	)
+	wounded.queue_free()
+
+	var untagged: SwarmPill = SwarmPillScene.instantiate() as SwarmPill
+	root.add_child(untagged)
+	untagged.take_damage(20)
+	_fail_unless(
+		stats.kills_for(UpgradeCatalogScript.FAMILY_RIFLE) == 0,
+		"Untagged lethal hit should not credit a weapon kill"
+	)
+	untagged.queue_free()
+
+	var tagged: SwarmPill = SwarmPillScene.instantiate() as SwarmPill
+	root.add_child(tagged)
+	tagged.take_damage(20, Vector3.ZERO, false, SwarmPill.HIT_KNOCKBACK_SPEED, UpgradeCatalogScript.FAMILY_LASER)
+	_fail_unless(
+		stats.kills_for(UpgradeCatalogScript.FAMILY_LASER) == 1,
+		"Lethal tagged hit should credit one kill"
+	)
+	stats.reset()
+	_fail_unless(
+		stats.kills_for(UpgradeCatalogScript.FAMILY_LASER) == 0,
+		"Reset should clear weapon kills"
+	)
+	tagged.queue_free()
 	stats.queue_free()
 
 

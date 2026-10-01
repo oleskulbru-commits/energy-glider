@@ -263,6 +263,42 @@ theme_override_font_sizes/font_size = 14
 horizontal_alignment = 1
 autowrap_mode = 3
 
+[node name="Card5" type="PanelContainer" parent="Root/Center/Panel/VBox/Cards"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_card_idle")
+
+[node name="Inner" type="VBoxContainer" parent="Root/Center/Panel/VBox/Cards/Card5"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="RarityLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card5/Inner"]
+layout_mode = 2
+theme_type_variation = &"HudStoppedTitle"
+theme_override_font_sizes/font_size = 20
+text = "COMMON"
+horizontal_alignment = 1
+
+[node name="Button" type="Button" parent="Root/Center/Panel/VBox/Cards/Card5/Inner"]
+custom_minimum_size = Vector2(140, 140)
+layout_mode = 2
+icon_alignment = 1
+expand_icon = true
+
+[node name="NameLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card5/Inner"]
+layout_mode = 2
+theme_type_variation = &"HudValue"
+text = "+1 projectile"
+horizontal_alignment = 1
+
+[node name="BonusLabel" type="Label" parent="Root/Center/Panel/VBox/Cards/Card5/Inner"]
+visible = false
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+theme_type_variation = &"HudMuted"
+theme_override_font_sizes/font_size = 14
+horizontal_alignment = 1
+autowrap_mode = 3
+
 [node name="Actions" type="HBoxContainer" parent="Root/Center/Panel/VBox"]
 layout_mode = 2
 theme_override_constants/separation = 24

@@ -1,0 +1,19 @@
+[gd_scene format=3 uid="uid://dkyfiq6wg3pme"]
+
+[ext_resource type="Script" path="res://scripts/enemies/sun_eater.gd" id="1_sun"]
+[ext_resource type="Script" path="res://scripts/world/night_volume.gd" id="2_night"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+radius = 7.0
+height = 100.0
+
+[node name="SunEater" type="CharacterBody3D"]
+collision_layer = 8
+script = ExtResource("1_sun")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 50, 0)
+shape = SubResource("CapsuleShape3D_body")
+
+[node name="NightVolume" type="Node3D" parent="."]
+script = ExtResource("2_night")
