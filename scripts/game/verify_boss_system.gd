@@ -152,36 +152,61 @@ func _verify_encounter_gates() -> void:
 
 func _verify_sun_eater_theme() -> void:
 	_fail_unless(
-		is_equal_approx(BossDirectorScript.THEME_FADE_SEC, 5.0),
-		"Sun Eater theme should fade out over 5 seconds"
+		is_equal_approx(BossDirectorScript.THEME_FADE_SEC, 10.0),
+		"Sun Eater theme should fade out over 10 seconds"
 	)
 	var director := BossDirectorScript.new()
 	root.add_child(director)
 	var theme := director.get_node("SunEaterTheme") as AudioStreamPlayer
 	_fail_unless(theme != null, "Boss director should own the Sun Eater theme player")
+	var fade_clock := director.get_node_or_null("ThemeFadeClock")
+	_fail_unless(fade_clock != null, "Theme fade should keep ticking while the game is paused")
+	_fail_unless(
+		fade_clock.process_mode == Node.PROCESS_MODE_ALWAYS,
+		"Theme fade should keep ticking while the upgrade menu pauses the game"
+	)
 	_fail_unless(theme.stream != null, "Sun Eater theme stream should load")
 	_fail_unless(theme.stream.loop, "Sun Eater theme should loop for the fight")
 	director.call("_play_theme")
 	_fail_unless(theme.playing, "Theme should start when the Sun Eater spawns")
 	_fail_unless(is_equal_approx(theme.volume_db, 0.0), "Theme should start at full volume, without a fade in")
 	_fail_unless(float(director.get("_theme_fade_t")) < 0.0, "Spawn should not start the fade")
+	paused = true
+	_fail_unless(theme.stream_paused, "The pause menu should suspend the theme during the fight")
+	paused = false
+	_fail_unless(not theme.stream_paused, "Closing the pause menu should resume the theme")
 	director.call("_on_player_run_ended")
 	_fail_unless(float(director.get("_theme_fade_t")) < 0.0, "A missing player should not fade the theme")
 	director.call("_fade_theme")
+	_fail_unless(
+		theme.process_mode == Node.PROCESS_MODE_ALWAYS,
+		"The death fade should keep playing while the upgrade menu pauses the game"
+	)
 	_fail_unless(is_equal_approx(theme.volume_db, 0.0), "Fade out should begin at full volume")
 	var fade_mark := float(director.get("_theme_fade_t"))
 	director.call("_fade_theme")
 	_fail_unless(
 		is_equal_approx(float(director.get("_theme_fade_t")), fade_mark),
-		"A second death should not restart the 5 second fade"
+		"A second death should not restart the 10 second fade"
 	)
-	director._process(2.5)
+	director.call("_tick_theme_fade", 5.0)
 	_fail_unless(
 		is_equal_approx(theme.volume_db, linear_to_db(0.5)),
 		"Theme should be half loudness halfway through the fade"
 	)
-	director._process(2.5)
-	_fail_unless(not theme.playing, "Theme should stop after the 5 second fade")
+	paused = true
+	_fail_unless(theme.playing, "Theme should keep playing while the upgrade menu pauses the game")
+	_fail_unless(
+		not theme.stream_paused,
+		"The upgrade menu pause should not suspend the Sun Eater theme"
+	)
+	director.call("_tick_theme_fade", 5.0)
+	paused = false
+	_fail_unless(not theme.playing, "Theme should stop after the 10 second fade")
+	_fail_unless(
+		theme.process_mode == Node.PROCESS_MODE_PAUSABLE,
+		"A finished fade should let the pause menu suspend the theme again"
+	)
 	_fail_unless(is_equal_approx(theme.volume_db, 0.0), "A finished fade should leave the player at full volume")
 	director.call("_play_theme")
 	_fail_unless(theme.playing, "A later Sun Eater should start the theme again")

@@ -17,7 +17,7 @@ const BOSS_INTERVAL := 8
 const HP_PER_ORDINAL := 5000
 const SPAWN_TRIGGER_EAST_M := 200.0
 const SPAWN_EAST_OF_TOWER_M := 100.0
-const THEME_FADE_SEC := 5.0
+const THEME_FADE_SEC := 10.0
 
 @export var player_rig_path: NodePath
 @export var terrain_manager_path: NodePath
@@ -53,6 +53,10 @@ func _ready() -> void:
 		(_theme.stream as AudioStreamMP3).loop = true
 	_theme.volume_db = 0.0
 	add_child(_theme)
+	var fade_clock := ThemeFadeClock.new()
+	fade_clock.name = "ThemeFadeClock"
+	fade_clock.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(fade_clock)
 	call_deferred("_bind_director")
 
 
@@ -65,10 +69,9 @@ func _bind_director() -> void:
 		_eon.attempt_started.connect(reset_living_boss)
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	_ensure_player_death_hook()
 	_try_spawn()
-	_tick_theme_fade(delta)
 
 
 static func is_boss_tower(tower_index: int) -> bool:
@@ -233,6 +236,7 @@ func _play_theme() -> void:
 	if _theme == null:
 		return
 	_theme_fade_t = -1.0
+	_theme.process_mode = Node.PROCESS_MODE_PAUSABLE
 	_theme.volume_db = 0.0
 	_theme.play()
 
@@ -240,6 +244,8 @@ func _play_theme() -> void:
 func _fade_theme() -> void:
 	if _theme == null or not _theme.playing or _theme_fade_t >= 0.0:
 		return
+	# The upgrade menu pauses the tree on the next frame. Stay audible through that pause.
+	_theme.process_mode = Node.PROCESS_MODE_ALWAYS
 	_theme_fade_t = THEME_FADE_SEC
 	_theme.volume_db = 0.0
 
@@ -250,6 +256,7 @@ func _tick_theme_fade(delta: float) -> void:
 	_theme_fade_t = maxf(_theme_fade_t - delta, 0.0)
 	if _theme_fade_t <= 0.0:
 		_theme.stop()
+		_theme.process_mode = Node.PROCESS_MODE_PAUSABLE
 		_theme.volume_db = 0.0
 		_theme_fade_t = -1.0
 		return
@@ -274,6 +281,14 @@ func _on_player_run_ended() -> void:
 	if str(player.call("get_end_reason")) != "death":
 		return
 	_fade_theme()
+
+
+class ThemeFadeClock extends Node:
+	func _process(delta: float) -> void:
+		var director := get_parent() as BossDirector
+		if director == null:
+			return
+		director._tick_theme_fade(delta)
 
 
 func _player_body() -> Node3D:
