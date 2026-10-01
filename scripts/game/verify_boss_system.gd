@@ -57,20 +57,21 @@ func _run() -> void:
 
 
 func _verify_indexes_and_hp() -> void:
-	for index in [1, 9, 17, 25, 33]:
+	for index in [8, 9, 17, 25, 33]:
 		_fail_unless(
 			BossDirectorScript.is_boss_tower(index),
 			"Tower %d should be a boss tower" % index
 		)
-	for index in [0, 2, 7, 8, 15, 16, 23, 24, 31, 32, 39, 40, 41, 1004]:
+	for index in [0, 1, 2, 7, 15, 16, 23, 24, 31, 32, 39, 40, 41, 1004]:
 		_fail_unless(
 			not BossDirectorScript.is_boss_tower(index),
 			"Tower %d should not be a boss tower" % index
 		)
-	_fail_unless(BossDirectorScript.boss_ordinal(1) == 1, "First boss ordinal should be 1")
+	_fail_unless(BossDirectorScript.boss_ordinal(1) == 0, "Level 1 should not host a boss")
+	_fail_unless(BossDirectorScript.boss_ordinal(8) == 1, "First boss ordinal should be 1")
 	_fail_unless(BossDirectorScript.boss_ordinal(33) == 5, "Fifth boss ordinal should be 5")
 	_fail_unless(
-		BossDirectorScript.max_health_for_tower(1) == 5000,
+		BossDirectorScript.max_health_for_tower(8) == 5000,
 		"First boss should have 5000 HP"
 	)
 	_fail_unless(
@@ -125,11 +126,15 @@ func _verify_spawn_geometry() -> void:
 func _verify_encounter_gates() -> void:
 	var empty: Dictionary = {}
 	_fail_unless(
-		BossDirectorScript.can_start_encounter(1, false, empty),
-		"First boss should spawn when none are living"
+		not BossDirectorScript.can_start_encounter(1, false, empty),
+		"Level 1 should keep the regular enemy stream"
 	)
 	_fail_unless(
-		not BossDirectorScript.can_start_encounter(1, true, empty),
+		BossDirectorScript.can_start_encounter(8, false, empty),
+		"First boss should spawn on level 8 when none are living"
+	)
+	_fail_unless(
+		not BossDirectorScript.can_start_encounter(8, true, empty),
 		"A new boss should not spawn while another is alive"
 	)
 	_fail_unless(
@@ -137,16 +142,12 @@ func _verify_encounter_gates() -> void:
 		"Second boss should wait until the first is defeated"
 	)
 	_fail_unless(
-		BossDirectorScript.can_start_encounter(9, false, {1: true}),
+		BossDirectorScript.can_start_encounter(9, false, {8: true}),
 		"Second boss should spawn after the first is defeated"
 	)
 	_fail_unless(
-		not BossDirectorScript.can_start_encounter(1, false, {1: true}),
+		not BossDirectorScript.can_start_encounter(8, false, {8: true}),
 		"A defeated boss should not spawn again"
-	)
-	_fail_unless(
-		not BossDirectorScript.can_start_encounter(9, false, empty),
-		"Non-boss towers should not start an encounter"
 	)
 
 
@@ -1871,7 +1872,7 @@ func _verify_boss_shop() -> void:
 		and int(weights[4]) == 125,
 		"Boss shop weights should be 50 / 37.5 / 12.5 rare/epic/legendary"
 	)
-	for tower_index in [1, 9, 17, 25, 33]:
+	for tower_index in [8, 9, 17, 25, 33]:
 		var shop := UpgradeCatalogScript.roll_shop(
 			1, tower_index, 20, true, true, true, true, true, 0, -1, true
 		)
