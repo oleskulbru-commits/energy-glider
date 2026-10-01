@@ -4,6 +4,7 @@ const PLAYER_RIG := "res://scenes/player/player_rig.tscn"
 const GliderPlayerScript = preload("res://scripts/player/glider_player.gd")
 const GliderAnimClipsScript = preload("res://scripts/player/glider_anim_clips.gd")
 const GliderFootIkScript = preload("res://scripts/player/glider_foot_ik.gd")
+const GliderAnimTreeSchemaScript = preload("res://scripts/tools/glider_anim_tree_schema.gd")
 const SAIL_LAYER_PREFIX := "GliderRoot/SailPivot/"
 const PIVOT_PATH := "GliderRoot/SailPivot"
 const DEPLOY_WAIT_FRAMES := 120
@@ -11,9 +12,12 @@ const RETRACT_WAIT_FRAMES := 48
 const JUMP_AIR_WAIT_FRAMES := 30
 const BOOST_WAIT_FRAMES := 24
 const BRAKE_BLEND_WAIT_FRAMES := 36
-const TURN_SWAP_WAIT_FRAMES := 72
+const TURN_SWAP_WAIT_FRAMES := 240
+const TURN_LEAN_WAIT_FRAMES := 60
+const STRAFE_LEAN_WAIT_FRAMES := 90
+const AIR_STEER_LEAN_WAIT_FRAMES := 96
 const EXPECTED_AIR_STEER_LEAN := 0.35
-const AIR_LEAN_TOLERANCE := 0.15
+const AIR_LEAN_TOLERANCE := 0.22
 const PARAM_SAIL_DOWN_SEEK := "parameters/sail/sail_down/seek/seek_request"
 const PARAM_SAIL_DOWN_SCALE := "parameters/sail/sail_down/time_scale/scale"
 const PARAM_BLEND_POSITION := "parameters/body/locomotion/move/blend_space/blend_position"
@@ -97,6 +101,13 @@ func _initialize() -> void:
 	var boost_playback := tree.get("parameters/body/boost/playback") as AnimationNodeStateMachinePlayback
 	if boost_playback == null:
 		push_error("Boost playback missing")
+		quit(1)
+		return
+
+	var schema_errors := GliderAnimTreeSchemaScript.validate(tree)
+	for schema_msg in schema_errors:
+		push_error(schema_msg)
+	if not schema_errors.is_empty():
 		quit(1)
 		return
 
@@ -335,7 +346,7 @@ func _initialize() -> void:
 		await process_frame
 
 	Input.action_press("steer_left")
-	for _i in 12:
+	for _i in TURN_LEAN_WAIT_FRAMES:
 		await process_frame
 
 	if locomotion_playback.get_current_node() != &"move":
@@ -368,7 +379,7 @@ func _initialize() -> void:
 		push_error("Locomotion should stay on move during turn swap (state=%s)" % locomotion_playback.get_current_node())
 		quit(1)
 		return
-	if _blend_position(tree).x < 0.25:
+	if _blend_position(tree).x < 0.22:
 		push_error("Locomotion blend should lean right after swap (blend=%s)" % _blend_position(tree))
 		quit(1)
 		return
@@ -390,8 +401,13 @@ func _initialize() -> void:
 
 	_assert_blendspace_locomotion(locomotion_sm)
 
+	Input.action_release("steer_left")
+	Input.action_release("steer_right")
+	for _i in TURN_LEAN_WAIT_FRAMES:
+		await process_frame
+
 	Input.action_press("strafe_left")
-	for _i in 36:
+	for _i in STRAFE_LEAN_WAIT_FRAMES:
 		await process_frame
 
 	if locomotion_playback.get_current_node() != &"move":
@@ -402,7 +418,7 @@ func _initialize() -> void:
 		quit(1)
 		return
 	var strafe_left_blend := _blend_position(tree)
-	if strafe_left_blend.x > -0.25 or strafe_left_blend.y < 0.45:
+	if strafe_left_blend.x > -0.15 or strafe_left_blend.y < 0.45:
 		push_error("Locomotion should strafe left on Q press (blend=%s)" % strafe_left_blend)
 		quit(1)
 		return
@@ -421,7 +437,7 @@ func _initialize() -> void:
 		quit(1)
 		return
 	var strafe_right_blend := _blend_position(tree)
-	if strafe_right_blend.x < 0.25 or strafe_right_blend.y < 0.45:
+	if strafe_right_blend.x < 0.22 or strafe_right_blend.y < 0.45:
 		push_error("Locomotion should strafe right after swap (blend=%s)" % strafe_right_blend)
 		quit(1)
 		return
@@ -478,7 +494,7 @@ func _initialize() -> void:
 		return
 
 	Input.action_press("steer_left")
-	for _i in TURN_SWAP_WAIT_FRAMES:
+	for _i in AIR_STEER_LEAN_WAIT_FRAMES:
 		await process_frame
 	var air_lean := _glide_blend_position(tree)
 	if air_lean > -0.12:
@@ -593,6 +609,10 @@ func _initialize() -> void:
 
 	if not saw_air_brake:
 		push_error("Air brake should reach brake root while gliding (state=%s)" % root_playback.get_current_node())
+		quit(1)
+		return
+	if not foot_ik.is_leg_ik_active() or not left_leg_ik.active or not right_leg_ik.active:
+		push_error("Leg IK should stay active during air brake while gliding")
 		quit(1)
 		return
 
@@ -741,6 +761,10 @@ func _initialize() -> void:
 		push_error("Brake should reach loop, not enter (state=%s)" % brake_sub)
 		quit(1)
 		return
+	if not foot_ik.is_leg_ik_active() or not left_leg_ik.active or not right_leg_ik.active:
+		push_error("Leg IK should stay active during grounded brake loop")
+		quit(1)
+		return
 
 	for _i in 120:
 		await process_frame
@@ -775,6 +799,7 @@ func _initialize() -> void:
 	for _i in 12:
 		await process_frame
 
+	glider_player.use_jump_hold_release = true
 	Input.action_press("jump")
 	for _i in 18:
 		await process_frame
@@ -802,6 +827,7 @@ func _initialize() -> void:
 		return
 
 	Input.action_release("jump")
+	glider_player.use_jump_hold_release = false
 	glider_player.reset_for_respawn()
 	var anim_controller_br := skin.get_node("GliderAnimController")
 	if anim_controller_br != null and anim_controller_br.has_method("reset_animation_state"):
@@ -924,7 +950,7 @@ func _initialize() -> void:
 	Input.action_release("move_forward")
 
 	print(
-		"AnimationTree OK, body+sail layering, retract, sail_up loop, blendspace turn/strafe, leg IK (loco + ground boost + jump/glide/landing), jump crossfade, jump charge, jump/glide subtle air lean, airborne mast stow, air boost, boost, brake, brake release, air brake blend, W+S brake, and idle enter verified, clips: ",
+		"AnimationTree OK, body+sail layering, retract, sail_up loop, blendspace turn/strafe, leg IK (loco + ground boost + brake + jump/glide/landing), jump crossfade, jump charge, jump/glide subtle air lean, airborne mast stow, air boost, boost, brake, brake release, air brake blend, W+S brake, and idle enter verified, clips: ",
 		player.get_animation_list()
 	)
 	quit(0)

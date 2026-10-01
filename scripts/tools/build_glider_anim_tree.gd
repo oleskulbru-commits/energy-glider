@@ -1,6 +1,9 @@
 extends SceneTree
 
+## Regenerates glider_anim_state_machine.tres. Run after editing this script, then:
+##   godot --headless -s res://scripts/tools/verify_glider_anim_tree.gd
 const GliderAnimClipsScript = preload("res://scripts/player/glider_anim_clips.gd")
+const GliderAnimTreeSchemaScript = preload("res://scripts/tools/glider_anim_tree_schema.gd")
 const OUT_PATH := "res://resources/anims/glider_anim_state_machine.tres"
 const XFADE := 0.5
 const XFADE_START := 0.05
@@ -65,15 +68,11 @@ func _build_body_state_machine(
 	sm.add_node("landing", _make_clip("Eve_Land"), Vector2(1120, -160))
 	sm.add_node("death", _make_clip("Eve_Idle"), Vector2(1400, 0))
 
-	var body_states := [
-		"grounded", "locomotion", "jump_charge", "jump", "glide", "boost", "brake", "landing", "death",
-	]
-	for from_state in body_states:
-		for to_state in body_states:
-			if from_state == to_state:
-				continue
-			var xfade := _body_transition_xfade(from_state, to_state)
-			sm.add_transition(from_state, to_state, _make_transition(xfade, ease))
+	for pair in GliderAnimTreeSchemaScript.ALLOWED_BODY_TRANSITIONS:
+		var from_state: String = pair[0]
+		var to_state: String = pair[1]
+		var xfade := _body_transition_xfade(from_state, to_state)
+		sm.add_transition(from_state, to_state, _make_transition(xfade, ease))
 
 	var start := _make_transition(XFADE_START, ease)
 	sm.add_transition("Start", "grounded", start)
@@ -128,12 +127,17 @@ func _build_sail_state_machine(ease: Curve) -> AnimationNodeStateMachine:
 
 func _build_locomotion_state_machine(ease: Curve) -> AnimationNodeStateMachine:
 	var sm := AnimationNodeStateMachine.new()
-	sm.add_node("enter", _make_clip("Eve_Idle_To_Forward"), Vector2(-280, 0))
+	sm.add_node("enter", _make_seek_timescaled_clip("Eve_Idle_To_Forward"), Vector2(-280, 0))
 	sm.add_node("move", _make_locomotion_blendspace_clip(), Vector2(0, 0))
+	sm.add_node("exit", _make_seek_timescaled_clip("Eve_Idle_To_Forward"), Vector2(280, 0))
 
 	sm.add_transition("Start", "enter", _make_transition(XFADE_START, ease))
 	sm.add_transition("Start", "move", _make_transition(AIR_XFADE, ease))
 	sm.add_transition("enter", "move", _make_auto_end_transition(AIR_XFADE, ease))
+	sm.add_transition("move", "exit", _make_transition(AIR_XFADE, ease))
+	sm.add_transition("exit", "enter", _make_transition(AIR_XFADE, ease))
+	sm.add_transition("exit", "move", _make_transition(AIR_XFADE, ease))
+	sm.add_transition("move", "enter", _make_transition(AIR_XFADE, ease))
 	return sm
 
 
@@ -178,34 +182,23 @@ func _build_brake_state_machine(ease: Curve) -> AnimationNodeStateMachine:
 
 	sm.add_transition("Start", "enter", _make_transition(XFADE_START, ease))
 	sm.add_transition("enter", "loop", _make_auto_end_transition(AIR_XFADE, ease))
-
-	for from_state in ["enter", "loop"]:
-		for to_state in ["enter", "loop"]:
-			if from_state == to_state:
-				continue
-			if from_state == "enter" and to_state == "loop":
-				continue
-			sm.add_transition(from_state, to_state, _make_transition(AIR_XFADE, ease))
-
+	sm.add_transition("loop", "enter", _make_transition(AIR_XFADE, ease))
 	return sm
 
 
 func _build_boost_state_machine(ease: Curve) -> AnimationNodeStateMachine:
 	var sm := AnimationNodeStateMachine.new()
-	sm.add_node("enter", _make_clip("Eve_Forward_To_Boost"), Vector2(0, 0))
+	sm.add_node("enter", _make_seek_timescaled_clip("Eve_Forward_To_Boost"), Vector2(0, 0))
 	sm.add_node("loop", _make_timescaled_loop_clip("Eve_Boost"), Vector2(280, 0))
+	sm.add_node("exit", _make_seek_timescaled_clip("Eve_Forward_To_Boost"), Vector2(560, 0))
 
 	sm.add_transition("Start", "enter", _make_transition(XFADE_START, ease))
+	sm.add_transition("Start", "loop", _make_transition(AIR_XFADE, ease))
 	sm.add_transition("enter", "loop", _make_auto_end_transition(AIR_XFADE, ease))
-
-	for from_state in ["enter", "loop"]:
-		for to_state in ["enter", "loop"]:
-			if from_state == to_state:
-				continue
-			if from_state == "enter" and to_state == "loop":
-				continue
-			sm.add_transition(from_state, to_state, _make_transition(AIR_XFADE, ease))
-
+	sm.add_transition("loop", "exit", _make_transition(AIR_XFADE, ease))
+	sm.add_transition("enter", "exit", _make_transition(AIR_XFADE, ease))
+	sm.add_transition("exit", "enter", _make_transition(AIR_XFADE, ease))
+	sm.add_transition("loop", "enter", _make_transition(AIR_XFADE, ease))
 	return sm
 
 

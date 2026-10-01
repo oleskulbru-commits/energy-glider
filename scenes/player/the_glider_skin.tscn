@@ -9,7 +9,7 @@
 [ext_resource type="ArrayMesh" path="res://resources/meshes/glider_skin/gliderboard.res" id="2_m50yr"]
 [ext_resource type="Script" uid="uid://ccres3l856a06" path="res://scripts/player/glider_thruster_vfx.gd" id="2_thruster_vfx"]
 [ext_resource type="Texture2D" uid="uid://32caip4qxsom" path="res://assets/vfx/glider/fbx_boost_fbx/boost_loop/boost_loop_clip/glider_boost_loop0010.png" id="3_sfwho"]
-[ext_resource type="AnimationNodeBlendTree" uid="uid://cc1y4bql1d20u" path="res://resources/anims/glider_anim_state_machine.tres" id="3_state_machine"]
+[ext_resource type="AnimationNodeBlendTree" uid="uid://d3tp5lvllf44x" path="res://resources/anims/glider_anim_state_machine.tres" id="3_state_machine"]
 [ext_resource type="Script" uid="uid://di0wixewh5h62" path="res://scripts/player/sail_anim_controller.gd" id="4_sail_anim"]
 [ext_resource type="ArrayMesh" path="res://resources/meshes/glider_skin/glider_headlight_module.res" id="5_lwd6e"]
 [ext_resource type="Material" path="res://assets/materials/vfx/boost_cylinder.tres" id="6_boost_cylinder"]
@@ -213,6 +213,7 @@ omni_attenuation = 1.1
 mesh = ExtResource("16_y3yyn")
 
 [node name="Body" parent="Model/GliderRoot/Hero_Rig/Skeleton3D" parent_id_path=PackedInt32Array(678267291, 836889355) index="1" unique_id=630886925]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.3061714e-05, 0, -0.0006263256)
 mesh = ExtResource("17_fpiwe")
 skin = ExtResource("18_e2bcg")
 
@@ -262,7 +263,7 @@ transform = Transform3D(1, 0, -0.00029952655, 0, 1, 0, 0.00029952655, 0, 1, 0.17
 transform = Transform3D(0.9963423, -0.08544486, 0, 0.08544489, 0.99634135, -2.2696371e-09, 0, -2.2696371e-09, 0.99999964, 0.16291331, -0.10749741, 0.07352348)
 
 [node name="SailPivot" parent="Model/GliderRoot" parent_id_path=PackedInt32Array(678267291, 82523037) index="2" unique_id=1845391848]
-transform = Transform3D(0.99998397, 0, 0, 0, 0.9999779, 0, 0, 0, 0.99998266, 0.0066010416, 0.0830713, 0.7217533)
+transform = Transform3D(0.99998015, 0, 0, 0, 0.99997425, 0, 0, 0, 0.9999789, 0.0066010416, 0.0830713, 0.7217533)
 
 [node name="MastBase" parent="Model/GliderRoot/SailPivot" index="2" unique_id=705383593]
 mesh = ExtResource("20_wkcqb")
@@ -322,6 +323,10 @@ libraries/ = ExtResource("34_1rext")
 root_node = NodePath("../Model")
 tree_root = ExtResource("3_state_machine")
 anim_player = NodePath("../Model/AnimationPlayer")
+parameters/body/boost/enter/seek/seek_request = -1.0
+parameters/body/boost/enter/time_scale/scale = 1.0
+parameters/body/boost/exit/seek/seek_request = -1.0
+parameters/body/boost/exit/time_scale/scale = 1.0
 parameters/body/boost/loop/time_scale/scale = 1.0
 parameters/body/brake/loop/time_scale/scale = 1.0
 parameters/body/glide/blend_space/blend_position = 0.0
@@ -329,6 +334,10 @@ parameters/body/jump/seek/seek_request = -1.0
 parameters/body/jump/time_scale/scale = 0.625
 parameters/body/jump_charge/seek/seek_request = -1.0
 parameters/body/jump_charge/time_scale/scale = 1.0
+parameters/body/locomotion/enter/seek/seek_request = -1.0
+parameters/body/locomotion/enter/time_scale/scale = 1.0
+parameters/body/locomotion/exit/seek/seek_request = -1.0
+parameters/body/locomotion/exit/time_scale/scale = 1.0
 parameters/body/locomotion/move/blend_space/blend_position = Vector2(0, 0)
 parameters/body/locomotion/move/time_scale/scale = 1.0
 parameters/sail/deploy_forward/seek/seek_request = 0.0
