@@ -1,8 +1,8 @@
 class_name BossDirector
 extends Node3D
 
-## Westbound bosses every BOSS_INTERVAL towers, starting at the first westbound tower.
-## One living encounter at a time.
+## Westbound bosses at towers 8, 9, 17, 25, and 33.
+## Level 1 keeps the regular enemy stream. One living encounter at a time.
 
 signal boss_spawned(boss: Node)
 signal boss_health_changed(current: int, max_hp: int)
@@ -12,7 +12,7 @@ const SunEaterScene := preload("res://scenes/enemies/sun_eater.tscn")
 const EonDirectorScript := preload("res://scripts/game/eon_director.gd")
 const SunEaterTheme := preload("res://assets/audio/music/the_sun_eater_emerges.mp3")
 
-const BOSS_TOWER_INDEXES: Array[int] = [1, 9, 17, 25, 33]
+const BOSS_TOWER_INDEXES: Array[int] = [8, 9, 17, 25, 33]
 const BOSS_INTERVAL := 8
 const HP_PER_ORDINAL := 5000
 const SPAWN_TRIGGER_EAST_M := 200.0
