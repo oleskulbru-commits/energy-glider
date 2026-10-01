@@ -10,12 +10,14 @@ signal boss_despawned
 
 const SunEaterScene := preload("res://scenes/enemies/sun_eater.tscn")
 const EonDirectorScript := preload("res://scripts/game/eon_director.gd")
+const SunEaterTheme := preload("res://assets/audio/music/the_sun_eater_emerges.mp3")
 
 const BOSS_TOWER_INDEXES: Array[int] = [1, 9, 17, 25, 33]
 const BOSS_INTERVAL := 8
 const HP_PER_ORDINAL := 5000
 const SPAWN_TRIGGER_EAST_M := 200.0
 const SPAWN_EAST_OF_TOWER_M := 100.0
+const THEME_FADE_SEC := 5.0
 
 @export var player_rig_path: NodePath
 @export var terrain_manager_path: NodePath
@@ -29,6 +31,9 @@ var _visit: TowerVisitController
 var _living: SunEater
 var _living_tower_index := 0
 var _defeated: Dictionary = {}
+var _theme: AudioStreamPlayer
+var _theme_fade_t := -1.0
+var _player_death_hooked := false
 
 
 func _ready() -> void:
@@ -41,6 +46,13 @@ func _ready() -> void:
 		_eon = get_node_or_null(eon_director_path) as EonDirectorScript
 	if tower_visit_path != NodePath():
 		_visit = get_node_or_null(tower_visit_path) as TowerVisitController
+	_theme = AudioStreamPlayer.new()
+	_theme.name = "SunEaterTheme"
+	_theme.stream = SunEaterTheme
+	if _theme.stream is AudioStreamMP3:
+		(_theme.stream as AudioStreamMP3).loop = true
+	_theme.volume_db = 0.0
+	add_child(_theme)
 	call_deferred("_bind_director")
 
 
@@ -53,8 +65,10 @@ func _bind_director() -> void:
 		_eon.attempt_started.connect(reset_living_boss)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_ensure_player_death_hook()
 	_try_spawn()
+	_tick_theme_fade(delta)
 
 
 static func is_boss_tower(tower_index: int) -> bool:
@@ -124,6 +138,7 @@ func player_body() -> Node3D:
 func reset_living_boss() -> void:
 	_clear_living(false)
 	boss_despawned.emit()
+	_fade_theme()
 
 
 func _try_spawn() -> void:
@@ -171,6 +186,7 @@ func _spawn_at_tower(tower: UpgradeTower, player: Node3D) -> void:
 		boss.health_changed.connect(_on_boss_health_changed)
 	_living = boss
 	_living_tower_index = tower.tower_index
+	_play_theme()
 	boss_spawned.emit(boss)
 	boss_health_changed.emit(boss.get_health(), boss.get_max_health())
 
@@ -184,6 +200,7 @@ func _on_boss_died() -> void:
 	_defeated[index] = true
 	_clear_living(true)
 	boss_despawned.emit()
+	_fade_theme()
 	var tower := _tower_by_index(index)
 	if tower == null or _visit == null:
 		return
@@ -210,6 +227,53 @@ func _tower_by_index(index: int) -> UpgradeTower:
 		if tower != null and tower.tower_index == index:
 			return tower
 	return null
+
+
+func _play_theme() -> void:
+	if _theme == null:
+		return
+	_theme_fade_t = -1.0
+	_theme.volume_db = 0.0
+	_theme.play()
+
+
+func _fade_theme() -> void:
+	if _theme == null or not _theme.playing or _theme_fade_t >= 0.0:
+		return
+	_theme_fade_t = THEME_FADE_SEC
+	_theme.volume_db = 0.0
+
+
+func _tick_theme_fade(delta: float) -> void:
+	if _theme == null or _theme_fade_t < 0.0:
+		return
+	_theme_fade_t = maxf(_theme_fade_t - delta, 0.0)
+	if _theme_fade_t <= 0.0:
+		_theme.stop()
+		_theme.volume_db = 0.0
+		_theme_fade_t = -1.0
+		return
+	_theme.volume_db = linear_to_db(_theme_fade_t / THEME_FADE_SEC)
+
+
+func _ensure_player_death_hook() -> void:
+	if _player_death_hooked:
+		return
+	var player := _player_body()
+	if player == null or not player.has_signal("run_ended"):
+		return
+	if not player.run_ended.is_connected(_on_player_run_ended):
+		player.run_ended.connect(_on_player_run_ended)
+	_player_death_hooked = true
+
+
+func _on_player_run_ended() -> void:
+	var player := _player_body()
+	if player == null or not player.has_method("get_end_reason"):
+		return
+	if str(player.call("get_end_reason")) != "death":
+		return
+	_fade_theme()
 
 
 func _player_body() -> Node3D:

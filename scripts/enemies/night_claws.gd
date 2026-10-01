@@ -259,8 +259,7 @@ func _spawn_reticles() -> void:
 
 func _clear_reticles() -> void:
 	for slot in _slots:
-		if slot.reticle != null and is_instance_valid(slot.reticle):
-			slot.reticle.queue_free()
+		_release_world_node(slot.reticle)
 		slot.reticle = null
 
 
@@ -435,15 +434,40 @@ func _physics_space() -> PhysicsDirectSpaceState3D:
 	return world.direct_space_state
 
 
+## Sink, relocate, and death free the caster without waiting for retract.
+## Marks and pills live on the scene, so they must be released here too.
+func cancel() -> void:
+	_phase = Phase.DONE
+	set_physics_process(false)
+	_free_world_meshes()
+	if is_inside_tree() and not is_queued_for_deletion():
+		queue_free()
+
+
+func _exit_tree() -> void:
+	_free_world_meshes()
+
+
+func _free_world_meshes() -> void:
+	_clear_reticles()
+	for slot in _slots:
+		_release_world_node(slot.pill)
+		slot.pill = null
+
+
+func _release_world_node(node: Node) -> void:
+	if node == null or not is_instance_valid(node) or node.is_queued_for_deletion():
+		return
+	if node.get_parent() == self:
+		return
+	node.queue_free()
+
+
 func _finish() -> void:
 	if _phase == Phase.DONE:
 		return
 	_phase = Phase.DONE
-	_clear_reticles()
-	for slot in _slots:
-		if slot.pill != null and is_instance_valid(slot.pill):
-			slot.pill.queue_free()
-		slot.pill = null
+	_free_world_meshes()
 	set_physics_process(false)
 	finished.emit()
 	queue_free()

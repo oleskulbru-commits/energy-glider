@@ -35,6 +35,7 @@ func _run() -> void:
 	_verify_indexes_and_hp()
 	_verify_spawn_geometry()
 	_verify_encounter_gates()
+	_verify_sun_eater_theme()
 	_verify_ascent_and_hp_lock()
 	_verify_boss_targeting()
 	_verify_finger_mechanic()
@@ -149,6 +150,47 @@ func _verify_encounter_gates() -> void:
 	)
 
 
+func _verify_sun_eater_theme() -> void:
+	_fail_unless(
+		is_equal_approx(BossDirectorScript.THEME_FADE_SEC, 5.0),
+		"Sun Eater theme should fade out over 5 seconds"
+	)
+	var director := BossDirectorScript.new()
+	root.add_child(director)
+	var theme := director.get_node("SunEaterTheme") as AudioStreamPlayer
+	_fail_unless(theme != null, "Boss director should own the Sun Eater theme player")
+	_fail_unless(theme.stream != null, "Sun Eater theme stream should load")
+	_fail_unless(theme.stream.loop, "Sun Eater theme should loop for the fight")
+	director.call("_play_theme")
+	_fail_unless(theme.playing, "Theme should start when the Sun Eater spawns")
+	_fail_unless(is_equal_approx(theme.volume_db, 0.0), "Theme should start at full volume, without a fade in")
+	_fail_unless(float(director.get("_theme_fade_t")) < 0.0, "Spawn should not start the fade")
+	director.call("_on_player_run_ended")
+	_fail_unless(float(director.get("_theme_fade_t")) < 0.0, "A missing player should not fade the theme")
+	director.call("_fade_theme")
+	_fail_unless(is_equal_approx(theme.volume_db, 0.0), "Fade out should begin at full volume")
+	var fade_mark := float(director.get("_theme_fade_t"))
+	director.call("_fade_theme")
+	_fail_unless(
+		is_equal_approx(float(director.get("_theme_fade_t")), fade_mark),
+		"A second death should not restart the 5 second fade"
+	)
+	director._process(2.5)
+	_fail_unless(
+		is_equal_approx(theme.volume_db, linear_to_db(0.5)),
+		"Theme should be half loudness halfway through the fade"
+	)
+	director._process(2.5)
+	_fail_unless(not theme.playing, "Theme should stop after the 5 second fade")
+	_fail_unless(is_equal_approx(theme.volume_db, 0.0), "A finished fade should leave the player at full volume")
+	director.call("_play_theme")
+	_fail_unless(theme.playing, "A later Sun Eater should start the theme again")
+	_fail_unless(is_equal_approx(theme.volume_db, 0.0), "A later Sun Eater should start at full volume")
+	_fail_unless(float(director.get("_theme_fade_t")) < 0.0, "A new spawn should cancel an old fade")
+	theme.stop()
+	director.free()
+
+
 func _verify_ascent_and_hp_lock() -> void:
 	_fail_unless(
 		is_equal_approx(SunEaterScript.ASCENT_SEC, 3.0),
@@ -256,6 +298,21 @@ func _verify_ascent_and_hp_lock() -> void:
 	_fail_unless(boss.get_health() == 4960, "Night regen should keep stacking")
 	boss._physics_process(2.0)
 	_fail_unless(boss.get_health() == 5000, "Night regen should stop at max HP")
+	boss.take_damage(100)
+	var night_cycle: DayNightCycle = DayNightCycleScript.new()
+	night_cycle.day_phase_sec = 240.0
+	night_cycle.night_phase_sec = 240.0
+	root.add_child(night_cycle)
+	night_cycle.set_process(false)
+	night_cycle.time_normalized = 0.75
+	boss._physics_process(1.0)
+	_fail_unless(boss.is_night_unleashed(), "A night clock should keep the night phase")
+	_fail_unless(boss.get_health() == 4930, "Regen should continue while the clock is still night")
+	night_cycle.time_normalized = 0.1
+	boss._physics_process(1.0)
+	_fail_unless(not boss.is_night_unleashed(), "Dawn should end the night phase")
+	_fail_unless(boss.get_health() == 4930, "Night regen should stop at dawn")
+	night_cycle.free()
 	boss.free()
 
 
@@ -917,8 +974,60 @@ func _verify_night_claws() -> void:
 		"Night Claws must not fire while the player is moving toward the boss"
 	)
 
+	var previous_scene := current_scene
+	var claw_scene := Node3D.new()
+	claw_scene.name = "ClawScene"
+	root.add_child(claw_scene)
+	current_scene = claw_scene
+	boss.set("_relocate_count", 1)
+	boss.set("_stand_t", 1.0)
+	boss.set("_night_claws_cooldown_t", 0.0)
+	boss.set("_night_claws", null)
+	hunter.global_position = Vector3(150.0, 2.0, 0.0)
+	hunter.velocity = Vector3.ZERO
+	boss._physics_process(0.05)
+	var telegraph = boss.living_night_claws()
+	_fail_unless(telegraph != null, "Interrupt test should cast Night Claws")
+	_fail_unless(
+		_count_live_claw_marks(claw_scene) == telegraph.claw_count(),
+		"Telegraph marks should be parented to the scene"
+	)
+	boss.call("_begin_sink")
+	_fail_unless(boss.living_night_claws() == null, "Sink should drop the claw caster")
+	_fail_unless(
+		_count_live_claw_marks(claw_scene) == 0,
+		"Sink should free telegraph marks"
+	)
+	_fail_unless(_count_live_claw_pills(claw_scene) == 0, "Sink should not leave claw pills")
+
+	boss.set("_sinking", false)
+	var strike: NightClaws = NightClawsScript.new()
+	claw_scene.add_child(strike)
+	var strike_rng := RandomNumberGenerator.new()
+	strike_rng.seed = 3
+	strike.configure(boss, hunter, null, strike_rng)
+	boss.set("_night_claws", strike)
+	strike._physics_process(NightClawsScript.TELEGRAPH_SEC + 0.02)
+	_fail_unless(
+		strike.phase() == NightClawsScript.Phase.STRIKE,
+		"Interrupt test should reach the strike"
+	)
+	_fail_unless(_count_live_claw_marks(claw_scene) == 0, "Strike should already have cleared marks")
+	_fail_unless(
+		_count_live_claw_pills(claw_scene) == strike.claw_count(),
+		"Strike pills should be parented to the scene"
+	)
+	boss.call("_die", Vector3.ZERO, &"")
+	_fail_unless(
+		_count_live_claw_pills(claw_scene) == 0,
+		"Death should free claw pills"
+	)
+	current_scene = previous_scene
+	claw_scene.free()
+
 	hunter.free()
-	boss.free()
+	if is_instance_valid(boss) and not boss.is_queued_for_deletion():
+		boss.free()
 
 
 func _verify_portal_queues_during_claws() -> void:
@@ -1500,6 +1609,23 @@ func _verify_night_scarabs() -> void:
 		boss.living_scarab_count() == 0,
 		"Clock night scarabs should come from the stream, not the Sun Eater"
 	)
+	var dawn_cycle: DayNightCycle = DayNightCycleScript.new()
+	dawn_cycle.day_phase_sec = 240.0
+	dawn_cycle.night_phase_sec = 240.0
+	root.add_child(dawn_cycle)
+	dawn_cycle.set_process(false)
+	dawn_cycle.time_normalized = 0.75
+	boss._physics_process(1.0)
+	_fail_unless(boss.is_night_unleashed(), "Clock night should stay unleashed while the clock is night")
+	_fail_unless(not night_volume.visuals_enabled(), "Sphere visuals should stay hidden through the night")
+	dawn_cycle.time_normalized = 0.1
+	boss._physics_process(1.0)
+	_fail_unless(not boss.is_night_unleashed(), "Dawn should release the night latch")
+	_fail_unless(night_volume.visuals_enabled(), "Dawn should restore day sphere visuals")
+	var dawn_mesh := night_volume.get_node("Mesh") as MeshInstance3D
+	_fail_unless(dawn_mesh != null and dawn_mesh.visible, "Dawn should show the night sphere mesh")
+	_fail_unless(boss.living_scarab_count() >= 1, "Dawn should resume the daytime scarab army")
+	dawn_cycle.free()
 	hunter.free()
 	boss.free()
 
@@ -1778,6 +1904,22 @@ func _scarabs_bound_to(boss: SunEater, volume: NightVolume) -> int:
 	var count := 0
 	for scarab in boss.living_scarabs():
 		if scarab.home_volume() == volume:
+			count += 1
+	return count
+
+
+func _count_live_claw_marks(host: Node) -> int:
+	var count := 0
+	for child in host.get_children():
+		if child is NightClawReticle and is_instance_valid(child) and not child.is_queued_for_deletion():
+			count += 1
+	return count
+
+
+func _count_live_claw_pills(host: Node) -> int:
+	var count := 0
+	for child in host.get_children():
+		if child is MeshInstance3D and is_instance_valid(child) and not child.is_queued_for_deletion():
 			count += 1
 	return count
 

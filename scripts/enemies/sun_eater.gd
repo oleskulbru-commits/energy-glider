@@ -263,11 +263,21 @@ func begin_clock_night() -> void:
 		return
 	_night_unleashed = true
 	_night_ramp_t = 0.0
+	_regen_accum = 0.0
 	_hide_night_visuals()
 	_clear_scarabs()
 	_spawn_acc.clear()
 	_virtual_counts.clear()
 	_volume_hot.clear()
+
+
+func end_clock_night() -> void:
+	if not _night_unleashed:
+		return
+	_night_unleashed = false
+	_night_ramp_t = 0.0
+	_regen_accum = 0.0
+	_show_day_visuals()
 
 
 func _tick_night_regen(delta: float) -> void:
@@ -890,7 +900,7 @@ func _clear_night_claws() -> void:
 	if _night_claws != null and is_instance_valid(_night_claws):
 		if _night_claws.finished.is_connected(_on_night_claws_finished):
 			_night_claws.finished.disconnect(_on_night_claws_finished)
-		_night_claws.queue_free()
+		_night_claws.cancel()
 	_night_claws = null
 
 
@@ -1210,7 +1220,7 @@ func _clear_child_spheres() -> void:
 
 
 func _tick_scarab_spawns(delta: float) -> void:
-	_maybe_begin_clock_night()
+	_sync_clock_night()
 	if _night_unleashed:
 		_night_ramp_t += delta
 		return
@@ -1345,29 +1355,40 @@ func _on_scarab_died() -> void:
 	_cull_scarabs()
 
 
-func _maybe_begin_clock_night() -> void:
-	if _night_unleashed:
-		_hide_night_visuals()
+func _sync_clock_night() -> void:
+	if _clock_is_night():
+		begin_clock_night()
 		return
-	if not _clock_is_night():
-		return
-	begin_clock_night()
+	if _night_unleashed and _day_night_cycle() != null:
+		end_clock_night()
+
+
+func _day_night_cycle() -> Node:
+	var tree := get_tree()
+	if tree == null:
+		return null
+	return tree.get_first_node_in_group("day_night_cycle")
 
 
 func _clock_is_night() -> bool:
-	var tree := get_tree()
-	if tree == null:
-		return false
-	var cycle := tree.get_first_node_in_group("day_night_cycle")
+	var cycle := _day_night_cycle()
 	return cycle != null and cycle.has_method("is_night") and bool(cycle.call("is_night"))
 
 
 func _hide_night_visuals() -> void:
+	_set_sphere_visuals_enabled(false)
+
+
+func _show_day_visuals() -> void:
+	_set_sphere_visuals_enabled(true)
+
+
+func _set_sphere_visuals_enabled(on: bool) -> void:
 	if _night_volume != null and is_instance_valid(_night_volume):
-		_night_volume.set_visuals_enabled(false)
+		_night_volume.set_visuals_enabled(on)
 	for child in _child_volumes:
 		if child != null and is_instance_valid(child):
-			child.set_visuals_enabled(false)
+			child.set_visuals_enabled(on)
 
 
 func formed_night_volumes() -> Array[NightVolume]:
