@@ -51,6 +51,11 @@ func _spawn_one() -> void:
 	var spawn_xz := _spawn_position_xz(track)
 	pill.global_position = Vector3(spawn_xz.x, track.global_position.y, spawn_xz.y)
 	pill.configure(_terrain, track, SwarmPill.DEFAULT_SPEED)
+	var level := 1
+	var progress := get_tree().get_first_node_in_group("level_progress")
+	if progress != null and progress.has_method("get_current_level"):
+		level = maxi(int(progress.get_current_level()), 1)
+	pill.apply_level_hp(level)
 	_active = pill
 
 

@@ -1500,6 +1500,31 @@ func _verify_roll_shop() -> void:
 			not _has_duplicate(shop),
 			"Lucky shop %d should not repeat a card" % tower_index
 		)
+	var boss_shop := UpgradeCatalogScript.roll_shop(
+		7, 8, 20, true, true, true, true, true, 0, -1, true
+	)
+	var boss_again := UpgradeCatalogScript.roll_shop(
+		7, 8, 20, true, true, true, true, true, 0, -1, true
+	)
+	_fail_unless(boss_shop.size() == 5, "Boss shops should still fill 5 slots")
+	_fail_unless(boss_shop == boss_again, "Same seed should roll the same boss shop")
+	_fail_unless(not _has_duplicate(boss_shop), "Boss shops should not repeat a card")
+	for id in boss_shop:
+		var offer := StringName(id)
+		if UpgradeCatalogScript.is_weapon_unlock(offer):
+			continue
+		var rarity := UpgradeCatalogScript.rarity_of(offer)
+		_fail_unless(
+			rarity == UpgradeCatalogScript.RARITY_RARE
+			or rarity == UpgradeCatalogScript.RARITY_EPIC
+			or rarity == UpgradeCatalogScript.RARITY_LEGENDARY,
+			"Boss shop cards should be rare, epic, or legendary"
+		)
+	var weights := UpgradeCatalogScript.boss_rarity_weights()
+	_fail_unless(
+		int(weights[2]) == 500 and int(weights[3]) == 375 and int(weights[4]) == 125,
+		"Boss rarity weights should be 500 / 375 / 125"
+	)
 
 
 func _verify_offers_and_visit_lock() -> void:
@@ -2205,8 +2230,8 @@ func _verify_crit_stacking() -> void:
 		"A non-crit should keep base damage"
 	)
 	_fail_unless(
-		AutoRifleScript.crit_damage_for(AutoRifleScript.damage_for(0.13), true) == 22,
-		"Crit should double after Damage rounding (11 -> 22)"
+		AutoRifleScript.crit_damage_for(AutoRifleScript.damage_for(0.13), true) == 46,
+		"Crit should double after Damage rounding (23 -> 46)"
 	)
 	state.reset_run()
 	_fail_unless(
@@ -2553,6 +2578,14 @@ func _verify_weapon_cards() -> void:
 			)
 		) == "Rocket Launcher",
 		"Rocket cards should be labeled Rocket Launcher"
+	)
+	_fail_unless(
+		UpgradeCatalogScript.hud_weapon_name(UpgradeCatalogScript.ID_UNLOCK_ROCKET) == "R.L.",
+		"HUD rocket square should be labeled R.L."
+	)
+	_fail_unless(
+		UpgradeCatalogScript.hud_weapon_name(UpgradeCatalogScript.ID_UNLOCK_RIFLE) == "Rifle",
+		"HUD rifle square should keep the full name"
 	)
 	_fail_unless(
 		UpgradeCatalogScript.display_name(
@@ -3580,6 +3613,16 @@ func _verify_visit_radius() -> void:
 	_fail_unless(inside == tower, "20 m should trigger a west tower")
 	_fail_unless(outside == null, "Beyond 20 m should not trigger")
 	_fail_unless(at_home == null, "Home tower should not open the upgrade menu")
+	var blocker := FakeBossDirector.new()
+	blocker.blocking = true
+	root.add_child(blocker)
+	blocker.add_to_group("boss_director")
+	await process_frame
+	var boss_locked := TowerVisitControllerScript.find_visit_tower(
+		self, Vector3(-1000.0 + 19.0, 0.0, 0.0)
+	)
+	_fail_unless(boss_locked == null, "A living boss should lock west tower visits")
+	blocker.free()
 	tower.free()
 	home.free()
 
@@ -3801,3 +3844,10 @@ func _fail_unless(condition: bool, message: String) -> void:
 		return
 	push_error(message)
 	quit(1)
+
+
+class FakeBossDirector extends Node:
+	var blocking := false
+
+	func is_blocking_upgrades() -> bool:
+		return blocking

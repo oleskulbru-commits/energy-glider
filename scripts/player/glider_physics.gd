@@ -340,6 +340,8 @@ static func _hover_clearance_for_force(ctx: Context) -> float:
 
 
 static func hover_compression_scale(clearance: float) -> float:
+	if clearance < 0.0:
+		return 1.0
 	if clearance >= BASE_HEIGHT:
 		return 1.0
 	if clearance <= HOVER_COMPRESS_START:

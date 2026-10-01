@@ -1,8 +1,8 @@
 extends SceneTree
 
-const LaserDroneSkinScene := preload("res://scenes/enemies/laser_drone_skin.tscn")
-const MissileDroneSkinScene := preload("res://scenes/enemies/missile_drone_skin.tscn")
-const GunDroneSkinScene := preload("res://scenes/enemies/gun_drone_skin.tscn")
+const LaserDroneSkinScene := preload("res://scenes/enemies/rebel_drones/laser_drone_skin.tscn")
+const MissileDroneSkinScene := preload("res://scenes/enemies/rebel_drones/missile_drone_skin.tscn")
+const GunDroneSkinScene := preload("res://scenes/enemies/rebel_drones/gun_drone_skin.tscn")
 const DroneSkinPreviewScene := preload("res://scenes/test/drone_skin_preview.tscn")
 const LensFlareTexture := preload("res://assets/vfx/effect_textures/lens_flare_2.png")
 const DroneTypeFlareScript := preload("res://scripts/vfx/drone_type_flare.gd")

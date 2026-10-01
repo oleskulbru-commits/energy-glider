@@ -6,9 +6,9 @@ extends Node
 const RocketMissileScene := preload("res://scenes/weapons/rocket_missile.tscn")
 const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 
-const DAMAGE := 18
+const DAMAGE := 28
 const RANGE_M := 75.0
-const FIRE_INTERVAL_SEC := 4.0
+const FIRE_INTERVAL_SEC := 3.3
 const BURST_GAP_SEC := 0.12
 const KNOCKBACK_SPEED := 20.0
 const AIM_AHEAD_BIAS := 0.35
@@ -159,10 +159,9 @@ func _muzzle_origin() -> Vector3:
 
 
 func _facing_xz() -> Vector3:
-	var glider := _rig.get_glider() if _rig != null else null
-	if glider == null:
-		return Vector3.ZERO
-	return MathUtil.yaw_forward(glider.get_yaw())
+	if _rig != null:
+		return _rig.weapon_facing_xz()
+	return Vector3.ZERO
 
 
 func _fire(origin: Vector3, target: Node3D, facing: Vector3) -> void:
@@ -202,13 +201,37 @@ static func pick_best_target(
 	facing: Vector3,
 	range_m: float
 ) -> Node3D:
-	var magnet := WeaponTargeting.find_laser_drone_magnet(pills, origin, facing, range_m)
+	var magnet := WeaponTargeting.find_magnet(pills, origin, facing, range_m)
 	if magnet != null:
 		return magnet
 	var ranked := rank_targets(pills, origin, facing, range_m, 1)
 	if ranked.is_empty():
 		return null
 	return ranked[0]
+
+
+static func preview_primary_target(
+	pills: Array,
+	origin: Vector3,
+	facing: Vector3,
+	range_m: float
+) -> Node3D:
+	return pick_best_target(pills, origin, facing, range_m)
+
+
+func preview_lock() -> Node3D:
+	var state := _upgrade_state()
+	if state == null or not state.has_rocket:
+		return null
+	var tree := get_tree()
+	if tree == null:
+		return null
+	return preview_primary_target(
+		tree.get_nodes_in_group("swarm_pill"),
+		_muzzle_origin(),
+		_facing_xz(),
+		_current_range()
+	)
 
 
 static func rank_targets(
@@ -222,7 +245,7 @@ static func rank_targets(
 	var want := maxi(count, 0)
 	if want <= 0:
 		return ranked
-	var magnet := WeaponTargeting.find_laser_drone_magnet(pills, origin, facing, range_m)
+	var magnet := WeaponTargeting.find_magnet(pills, origin, facing, range_m)
 	if magnet != null:
 		for _i in want:
 			ranked.append(magnet)
@@ -231,8 +254,8 @@ static func rank_targets(
 	candidates.sort_custom(
 		func(a: Node3D, b: Node3D) -> bool:
 			return (
-				aim_score(origin, facing, a.global_position, range_m)
-				> aim_score(origin, facing, b.global_position, range_m)
+				aim_score(origin, facing, WeaponTargeting.lock_point(a, origin), range_m)
+				> aim_score(origin, facing, WeaponTargeting.lock_point(b, origin), range_m)
 			)
 	)
 	var take := mini(want, candidates.size())

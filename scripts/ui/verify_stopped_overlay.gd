@@ -26,6 +26,11 @@ func _verify_stop_content_lists_vertically() -> void:
 	root.add_child(hud)
 	await process_frame
 
+	var stop_chip: Control = hud.get_node("%StopChip") as Control
+	var sail_chip: Control = hud.get_node("%SailChip") as Control
+	_fail_unless(stop_chip != null and not stop_chip.visible, "STOP chip should start hidden")
+	_fail_unless(sail_chip != null and not sail_chip.visible, "SAIL chip should start hidden")
+
 	var panel: Control = hud.get_node("%DeathStatsPanel") as Control
 	var distance: Control = hud.get_node("%StoppedDistance") as Control
 	var summary: Control = hud.get_node("%StoppedSummary") as Control

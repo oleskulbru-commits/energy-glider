@@ -70,29 +70,29 @@ func _verify_difficulty_bonus() -> void:
 		"No retries should be 0% difficulty"
 	)
 	_fail_unless(
-		is_equal_approx(EonDirectorScript.difficulty_bonus_for_retry_count(1), 0.10),
-		"First Try Again should be +10%"
+		is_equal_approx(EonDirectorScript.difficulty_bonus_for_retry_count(1), 0.0),
+		"Retry difficulty is disabled"
 	)
 	_fail_unless(
-		is_equal_approx(EonDirectorScript.difficulty_bonus_for_retry_count(2), 0.15),
-		"Second Try Again should be +15%"
+		is_equal_approx(EonDirectorScript.difficulty_bonus_for_retry_count(2), 0.0),
+		"Retry difficulty stays 0 after two retries"
 	)
 	_fail_unless(
-		is_equal_approx(EonDirectorScript.difficulty_bonus_for_retry_count(3), 0.20),
-		"Third Try Again should be +20%"
+		is_equal_approx(EonDirectorScript.difficulty_bonus_for_retry_count(3), 0.0),
+		"Retry difficulty stays 0 after three retries"
 	)
 	var director: EonDirector = EonDirectorScript.new()
 	root.add_child(director)
 	_fail_unless(is_equal_approx(director.difficulty_bonus(), 0.0), "Fresh director bonus is 0")
 	_fail_unless(
-		is_equal_approx(director.next_try_again_bonus(), 0.10),
-		"Next Try Again preview should be +10%"
+		is_equal_approx(director.next_try_again_bonus(), 0.0),
+		"Try Again preview should stay 0% while retry difficulty is off"
 	)
 	director.retry_count = 1
-	_fail_unless(is_equal_approx(director.difficulty_bonus(), 0.10), "After 1 retry bonus is 10%")
+	_fail_unless(is_equal_approx(director.difficulty_bonus(), 0.0), "After 1 retry bonus stays 0")
 	_fail_unless(
-		is_equal_approx(director.next_try_again_bonus(), 0.15),
-		"Next Try Again preview should be +15%"
+		is_equal_approx(director.next_try_again_bonus(), 0.0),
+		"Next Try Again preview should stay 0%"
 	)
 	director.free()
 

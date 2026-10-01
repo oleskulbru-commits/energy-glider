@@ -25,11 +25,14 @@ var _material: ShaderMaterial
 func place(
 	world_pos: Vector3,
 	life_sec: float = LIFE_SEC,
-	terrain: TerrainManager = null
+	terrain: TerrainManager = null,
+	color: Color = Color(0.0, 0.0, 0.0, 0.0)
 ) -> void:
 	_life = maxf(life_sec, 0.2)
 	_align_to_ground(world_pos, terrain)
 	_ensure_visual()
+	if color.a > 0.001:
+		_apply_color_tint(color)
 
 
 func _ready() -> void:
@@ -95,3 +98,12 @@ func _ensure_visual() -> void:
 	_mesh.mesh = quad
 	add_child(_mesh)
 	set_process(true)
+
+
+func _apply_color_tint(color: Color) -> void:
+	if _material == null:
+		return
+	_material.set_shader_parameter(
+		"color_tint",
+		Vector3(color.r, color.g, color.b) * (COLOR_TINT.length() / maxf(Vector3(color.r, color.g, color.b).length(), 0.001))
+	)
