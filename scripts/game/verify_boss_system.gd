@@ -166,8 +166,11 @@ func _verify_sun_eater_theme() -> void:
 		fade_clock.process_mode == Node.PROCESS_MODE_ALWAYS,
 		"Theme fade should keep ticking while the upgrade menu pauses the game"
 	)
+	_fail_unless(BossDirectorScript.SUN_EATER_THEMES.size() == 3, "Sun Eater should have three themes")
+	for stream in BossDirectorScript.SUN_EATER_THEMES:
+		_fail_unless(stream != null and not stream.loop, "Each Sun Eater theme should play through once")
 	_fail_unless(theme.stream != null, "Sun Eater theme stream should load")
-	_fail_unless(theme.stream.loop, "Sun Eater theme should loop for the fight")
+	_fail_unless(not theme.stream.loop, "A Sun Eater theme should end so the next one can start")
 	director.call("_play_theme")
 	_fail_unless(theme.playing, "Theme should start when the Sun Eater spawns")
 	_fail_unless(is_equal_approx(theme.volume_db, 0.0), "Theme should start at full volume, without a fade in")
@@ -213,6 +216,62 @@ func _verify_sun_eater_theme() -> void:
 	_fail_unless(theme.playing, "A later Sun Eater should start the theme again")
 	_fail_unless(is_equal_approx(theme.volume_db, 0.0), "A later Sun Eater should start at full volume")
 	_fail_unless(float(director.get("_theme_fade_t")) < 0.0, "A new spawn should cancel an old fade")
+	for theme_index in BossDirectorScript.SUN_EATER_THEMES.size():
+		director.call("_play_theme", theme_index)
+		_fail_unless(
+			theme.stream == BossDirectorScript.SUN_EATER_THEMES[theme_index],
+			"Boss fight %d should use that Sun Eater theme" % theme_index
+		)
+		_fail_unless(theme.playing, "Each Sun Eater theme should start when selected")
+		_fail_unless(
+			is_equal_approx(theme.volume_db, 0.0),
+			"Each Sun Eater theme should start at full volume"
+		)
+		director.call("_fade_theme")
+		_fail_unless(
+			is_equal_approx(float(director.get("_theme_fade_t")), BossDirectorScript.THEME_FADE_SEC),
+			"Each Sun Eater theme should fade out over 10 seconds"
+		)
+		director.call("_tick_theme_fade", BossDirectorScript.THEME_FADE_SEC)
+		_fail_unless(not theme.playing, "Each Sun Eater theme should stop after the fade")
+	director.call("_play_theme", 0)
+	director.call("_on_theme_finished")
+	_fail_unless(
+		theme.stream == BossDirectorScript.SUN_EATER_THEMES[1],
+		"A finished theme should start the next one"
+	)
+	_fail_unless(theme.playing, "The next theme should start as soon as the previous one ends")
+	_fail_unless(
+		is_equal_approx(theme.volume_db, 0.0),
+		"The next theme should stay at full volume"
+	)
+	director.call("_on_theme_finished")
+	_fail_unless(
+		theme.stream == BossDirectorScript.SUN_EATER_THEMES[2],
+		"The second theme should be followed by the third"
+	)
+	director.call("_on_theme_finished")
+	_fail_unless(
+		theme.stream == BossDirectorScript.SUN_EATER_THEMES[0],
+		"The playlist should wrap back to the first theme"
+	)
+	director.call("_fade_theme")
+	director.call("_tick_theme_fade", 5.0)
+	var handoff_volume := theme.volume_db
+	var handoff_fade := float(director.get("_theme_fade_t"))
+	director.call("_on_theme_finished")
+	_fail_unless(
+		is_equal_approx(theme.volume_db, handoff_volume),
+		"A handoff during the fade should keep the current loudness"
+	)
+	_fail_unless(
+		is_equal_approx(float(director.get("_theme_fade_t")), handoff_fade),
+		"A handoff should not restart the 10 second fade"
+	)
+	director.call("_tick_theme_fade", 5.0)
+	_fail_unless(not theme.playing, "The fade should still stop the playlist")
+	director.call("_on_theme_finished")
+	_fail_unless(not theme.playing, "A finished fade should not start another theme")
 	theme.stop()
 	director.free()
 

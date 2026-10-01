@@ -10,7 +10,11 @@ signal boss_despawned
 
 const SunEaterScene := preload("res://scenes/enemies/sun_eater.tscn")
 const EonDirectorScript := preload("res://scripts/game/eon_director.gd")
-const SunEaterTheme := preload("res://assets/audio/music/the_sun_eater_emerges.mp3")
+const SUN_EATER_THEMES: Array[AudioStream] = [
+	preload("res://assets/audio/music/the_sun_eater_emerges.mp3"),
+	preload("res://assets/audio/music/the_sun_eater_2.mp3"),
+	preload("res://assets/audio/music/the_sun_eater_3.mp3"),
+]
 
 const BOSS_TOWER_INDEXES: Array[int] = [8, 9, 17, 25, 33]
 const BOSS_INTERVAL := 8
@@ -32,7 +36,10 @@ var _living: SunEater
 var _living_tower_index := 0
 var _defeated: Dictionary = {}
 var _theme: AudioStreamPlayer
+var _theme_index := -1
 var _theme_fade_t := -1.0
+var _theme_playlist_active := false
+var _theme_switching := false
 var _player_death_hooked := false
 
 
@@ -48,10 +55,12 @@ func _ready() -> void:
 		_visit = get_node_or_null(tower_visit_path) as TowerVisitController
 	_theme = AudioStreamPlayer.new()
 	_theme.name = "SunEaterTheme"
-	_theme.stream = SunEaterTheme
-	if _theme.stream is AudioStreamMP3:
-		(_theme.stream as AudioStreamMP3).loop = true
+	for stream in SUN_EATER_THEMES:
+		if stream is AudioStreamMP3:
+			(stream as AudioStreamMP3).loop = false
+	_theme.stream = SUN_EATER_THEMES[0]
 	_theme.volume_db = 0.0
+	_theme.finished.connect(_on_theme_finished)
 	add_child(_theme)
 	var fade_clock := ThemeFadeClock.new()
 	fade_clock.name = "ThemeFadeClock"
@@ -232,13 +241,42 @@ func _tower_by_index(index: int) -> UpgradeTower:
 	return null
 
 
-func _play_theme() -> void:
-	if _theme == null:
+func _play_theme(theme_index: int = -1) -> void:
+	if _theme == null or SUN_EATER_THEMES.is_empty():
 		return
+	var index := theme_index
+	if index < 0 or index >= SUN_EATER_THEMES.size():
+		index = randi() % SUN_EATER_THEMES.size()
+	_theme_playlist_active = true
 	_theme_fade_t = -1.0
 	_theme.process_mode = Node.PROCESS_MODE_PAUSABLE
 	_theme.volume_db = 0.0
+	_start_theme_at(index)
+
+
+func _start_theme_at(index: int) -> void:
+	if _theme == null or SUN_EATER_THEMES.is_empty():
+		return
+	_theme_index = posmod(index, SUN_EATER_THEMES.size())
+	var stream := SUN_EATER_THEMES[_theme_index]
+	if stream is AudioStreamMP3:
+		(stream as AudioStreamMP3).loop = false
+	_theme_switching = true
+	_theme.stream = stream
 	_theme.play()
+	_theme_switching = false
+
+
+func _on_theme_finished() -> void:
+	if _theme_switching or not _theme_playlist_active or _theme == null:
+		return
+	if SUN_EATER_THEMES.is_empty():
+		return
+	var volume := _theme.volume_db
+	var mode := _theme.process_mode
+	_start_theme_at(_theme_index + 1)
+	_theme.volume_db = volume
+	_theme.process_mode = mode
 
 
 func _fade_theme() -> void:
@@ -255,6 +293,7 @@ func _tick_theme_fade(delta: float) -> void:
 		return
 	_theme_fade_t = maxf(_theme_fade_t - delta, 0.0)
 	if _theme_fade_t <= 0.0:
+		_theme_playlist_active = false
 		_theme.stop()
 		_theme.process_mode = Node.PROCESS_MODE_PAUSABLE
 		_theme.volume_db = 0.0
