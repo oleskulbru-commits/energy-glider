@@ -338,6 +338,7 @@ func ensure_tower(tower_index: int) -> void:
 	var slot_count := UpgradeCatalog.SLOTS_PER_TOWER
 	if BonusTowerPlannerScript.is_bonus_index(tower_index):
 		slot_count = BonusTowerPlannerScript.offer_count_for(world_seed, tower_index)
+	var boss_shop := BossDirector.is_boss_tower(tower_index)
 	_offers[tower_index] = UpgradeCatalog.roll_shop(
 		world_seed,
 		tower_index,
@@ -348,7 +349,8 @@ func ensure_tower(tower_index: int) -> void:
 		has_rocket,
 		has_shotgun,
 		unlock_pity_steps,
-		slot_count
+		slot_count,
+		boss_shop
 	)
 
 

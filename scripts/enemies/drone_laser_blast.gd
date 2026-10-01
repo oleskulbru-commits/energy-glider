@@ -135,9 +135,9 @@ func configure_air(origin: Vector3, impact: Vector3, damage: int = DAMAGE) -> vo
 	_life = 0.0
 	global_position = origin
 	_update_tracer_scale(1.0)
+	_face_toward(impact - origin)
 	if _muzzle_flash != null:
 		_muzzle_flash.flash()
-	_face_toward(impact - origin)
 	set_process(true)
 
 

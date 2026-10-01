@@ -14,7 +14,7 @@ const LIFETIME_SEC := 8.0
 const LOFT_M := 6.0
 const BOOST_SEC := LOFT_M / SPEED_MPS
 const HOMING := 0.85
-const DAMAGE := 18
+const DAMAGE := 28
 const KNOCKBACK_SPEED := 20.0
 const AIM_UP_M := 0.7
 
@@ -150,7 +150,7 @@ func _aim_vector() -> Vector3:
 	if _target == null or not is_instance_valid(_target):
 		_target = null
 		return Vector3.ZERO
-	return _target.global_position + Vector3(0.0, AIM_UP_M, 0.0) - global_position
+	return WeaponTargeting.lock_point(_target, global_position) - global_position
 
 
 func _is_lock_alive() -> bool:

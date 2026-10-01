@@ -1,6 +1,7 @@
 extends SceneTree
 
 const PlayerHealthScript = preload("res://scripts/player/player_health.gd")
+const PlayerHealthBarScript = preload("res://scripts/player/player_health_bar.gd")
 const RunUpgradeStateScript = preload("res://scripts/game/run_upgrade_state.gd")
 const SwarmPillScript = preload("res://scripts/enemies/swarm_pill.gd")
 
@@ -14,6 +15,7 @@ func _run() -> void:
 	_verify_knockback_strength()
 	_verify_hp_regen()
 	await _verify_health_bonus()
+	await _verify_health_bar()
 	print("Player health verification passed.")
 	quit(0)
 
@@ -142,6 +144,58 @@ func _verify_health_bonus() -> void:
 	_fail_unless(health.get_current() == 60, "Full health plus common should become 60/60")
 	_fail_unless(health.get_max() == 60, "Full health plus common should raise max to 60")
 	state.free()
+	health.free()
+
+
+func _verify_health_bar() -> void:
+	_fail_unless(
+		PlayerHealthBarScript.fill_size(1.0).is_equal_approx(
+			Vector2(PlayerHealthBarScript.BAR_WIDTH, PlayerHealthBarScript.BAR_HEIGHT)
+		),
+		"Full HP fill should match bar width"
+	)
+	_fail_unless(
+		is_equal_approx(PlayerHealthBarScript.fill_size(0.5).x, PlayerHealthBarScript.BAR_WIDTH * 0.5),
+		"Half HP fill should be half width"
+	)
+	_fail_unless(
+		is_equal_approx(PlayerHealthBarScript.fill_offset_x(1.0), 0.0),
+		"Full fill should stay centered"
+	)
+
+	var parent := Node3D.new()
+	root.add_child(parent)
+	parent.global_position = Vector3(-8000.0, 14.0, 32.0)
+
+	var health: PlayerHealth = PlayerHealthScript.new()
+	root.add_child(health)
+	var bar: PlayerHealthBar = PlayerHealthBarScript.new()
+	parent.add_child(bar)
+	await process_frame
+	await process_frame
+
+	_fail_unless(bar.get_fill_width() > PlayerHealthBarScript.BAR_WIDTH * 0.99, "Bar should start full")
+	health.take_damage(25)
+	await process_frame
+	_fail_unless(
+		is_equal_approx(bar.get_fill_width(), PlayerHealthBarScript.BAR_WIDTH * 0.5),
+		"Bar fill should track 25/50 HP"
+	)
+
+	for _i in 80:
+		parent.global_position.x -= 18.0
+		parent.global_position.z += 0.4
+		bar.sync_follow()
+	_fail_unless(
+		bar.position.distance_to(PlayerHealthBarScript.LOCAL_OFFSET) < 0.0001,
+		"Health bar local offset must stay glued after a long westbound run"
+	)
+	_fail_unless(
+		is_equal_approx(bar.position.y, PlayerHealthBarScript.OFFSET_Y),
+		"Health bar should stay 1.8m above the glider"
+	)
+
+	parent.free()
 	health.free()
 
 

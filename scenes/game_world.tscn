@@ -22,6 +22,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/weapon_select_menu.tscn" id="22_weapon_select"]
 [ext_resource type="PackedScene" path="res://scenes/ui/pause_menu.tscn" id="23_pause_menu"]
 [ext_resource type="Script" path="res://scripts/world/bonus_tower_garrison.gd" id="24_garrison"]
+[ext_resource type="Script" path="res://scripts/game/boss_director.gd" id="25_boss"]
 
 [node name="GameWorld" type="Node3D"]
 
@@ -98,6 +99,13 @@ script = ExtResource("24_garrison")
 player_rig_path = NodePath("../PlayerRig")
 terrain_manager_path = NodePath("../TerrainManager")
 eon_director_path = NodePath("../EonDirector")
+
+[node name="BossDirector" type="Node3D" parent="."]
+script = ExtResource("25_boss")
+player_rig_path = NodePath("../PlayerRig")
+terrain_manager_path = NodePath("../TerrainManager")
+eon_director_path = NodePath("../EonDirector")
+tower_visit_path = NodePath("../TowerVisitController")
 
 [node name="RunUpgradeState" type="Node" parent="."]
 script = ExtResource("19_upgrades")

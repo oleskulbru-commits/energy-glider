@@ -3,12 +3,13 @@ extends Node
 
 ## Always-on second weapon. Independent clock from the rifle.
 
-const DAMAGE := 5
+const DAMAGE := 7
 const RANGE_M := 45.0
 const FIRE_SEC := 2.0
 const CHARGE_SEC := 2.0
 const CHARGE_FLOOR := 0.5
 const TICK_SEC := 0.5
+const BOUNCE_DAMAGE_KEEP := 0.7
 
 var _rig: PlayerRig
 var _charge := 0.0
@@ -76,7 +77,8 @@ func _spawn_beam() -> bool:
 		facing,
 		range_m,
 		_claimed_lock_ids(),
-		_rng
+		_rng,
+		_is_aiming()
 	)
 	if target == null:
 		return false
@@ -172,10 +174,17 @@ func _muzzle_origin() -> Vector3:
 
 
 func _facing_xz() -> Vector3:
-	var glider := _rig.get_glider() if _rig != null else null
-	if glider == null:
-		return Vector3.ZERO
-	return MathUtil.yaw_forward(glider.get_yaw())
+	if _rig != null:
+		return _rig.weapon_facing_xz()
+	return Vector3.ZERO
+
+
+func is_weapon_aiming() -> bool:
+	return _rig != null and _rig.is_weapon_aiming()
+
+
+func _is_aiming() -> bool:
+	return is_weapon_aiming()
 
 
 func _pills() -> Array:
@@ -255,6 +264,14 @@ static func damage_for(bonus: float) -> int:
 	return maxi(1, int(round(float(DAMAGE) * (1.0 + maxf(bonus, 0.0)))))
 
 
+## hop_index 0 is the primary beam. Each later hop keeps 70% of that first-tick damage.
+static func bounce_tick_damage(base: int, hop_index: int) -> int:
+	var hop := maxi(hop_index, 0)
+	if hop == 0:
+		return maxi(0, base)
+	return maxi(1, int(round(float(base) * pow(BOUNCE_DAMAGE_KEEP, hop))))
+
+
 ## Primary lock only. Bounce hops may still overlap other beams' targets.
 static func pick_unique_target(
 	pills: Array,
@@ -262,9 +279,13 @@ static func pick_unique_target(
 	facing: Vector3,
 	range_m: float,
 	exclude: Dictionary,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	aimed: bool = false
 ) -> Node3D:
-	var magnet := WeaponTargeting.find_laser_drone_magnet(pills, origin, facing, range_m)
+	## Held aim stays on the reticle lock, even if another beam already claimed it.
+	if aimed:
+		return preview_primary_target(pills, origin, facing, range_m)
+	var magnet := WeaponTargeting.find_magnet(pills, origin, facing, range_m)
 	if magnet != null:
 		return magnet
 	var candidates: Array[Node3D] = []
@@ -277,3 +298,28 @@ static func pick_unique_target(
 	if rng == null:
 		return candidates[0]
 	return candidates[rng.randi_range(0, candidates.size() - 1)]
+
+
+## One primary lock for HUD (not one per beam). No bounce hops.
+static func preview_primary_target(
+	pills: Array,
+	origin: Vector3,
+	facing: Vector3,
+	range_m: float
+) -> Node3D:
+	return AutoRifle.preview_primary_target(pills, origin, facing, range_m)
+
+
+func preview_lock() -> Node3D:
+	var state := _upgrade_state()
+	if state == null or not state.has_laser:
+		return null
+	var tree := get_tree()
+	if tree == null:
+		return null
+	return preview_primary_target(
+		tree.get_nodes_in_group("swarm_pill"),
+		_muzzle_origin(),
+		_facing_xz(),
+		_current_range()
+	)

@@ -139,7 +139,10 @@ func _physics_process(delta: float) -> void:
 	)
 	move_and_slide()
 	_snap_to_cruise_height(false, delta)
-	_face_heading(delta)
+	if garrisoned:
+		_face_target()
+	else:
+		_face_heading(delta)
 	_update_weapons(delta)
 
 
@@ -274,6 +277,15 @@ func _snap_to_cruise_height(instant: bool, delta: float = 0.016) -> void:
 		global_position.y = target_y
 		return
 	global_position.y = move_toward(global_position.y, target_y, HEIGHT_FOLLOW_RATE * delta)
+
+
+func _face_target() -> void:
+	if _target == null or not is_instance_valid(_target):
+		return
+	var look := _target.global_position
+	if garrisoned and not _garrison_aggroed:
+		look = _shield_siege_aim()
+	_look_at_point(look)
 
 
 func _shield_siege_aim() -> Vector3:

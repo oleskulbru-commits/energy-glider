@@ -39,6 +39,9 @@ const COLLISION_CENTER_Y := 0.32
 ## Ignore hits when the player is clearly jumping/flying over the pill.
 const CONTACT_MAX_ABOVE_M := 1.2
 const DEFAULT_SPEED := 6.0
+const SPAWN_AHEAD_MIN_LEVEL_1_M := 50.0
+const SPAWN_AHEAD_MIN_LEVEL_40_M := 40.0
+const SPAWN_AHEAD_MAX_M := 200.0
 const MAX_HEALTH := 20
 const HIT_KNOCKBACK_SPEED := 12.0
 const HIT_KNOCKBACK_DECAY_SEC := 0.3
@@ -167,6 +170,132 @@ func get_max_health() -> int:
 	return _max_health
 
 
+## World-space center of the hitbox. Follows the shape, not the body's yaw/tilt.
+func hit_center() -> Vector3:
+	var col := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col != null:
+		return col.global_position
+	return global_position
+
+
+## Sphere that contains the hitbox at any orientation.
+func hit_radius() -> float:
+	var col := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col == null or col.shape == null:
+		return 0.0
+	if col.shape is BoxShape3D:
+		return (col.shape as BoxShape3D).size.length() * 0.5
+	if col.shape is CapsuleShape3D:
+		return (col.shape as CapsuleShape3D).height * 0.5
+	if col.shape is SphereShape3D:
+		return (col.shape as SphereShape3D).radius
+	return 0.0
+
+
+## Closest point on the hitbox to `from`. Inside the volume, returns `from`.
+func closest_aim_point(from: Vector3) -> Vector3:
+	var col := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col == null or col.shape == null:
+		return hit_center()
+	if col.shape is CapsuleShape3D:
+		return closest_point_on_capsule(from, col.global_transform, col.shape as CapsuleShape3D)
+	if col.shape is SphereShape3D:
+		return closest_point_on_sphere(from, col.global_position, (col.shape as SphereShape3D).radius)
+	if col.shape is BoxShape3D:
+		return closest_point_on_box(from, col.global_transform, col.shape as BoxShape3D)
+	return hit_center()
+
+
+func distance_to_hitbox(from: Vector3) -> float:
+	return from.distance_to(closest_aim_point(from))
+
+
+static func closest_point_on_capsule(
+	from: Vector3, xf: Transform3D, capsule: CapsuleShape3D
+) -> Vector3:
+	var radius := maxf(capsule.radius, 0.0)
+	var half_cyl := maxf(capsule.height * 0.5 - radius, 0.0)
+	var axis := xf.basis.y
+	if axis.length_squared() < 0.0001:
+		axis = Vector3.UP
+	else:
+		axis = axis.normalized()
+	var a := xf.origin + axis * half_cyl
+	var b := xf.origin - axis * half_cyl
+	var on_axis := Geometry3D.get_closest_point_to_segment(from, a, b)
+	return closest_point_on_sphere(from, on_axis, radius)
+
+
+static func closest_point_on_sphere(from: Vector3, center: Vector3, radius: float) -> Vector3:
+	var rad := maxf(radius, 0.0)
+	var delta := from - center
+	var dist := delta.length()
+	if dist <= rad:
+		return from
+	if dist < 0.0001:
+		return center
+	return center + delta * (rad / dist)
+
+
+static func closest_point_on_box(from: Vector3, xf: Transform3D, box: BoxShape3D) -> Vector3:
+	var local := xf.affine_inverse() * from
+	var half := box.size * 0.5
+	var clamped := Vector3(
+		clampf(local.x, -half.x, half.x),
+		clampf(local.y, -half.y, half.y),
+		clampf(local.z, -half.z, half.z)
+	)
+	return xf * clamped
+
+
+## Extra HP percent added when entering this level (L1=0, L7+=8%).
+static func hp_increment_for_level(level: int) -> float:
+	match maxi(level, 0):
+		0, 1:
+			return 0.0
+		2:
+			return 0.01
+		3:
+			return 0.02
+		4:
+			return 0.03
+		5:
+			return 0.05
+		6:
+			return 0.07
+		_:
+			return 0.08
+
+
+## Running HP bonus at `level` (L6=18%, then +8% of base per level).
+static func hp_bonus_for_level(level: int) -> float:
+	var lv := maxi(level, 1)
+	if lv <= 1:
+		return 0.0
+	if lv >= 6:
+		return 0.18 + 0.08 * float(lv - 6)
+	var total := 0.0
+	for n in range(2, lv + 1):
+		total += hp_increment_for_level(n)
+	return total
+
+
+static func scaled_health_for_level(base: int, level: int) -> int:
+	var scaled := roundf(float(base) * (1.0 + hp_bonus_for_level(level)))
+	if base > 0:
+		return maxi(int(scaled), 1)
+	return 0
+
+
+## Scale current max HP by the run level curve. No-op at level 1.
+func apply_level_hp(level: int) -> void:
+	var scaled := scaled_health_for_level(_max_health, level)
+	if scaled == _max_health:
+		return
+	_max_health = scaled
+	_hp = _max_health
+
+
 ## Scale speed / contact damage / HP by retry difficulty (floor). No-op at 0%.
 func apply_difficulty(bonus: float) -> void:
 	if bonus <= 0.0:
@@ -246,14 +375,16 @@ func _physics_process(delta: float) -> void:
 
 	_hit_fragment_cooldown_left = maxf(_hit_fragment_cooldown_left - delta, 0.0)
 
-	var to_target := _seek_offset_xz()
-	to_target.y = 0.0
 	# Fallen behind the player's facing past margin — despawn.
-	if not garrisoned and is_behind_facing(_target.global_position, _target_facing_xz(), global_position):
+	if not _blocks_behind_despawn() and is_behind_facing(
+		_target.global_position, _target_facing_xz(), global_position
+	):
 		queue_free()
 		return
 
 	_update_chase(delta)
+	var to_target := _seek_offset_xz()
+	to_target.y = 0.0
 
 	if _is_spawn_active():
 		velocity = Vector3.ZERO
@@ -265,6 +396,7 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		_snap_to_terrain()
 		_align_to_terrain(_flat_seek_to_target())
+		_after_move(delta)
 		return
 
 	_stun_left = maxf(_stun_left - delta, 0.0)
@@ -274,6 +406,7 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		_snap_to_terrain()
 		_update_contact(delta)
+		_after_move(delta)
 		return
 
 	var seek := Vector3(to_target.x, 0.0, to_target.z)
@@ -296,6 +429,7 @@ func _physics_process(delta: float) -> void:
 	_align_to_terrain(_flat_velocity_dir())
 	_sync_anim_speed()
 	_update_contact(delta)
+	_after_move(delta)
 
 
 func _is_spawn_active() -> bool:
@@ -685,6 +819,16 @@ func _update_chase(_delta: float) -> void:
 	pass
 
 
+## Garrisoned units and sphere-bound scarabs should not cull when the player faces away.
+func _blocks_behind_despawn() -> bool:
+	return garrisoned
+
+
+## Subclasses clamp or leash after the shared move/snap step.
+func _after_move(_delta: float) -> void:
+	pass
+
+
 func _get_move_speed() -> float:
 	return move_speed * chase_speed_mult
 
@@ -813,7 +957,7 @@ static func is_behind_facing(
 	return to.dot(fwd) < -maxf(margin_m, 0.0)
 
 
-static func active_cap_for_level(level: int, min_cap: int = 8, max_cap: int = 60) -> int:
+static func active_cap_for_level(level: int, min_cap: int = 15, max_cap: int = 108) -> int:
 	var t := clampf(float(level - 1) / 39.0, 0.0, 1.0)
 	return int(roundf(lerpf(float(min_cap), float(max_cap), t)))
 
@@ -824,9 +968,8 @@ static func move_speed_for_level(_level: int) -> float:
 
 static func ahead_range_for_level(level: int) -> Vector2:
 	var t := clampf(float(level - 1) / 39.0, 0.0, 1.0)
-	var min_ahead := lerpf(40.0, 30.0, t)
-	var max_ahead := 110.0
-	return Vector2(min_ahead, max_ahead)
+	var min_ahead := lerpf(SPAWN_AHEAD_MIN_LEVEL_1_M, SPAWN_AHEAD_MIN_LEVEL_40_M, t)
+	return Vector2(min_ahead, SPAWN_AHEAD_MAX_M)
 
 
 static func z_spread_for_level(level: int) -> float:

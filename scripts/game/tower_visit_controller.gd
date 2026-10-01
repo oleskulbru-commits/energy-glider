@@ -46,6 +46,22 @@ func _process(_delta: float) -> void:
 	_menu.open_for(tower, _state, _rig)
 
 
+func open_boss_reward(tower: UpgradeTower) -> void:
+	if tower == null or _state == null or _menu == null:
+		return
+	if _menu.is_open():
+		return
+	if _rig != null:
+		var glider := _rig.get_glider()
+		if glider != null and glider.is_run_ended():
+			return
+	if _state.has_visited_this_life(tower.tower_index):
+		return
+	_state.mark_visited_this_life(tower.tower_index)
+	_apply_visit_heal(tower)
+	_menu.open_for(tower, _state, _rig)
+
+
 static func visit_heal_amount(tower_index: int) -> int:
 	return maxi(tower_index, 0) * VISIT_HEAL_PER_TOWER_INDEX
 
@@ -68,6 +84,8 @@ static func xz_distance(a: Vector3, b: Vector3) -> float:
 static func find_visit_tower(tree: SceneTree, origin: Vector3) -> UpgradeTower:
 	if tree == null:
 		return null
+	if _is_boss_blocking_upgrades(tree):
+		return null
 	var best: UpgradeTower = null
 	var best_dist := VISIT_RADIUS_M
 	for node in tree.get_nodes_in_group("upgrade_tower"):
@@ -88,3 +106,10 @@ static func _is_bonus_visit_locked(tree: SceneTree, tower: UpgradeTower) -> bool
 	if garrison == null or not garrison.has_method("is_visit_locked"):
 		return false
 	return bool(garrison.is_visit_locked(tower))
+
+
+static func _is_boss_blocking_upgrades(tree: SceneTree) -> bool:
+	var director := tree.get_first_node_in_group("boss_director")
+	if director == null or not director.has_method("is_blocking_upgrades"):
+		return false
+	return bool(director.is_blocking_upgrades())

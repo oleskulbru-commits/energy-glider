@@ -20,30 +20,30 @@ func _run() -> void:
 
 
 func _verify_stats() -> void:
-	_fail_unless(AutoTeslaScript.DAMAGE == 23, "Tesla strike damage should be 23")
+	_fail_unless(AutoTeslaScript.DAMAGE == 37, "Tesla strike damage should be 37")
 	_fail_unless(is_equal_approx(AutoTeslaScript.RANGE_M, 20.0), "Tesla acquire range should be 20 m")
-	_fail_unless(is_equal_approx(AutoTeslaScript.FIRE_INTERVAL_SEC, 3.0), "Tesla interval should be 3 s")
+	_fail_unless(is_equal_approx(AutoTeslaScript.FIRE_INTERVAL_SEC, 3.5), "Tesla interval should be 3.5 s")
 	_fail_unless(is_equal_approx(AutoTeslaScript.STUN_SEC, 1.0), "Tesla stun should last 1 s")
-	_fail_unless(AutoTeslaScript.damage_for(0.0) == 23, "Base Tesla strike should deal 23")
+	_fail_unless(AutoTeslaScript.damage_for(0.0) == 37, "Base Tesla strike should deal 37")
 	_fail_unless(
-		AutoTeslaScript.damage_for(0.04) == 24,
-		"4% Damage should round 23.92 to 24"
+		AutoTeslaScript.damage_for(0.04) == 38,
+		"4% Damage should round 38.48 to 38"
 	)
 	_fail_unless(
-		is_equal_approx(AutoTeslaScript.fire_interval_for(0.0), 3.0),
-		"Base Tesla wait should stay 3 s"
+		is_equal_approx(AutoTeslaScript.fire_interval_for(0.0), 3.5),
+		"Base Tesla wait should stay 3.5 s"
 	)
 	_fail_unless(
-		is_equal_approx(AutoTeslaScript.fire_interval_for(0.13), 3.0 * 0.87),
-		"4% + 9% Attack Speed should wait 3.0 × 0.87"
+		is_equal_approx(AutoTeslaScript.fire_interval_for(0.13), 3.5 * 0.87),
+		"4% + 9% Attack Speed should wait 3.5 × 0.87"
 	)
 	_fail_unless(
-		is_equal_approx(AutoTeslaScript.fire_interval_for(0.80), 0.60),
-		"80% CDR should wait 0.60 s"
+		is_equal_approx(AutoTeslaScript.fire_interval_for(0.80), 0.70),
+		"80% CDR should wait 0.70 s"
 	)
 	_fail_unless(
-		is_equal_approx(AutoTeslaScript.fire_interval_for(0.95), 0.60),
-		"Over-cap CDR should still wait 0.60 s"
+		is_equal_approx(AutoTeslaScript.fire_interval_for(0.95), 0.70),
+		"Over-cap CDR should still wait 0.70 s"
 	)
 	_fail_unless(
 		is_equal_approx(AutoRifleScript.range_for(AutoTeslaScript.RANGE_M, 0.0), 20.0),
@@ -61,8 +61,8 @@ func _verify_stats() -> void:
 		"Tesla Range bonus should clamp to 200 m"
 	)
 	_fail_unless(
-		AutoRifleScript.crit_damage_for(AutoTeslaScript.damage_for(0.0), true) == 46,
-		"Tesla crit should double 23 to 46"
+		AutoRifleScript.crit_damage_for(AutoTeslaScript.damage_for(0.0), true) == 74,
+		"Tesla crit should double 37 to 74"
 	)
 
 

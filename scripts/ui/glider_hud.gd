@@ -27,6 +27,8 @@ const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 const LaserTargetReticleUIScript = preload("res://scripts/ui/laser_target_reticle_ui.gd")
 const DeathStatsPanelScript = preload("res://scripts/ui/death_stats_panel.gd")
 const RunDamageStatsScript = preload("res://scripts/game/run_damage_stats.gd")
+const AimReticleShader := preload("res://assets/vfx/shaders/aim_lock_reticle_3d.gdshader")
+const AimReticleTexture := preload("res://assets/ui/player_aim_reticle.png")
 
 const DAMAGE_FLASH_COLOR := Color(0.92, 0.1, 0.06, 1.0)
 const DAMAGE_FLASH_HEAVY_THRESHOLD := 10
@@ -34,6 +36,14 @@ const DAMAGE_FLASH_PEAK_HEAVY := 0.55
 const DAMAGE_FLASH_PEAK_LIGHT := 0.24
 const DAMAGE_FLASH_FADE_HEAVY_SEC := 0.45
 const DAMAGE_FLASH_FADE_LIGHT_SEC := 0.25
+const AIM_BORDER_IDLE := Color(0.85, 0.72, 0.55, 0.35)
+const AIM_BORDER_ACTIVE := Color(0.45, 0.92, 0.55, 1.0)
+const AIM_BORDER_IDLE_PX := 1
+const AIM_BORDER_ACTIVE_PX := 2
+const AIM_RETICLE_TINT := Color(0.35, 1.15, 0.45, 0.5)
+const AIM_RETICLE_GLOW := 1.6
+const AIM_RETICLE_SIZE_M := 4.5
+const AIM_RETICLE_LIFT_M := 0.5
 
 @onready var _power_label: Label = %PowerLabel
 @onready var _power_percent_label: Label = %PowerPercent
@@ -65,6 +75,9 @@ const DAMAGE_FLASH_FADE_LIGHT_SEC := 0.25
 @onready var _sail_label: Label = %SailLabel
 @onready var _day_label: Label = %DayLabel
 @onready var _compass_bar: CompassBar = %CompassBar
+@onready var _boss_health_panel: PanelContainer = %BossHealthPanel
+@onready var _boss_health_label: Label = %BossHealthLabel
+@onready var _boss_health_bar: ProgressBar = %BossHealthBar
 @onready var _stopped_summary: Label = %StoppedSummary
 @onready var _night_warning_panel: PanelContainer = %NightWarningPanel
 @onready var _night_warning_label: Label = %NightWarningLabel
@@ -93,6 +106,9 @@ const DAMAGE_FLASH_FADE_LIGHT_SEC := 0.25
 @onready var _range_label: Label = %RangeLabel
 @onready var _speed_label: Label = %SpeedLabel
 @onready var _weapon_tray: HBoxContainer = %WeaponTray
+@onready var _aim_chip: PanelContainer = %AimChip
+@onready var _aim_reticle_layer: Control = %AimReticleLayer
+@onready var _aim_reticle_template: TextureRect = %AimReticle
 @onready var _laser_target_reticle: LaserTargetReticleUIScript = %LaserTargetReticle
 
 var _rig: PlayerRig
@@ -106,6 +122,9 @@ var _night_survival: NightSurvival
 var _day_night: DayNightCycle
 var _power_fill: StyleBoxFlat
 var _battery_fill: StyleBoxFlat
+var _aim_panel: StyleBoxFlat
+var _aim_reticle_material: ShaderMaterial
+var _aim_reticle_pool: Array[MeshInstance3D] = []
 var _solar_pulse_time := 0.0
 var _day_summary_timer := 0.0
 var _night_warning_timer := 0.0
@@ -121,6 +140,7 @@ var _bonus_radar_report := ""
 var _bonus_radar_entry: Dictionary = {}
 var _bonus_objective_index := -1
 var _level_progress: Node
+var _boss_director: Node
 var _safe_pulse_time := 0.0
 var _fail_fade_tween: Tween
 var _fail_fade_active := false
@@ -147,8 +167,6 @@ func _ready() -> void:
 	_expedition = get_tree().get_first_node_in_group("expedition_state") as ExpeditionState
 	_director = get_tree().get_first_node_in_group("eon_director") as EonDirectorScript
 	_night_survival = get_tree().get_first_node_in_group("night_survival") as NightSurvival
-	if _expedition != null:
-		_expedition.day_started.connect(_on_day_started)
 	if _director != null:
 		_director.integrity_changed.connect(_on_integrity_changed)
 		_director.objective_changed.connect(_on_objective_changed)
@@ -171,6 +189,9 @@ func _ready() -> void:
 		_bonus_radar_panel.visible = false
 	_hide_bonus_objective()
 	call_deferred("_bind_level_progress")
+	call_deferred("_bind_boss_director")
+	if _boss_health_panel != null:
+		_boss_health_panel.visible = false
 	if _safe_chip != null:
 		_safe_chip.visible = false
 	if _try_again_button != null:
@@ -207,7 +228,13 @@ func _ready() -> void:
 		_battery_bar.add_theme_stylebox_override("fill", _battery_fill)
 		if _battery_fill != null:
 			_battery_fill.bg_color = BATTERY_COLOR_EMPTY
-	_stop_chip.gui_input.connect(_on_stop_chip_gui_input)
+	if _aim_chip != null:
+		_aim_panel = _make_aim_panel_style()
+		_aim_chip.add_theme_stylebox_override("panel", _aim_panel)
+	_setup_aim_reticle()
+	if _stop_chip != null:
+		_stop_chip.visible = false
+		_stop_chip.gui_input.connect(_on_stop_chip_gui_input)
 	if _sail_chip != null:
 		_sail_chip.visible = false
 	_lock_eon_tracker_layout()
@@ -265,7 +292,7 @@ func _refresh_weapon_tray() -> void:
 		if icon != null:
 			icon.texture = UpgradeCatalog.icon_for_weapon_level(family, level)
 		if name_label != null:
-			name_label.text = UpgradeCatalog.display_name(unlock)
+			name_label.text = UpgradeCatalog.hud_weapon_name(unlock)
 		var level_label := slot.get_node_or_null("Level") as Label
 		if level_label != null:
 			level_label.text = "Level %d" % level
@@ -301,6 +328,7 @@ func _process(delta: float) -> void:
 	_update_power_meter(delta)
 	_update_landing_feedback()
 	_update_stop_chip()
+	_update_aim_chip()
 	_update_compass()
 	_update_outpost_board()
 	_update_night_warning(delta)
@@ -355,6 +383,7 @@ func _on_attempt_started() -> void:
 	_clear_bonus_radar_pings()
 	_bind_level_progress()
 	_arm_bonus_radar_for_level(_current_level())
+	_hide_boss_health_bar()
 
 
 func _on_objective_changed(text: String) -> void:
@@ -432,7 +461,10 @@ func _update_death_overlay() -> void:
 		_try_again_button.disabled = not can_retry
 		if can_retry and _director != null:
 			var pct := int(round(_director.next_try_again_bonus() * 100.0))
-			_try_again_button.text = "Try again (+%d%% difficulty)" % pct
+			if pct > 0:
+				_try_again_button.text = "Try again (+%d%% difficulty)" % pct
+			else:
+				_try_again_button.text = "Try again"
 		else:
 			_try_again_button.text = "Try again"
 		_try_again_button.modulate = (
@@ -541,12 +573,6 @@ func _update_battery_meter() -> void:
 		_battery_fill.bg_color = BATTERY_COLOR_NORMAL
 
 
-func _on_day_started(day: int) -> void:
-	if _day_label != null:
-		_day_label.text = "DAY %d" % day
-		_day_label.visible = true
-
-
 func _on_night_warning() -> void:
 	if _night_warning_panel == null:
 		return
@@ -586,6 +612,53 @@ func _bind_level_progress() -> void:
 	if not progress.level_changed.is_connected(_on_level_changed):
 		progress.level_changed.connect(_on_level_changed)
 	_arm_bonus_radar_for_level(_current_level())
+
+
+func _bind_boss_director() -> void:
+	var director := get_tree().get_first_node_in_group("boss_director")
+	if director == null:
+		return
+	_boss_director = director
+	if director.has_signal("boss_spawned") and not director.boss_spawned.is_connected(_on_boss_spawned):
+		director.boss_spawned.connect(_on_boss_spawned)
+	if director.has_signal("boss_health_changed") and not director.boss_health_changed.is_connected(_on_boss_health_changed):
+		director.boss_health_changed.connect(_on_boss_health_changed)
+	if director.has_signal("boss_despawned") and not director.boss_despawned.is_connected(_on_boss_despawned):
+		director.boss_despawned.connect(_on_boss_despawned)
+	if director.has_method("living_boss"):
+		var living: Variant = director.call("living_boss")
+		if living != null and living is SwarmPill:
+			var boss := living as SwarmPill
+			_show_boss_health_bar(boss.get_health(), boss.get_max_health())
+
+
+func _on_boss_spawned(boss: Node) -> void:
+	if boss != null and boss.has_method("get_health") and boss.has_method("get_max_health"):
+		_show_boss_health_bar(int(boss.call("get_health")), int(boss.call("get_max_health")))
+
+
+func _on_boss_health_changed(current: int, max_hp: int) -> void:
+	_show_boss_health_bar(current, max_hp)
+
+
+func _on_boss_despawned() -> void:
+	_hide_boss_health_bar()
+
+
+func _show_boss_health_bar(current: int, max_hp: int) -> void:
+	if _boss_health_panel == null or _boss_health_bar == null:
+		return
+	var cap := maxi(max_hp, 1)
+	_boss_health_bar.max_value = float(cap)
+	_boss_health_bar.value = float(clampi(current, 0, cap))
+	if _boss_health_label != null:
+		_boss_health_label.text = "SUN EATER  %d / %d" % [maxi(current, 0), cap]
+	_boss_health_panel.visible = current > 0
+
+
+func _hide_boss_health_bar() -> void:
+	if _boss_health_panel != null:
+		_boss_health_panel.visible = false
 
 
 func _current_level() -> int:
@@ -970,6 +1043,199 @@ func _update_stop_chip() -> void:
 		_stop_label.add_theme_color_override("font_color", Color(0.98, 0.82, 0.45, 1))
 	else:
 		_stop_label.remove_theme_color_override("font_color")
+
+
+func _update_aim_chip() -> void:
+	var aiming := _rig != null and _rig.is_weapon_aiming()
+	if _aim_panel != null:
+		_apply_aim_border(aiming)
+	_update_aim_lock_reticles(aiming)
+
+
+func _setup_aim_reticle() -> void:
+	_aim_reticle_material = ShaderMaterial.new()
+	_aim_reticle_material.shader = AimReticleShader
+	_aim_reticle_material.set_shader_parameter("albedo_tex", AimReticleTexture)
+	_aim_reticle_material.set_shader_parameter("color_tint", AIM_RETICLE_TINT)
+	_aim_reticle_material.set_shader_parameter("glow_strength", AIM_RETICLE_GLOW)
+	if _aim_reticle_layer != null:
+		_aim_reticle_layer.visible = false
+		_aim_reticle_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if _aim_reticle_template != null:
+		_aim_reticle_template.visible = false
+
+
+func _update_aim_lock_reticles(aiming: bool) -> void:
+	if not aiming:
+		_hide_aim_reticle_pool()
+		return
+	_ensure_camera()
+	var locks := _collect_aim_lock_targets()
+	_ensure_aim_reticle_pool(locks.size())
+	var muzzle := _aim_muzzle_origin()
+	var shown := 0
+	for lock in locks:
+		var world_pos := WeaponTargeting.lock_point(lock, muzzle) + Vector3.UP * AIM_RETICLE_LIFT_M
+		if _camera != null and _camera.is_position_behind(world_pos):
+			continue
+		var marker := _aim_reticle_pool[shown]
+		_place_aim_reticle(marker, world_pos)
+		marker.visible = true
+		shown += 1
+	for i in range(shown, _aim_reticle_pool.size()):
+		_aim_reticle_pool[i].visible = false
+
+
+func _collect_aim_lock_targets() -> Array[Node3D]:
+	var out: Array[Node3D] = []
+	if _rig == null:
+		return out
+	var seen: Dictionary = {}
+	for path in ["AutoRifle", "AutoLaser", "AutoTesla", "AutoRocket", "AutoShotgun"]:
+		var weapon := _rig.get_node_or_null(path)
+		if weapon == null or not weapon.has_method("preview_lock"):
+			continue
+		var lock := weapon.call("preview_lock") as Node3D
+		if lock == null or not is_instance_valid(lock):
+			continue
+		var id := lock.get_instance_id()
+		if seen.has(id):
+			continue
+		seen[id] = true
+		out.append(lock)
+	return out
+
+
+func _aim_muzzle_origin() -> Vector3:
+	if _player == null or not is_instance_valid(_player):
+		return Vector3.ZERO
+	return _player.global_position + Vector3.UP * AutoRifle.MUZZLE_UP_M
+
+
+func _ensure_camera() -> void:
+	if _camera != null:
+		return
+	if _rig == null:
+		return
+	_camera = _rig.get_node_or_null("Glider/GliderCamera") as GliderCamera
+	if _camera == null:
+		_camera = _rig.get_node_or_null("Glider/Camera3D") as GliderCamera
+
+
+func _ensure_aim_reticle_pool(count: int) -> void:
+	_ensure_camera()
+	while _aim_reticle_pool.size() < count:
+		_aim_reticle_pool.append(_make_aim_reticle_marker())
+
+
+func _make_aim_reticle_marker() -> MeshInstance3D:
+	var marker := MeshInstance3D.new()
+	marker.name = "AimLockReticle3D"
+	marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var quad := QuadMesh.new()
+	quad.size = Vector2(AIM_RETICLE_SIZE_M, AIM_RETICLE_SIZE_M)
+	marker.mesh = quad
+	marker.material_override = _aim_reticle_material
+	## Face the camera every frame via billboard flag on a StandardMaterial fallback path;
+	## ShaderMaterial quads need manual facing in _place_aim_reticle.
+	marker.visible = false
+	var host := _aim_world_host()
+	host.add_child(marker)
+	return marker
+
+
+func _aim_world_host() -> Node:
+	if _rig != null and is_instance_valid(_rig):
+		return _rig
+	var tree := get_tree()
+	if tree != null and tree.current_scene != null:
+		return tree.current_scene
+	return self
+
+
+func _place_aim_reticle(marker: MeshInstance3D, world_pos: Vector3) -> void:
+	var quad := marker.mesh as QuadMesh
+	if quad != null:
+		quad.size = Vector2(AIM_RETICLE_SIZE_M, AIM_RETICLE_SIZE_M)
+	marker.global_position = world_pos
+	_ensure_camera()
+	if _camera == null:
+		return
+	var to_cam := _camera.global_position - world_pos
+	if to_cam.length_squared() < 0.0001:
+		return
+	## QuadMesh faces +Z; looking_at aims -Z at the camera, then flip 180°.
+	marker.global_basis = Basis.looking_at(to_cam, Vector3.UP).rotated(Vector3.UP, PI)
+
+
+func _hide_aim_reticle_pool() -> void:
+	for marker in _aim_reticle_pool:
+		if marker != null and is_instance_valid(marker):
+			marker.visible = false
+
+
+func _clear_aim_reticle_pool() -> void:
+	for marker in _aim_reticle_pool:
+		if marker != null and is_instance_valid(marker):
+			marker.queue_free()
+	_aim_reticle_pool.clear()
+
+
+func _exit_tree() -> void:
+	_clear_aim_reticle_pool()
+
+
+## Test helper: show/hide pooled 3D markers at explicit world positions.
+func set_aim_lock_reticles_for_test(world_positions: Array) -> void:
+	_setup_aim_reticle()
+	if world_positions.is_empty():
+		_hide_aim_reticle_pool()
+		return
+	_ensure_aim_reticle_pool(world_positions.size())
+	for i in world_positions.size():
+		var marker := _aim_reticle_pool[i]
+		_place_aim_reticle(marker, world_positions[i] as Vector3)
+		marker.visible = true
+	for i in range(world_positions.size(), _aim_reticle_pool.size()):
+		_aim_reticle_pool[i].visible = false
+
+
+func visible_aim_lock_reticle_count() -> int:
+	var n := 0
+	for marker in _aim_reticle_pool:
+		if marker != null and is_instance_valid(marker) and marker.visible:
+			n += 1
+	return n
+
+
+func _make_aim_panel_style() -> StyleBoxFlat:
+	var panel := StyleBoxFlat.new()
+	panel.content_margin_left = 12.0
+	panel.content_margin_top = 10.0
+	panel.content_margin_right = 12.0
+	panel.content_margin_bottom = 10.0
+	panel.bg_color = Color(0.04, 0.04, 0.06, 0.55)
+	panel.corner_radius_top_left = 8
+	panel.corner_radius_top_right = 8
+	panel.corner_radius_bottom_right = 8
+	panel.corner_radius_bottom_left = 8
+	_apply_aim_border_to(panel, false)
+	return panel
+
+
+func _apply_aim_border(aiming: bool) -> void:
+	_apply_aim_border_to(_aim_panel, aiming)
+
+
+static func _apply_aim_border_to(panel: StyleBoxFlat, aiming: bool) -> void:
+	if panel == null:
+		return
+	var width := AIM_BORDER_ACTIVE_PX if aiming else AIM_BORDER_IDLE_PX
+	panel.border_width_left = width
+	panel.border_width_top = width
+	panel.border_width_right = width
+	panel.border_width_bottom = width
+	panel.border_color = AIM_BORDER_ACTIVE if aiming else AIM_BORDER_IDLE
 
 
 func _update_speedometer() -> void:
