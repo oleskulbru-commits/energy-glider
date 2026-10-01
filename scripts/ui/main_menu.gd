@@ -48,6 +48,9 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	var tree := get_tree()
+	if tree != null and tree.root.size_changed.is_connected(_cover_window):
+		tree.root.size_changed.disconnect(_cover_window)
 	var window := get_window()
 	if window != null:
 		window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
