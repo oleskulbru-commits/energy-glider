@@ -29,10 +29,15 @@ static func steering_mul(bonus: float) -> float:
 	return 1.0 + clampf(bonus, 0.0, UpgradeCatalog.STEERING_CAP)
 
 # Visual / terrain
-const BANK_ANGLE := 16.0
+const BANK_ANGLE := 42.0
 const STRAFE_BANK_ANGLE := 8.0
-const BANK_XFADE_DURATION := 1.0
+## Seconds to reach full bank while steering (shorter = snappier turn-in).
+const BANK_XFADE_IN_DURATION := 1.35
+## Seconds to return toward level after releasing steer (longer = softer ease-out).
+const BANK_XFADE_OUT_DURATION := 2.0
 const BANK_RELEASE_BLEND := 0.35
+const TURN_RELEASE_RESPONSE := 1.35
+const YAW_RELEASE_DAMPING := 1.65
 const SLIDE_BANK_ANGLE := 8.0
 const SLIDE_BANK_MIN_MISALIGN_DEG := 10.0
 const BOARD_BOTTOM_OFFSET := 0.005
@@ -115,6 +120,8 @@ const COAST_DURATION := GliderPhysicsScript.COAST_DURATION
 const HOVER_IDLE_SETTLE_SPEED := 0.35
 
 @export var terrain_manager_path: NodePath
+## When false (default), jump fires on Space press. When true, hold Space for jump_charge, release to launch.
+@export var use_jump_hold_release := false
 
 signal run_ended
 
@@ -142,6 +149,7 @@ var _smoothed_clearance := GliderPhysicsScript.BASE_HEIGHT
 var _board_pitch := 0.0
 var _board_roll := 0.0
 var _smoothed_bank := 0.0
+var _bank_command := 0.0
 
 var _charge := CHARGE_MAX
 var _battery := 0.0
@@ -163,6 +171,7 @@ var _airborne_time := 0.0
 var _jump_cooldown := 0.0
 var _jump_landing_grace_timer := 0.0
 var _jump_anim_pending := false
+var _jump_input_buffered := false
 var _jump_charging := false
 var _boost_anim_pending := false
 var _was_boost_active := false
@@ -264,6 +273,9 @@ func _physics_process(delta: float) -> void:
 	var boost_active := _is_boost_active()
 	if boost_active and not _was_boost_active:
 		_boost_anim_pending = true
+		var anim := _get_anim_controller()
+		if anim != null:
+			anim.apply_boost_trigger_immediate()
 	_was_boost_active = boost_active
 
 	var brake_active := is_braking()
@@ -1055,12 +1067,26 @@ func _try_jump() -> void:
 	if _run_ended:
 		return
 
+	_try_flush_buffered_jump()
+
+	if use_jump_hold_release:
+		_try_jump_hold_release()
+		return
+
+	if not _can_begin_jump_charge():
+		return
+	if _input == null or not _input.is_jump_just_pressed():
+		return
+	_request_jump()
+
+
+func _try_jump_hold_release() -> void:
 	if _jump_charging:
 		if not _can_begin_jump_charge():
 			_jump_charging = false
 			return
 		if not _input.is_jump_held():
-			_execute_jump()
+			_request_jump()
 		return
 
 	if not _can_begin_jump_charge():
@@ -1069,7 +1095,7 @@ func _try_jump() -> void:
 		return
 	_jump_charging = true
 	if not _input.is_jump_held():
-		_execute_jump()
+		_request_jump()
 
 
 func _can_begin_jump_charge() -> bool:
@@ -1079,10 +1105,47 @@ func _can_begin_jump_charge() -> bool:
 		return false
 	if _input == null or is_braking():
 		return false
+	if _is_landing_anim_blocking_jump():
+		return false
 	return true
 
 
+func _is_landing_anim_blocking_jump() -> bool:
+	var anim := _get_anim_controller()
+	if anim != null:
+		return anim.is_landing_anim_blocking_jump()
+	return is_landing()
+
+
+func _can_apply_jump_with_anim() -> bool:
+	var anim := _get_anim_controller()
+	if anim == null:
+		return true
+	return anim.can_accept_body_jump()
+
+
+func _request_jump() -> void:
+	if not _can_apply_jump_with_anim():
+		_jump_input_buffered = true
+		return
+	_jump_input_buffered = false
+	_execute_jump()
+
+
+func _try_flush_buffered_jump() -> void:
+	if not _jump_input_buffered:
+		return
+	if not _can_begin_jump_charge():
+		return
+	if not _can_apply_jump_with_anim():
+		return
+	_jump_input_buffered = false
+	_execute_jump()
+
+
 func _execute_jump() -> void:
+	if not _can_apply_jump_with_anim():
+		return
 	_jump_charging = false
 	var tangent_speed := velocity.slide(_ground_normal).length()
 	velocity = GliderPhysicsScript.apply_inertia_jump(
@@ -1093,12 +1156,19 @@ func _execute_jump() -> void:
 	_jump_cooldown = GliderPhysicsScript.JUMP_COOLDOWN
 	_jump_landing_grace_timer = GliderPhysicsScript.JUMP_LANDING_GRACE
 	_jump_anim_pending = true
+	var anim := _get_anim_controller()
+	if anim != null:
+		anim.apply_jump_trigger_immediate()
 	if not _should_preserve_yaw_on_jump():
 		_align_yaw_to_travel_direction(1.0)
 
 
 func is_jump_charging() -> bool:
 	return _jump_charging
+
+
+func is_jump_anim_pending() -> bool:
+	return _jump_anim_pending
 
 
 func _should_preserve_yaw_on_jump() -> bool:
@@ -1207,15 +1277,18 @@ func _apply_steering(delta: float) -> void:
 	var turn_rate_max := (BOOST_TURN_RATE if boost else SAIL_TURN_RATE) * mul * air_scale
 	var grip_rate := (BOOST_STEER_GRIP_RATE if boost else SAIL_STEER_GRIP_RATE) * mul * air_scale
 
-	var target_turn_rate := -steer * turn_rate_max if absf(steer) > 0.01 else 0.0
-	_turn_rate = lerpf(_turn_rate, target_turn_rate, TURN_RESPONSE * delta)
+	var steering := absf(steer) > 0.01
+	var target_turn_rate := -steer * turn_rate_max if steering else 0.0
+	var turn_response := TURN_RESPONSE if steering else TURN_RELEASE_RESPONSE
+	_turn_rate = lerpf(_turn_rate, target_turn_rate, turn_response * delta)
 	var turn := _turn_rate * delta
 
 	if absf(turn) > 0.0001:
 		_yaw += turn
 		_yaw_velocity = lerpf(_yaw_velocity, _turn_rate, 4.5 * delta)
 	else:
-		_yaw_velocity = lerpf(_yaw_velocity, 0.0, YAW_DAMPING * delta)
+		var yaw_damp := YAW_DAMPING if steering else YAW_RELEASE_DAMPING
+		_yaw_velocity = lerpf(_yaw_velocity, 0.0, yaw_damp * delta)
 	_yaw_velocity = clampf(_yaw_velocity, -MAX_YAW_VELOCITY, MAX_YAW_VELOCITY)
 
 	var planar_vel := _horizontal_velocity() if air else velocity.slide(_ground_normal)
@@ -1319,19 +1392,24 @@ func _update_visual_tilt(delta: float) -> void:
 
 	var steer_axis := get_steer_axis()
 	var strafe_axis := get_strafe_axis()
-	var target_bank := 0.0
+	var steering := absf(steer_axis) > 0.01
+	var strafing := absf(strafe_axis) > 0.01
 	var bank_angle := BANK_ANGLE
-	if absf(steer_axis) > 0.01:
-		target_bank = clampf(steer_axis, -1.0, 1.0)
-	elif absf(strafe_axis) > 0.01:
-		target_bank = -clampf(strafe_axis, -1.0, 1.0)
+	var raw_bank := 0.0
+	if steering:
+		raw_bank = clampf(steer_axis, -1.0, 1.0)
+	elif strafing:
+		raw_bank = -clampf(strafe_axis, -1.0, 1.0)
 		bank_angle = STRAFE_BANK_ANGLE
 	else:
-		target_bank = (
+		raw_bank = (
 			clampf(-_yaw_velocity / MAX_YAW_VELOCITY, -1.0, 1.0) * BANK_RELEASE_BLEND
 		)
-	var bank_rate := 2.0 / maxf(BANK_XFADE_DURATION, 0.0001)
-	_smoothed_bank = move_toward(_smoothed_bank, target_bank, bank_rate * delta)
+	var bank_xfade := BANK_XFADE_IN_DURATION if (steering or strafing) else BANK_XFADE_OUT_DURATION
+	var command_rate := 2.0 / maxf(bank_xfade, 0.0001)
+	_bank_command = move_toward(_bank_command, raw_bank, command_rate * delta)
+	var follow_rate := command_rate * (1.15 if (steering or strafing) else 0.85)
+	_smoothed_bank = move_toward(_smoothed_bank, _bank_command, follow_rate * delta)
 	var bank := _smoothed_bank * deg_to_rad(bank_angle)
 	if _state == State.GROUNDED and (_input == null or not _input.is_steering()):
 		var travel := _travel_direction()
@@ -1657,6 +1735,10 @@ func consume_jump_anim_trigger() -> bool:
 	return true
 
 
+func is_boost_anim_pending() -> bool:
+	return _boost_anim_pending
+
+
 func consume_boost_anim_trigger() -> bool:
 	if not _boost_anim_pending:
 		return false
@@ -1765,6 +1847,7 @@ func reset_for_respawn() -> void:
 	_jump_cooldown = 0.0
 	_jump_landing_grace_timer = 0.0
 	_jump_anim_pending = false
+	_jump_input_buffered = false
 	_jump_charging = false
 	_boost_anim_pending = false
 	_was_boost_active = false
@@ -1809,6 +1892,7 @@ func teleport_to(world_pos: Vector3, yaw: float) -> void:
 	_yaw_velocity = 0.0
 	_turn_rate = 0.0
 	_smoothed_bank = 0.0
+	_bank_command = 0.0
 	linear_velocity = Vector3.ZERO
 	angular_velocity = Vector3.ZERO
 	var xf := Transform3D(Basis.from_euler(Vector3(0.0, yaw, 0.0)), world_pos)
@@ -1952,6 +2036,8 @@ func is_solar_charging() -> bool:
 
 
 func is_sail_deployed() -> bool:
+	if not is_grounded():
+		return false
 	return _input != null and _input.is_sail_deployed()
 
 

@@ -6,6 +6,7 @@ extends Node3D
 const FRACTURED_SCENE := preload(
 	"res://assets/3dmodels/enemies/crawler/crawler_fractured_v001.glb"
 )
+const DebrisBudgetScript := preload("res://scripts/game/debris_budget.gd")
 const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 const CrawlerDebrisSandScript := preload("res://scripts/enemies/crawler_debris_sand.gd")
 const CameraImpactShakeScript := preload("res://scripts/player/camera_impact_shake.gd")
@@ -24,6 +25,8 @@ const DEBRIS_COLLISION_MASK := 1
 
 var _terrain: TerrainManager
 var _spawn_landing_sand := false
+var _priority: DebrisBudgetScript.Priority = DebrisBudgetScript.Priority.DEATH_BURST
+var _budget: DebrisBudgetScript
 
 
 static func spawn(
@@ -32,7 +35,9 @@ static func spawn(
 	hit_pos: Vector3,
 	scale: float = CrawlerScaleUtil.death_burst_scale(),
 	terrain: TerrainManager = null,
-	weapon_family: StringName = &""
+	weapon_family: StringName = &"",
+	max_shards: int = 4,
+	priority: DebrisBudgetScript.Priority = DebrisBudgetScript.Priority.DEATH_BURST
 ) -> void:
 	if tree == null:
 		return
@@ -47,21 +52,29 @@ static func spawn(
 	burst.scale = Vector3.ONE * scale
 	wrapper._terrain = terrain
 	wrapper._spawn_landing_sand = UpgradeCatalogScript.weapon_causes_debris_sand(weapon_family)
-	wrapper._build_shards(burst, hit_pos)
+	wrapper._priority = priority
+	wrapper._budget = DebrisBudgetScript.find_in_tree(tree)
+	wrapper._build_shards(burst, hit_pos, max_shards)
 	KillSparks.spawn(tree, xf.origin)
 	CameraImpactShakeScript.request(tree, xf.origin, 0.25, 15.0)
 	wrapper._schedule_cleanup()
 
 
-func _build_shards(model_root: Node, hit_pos: Vector3) -> void:
+func _build_shards(model_root: Node, hit_pos: Vector3, max_shards: int) -> void:
 	_hide_non_piece_meshes(model_root)
 	var pieces := _collect_piece_meshes(model_root)
-	for mesh_inst: MeshInstance3D in pieces:
-		_promote_to_rigid_body(mesh_inst, hit_pos)
 	if pieces.is_empty():
 		push_warning("CrawlerDeathBurst: no fractured pieces found")
-	else:
-		model_root.visible = false
+		return
+	pieces.shuffle()
+	var promote_count := mini(max_shards, pieces.size())
+	if _budget != null:
+		promote_count = _budget.request_spawn(promote_count, _priority)
+	for i in promote_count:
+		_promote_to_rigid_body(pieces[i], hit_pos)
+	for i in range(promote_count, pieces.size()):
+		pieces[i].queue_free()
+	model_root.visible = false
 
 
 func _is_shard_mesh_name(name: String) -> bool:
@@ -118,6 +131,8 @@ func _promote_to_rigid_body(mesh_inst: MeshInstance3D, hit_pos: Vector3) -> void
 	add_child(body)
 	body.global_transform = mesh_inst.global_transform
 	mesh_inst.queue_free()
+	if _budget != null:
+		_budget.register(body, _priority)
 
 	_apply_burst_impulse(body, hit_pos)
 	if _spawn_landing_sand:

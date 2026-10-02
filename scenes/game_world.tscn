@@ -17,14 +17,23 @@
 [ext_resource type="Script" uid="uid://cmltivlks2lph" path="res://scripts/enemies/enemy_stream_spawner.gd" id="18_stream"]
 [ext_resource type="Script" uid="uid://dmcb4pm1f6xqy" path="res://scripts/game/run_upgrade_state.gd" id="19_upgrades"]
 [ext_resource type="Script" path="res://scripts/game/run_damage_stats.gd" id="23_damage_stats"]
+[ext_resource type="Script" path="res://scripts/game/debris_budget.gd" id="24_debris_budget"]
 [ext_resource type="Script" uid="uid://dtkgjkuvsrhd8" path="res://scripts/game/tower_visit_controller.gd" id="20_visit"]
 [ext_resource type="PackedScene" path="res://scenes/ui/upgrade_tower_menu.tscn" id="21_upgrade_menu"]
 [ext_resource type="PackedScene" path="res://scenes/ui/weapon_select_menu.tscn" id="22_weapon_select"]
 [ext_resource type="PackedScene" path="res://scenes/ui/pause_menu.tscn" id="23_pause_menu"]
 [ext_resource type="Script" path="res://scripts/world/bonus_tower_garrison.gd" id="24_garrison"]
 [ext_resource type="Script" path="res://scripts/game/boss_director.gd" id="25_boss"]
+[ext_resource type="Script" path="res://scripts/audio/gameplay_music.gd" id="25_gameplay_music"]
+[ext_resource type="AudioStream" uid="uid://djbrwqnhdw2t7" path="res://assets/sound/music/Mars Horizon.mp3" id="26_mars_horizon"]
 
 [node name="GameWorld" type="Node3D"]
+
+[node name="GameplayMusic" type="AudioStreamPlayer" parent="."]
+script = ExtResource("25_gameplay_music")
+stream = ExtResource("26_mars_horizon")
+music_stream = ExtResource("26_mars_horizon")
+volume_db = -18.0
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = ExtResource("19_env")
@@ -47,6 +56,9 @@ terrain_manager_path = NodePath("../TerrainManager")
 
 [node name="RunDamageStats" type="Node" parent="."]
 script = ExtResource("23_damage_stats")
+
+[node name="DebrisBudget" type="Node" parent="."]
+script = ExtResource("24_debris_budget")
 
 [node name="ExpeditionState" type="Node" parent="."]
 script = ExtResource("13_expedition")

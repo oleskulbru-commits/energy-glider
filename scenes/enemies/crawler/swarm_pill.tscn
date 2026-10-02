@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://bl8piqivuffqx"]
+[gd_scene format=3 uid="uid://6603j6i4eqpm"]
 
 [ext_resource type="Script" uid="uid://bftq7m2gapulr" path="res://scripts/enemies/swarm_pill.gd" id="1_pill"]
 [ext_resource type="PackedScene" uid="uid://chqjbyfsqqnww" path="res://scenes/enemies/crawler/crawler_skin.tscn" id="2_skin"]

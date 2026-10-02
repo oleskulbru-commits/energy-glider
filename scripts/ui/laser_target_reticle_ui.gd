@@ -27,6 +27,7 @@ static var _frames: Array[Texture2D] = []
 static var _frames_loaded := false
 
 var _elapsed := 0.0
+var _power_off_elapsed := -1.0
 var _circle_trace := 0.0
 var _flipbook_visible := true
 var _draw_visible := false
@@ -57,6 +58,7 @@ func _ready() -> void:
 
 func show_telegraph() -> void:
 	_elapsed = 0.0
+	_power_off_elapsed = -1.0
 	_circle_trace = 0.0
 	_draw_visible = true
 	_anchor_valid = false
@@ -69,6 +71,7 @@ func hide_telegraph() -> void:
 	_draw_visible = false
 	_anchor_valid = false
 	_elapsed = 0.0
+	_power_off_elapsed = -1.0
 	_circle_trace = 0.0
 	visible = false
 	if _flipbook != null:
@@ -76,15 +79,34 @@ func hide_telegraph() -> void:
 	queue_redraw()
 
 
+func begin_power_off() -> void:
+	_power_off_elapsed = 0.0
+	_elapsed = TelegraphScript.telegraph_total_sec()
+
+
+func tick_power_off(delta: float) -> bool:
+	if _power_off_elapsed < 0.0:
+		return true
+	_power_off_elapsed += maxf(delta, 0.0)
+	_elapsed = TelegraphScript.telegraph_total_sec()
+	_circle_trace = 1.0
+	_flipbook_visible = TelegraphScript.power_off_lit(_power_off_elapsed)
+	_sync_flipbook()
+	queue_redraw()
+	return _power_off_elapsed >= TelegraphScript.POWER_OFF_GLITCH_SEC
+
+
 func update_telegraph(elapsed: float, _delta: float, screen_center: Vector2, anchor_valid: bool = true) -> void:
 	if not _draw_visible:
+		return
+	if _power_off_elapsed >= 0.0:
 		return
 	_screen_center = screen_center.round()
 	_anchor_valid = anchor_valid
 	_elapsed = maxf(elapsed, 0.0)
 	_circle_trace = TelegraphScript.circle_trace_progress(_elapsed)
-	_flipbook_visible = TelegraphScript.brackets_visible(_elapsed)
-	visible = anchor_valid
+	_flipbook_visible = TelegraphScript.reticle_lit(_elapsed)
+	visible = anchor_valid and _flipbook_visible
 	_sync_flipbook()
 	queue_redraw()
 
