@@ -592,6 +592,37 @@ func _initialize() -> void:
 		quit(1)
 		return
 
+	Input.action_press("boost")
+	await process_frame
+	Input.action_release("boost")
+	await process_frame
+	Input.action_press("boost")
+	var saw_rapid_reboost := false
+	for _i in BOOST_WAIT_FRAMES:
+		await process_frame
+		var rapid_root := root_playback.get_current_node()
+		var rapid_sub := boost_playback.get_current_node()
+		if rapid_sub == &"exit" and rapid_root == &"boost":
+			push_error(
+				"Rapid air re-boost must not drive nested boost from exit (sub=%s root=%s)"
+				% [rapid_sub, rapid_root]
+			)
+			quit(1)
+			return
+		if rapid_root == &"boost" and rapid_sub in [&"enter", &"loop"]:
+			saw_rapid_reboost = true
+			break
+	if not saw_rapid_reboost:
+		push_error(
+			"Rapid air re-boost should reach boost enter/loop (root=%s sub=%s)"
+			% [root_playback.get_current_node(), boost_playback.get_current_node()]
+		)
+		quit(1)
+		return
+	Input.action_release("boost")
+	for _i in BOOST_WAIT_FRAMES:
+		await process_frame
+
 	Input.action_press("brake")
 	await process_frame
 	var air_brake_root := root_playback.get_current_node()
@@ -655,6 +686,35 @@ func _initialize() -> void:
 		await process_frame
 		if root_playback.get_current_node() != &"boost":
 			break
+
+	Input.action_press("move_forward")
+	Input.action_press("steer_left")
+	for _i in 18:
+		await process_frame
+	for _tap in 10:
+		Input.action_press("boost")
+		await process_frame
+		Input.action_release("boost")
+		await process_frame
+		if glider_player.is_grounded() and root_playback.get_current_node() == &"glide":
+			push_error(
+				"Ground steer tap-boost must not leave body on glide (state=%s)"
+				% root_playback.get_current_node()
+			)
+			quit(1)
+			return
+		var tap_sub := boost_playback.get_current_node()
+		if root_playback.get_current_node() == &"boost" and tap_sub == &"exit":
+			push_error(
+				"Ground steer tap-boost must not drive nested boost from exit (sub=%s)"
+				% tap_sub
+			)
+			quit(1)
+			return
+	Input.action_release("steer_left")
+	Input.action_release("move_forward")
+	for _i in 24:
+		await process_frame
 
 	glider_player.reset_for_respawn()
 	var anim_controller := skin.get_node("GliderAnimController")

@@ -58,6 +58,7 @@ const JUMP_ENTRY_SETTLE_SEC := AIR_XFADE + 0.15
 ## Force body root onto _root_state if playback stays mismatched after crossfade.
 const ROOT_DESYNC_FORCE_SEC := 0.65
 const NESTED_ENTER_END_EPSILON := 0.05
+const NESTED_EXIT_STUCK_SEC := 1.25
 
 @export var use_blendspace_locomotion := true
 @export var blendspace_xfade := DEFAULT_LOCO_BLEND_XFADE
@@ -199,6 +200,21 @@ func apply_jump_trigger_immediate() -> void:
 	_advance_animation_tree(0.0)
 
 
+## Same-frame boost root travel after physics sets the anim trigger (avoids nested exit→loop snap).
+func apply_boost_trigger_immediate() -> void:
+	if _tree == null or _glider == null or _root_playback == null:
+		return
+	if not _glider.is_boost_anim_pending():
+		return
+	if _nested_exit_active and _nested_exit_kind == &"boost":
+		return
+	if not _glider.consume_boost_anim_trigger():
+		return
+	_root_state = &"boost"
+	_apply_boost_root(_should_instant_root_transition(&"boost"))
+	_advance_animation_tree(0.0)
+
+
 func reset_animation_state() -> void:
 	_snap_jump_entry = false
 	_snap_jump_charge_entry = false
@@ -304,6 +320,7 @@ func _process(_delta: float) -> void:
 	_reconcile_stale_jump_root()
 
 	if _nested_exit_active:
+		_tick_nested_exit_stuck_watchdog(steer, strafe)
 		_advance_animation_tree(_delta)
 		_tick_root_blend(_delta)
 		if _nested_exit_kind == &"boost" and _is_boost_exit_finished():
@@ -318,8 +335,10 @@ func _process(_delta: float) -> void:
 		not _glider.is_boost_active()
 		and _is_root_blend_active(&"boost")
 		and not _is_jump_entry_active()
+		and not _glider.is_boost_anim_pending()
 	):
-		next_root = &"glide"
+		next_root = _cancel_in_flight_boost_root_target(next_root)
+		_abort_root_blend_toward(&"boost")
 	var deferred_exit := false
 	if next_root != _root_state:
 		var prev_root := _root_state
@@ -331,6 +350,8 @@ func _process(_delta: float) -> void:
 			and not _jump_from_boost_takeoff
 		):
 			deferred_exit = _try_begin_boost_exit(next_root, _xfade_for_boost_exit(prev_root, next_root))
+			if not deferred_exit:
+				_sync_boost_nested_on_failed_exit()
 		elif next_root == &"grounded" and prev_root == &"locomotion":
 			deferred_exit = _try_begin_loco_exit()
 		if not deferred_exit:
@@ -348,7 +369,7 @@ func _process(_delta: float) -> void:
 				elif next_root == &"boost":
 					_apply_root_travel(&"boost", JUMP_CHARGE_XFADE)
 					if _boost_playback != null:
-						_start_boost_substate()
+						_start_boost_substate(true)
 				elif next_root == &"brake":
 					_apply_root_travel(&"brake", JUMP_CHARGE_XFADE)
 					if _brake_playback != null:
@@ -372,6 +393,10 @@ func _process(_delta: float) -> void:
 				_jump_entry_in_flight = false
 			elif next_root == &"glide" and prev_root == &"boost":
 				_apply_root_travel(&"glide", AIR_XFADE)
+			elif next_root == &"locomotion" and prev_root == &"boost":
+				_locomotion_crossfade_warm = true
+				_warm_locomotion_for_boost_exit(steer, strafe)
+				_apply_root_travel(&"locomotion", _xfade_for_boost_exit(prev_root, next_root))
 			elif next_root == &"boost" and prev_root != &"boost":
 				_apply_boost_root(_should_instant_root_transition(&"boost"))
 			elif next_root == &"brake" and prev_root != &"brake":
@@ -379,7 +404,7 @@ func _process(_delta: float) -> void:
 			elif next_root != prev_root:
 				_apply_root_transition(next_root, _should_instant_root_transition(next_root))
 				if next_root == &"boost" and _boost_playback != null:
-					_start_boost_substate()
+					_start_boost_substate(true)
 				elif next_root == &"brake" and _brake_playback != null:
 					_start_brake_substate()
 		if entered_locomotion and not deferred_exit:
@@ -395,6 +420,7 @@ func _process(_delta: float) -> void:
 				_restart_locomotion(steer, strafe)
 
 	if deferred_exit:
+		_tick_nested_exit_stuck_watchdog(steer, strafe)
 		_advance_animation_tree(_delta)
 		_tick_root_blend(_delta)
 		if _nested_exit_kind == &"boost" and _is_boost_exit_finished():
@@ -426,6 +452,7 @@ func _process(_delta: float) -> void:
 
 	_repair_brake_enter()
 	_repair_boost_loop()
+	_repair_boost_nested_while_active()
 	_repair_root_playback(next_root)
 	if _root_playback != null and next_root == &"jump_charge":
 		var charge_root := _root_playback.get_current_node()
@@ -442,6 +469,7 @@ func _process(_delta: float) -> void:
 						_jump_root_lock = false
 						_jump_entry_in_flight = false
 		_repair_boost_loop()
+		_repair_boost_nested_while_active()
 		_repair_brake_enter()
 		_repair_root_desync_watchdog(next_root)
 		_sync_root_playback_after_advance(next_root)
@@ -472,9 +500,17 @@ func _on_root_blend_finished() -> void:
 		_prep_boost_brake_nested_after_exit()
 
 
+func _abort_root_blend_toward(state: StringName) -> void:
+	if _root_blend_target != state:
+		return
+	_root_blend_target = &""
+	_root_blend_time = 0.0
+
+
 func _prep_boost_brake_nested_after_exit() -> void:
-	if _boost_playback != null:
-		_boost_playback.start("enter")
+	if not (_nested_exit_active and _nested_exit_kind == &"boost"):
+		if _boost_playback != null:
+			_boost_playback.start("enter")
 	if _brake_playback != null:
 		_brake_playback.start("enter")
 
@@ -622,8 +658,7 @@ func _apply_boost_root(instant: bool) -> void:
 		_apply_root_start(&"boost")
 	else:
 		_apply_root_travel(&"boost")
-	if _boost_playback != null:
-		_start_boost_substate()
+	_start_boost_substate(true)
 
 
 func _apply_brake_root() -> void:
@@ -639,7 +674,7 @@ func _apply_landing_exit_transition(next_root: StringName) -> void:
 	elif next_root == &"boost":
 		_apply_root_travel(&"boost", LANDING_EXIT_XFADE)
 		if _boost_playback != null:
-			_start_boost_substate()
+			_start_boost_substate(true)
 	elif next_root == &"brake":
 		_apply_root_travel(&"brake", LANDING_EXIT_XFADE)
 		if _brake_playback != null:
@@ -732,6 +767,19 @@ func _repair_brake_enter() -> void:
 	_advance_animation_tree(0.0)
 
 
+func _repair_boost_nested_while_active() -> void:
+	if _boost_playback == null or _root_state != &"boost":
+		return
+	if not _glider.is_boost_active():
+		return
+	if _nested_exit_active and _nested_exit_kind == &"boost":
+		return
+	var sub := _boost_playback.get_current_node()
+	if sub in [&"enter", &"loop"]:
+		return
+	_start_boost_substate(true)
+
+
 func _repair_boost_loop() -> void:
 	if _boost_playback == null or _root_state != &"boost":
 		return
@@ -783,7 +831,7 @@ func _force_root_playback_to(target: StringName, _cur: StringName) -> void:
 		&"boost":
 			_apply_root_start(&"boost")
 			if _boost_playback != null:
-				_start_boost_substate()
+				_start_boost_substate(true)
 		&"brake":
 			_apply_root_start(&"brake")
 			if _brake_playback != null:
@@ -1073,6 +1121,14 @@ func _should_skip_root_sync(target: StringName, cur: StringName) -> bool:
 	return false
 
 
+func _cancel_in_flight_boost_root_target(picked: StringName) -> StringName:
+	if _glider.is_gliding():
+		return &"glide"
+	if _glider.is_grounded():
+		return &"locomotion"
+	return picked if picked != &"boost" else &"glide"
+
+
 func _is_airborne_for_boost() -> bool:
 	return _glider.is_gliding() or not _glider.is_grounded()
 
@@ -1085,18 +1141,41 @@ func _should_start_brake_loop() -> bool:
 	return _glider.is_braking() and not _glider.is_boost_active()
 
 
-func _start_boost_substate() -> void:
+func _start_boost_substate(force_kick: bool = false) -> void:
 	if _boost_playback == null:
 		return
-	var target: StringName = &"loop" if _should_start_boost_loop() else &"enter"
 	var current := _boost_playback.get_current_node()
-	if current == target:
-		return
-	if current == &"enter" and target == &"enter":
-		return
-	if target == &"enter":
+	var want_loop := _should_start_boost_loop()
+	if current == &"exit":
+		if _nested_exit_active and _nested_exit_kind == &"boost":
+			return
 		_reset_boost_enter_forward()
-	_boost_playback.start(target)
+		_boost_playback.start(&"enter")
+		_advance_animation_tree(0.0)
+		return
+	if want_loop:
+		if current == &"loop":
+			return
+		if current in [&"Start", &"enter"]:
+			if (
+				not force_kick
+				and current == &"enter"
+				and not _is_airborne_for_boost()
+				and not _nested_enter_clip_finished(_boost_playback)
+			):
+				return
+			_boost_playback.start(&"loop")
+			_advance_animation_tree(0.0)
+		return
+	if current == &"enter":
+		if (
+			not force_kick
+			and _glider.is_boost_active()
+			and not _nested_enter_clip_finished(_boost_playback)
+		):
+			return
+	_reset_boost_enter_forward()
+	_boost_playback.start(&"enter")
 	_advance_animation_tree(0.0)
 
 
@@ -1624,6 +1703,39 @@ func _reset_locomotion_for_grounded_blend(steer: float, strafe: float) -> void:
 	_advance_animation_tree(0.0)
 
 
+func _sync_boost_nested_on_failed_exit() -> void:
+	_reset_boost_exit_params()
+	if _boost_playback == null or _tree == null:
+		return
+	var sub := _boost_playback.get_current_node()
+	if sub in [&"Start", &""]:
+		_boost_playback.start(&"enter")
+	elif sub == &"exit":
+		_ensure_boost_exit_reverse_playback()
+	else:
+		_boost_playback.start(&"enter")
+	_advance_animation_tree(0.0)
+
+
+func _tick_nested_exit_stuck_watchdog(steer: float, strafe: float) -> void:
+	if not _nested_exit_active or _nested_exit_started_at < 0.0:
+		return
+	var elapsed := Time.get_ticks_msec() / 1000.0 - _nested_exit_started_at
+	if _nested_exit_kind == &"boost" and elapsed >= NESTED_EXIT_STUCK_SEC:
+		_force_complete_boost_exit(steer, strafe)
+	elif _nested_exit_kind == &"locomotion" and elapsed >= NESTED_EXIT_STUCK_SEC:
+		_finish_loco_exit()
+
+
+func _force_complete_boost_exit(steer: float, strafe: float) -> void:
+	if not _nested_exit_active or _nested_exit_kind != &"boost":
+		return
+	if _pending_root_after_exit == &"":
+		_pending_root_after_exit = &"locomotion" if _glider.is_grounded() else &"glide"
+		_pending_root_xfade = AIR_XFADE
+	_finish_boost_exit(steer, strafe)
+
+
 func _xfade_for_boost_exit(_prev: StringName, next: StringName) -> float:
 	match next:
 		&"glide":
@@ -1784,6 +1896,14 @@ func _finish_boost_exit(steer: float, strafe: float) -> void:
 			_apply_root_travel(target, xfade)
 	_prep_boost_brake_nested_after_exit()
 	_advance_animation_tree(0.0)
+	if _glider.is_boost_active():
+		if _glider.is_boost_anim_pending():
+			_glider.consume_boost_anim_trigger()
+		_root_state = &"boost"
+		_apply_boost_root(_should_instant_root_transition(&"boost"))
+		_advance_animation_tree(0.0)
+	elif _glider.is_boost_anim_pending():
+		_glider.consume_boost_anim_trigger()
 
 
 func _finish_loco_exit() -> void:

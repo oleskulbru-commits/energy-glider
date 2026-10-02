@@ -273,6 +273,9 @@ func _physics_process(delta: float) -> void:
 	var boost_active := _is_boost_active()
 	if boost_active and not _was_boost_active:
 		_boost_anim_pending = true
+		var anim := _get_anim_controller()
+		if anim != null:
+			anim.apply_boost_trigger_immediate()
 	_was_boost_active = boost_active
 
 	var brake_active := is_braking()
@@ -1730,6 +1733,10 @@ func consume_jump_anim_trigger() -> bool:
 		return false
 	_jump_anim_pending = false
 	return true
+
+
+func is_boost_anim_pending() -> bool:
+	return _boost_anim_pending
 
 
 func consume_boost_anim_trigger() -> bool:
