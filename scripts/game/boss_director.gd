@@ -7,6 +7,7 @@ extends Node3D
 signal boss_spawned(boss: Node)
 signal boss_health_changed(current: int, max_hp: int)
 signal boss_despawned
+signal theme_fade_finished
 
 const SunEaterScene := preload("res://scenes/enemies/sun_eater.tscn")
 const EonDirectorScript := preload("res://scripts/game/eon_director.gd")
@@ -40,6 +41,7 @@ var _theme_index := -1
 var _theme_fade_t := -1.0
 var _theme_playlist_active := false
 var _theme_switching := false
+var _theme_audible_while_paused := false
 var _player_death_hooked := false
 
 
@@ -249,7 +251,7 @@ func _play_theme(theme_index: int = -1) -> void:
 		index = randi() % SUN_EATER_THEMES.size()
 	_theme_playlist_active = true
 	_theme_fade_t = -1.0
-	_theme.process_mode = Node.PROCESS_MODE_PAUSABLE
+	_apply_theme_process_mode()
 	_theme.volume_db = 0.0
 	_start_theme_at(index)
 
@@ -279,12 +281,21 @@ func _on_theme_finished() -> void:
 	_theme.process_mode = mode
 
 
+func is_theme_playing() -> bool:
+	return _theme != null and _theme.playing
+
+
+func set_audible_while_paused(audible: bool) -> void:
+	_theme_audible_while_paused = audible
+	_apply_theme_process_mode()
+
+
 func _fade_theme() -> void:
 	if _theme == null or not _theme.playing or _theme_fade_t >= 0.0:
 		return
 	# The upgrade menu pauses the tree on the next frame. Stay audible through that pause.
-	_theme.process_mode = Node.PROCESS_MODE_ALWAYS
 	_theme_fade_t = THEME_FADE_SEC
+	_apply_theme_process_mode()
 	_theme.volume_db = 0.0
 
 
@@ -295,11 +306,21 @@ func _tick_theme_fade(delta: float) -> void:
 	if _theme_fade_t <= 0.0:
 		_theme_playlist_active = false
 		_theme.stop()
-		_theme.process_mode = Node.PROCESS_MODE_PAUSABLE
 		_theme.volume_db = 0.0
 		_theme_fade_t = -1.0
+		_apply_theme_process_mode()
+		theme_fade_finished.emit()
 		return
 	_theme.volume_db = linear_to_db(_theme_fade_t / THEME_FADE_SEC)
+
+
+func _apply_theme_process_mode() -> void:
+	if _theme == null:
+		return
+	var through_pause := _theme_audible_while_paused or _theme_fade_t >= 0.0
+	_theme.process_mode = (
+		Node.PROCESS_MODE_ALWAYS if through_pause else Node.PROCESS_MODE_PAUSABLE
+	)
 
 
 func _ensure_player_death_hook() -> void:

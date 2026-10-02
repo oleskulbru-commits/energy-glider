@@ -6,9 +6,9 @@ signal closed
 const SELECTED_MODULATE := Color(1.0, 1.0, 1.0, 1.0)
 const IDLE_MODULATE := Color(0.92, 0.88, 0.8, 1.0)
 const EMPTY_MODULATE := Color(0.55, 0.52, 0.48, 1.0)
-const SELECTED_BORDER := Color(1.0, 0.9, 0.38, 1.0)
-const IDLE_BORDER := Color(0.85, 0.72, 0.55, 0.28)
-const EMPTY_BORDER := Color(0.45, 0.42, 0.38, 0.32)
+const SELECTED_FRAME := Color(1.22, 1.12, 0.86, 1.0)
+const IDLE_FRAME := Color(1.0, 1.0, 1.0, 1.0)
+const EMPTY_FRAME := Color(0.55, 0.52, 0.48, 1.0)
 const PauseMenuScript = preload("res://scripts/ui/pause_menu.gd")
 
 @onready var _root: Control = %Root
@@ -23,9 +23,7 @@ var _rig: PlayerRig
 var _selected_slot := -1
 var _card_buttons: Array[Button] = []
 var _card_frames: Array[Control] = []
-var _selected_frame_style: StyleBoxFlat
-var _idle_frame_style: StyleBoxFlat
-var _empty_frame_style: StyleBoxFlat
+var _button_style := StyleBoxEmpty.new()
 
 
 func _ready() -> void:
@@ -33,9 +31,6 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
 	_root.visible = false
-	_selected_frame_style = _make_frame_style(SELECTED_BORDER, 5, Color(0.16, 0.12, 0.05, 0.72), true)
-	_idle_frame_style = _make_frame_style(IDLE_BORDER, 2, Color(0.05, 0.05, 0.06, 0.28), false)
-	_empty_frame_style = _make_frame_style(EMPTY_BORDER, 1, Color(0.03, 0.03, 0.04, 0.22), false)
 	_wait_button.pressed.connect(_on_wait_pressed)
 	_keep_button.pressed.connect(_on_keep_pressed)
 	_cache_cards()
@@ -53,6 +48,7 @@ func open_for(tower: UpgradeTower, state: RunUpgradeState, rig: PlayerRig) -> vo
 	_refresh_cards()
 	visible = true
 	_root.visible = true
+	_set_glide_audible_while_paused(true)
 	get_tree().paused = true
 	var viewport := get_viewport()
 	if viewport != null:
@@ -71,6 +67,8 @@ func _cache_cards() -> void:
 			continue
 		var slot := _card_buttons.size()
 		button.pressed.connect(_on_card_pressed.bind(slot))
+		for style_name in ["normal", "hover", "pressed", "disabled", "focus"]:
+			button.add_theme_stylebox_override(style_name, _button_style)
 		_card_buttons.append(button)
 		_card_frames.append(child as Control)
 
@@ -152,24 +150,12 @@ func _apply_selection_frame(slot: int, selected: bool, empty: bool) -> void:
 	var frame := _card_frames[slot]
 	if frame == null:
 		return
-	var style := _empty_frame_style
-	if not empty:
-		style = _selected_frame_style if selected else _idle_frame_style
-	frame.add_theme_stylebox_override("panel", style)
-
-
-func _make_frame_style(border: Color, width: int, bg: Color, glow: bool) -> StyleBoxFlat:
-	var box := StyleBoxFlat.new()
-	box.bg_color = bg
-	box.set_border_width_all(width)
-	box.border_color = border
-	box.set_corner_radius_all(8)
-	box.set_content_margin_all(8)
-	if glow:
-		box.shadow_color = Color(1.0, 0.82, 0.28, 0.62)
-		box.shadow_size = 12
-		box.shadow_offset = Vector2.ZERO
-	return box
+	if empty:
+		frame.self_modulate = EMPTY_FRAME
+	elif selected:
+		frame.self_modulate = SELECTED_FRAME
+	else:
+		frame.self_modulate = IDLE_FRAME
 
 
 func _apply_bonus_label(wrapper: Node, id: StringName) -> void:
@@ -245,10 +231,17 @@ func _close() -> void:
 	visible = false
 	_root.visible = false
 	get_tree().paused = false
+	_set_glide_audible_while_paused(false)
 	if _rig != null and PauseMenuScript.should_capture_look_after_unpause(get_tree()):
 		_rig.capture_look_mouse()
 	_tower = null
 	closed.emit()
+
+
+func _set_glide_audible_while_paused(audible: bool) -> void:
+	var music := get_tree().get_first_node_in_group("glide_music")
+	if music != null and music.has_method("set_audible_while_paused"):
+		music.set_audible_while_paused(audible)
 
 
 func _clear_enemies_until_dawn_grace() -> void:
