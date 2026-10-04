@@ -1,6 +1,7 @@
 class_name SailVisual
 extends MeshInstance3D
 
+const GliderPlayerScript = preload("res://scripts/player/glider_player.gd")
 const GliderInputScript = preload("res://scripts/input/glider_input.gd")
 const WindFieldScript = preload("res://scripts/world/wind_field.gd")
 
@@ -35,8 +36,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	var input := _get_glider_input()
-	var target := 1.0 if input != null and input.is_sail_deployed() else 0.0
+	var target := 1.0 if _is_sail_deployed() else 0.0
 	var rate := SAIL_DEPLOY_RATE if target > _deploy else SAIL_RETRACT_RATE
 	_deploy = move_toward(_deploy, target, rate * delta)
 
@@ -84,6 +84,14 @@ func _get_glider() -> Node3D:
 	if visual == null:
 		return null
 	return visual.get_parent() as Node3D
+
+
+func _is_sail_deployed() -> bool:
+	var glider := _get_glider() as GliderPlayerScript
+	if glider != null:
+		return glider.is_sail_deployed()
+	var input := _get_glider_input()
+	return input != null and input.is_sail_deployed()
 
 
 func _get_glider_input() -> GliderInputScript:

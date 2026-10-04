@@ -4,13 +4,13 @@
 [ext_resource type="Script" uid="uid://xg1ypccq3ryg" path="res://scripts/player/player_rig.gd" id="3_rig"]
 [ext_resource type="Script" uid="uid://djcdfv8efkgs1" path="res://scripts/input/glider_input.gd" id="4_input"]
 [ext_resource type="PackedScene" path="res://scenes/ui/glider_hud.tscn" id="7_hud"]
-[ext_resource type="Script" path="res://scripts/player/player_health.gd" id="10_health"]
-[ext_resource type="Script" path="res://scripts/player/player_damage_feedback.gd" id="11_damage_feedback"]
-[ext_resource type="Script" path="res://scripts/weapons/auto_rifle.gd" id="12_rifle"]
-[ext_resource type="Script" path="res://scripts/weapons/auto_laser.gd" id="13_laser"]
-[ext_resource type="Script" path="res://scripts/weapons/auto_tesla.gd" id="14_tesla"]
-[ext_resource type="Script" path="res://scripts/weapons/auto_rocket.gd" id="15_rocket"]
-[ext_resource type="Script" path="res://scripts/weapons/auto_shotgun.gd" id="16_shotgun"]
+[ext_resource type="Script" uid="uid://fgioe7nolboy" path="res://scripts/player/player_health.gd" id="10_health"]
+[ext_resource type="Script" uid="uid://nvjpt11c8w2h" path="res://scripts/player/player_damage_feedback.gd" id="11_damage_feedback"]
+[ext_resource type="Script" uid="uid://5ocxkfwvutoe" path="res://scripts/weapons/auto_rifle.gd" id="12_rifle"]
+[ext_resource type="Script" uid="uid://cq6bbnivlpw60" path="res://scripts/weapons/auto_laser.gd" id="13_laser"]
+[ext_resource type="Script" uid="uid://cub3on1nku4sp" path="res://scripts/weapons/auto_tesla.gd" id="14_tesla"]
+[ext_resource type="Script" uid="uid://b4huu4u10weyw" path="res://scripts/weapons/auto_rocket.gd" id="15_rocket"]
+[ext_resource type="Script" uid="uid://c7u85cdci1wwa" path="res://scripts/weapons/auto_shotgun.gd" id="16_shotgun"]
 
 [node name="PlayerRig" type="Node3D" unique_id=1639311098]
 script = ExtResource("3_rig")
@@ -20,26 +20,26 @@ script = ExtResource("3_rig")
 [node name="GliderInput" type="Node" parent="." unique_id=1627648038]
 script = ExtResource("4_input")
 
-[node name="PlayerHealth" type="Node" parent="."]
+[node name="PlayerHealth" type="Node" parent="." unique_id=715144477]
 script = ExtResource("10_health")
 glider_path = NodePath("../Glider")
 
-[node name="PlayerDamageFeedback" type="Node" parent="."]
+[node name="PlayerDamageFeedback" type="Node" parent="." unique_id=272364789]
 script = ExtResource("11_damage_feedback")
 
 [node name="GliderHUD" parent="." unique_id=828124853 instance=ExtResource("7_hud")]
 
-[node name="AutoRifle" type="Node" parent="."]
+[node name="AutoRifle" type="Node" parent="." unique_id=1180630722]
 script = ExtResource("12_rifle")
 
-[node name="AutoLaser" type="Node" parent="."]
+[node name="AutoLaser" type="Node" parent="." unique_id=695422782]
 script = ExtResource("13_laser")
 
-[node name="AutoTesla" type="Node" parent="."]
+[node name="AutoTesla" type="Node" parent="." unique_id=2012002668]
 script = ExtResource("14_tesla")
 
-[node name="AutoRocket" type="Node" parent="."]
+[node name="AutoRocket" type="Node" parent="." unique_id=1648953207]
 script = ExtResource("15_rocket")
 
-[node name="AutoShotgun" type="Node" parent="."]
+[node name="AutoShotgun" type="Node" parent="." unique_id=860707817]
 script = ExtResource("16_shotgun")

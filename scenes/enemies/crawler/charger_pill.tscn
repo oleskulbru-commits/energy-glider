@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://cbeg1udf41nmb"]
+[gd_scene format=3 uid="uid://bplain2m5hvck"]
 
 [ext_resource type="Script" uid="uid://drsdbw2j5pxfi" path="res://scripts/enemies/charger_pill.gd" id="1_charger"]
 [ext_resource type="PackedScene" uid="uid://chqjbyfsqqnww" path="res://scenes/enemies/crawler/crawler_skin.tscn" id="2_skin"]

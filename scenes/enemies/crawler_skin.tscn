@@ -1,5 +1,5 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://btcwk8e063ycr"]
 
-[ext_resource type="PackedScene" uid="uid://chqjbyfsqqnww" path="res://scenes/enemies/crawler/crawler_skin.tscn" id="1_scene"]
+[ext_resource type="PackedScene" uid="uid://p2mbw034a5mi" path="res://scenes/enemies/crawler/crawler_skin.tscn" id="1_scene"]
 
-[node name="CrawlerSkin" instance=ExtResource("1_scene")]
+[node name="CrawlerSkin" unique_id=139704247 instance=ExtResource("1_scene")]

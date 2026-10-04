@@ -1,4 +1,3 @@
-@tool
 class_name GliderThrusterVfx
 extends Node3D
 
@@ -6,6 +5,9 @@ const GliderPlayerScript = preload("res://scripts/player/glider_player.gd")
 const GliderBoostVfxScript = preload("res://scripts/player/glider_boost_vfx.gd")
 const GliderVfxFlipbookScript = preload("res://scripts/player/glider_vfx_flipbook.gd")
 const GliderVfxFadeEnvelopeScript = preload("res://scripts/player/glider_vfx_fade.gd")
+const OrbIdleMaterial = preload("res://assets/materials/vfx/thruster_orb_idle.tres")
+const TorusMaterial = preload("res://assets/materials/vfx/thruster_torus.tres")
+const CylinderCruiseMaterial = preload("res://assets/materials/vfx/thruster_cylinder_cruise.tres")
 
 const BASE_DIR := "res://assets/vfx/glider/fbx_thruster/"
 const CLIP_DIR := "%sthruster_clip/" % BASE_DIR
@@ -17,20 +19,19 @@ const ORB_FBX_PATH := (
 const LOOP_COUNT := 91
 const ORB_NODE_NAME := "Shape3D1"
 const CYLINDER_NODE_NAME := "Shape3D1_1_1"
+const SCENE_ORB_EMISSION_ENERGY := 0.3125
+const SCENE_TORUS_EMISSION_ENERGY := 0.3125
+const SCENE_OMNI_ENERGY := 0.382
 
 @export_group("Meshes")
 @export var orb_mesh_path: NodePath = ^"OrbMesh2":
 	set(value):
 		orb_mesh_path = value
 		_orb_mesh = null
-		if Engine.is_editor_hint():
-			_update_editor_preview()
 @export var cylinder_mesh_path: NodePath = ^"CylinderMesh2":
 	set(value):
 		cylinder_mesh_path = value
 		_cylinder_mesh = null
-		if Engine.is_editor_hint():
-			_update_editor_preview()
 @export var torus_path: NodePath = ^"../../Thruster_Torus"
 
 @export_group("Playback")
@@ -55,16 +56,9 @@ const CYLINDER_NODE_NAME := "Shape3D1_1_1"
 @export_group("Lighting")
 @export var omni_light_path: NodePath = ^"OmniLight3D"
 
-@export_group("Editor Preview")
-@export_range(0, 90, 1) var editor_preview_frame: int = 0:
-	set(value):
-		editor_preview_frame = value
-		_update_editor_preview()
-
 var _loop_textures: Array[Texture2D] = []
 var _orb_mesh_resource: Mesh
 var _assets_loaded := false
-var _editor_texture_cache: Dictionary = {}
 
 var _orb_mesh: MeshInstance3D
 var _cylinder_mesh: MeshInstance3D
@@ -97,10 +91,7 @@ func _ready() -> void:
 	_fade.fade_in_duration = fade_in_duration
 	_fade.fade_out_duration = fade_out_duration
 	_ensure_meshes()
-
-	if Engine.is_editor_hint():
-		_update_editor_preview()
-		return
+	_install_runtime_material_isolation()
 
 	if not _ensure_assets_loaded():
 		_set_active(false)
@@ -112,15 +103,7 @@ func _ready() -> void:
 	set_process(true)
 
 
-func _enter_tree() -> void:
-	if Engine.is_editor_hint():
-		call_deferred("_update_editor_preview")
-
-
 func _process(delta: float) -> void:
-	if Engine.is_editor_hint():
-		return
-
 	var should_active := _is_thruster_active()
 	if should_active != _active:
 		_set_active(should_active)
@@ -406,11 +389,40 @@ func _apply_cylinder_frame(index: int) -> void:
 	_apply_light_presentation()
 
 
+func _install_runtime_material_isolation() -> void:
+	_capture_cylinder_scene_material()
+	_ensure_scene_orb_materials()
+	_apply_runtime_base_energies()
+
+	if _cylinder_mesh != null and _cylinder_scene_material != null:
+		_cylinder_material = _cylinder_scene_material.duplicate() as StandardMaterial3D
+		_cylinder_mesh.material_override = _cylinder_material
+	if _orb_mesh != null and _orb_scene_material != null:
+		_orb_material = _orb_scene_material.duplicate() as StandardMaterial3D
+		_orb_mesh.material_override = _orb_material
+	if _torus != null and _torus_scene_material != null:
+		_torus_material = _torus_scene_material.duplicate() as StandardMaterial3D
+		_torus.material = _torus_material
+
+	_ensure_lights()
+	if _omni_light != null:
+		_base_omni_energy = SCENE_OMNI_ENERGY
+
+
+func _apply_runtime_base_energies() -> void:
+	_orb_base_emission_energy = SCENE_ORB_EMISSION_ENERGY
+	_torus_base_emission_energy = SCENE_TORUS_EMISSION_ENERGY
+	if _orb_scene_material != null:
+		_orb_scene_material.emission_energy_multiplier = SCENE_ORB_EMISSION_ENERGY
+	if _torus_scene_material != null:
+		_torus_scene_material.emission_energy_multiplier = SCENE_TORUS_EMISSION_ENERGY
+
+
 func _ensure_lights() -> void:
 	if _omni_light == null or not is_instance_valid(_omni_light):
 		_omni_light = get_node_or_null(omni_light_path) as OmniLight3D
 	if _omni_light != null and _base_omni_energy < 0.0:
-		_base_omni_energy = _omni_light.light_energy
+		_base_omni_energy = SCENE_OMNI_ENERGY
 
 
 func _hide_lights() -> void:
@@ -512,27 +524,22 @@ func _ensure_scene_cylinder_material() -> void:
 
 
 func _capture_cylinder_scene_material() -> void:
-	if _cylinder_mesh == null or _cylinder_scene_material != null:
+	if _cylinder_scene_material != null:
 		return
-	var src: Material = _cylinder_mesh.material_override
-	if src is StandardMaterial3D:
-		_cylinder_scene_material = (src as StandardMaterial3D).duplicate()
-		_cylinder_base_emission_energy = _cylinder_scene_material.emission_energy_multiplier
-		_cylinder_base_albedo_alpha = _cylinder_scene_material.albedo_color.a
+	_cylinder_scene_material = CylinderCruiseMaterial.duplicate() as StandardMaterial3D
+	_cylinder_base_emission_energy = _cylinder_scene_material.emission_energy_multiplier
+	if _cylinder_base_emission_energy <= 0.0:
+		_cylinder_base_emission_energy = 1.0
+	_cylinder_base_albedo_alpha = _cylinder_scene_material.albedo_color.a
 
 
 func _ensure_scene_orb_materials() -> void:
 	_ensure_torus()
-	if _orb_mesh != null and _orb_scene_material == null:
-		var orb_src: Material = _orb_mesh.material_override
-		if orb_src is StandardMaterial3D:
-			_orb_scene_material = (orb_src as StandardMaterial3D).duplicate()
-			_orb_base_emission_energy = _orb_scene_material.emission_energy_multiplier
-	if _torus != null and _torus_scene_material == null:
-		var torus_src: Material = _torus.material
-		if torus_src is StandardMaterial3D:
-			_torus_scene_material = (torus_src as StandardMaterial3D).duplicate()
-			_torus_base_emission_energy = _torus_scene_material.emission_energy_multiplier
+	if _orb_scene_material == null:
+		_orb_scene_material = OrbIdleMaterial.duplicate() as StandardMaterial3D
+	if _torus_scene_material == null:
+		_torus_scene_material = TorusMaterial.duplicate() as StandardMaterial3D
+	_apply_runtime_base_energies()
 
 
 func _apply_orb_presentation(presentation: float) -> void:
@@ -665,60 +672,6 @@ func _ensure_assets_loaded() -> bool:
 			% [LOOP_COUNT, _loop_textures.size()]
 		)
 	return _assets_loaded
-
-
-func _ensure_editor_preview_loaded() -> bool:
-	if _orb_mesh_resource == null:
-		_orb_mesh_resource = _resolve_orb_mesh_resource()
-	if _cylinder_mesh != null and _cylinder_mesh.mesh == null:
-		var cylinder_mesh := GliderVfxFlipbookScript.load_fbx_mesh(
-			CYLINDER_FBX_PATH,
-			CYLINDER_NODE_NAME
-		)
-		if cylinder_mesh != null:
-			_cylinder_mesh.mesh = cylinder_mesh
-	return _cylinder_mesh != null and _cylinder_mesh.mesh != null
-
-
-func _get_editor_preview_texture() -> Texture2D:
-	var frame := clampi(editor_preview_frame, 0, LOOP_COUNT - 1)
-	if _editor_texture_cache.has(frame):
-		return _editor_texture_cache[frame] as Texture2D
-
-	var path := "%s%s%04d.png" % [CLIP_DIR, CLIP_PREFIX, frame]
-	var texture := load(path) as Texture2D
-	if texture != null:
-		_editor_texture_cache[frame] = texture
-	return texture
-
-
-func _update_editor_preview() -> void:
-	if not Engine.is_editor_hint():
-		return
-
-	_ensure_meshes()
-	if not _ensure_editor_preview_loaded():
-		return
-
-	_show_orb()
-
-	var texture := _get_editor_preview_texture()
-	if texture == null:
-		return
-
-	_set_cylinder_visible(true)
-	_refresh_cylinder_material(texture, idle_orb_presentation)
-	_apply_editor_light_preview()
-
-
-func _apply_editor_light_preview() -> void:
-	_ensure_lights()
-	var light_presentation := idle_orb_presentation * _intensity
-	GliderVfxFlipbookScript.apply_omni_fill(
-		_omni_light,
-		light_presentation,
-		_base_omni_energy
-	)
 
 
 func _find_glider() -> GliderPlayerScript:

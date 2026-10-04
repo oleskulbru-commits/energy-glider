@@ -14,6 +14,9 @@ const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 const ExplosionShader := preload("res://assets/vfx/shaders/aerial_explosion.gdshader")
 const DefaultPresetPath := "res://assets/vfx/explosions/presets/aerial_explode_1.tres"
 const DroneExplosionPresetPath := "res://assets/vfx/explosions/presets/aerial_explode_drone.tres"
+const DefaultPresetResource := preload("res://assets/vfx/explosions/presets/aerial_explode_1.tres")
+const DronePresetResource := preload("res://assets/vfx/explosions/presets/aerial_explode_drone.tres")
+const WARMUP_Y_OFFSET := -2048.0
 ## Player default world_scale; keeps hover-dust parity at scale_mult 1.0.
 const PROXIMITY_FADE_REFERENCE_WORLD_SCALE := 12.0
 ## QuadMesh spans 1 unit; world_scale maps directly to outer size.
@@ -35,6 +38,93 @@ var _material: ShaderMaterial
 var _color_textures: Array[Texture2D] = []
 var _flash_light: OmniLight3D
 var _last_frame_hold_left := -1.0
+
+static var _warmup_done := false
+
+
+static func warmup(tree: SceneTree) -> void:
+	if _warmup_done or tree == null:
+		return
+	await _warmup_impl(tree)
+	_warmup_done = true
+
+
+static func _warmup_impl(tree: SceneTree) -> void:
+	for preset in [DefaultPresetResource, DronePresetResource]:
+		_preload_preset_textures(preset)
+
+	var parent := SceneUtilScript.world_parent(tree)
+	if parent == null:
+		parent = tree.root
+
+	var holder := Node3D.new()
+	holder.name = "AerialExplosionWarmup"
+	parent.add_child(holder)
+	holder.global_position = Vector3(0.0, WARMUP_Y_OFFSET, 0.0)
+
+	_warmup_explosion_draw(holder, DefaultPresetResource)
+	_warmup_explosion_draw(holder, DronePresetResource)
+	_warmup_burn_draw(holder, DefaultPresetResource)
+	ExplosionSparkVfxScript.warmup_draw(holder)
+
+	await tree.process_frame
+	await tree.process_frame
+	holder.queue_free()
+
+
+static func _preload_preset_textures(preset: AerialExplosionPreset) -> void:
+	if preset == null:
+		return
+	VfxFlipbookScript.preload_texture_sequence(
+		preset.texture_dir,
+		preset.color_prefix,
+		preset.frame_count,
+		preset.color_frame_offset
+	)
+
+
+static func _warmup_explosion_draw(holder: Node3D, preset: AerialExplosionPreset) -> void:
+	if preset == null:
+		return
+	var textures := VfxFlipbookScript.load_texture_sequence(
+		preset.texture_dir,
+		preset.color_prefix,
+		preset.frame_count,
+		preset.color_frame_offset
+	)
+	if textures.is_empty():
+		return
+	var mesh_inst := MeshInstance3D.new()
+	mesh_inst.name = "WarmupBillboard"
+	configure_billboard_mesh(mesh_inst, preset, 1.0)
+	var mat := duplicate_material(preset, 1.0)
+	set_frame_texture(mat, textures[0])
+	mesh_inst.material_override = mat
+	holder.add_child(mesh_inst)
+
+
+static func _warmup_burn_draw(holder: Node3D, preset: AerialExplosionPreset) -> void:
+	if preset == null:
+		return
+	var mesh_inst := MeshInstance3D.new()
+	mesh_inst.name = "WarmupBurn"
+	mesh_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var quad := QuadMesh.new()
+	quad.size = Vector2.ONE
+	mesh_inst.mesh = quad
+	var albedo := preset.ground_burn_albedo
+	if albedo == null:
+		albedo = load(GroundBurnDecalVfxScript.DefaultAlbedoPath) as Texture2D
+	var mat := ShaderMaterial.new()
+	mat.shader = GroundBurnDecalVfxScript.BurnShader
+	mat.set_shader_parameter("albedo_tex", albedo)
+	mat.set_shader_parameter("alpha_scale", preset.ground_burn_opacity)
+	mat.set_shader_parameter(
+		"color_tint",
+		Vector3(preset.ground_burn_tint.r, preset.ground_burn_tint.g, preset.ground_burn_tint.b)
+	)
+	mesh_inst.material_override = mat
+	holder.add_child(mesh_inst)
 
 
 static func spawn(
@@ -63,8 +153,11 @@ static func spawn(
 	parent.add_child(fx)
 	fx.global_position = world_pos
 	fx._impact_dir = impact_dir
-	_maybe_spawn_ground_sand(tree, world_pos, resolved, resolved_scale, terrain)
-	_maybe_spawn_ground_burn_decal(tree, world_pos, resolved, resolved_scale, terrain, hit_body)
+	var clearance := ground_clearance_m(world_pos, terrain, tree)
+	_maybe_spawn_ground_sand(tree, world_pos, resolved, resolved_scale, terrain, clearance)
+	_maybe_spawn_ground_burn_decal(
+		tree, world_pos, resolved, resolved_scale, terrain, hit_body, clearance
+	)
 	_maybe_spawn_impact_sparks(tree, world_pos, resolved, resolved_scale, impact_dir)
 	fx.configure(resolved, resolved_scale, frame_start)
 	return fx
@@ -214,11 +307,13 @@ static func _maybe_spawn_ground_burn_decal(
 	preset: AerialExplosionPreset,
 	scale_mult: float,
 	terrain: TerrainManager,
-	hit_body: Node = null
+	hit_body: Node = null,
+	clearance: float = INF
 ) -> void:
 	if preset == null:
 		return
-	var clearance := ground_clearance_m(world_pos, terrain, tree)
+	if clearance == INF:
+		clearance = ground_clearance_m(world_pos, terrain, tree)
 	if not should_spawn_ground_burn(preset, clearance, hit_body):
 		return
 	GroundBurnDecalVfxScript.spawn_from_preset(tree, world_pos, preset, scale_mult, terrain)
@@ -229,11 +324,13 @@ static func _maybe_spawn_ground_sand(
 	world_pos: Vector3,
 	preset: AerialExplosionPreset,
 	scale_mult: float,
-	terrain: TerrainManager
+	terrain: TerrainManager,
+	clearance: float = INF
 ) -> void:
 	if preset == null or not preset.spawn_ground_sand:
 		return
-	var clearance := ground_clearance_m(world_pos, terrain, tree)
+	if clearance == INF:
+		clearance = ground_clearance_m(world_pos, terrain, tree)
 	if clearance > preset.ground_sand_max_clearance_m:
 		return
 	var resolved_terrain := terrain if terrain != null else _resolve_terrain(tree)

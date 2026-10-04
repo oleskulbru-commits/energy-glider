@@ -3,6 +3,7 @@ extends Node3D
 
 ## Body + weapon module physics debris when a combat drone dies.
 
+const DebrisBudgetScript := preload("res://scripts/game/debris_budget.gd")
 const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 const CrawlerDebrisSandScript := preload("res://scripts/enemies/crawler_debris_sand.gd")
 const DroneDebrisThrusterVfxScript := preload("res://scripts/enemies/drone_debris_thruster_vfx.gd")
@@ -27,6 +28,7 @@ const DEBRIS_COLLISION_MASK := 1
 
 var _terrain: TerrainManager
 var _spark_color: Color = DroneDamageSparkVfxScript.DEFAULT_EMBER_COLOR
+var _budget: DebrisBudgetScript
 
 
 static func spawn(
@@ -47,6 +49,7 @@ static func spawn(
 	wrapper.global_transform = drone_xf
 	wrapper._terrain = terrain
 	wrapper._spark_color = spark_color
+	wrapper._budget = DebrisBudgetScript.find_in_tree(tree)
 	wrapper._spawn_pieces(visual, hit_pos)
 	CameraImpactShakeScript.request(tree, drone_xf.origin, 0.25, 15.0)
 	wrapper._schedule_cleanup()
@@ -81,6 +84,8 @@ func _promote_piece(piece_root: Node3D, hit_pos: Vector3) -> void:
 	var mesh_entries := _collect_mesh_entries(piece_root)
 	if mesh_entries.is_empty():
 		return
+	if _budget != null and _budget.request_spawn(1, DebrisBudgetScript.Priority.DEATH_BURST) <= 0:
+		return
 
 	var body := RigidBody3D.new()
 	body.collision_layer = DEBRIS_COLLISION_LAYER
@@ -109,6 +114,8 @@ func _promote_piece(piece_root: Node3D, hit_pos: Vector3) -> void:
 	if body.get_child_count() == 0:
 		body.queue_free()
 		return
+	if _budget != null:
+		_budget.register(body, DebrisBudgetScript.Priority.DEATH_BURST)
 
 	if thruster_streaks != null:
 		thruster_streaks.reparent(body, true)

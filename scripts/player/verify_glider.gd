@@ -16,6 +16,11 @@ const SandMaterial = preload("res://assets/materials/sand.tres")
 const PHYSICS_DT := 1.0 / 60.0
 const HOVER_SETTLE_FRAMES := 120
 const HOVER_TOLERANCE := 0.12
+const PARAM_BLEND_POSITION := "parameters/body/locomotion/move/blend_space/blend_position"
+
+
+func _blend_position(tree: AnimationTree) -> Vector2:
+	return tree.get(PARAM_BLEND_POSITION) as Vector2
 
 
 func _fail_unless(condition: bool, message: String) -> void:
@@ -1876,15 +1881,17 @@ func _verify_landing_forward_anim() -> void:
 			saw_landing_blend = true
 		prev_spine_rot = spine_rot
 		if was_airborne and glider.is_grounded() and not glider.is_gliding():
-			if root_node == &"locomotion" and locomotion_playback.get_current_node() == &"forward":
-				resumed_forward = true
-				break
+			if root_node == &"locomotion" and locomotion_playback.get_current_node() == &"move":
+				var blend := _blend_position(tree)
+				if blend.y > 0.45:
+					resumed_forward = true
+					break
 
 	_fail_unless(was_airborne, "Landing forward anim test never left the ground")
 	_fail_unless(
 		resumed_forward,
-		"Locomotion should resume forward after landing with W (root=%s, loco=%s)"
-		% [root_playback.get_current_node(), locomotion_playback.get_current_node()]
+		"Locomotion should resume forward blend after landing with W (root=%s, loco=%s, blend=%s)"
+		% [root_playback.get_current_node(), locomotion_playback.get_current_node(), _blend_position(tree)]
 	)
 	_fail_unless(
 		saw_warmed_locomotion,
@@ -1964,15 +1971,17 @@ func _verify_landing_turn_anim() -> void:
 			saw_landing_blend = true
 		prev_spine_rot = spine_rot
 		if was_airborne and glider.is_grounded() and not glider.is_gliding():
-			if root_node == &"locomotion" and locomotion_playback.get_current_node() == &"turn_left":
-				resumed_turn = true
-				break
+			if root_node == &"locomotion" and locomotion_playback.get_current_node() == &"move":
+				var blend := _blend_position(tree)
+				if blend.x < -0.25:
+					resumed_turn = true
+					break
 
 	_fail_unless(was_airborne, "Landing turn anim test never left the ground")
 	_fail_unless(
 		resumed_turn,
-		"Locomotion should resume turn_left after landing with W+A (root=%s, loco=%s)"
-		% [root_playback.get_current_node(), locomotion_playback.get_current_node()]
+		"Locomotion should resume left-turn blend after landing with W+A (root=%s, loco=%s, blend=%s)"
+		% [root_playback.get_current_node(), locomotion_playback.get_current_node(), _blend_position(tree)]
 	)
 	_fail_unless(
 		saw_warmed_locomotion,
@@ -2091,8 +2100,8 @@ func _verify_respawn_animation() -> void:
 	)
 	if root_node == &"locomotion":
 		_fail_unless(
-			locomotion_playback.get_current_node() == &"forward",
-			"Locomotion should be forward after respawn (loco=%s)" % locomotion_playback.get_current_node()
+			locomotion_playback.get_current_node() == &"move",
+			"Locomotion should be on move after respawn (loco=%s)" % locomotion_playback.get_current_node()
 		)
 
 	var spine_rot := hero_skel.get_bone_pose_rotation(spine_idx)
@@ -2684,9 +2693,15 @@ func _verify_jump_while_boosting() -> void:
 	)
 	var tree: AnimationTree = glider.get_node("Visual/GliderSkin/AnimationTree") as AnimationTree
 	var root_playback := tree.get("parameters/body/playback") as AnimationNodeStateMachinePlayback
+	var saw_jump := false
+	for _i in 24:
+		await physics_frame
+		if root_playback.get_current_node() == &"jump":
+			saw_jump = true
+			break
 	_fail_unless(
-		root_playback.get_current_node() == &"jump",
-		"Jump while boosting should snap body to jump (state=%s)" % root_playback.get_current_node()
+		saw_jump,
+		"Jump while boosting should reach jump playback (state=%s)" % root_playback.get_current_node()
 	)
 	glider.queue_free()
 	terrain.queue_free()

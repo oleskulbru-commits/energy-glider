@@ -26,6 +26,7 @@ const GliderInputScript = preload("res://scripts/input/glider_input.gd")
 const EonDirectorScript = preload("res://scripts/game/eon_director.gd")
 const LaserTargetReticleUIScript = preload("res://scripts/ui/laser_target_reticle_ui.gd")
 const DeathStatsPanelScript = preload("res://scripts/ui/death_stats_panel.gd")
+const DebrisBudgetScript = preload("res://scripts/game/debris_budget.gd")
 const RunDamageStatsScript = preload("res://scripts/game/run_damage_stats.gd")
 const AimReticleShader := preload("res://assets/vfx/shaders/aim_lock_reticle_3d.gdshader")
 const AimReticleTexture := preload("res://assets/ui/player_aim_reticle.png")
@@ -104,6 +105,7 @@ const AIM_RETICLE_LIFT_M := 0.5
 @onready var _duration_label: Label = %DurationLabel
 @onready var _pushback_label: Label = %PushbackLabel
 @onready var _range_label: Label = %RangeLabel
+@onready var _debris_budget_label: Label = %DebrisBudgetLabel
 @onready var _speed_label: Label = %SpeedLabel
 @onready var _weapon_tray: HBoxContainer = %WeaponTray
 @onready var _aim_chip: PanelContainer = %AimChip
@@ -1362,6 +1364,19 @@ func _update_rifle_debug() -> void:
 		range_bonus > 0.0
 	) or any
 	_rifle_debug_panel.visible = any
+	if _debris_budget_label != null:
+		if any:
+			var budget := DebrisBudgetScript.find_in_tree(get_tree())
+			if budget != null:
+				_debris_budget_label.visible = true
+				_debris_budget_label.text = "Debris %d/%d" % [
+					budget.active_count(),
+					DebrisBudgetScript.MAX_ACTIVE,
+				]
+			else:
+				_debris_budget_label.visible = false
+		else:
+			_debris_budget_label.visible = false
 	if any:
 		_rifle_debug_panel.reset_size()
 

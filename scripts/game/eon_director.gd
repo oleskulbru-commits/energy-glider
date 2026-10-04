@@ -91,6 +91,8 @@ func _ready() -> void:
 func _boot() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
+	const AerialExplosionVfxScript := preload("res://scripts/vfx/aerial_explosion_vfx.gd")
+	await AerialExplosionVfxScript.warmup(get_tree())
 	_capture_spawn_pose()
 	_connect_player()
 	_connect_level_progress()
