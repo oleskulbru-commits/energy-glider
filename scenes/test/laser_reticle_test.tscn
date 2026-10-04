@@ -1,0 +1,28 @@
+[gd_scene format=3 uid="uid://cm2381rogxmsy"]
+
+[ext_resource type="PackedScene" uid="uid://xl8sa2wcaqiu" path="res://scenes/player/the_glider_skin.tscn" id="1_mvf3r"]
+[ext_resource type="Texture2D" uid="uid://c1ufc0ibh7t8w" path="res://assets/vfx/effect_textures/reticles/reticle_1_frame_0060.png" id="2_8m1gf"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fqqya"]
+albedo_color = Color(0.09, 0.09, 0.09, 1)
+
+[node name="Node3D" type="Node3D" unique_id=1088295189]
+
+[node name="Ground" type="CSGBox3D" parent="." unique_id=660818996]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.002, -0.400252, 0.035)
+size = Vector3(9.23, 0.8005039, 11.76)
+material = SubResource("StandardMaterial3D_fqqya")
+
+[node name="GliderSkin" parent="." unique_id=1976380139 instance=ExtResource("1_mvf3r")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.755, 0)
+
+[node name="SpotLight3D" type="SpotLight3D" parent="GliderSkin" unique_id=263117801]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, -0.39634913, 0)
+light_energy = 4.494
+light_projector = ExtResource("2_8m1gf")
+light_size = 1.0
+light_specular = 50.0
+shadow_enabled = true
+spot_range = 10.0
+spot_angle = 83.76
+spot_angle_attenuation = 0.007289316

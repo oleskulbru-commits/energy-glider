@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://chqjbyfsqqnww"]
+[gd_scene format=3 uid="uid://p2mbw034a5mi"]
 
 [ext_resource type="PackedScene" uid="uid://dgocvkdsp6jhu" path="res://assets/3dmodels/enemies/crawler/crawler_animated_v001.glb" id="1_crawler"]
 [ext_resource type="Script" uid="uid://gkw488qdpgi3" path="res://scripts/enemies/crawler_anim_controller.gd" id="2_anim"]

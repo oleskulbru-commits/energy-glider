@@ -2,12 +2,13 @@ class_name GlideMusic
 extends Node
 
 ## Sand-run bed. Fades in after the first E.O.N. pickup, and again after each
-## Try Again. Alternates the two tracks, and steps aside for the Sun Eater theme.
+## Try Again. Cycles the dune tracks, and steps aside for the Sun Eater theme.
 ## The pause menu suspends it. The upgrade tower menu keeps it playing.
 
 const TRACKS: Array[AudioStream] = [
 	preload("res://assets/audio/music/gliding_through_the_desert.mp3"),
 	preload("res://assets/audio/music/gliding_through_the_dunes.mp3"),
+	preload("res://assets/audio/music/mars_horizon.mp3"),
 ]
 
 const ENTRANCE_FADE_SEC := 10.0

@@ -3,6 +3,7 @@ extends Node3D
 
 ## Short-lived physics chips spawned on non-lethal enemy hits.
 
+const DebrisBudgetScript := preload("res://scripts/game/debris_budget.gd")
 const SceneUtilScript := preload("res://scripts/util/scene_util.gd")
 const CrawlerDebrisSandScript := preload("res://scripts/enemies/crawler_debris_sand.gd")
 const DroneDebrisSparkVfxScript := preload("res://scripts/enemies/drone_debris_spark_vfx.gd")
@@ -10,8 +11,8 @@ const DroneDebrisFlameVfxScript := preload("res://scripts/enemies/drone_debris_f
 const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
 const UpgradeCatalogScript := preload("res://scripts/game/upgrade_catalog.gd")
 
-const LIFETIME_SEC := 1.2
-const KILL_LIFETIME_SEC := 3.0
+const LIFETIME_SEC := 1.0
+const KILL_LIFETIME_SEC := 2.0
 const IMPULSE_MIN := 2.0
 const IMPULSE_MAX := 5.0
 const KILL_IMPULSE_MIN := 3.0
@@ -37,6 +38,8 @@ var _lifetime_sec := LIFETIME_SEC
 var _spawn_landing_sand := false
 var _death_sand_on_land := false
 var _spark_color := Color(0.0, 0.0, 0.0, 0.0)
+var _priority: DebrisBudgetScript.Priority = DebrisBudgetScript.Priority.NORMAL
+var _budget: DebrisBudgetScript
 
 
 static func get_kit_mesh_count(kit: PackedScene) -> int:
@@ -54,7 +57,8 @@ static func spawn(
 	is_lethal: bool = false,
 	weapon_family: StringName = &"",
 	spark_color: Color = Color(0.0, 0.0, 0.0, 0.0),
-	death_sand_on_land: bool = false
+	death_sand_on_land: bool = false,
+	priority: DebrisBudgetScript.Priority = DebrisBudgetScript.Priority.NORMAL
 ) -> Node3D:
 	if tree == null or kit == null or count <= 0:
 		return null
@@ -66,12 +70,20 @@ static func spawn(
 	if parent == null:
 		return null
 
+	var budget := DebrisBudgetScript.find_in_tree(tree)
+	if budget != null:
+		count = budget.request_spawn(count, priority)
+		if count <= 0:
+			return null
+
 	var wrapper = load("res://scripts/vfx/enemy_hit_fragment_vfx.gd").new()
 	parent.add_child(wrapper)
 	wrapper._terrain = terrain
 	wrapper._spawn_landing_sand = UpgradeCatalogScript.weapon_causes_debris_sand(weapon_family)
 	wrapper._death_sand_on_land = death_sand_on_land
 	wrapper._spark_color = spark_color
+	wrapper._priority = priority
+	wrapper._budget = budget
 	if is_lethal:
 		wrapper._impulse_min = KILL_IMPULSE_MIN
 		wrapper._impulse_max = KILL_IMPULSE_MAX
@@ -151,7 +163,7 @@ func _spawn_piece(entry: Dictionary, hit_pos: Vector3, hit_dir: Vector3, scale_m
 	body.collision_layer = DEBRIS_COLLISION_LAYER
 	body.collision_mask = DEBRIS_COLLISION_MASK
 	body.gravity_scale = 1.0
-	body.continuous_cd = true
+	body.continuous_cd = false
 	var needs_contact := (
 		_spawn_landing_sand or _death_sand_on_land or _spark_color.a > 0.0
 	)
@@ -166,6 +178,8 @@ func _spawn_piece(entry: Dictionary, hit_pos: Vector3, hit_dir: Vector3, scale_m
 	body.add_child(collision)
 
 	add_child(body)
+	if _budget != null:
+		_budget.register(body, _priority)
 	body.global_position = hit_pos + Vector3(
 		randf_range(-SPAWN_JITTER_M, SPAWN_JITTER_M),
 		randf_range(0.0, SPAWN_JITTER_M * 2.0),

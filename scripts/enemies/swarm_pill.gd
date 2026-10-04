@@ -7,6 +7,7 @@ signal died
 
 const CrawlerDeathBurstScript := preload("res://scripts/enemies/crawler_death_burst.gd")
 const CrawlerSandFootstepsScript := preload("res://scripts/enemies/crawler_sand_footsteps.gd")
+const DebrisBudgetScript := preload("res://scripts/game/debris_budget.gd")
 const EnemyHitFragmentVfxScript := preload("res://scripts/vfx/enemy_hit_fragment_vfx.gd")
 const RunDamageStatsScript := preload("res://scripts/game/run_damage_stats.gd")
 const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
@@ -57,7 +58,7 @@ const HIT_FRAGMENT_COOLDOWN_SEC := 0.12
 const HIT_FRAGMENT_HIT_OFFSET_M := 0.35
 const HIT_FRAGMENT_SCALE_MULT := 1.25
 const HIT_FRAGMENT_KILL_SCALE_MULT := 1.75
-const HIT_FRAGMENT_COUNT_MULT := 3
+const DEATH_BURST_MAX_SHARDS := 4
 
 var move_speed := DEFAULT_SPEED
 var contact_damage := CONTACT_DAMAGE
@@ -339,7 +340,8 @@ func take_damage(
 	if garrisoned:
 		_alert_garrison_pack()
 	var is_lethal := _hp <= 0
-	_try_spawn_hit_fragments(hit_dir, is_crit, weapon_family, is_lethal)
+	if not is_lethal:
+		_try_spawn_hit_fragments(hit_dir, is_crit, weapon_family, false)
 	_try_spawn_hit_sparks(hit_dir, is_crit, weapon_family, is_lethal)
 	if is_lethal:
 		if stats != null:
@@ -453,20 +455,23 @@ func get_hit_fragment_scale_mult(is_lethal: bool = false) -> float:
 
 func get_hit_fragment_count(
 	is_crit: bool,
-	weapon_family: StringName = &"",
+	_weapon_family: StringName = &"",
 	is_lethal: bool = false
 ) -> int:
-	var base := 2
-	if (
-		weapon_family == UpgradeCatalogScript.FAMILY_LASER
-		or weapon_family == UpgradeCatalogScript.FAMILY_TESLA
-	):
-		base = 2 if is_lethal else 1
-	elif is_lethal:
-		base = 4
-	elif is_crit:
-		base = 3
-	return base * HIT_FRAGMENT_COUNT_MULT
+	# Lethal crawlers use CrawlerDeathBurst (fractured GLB), not hit-fragment chips.
+	if is_lethal:
+		return 0
+	if is_crit:
+		return 1
+	return 0
+
+
+func _hit_fragment_priority(is_crit: bool, is_lethal: bool) -> DebrisBudgetScript.Priority:
+	if is_lethal:
+		return DebrisBudgetScript.Priority.KILL
+	if is_crit:
+		return DebrisBudgetScript.Priority.CRIT
+	return DebrisBudgetScript.Priority.NORMAL
 
 
 func _try_spawn_hit_fragments(
@@ -482,6 +487,8 @@ func _try_spawn_hit_fragments(
 		return
 	var hit_pos := _hit_fragment_spawn_pos(hit_dir)
 	var count := get_hit_fragment_count(is_crit, weapon_family, is_lethal)
+	if count <= 0:
+		return
 	EnemyHitFragmentVfxScript.spawn(
 		get_tree(),
 		kit,
@@ -491,7 +498,10 @@ func _try_spawn_hit_fragments(
 		get_hit_fragment_scale_mult(is_lethal),
 		_terrain,
 		is_lethal,
-		weapon_family
+		weapon_family,
+		Color(0.0, 0.0, 0.0, 0.0),
+		false,
+		_hit_fragment_priority(is_crit, is_lethal)
 	)
 	_hit_fragment_cooldown_left = HIT_FRAGMENT_COOLDOWN_SEC
 
@@ -808,7 +818,14 @@ func _die(from_pos: Vector3, weapon_family: StringName = &"") -> void:
 	if visual != null:
 		visual.visible = false
 	CrawlerDeathBurstScript.spawn(
-		get_tree(), burst_xf, from_pos, burst_scale, _terrain, weapon_family
+		get_tree(),
+		burst_xf,
+		from_pos,
+		burst_scale,
+		_terrain,
+		weapon_family,
+		DEATH_BURST_MAX_SHARDS,
+		DebrisBudgetScript.Priority.DEATH_BURST
 	)
 	died.emit()
 	queue_free()

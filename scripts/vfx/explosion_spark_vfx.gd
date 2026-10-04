@@ -12,6 +12,28 @@ const FREE_BUFFER_SEC := 0.12
 const REFERENCE_WORLD_SCALE := 12.0
 
 
+static func warmup_draw(holder: Node3D) -> void:
+	if holder == null:
+		return
+	var mat := SparkParticleVfxScript.tinted_material(Color.WHITE, 4.5)
+	var proc := ParticleProcessMaterial.new()
+	proc.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	proc.emission_sphere_radius = 0.1
+	DroneHitSparkVfxScript.configure_spark_process(proc)
+	var burst := GPUParticles3D.new()
+	burst.name = "WarmupExplosionSpark"
+	burst.emitting = false
+	burst.amount = 1
+	burst.lifetime = 0.05
+	burst.one_shot = true
+	burst.explosiveness = 1.0
+	burst.process_material = proc
+	burst.draw_pass_1 = SparkParticleVfxScript.make_spark_quad(mat)
+	holder.add_child(burst)
+	burst.restart()
+	burst.emitting = true
+
+
 static func spawn_from_preset(
 	tree: SceneTree,
 	world_pos: Vector3,

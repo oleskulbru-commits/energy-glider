@@ -69,18 +69,37 @@ func configure(
 	)
 	var conforming := not surface.is_empty() and terrain != null
 	_place_on_surface(surface, world_pos, conforming)
+	_mesh.mesh = _build_flat_quad()
+	_mesh.scale = Vector3(diameter, diameter, 1.0)
 	if conforming:
-		_mesh.mesh = _build_conforming_mesh(
+		call_deferred(
+			"_finish_conforming_mesh",
 			surface,
 			world_pos,
 			diameter,
 			terrain,
-			space
+			space,
+			preset.ground_burn_lifetime_sec,
+			preset.ground_burn_fade_sec
 		)
 	else:
-		_mesh.mesh = _build_flat_quad()
-		_mesh.scale = Vector3(diameter, diameter, 1.0)
-	_begin_lifetime(preset.ground_burn_lifetime_sec, preset.ground_burn_fade_sec)
+		_begin_lifetime(preset.ground_burn_lifetime_sec, preset.ground_burn_fade_sec)
+
+
+func _finish_conforming_mesh(
+	surface: Dictionary,
+	world_pos: Vector3,
+	diameter: float,
+	terrain: TerrainManager,
+	space: PhysicsDirectSpaceState3D,
+	lifetime_sec: float,
+	fade_sec: float
+) -> void:
+	if not is_instance_valid(self) or _mesh == null:
+		return
+	_mesh.mesh = _build_conforming_mesh(surface, world_pos, diameter, terrain, space)
+	_mesh.scale = Vector3.ONE
+	_begin_lifetime(lifetime_sec, fade_sec)
 
 
 func _space_from_tree(tree: SceneTree) -> PhysicsDirectSpaceState3D:

@@ -27,9 +27,15 @@ func _run() -> void:
 
 
 func _verify_tracks() -> void:
-	_fail_unless(GlideMusicScript.TRACKS.size() == 2, "Glide music should have two tracks")
+	_fail_unless(GlideMusicScript.TRACKS.size() == 3, "Glide music should have three tracks")
+	var paths: PackedStringArray = []
 	for stream in GlideMusicScript.TRACKS:
 		_fail_unless(stream != null and not stream.loop, "Each glide track should play through once")
+		paths.append(stream.resource_path)
+	_fail_unless(
+		paths.has("res://assets/audio/music/mars_horizon.mp3"),
+		"Mars Horizon should sit in the glide playlist"
+	)
 	_fail_unless(
 		is_equal_approx(GlideMusicScript.ENTRANCE_FADE_SEC, 10.0),
 		"Glide music should fade in over 10 seconds"
@@ -76,15 +82,18 @@ func _verify_playlist() -> void:
 	var player := music.get_node("GlideTheme") as AudioStreamPlayer
 	_reach_full_volume(music)
 	var first := int(music.get("_index"))
-	music.call("_on_track_finished")
-	_fail_unless(player.playing, "The other glide track should start when the first ends")
-	_fail_unless(
-		int(music.get("_index")) == posmod(first + 1, GlideMusicScript.TRACKS.size()),
-		"Glide tracks should alternate"
-	)
-	_fail_unless(is_equal_approx(player.volume_db, 0.0), "A handoff should keep full volume")
+	var count := GlideMusicScript.TRACKS.size()
+	for step in count - 1:
+		music.call("_on_track_finished")
+		_fail_unless(player.playing, "The next glide track should start when one ends")
+		_fail_unless(
+			int(music.get("_index")) == posmod(first + step + 1, count),
+			"Glide tracks should play in order"
+		)
+		_fail_unless(is_equal_approx(player.volume_db, 0.0), "A handoff should keep full volume")
 	music.call("_on_track_finished")
 	_fail_unless(int(music.get("_index")) == first, "The glide playlist should wrap")
+	_fail_unless(is_equal_approx(player.volume_db, 0.0), "A wrap should keep full volume")
 	music.free()
 
 

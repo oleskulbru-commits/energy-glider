@@ -6,6 +6,10 @@ extends RefCounted
 const SHRINK_SEC := 8.0
 const BLINK_SEC := 2.0
 const BLINK_INTERVAL_SEC := 0.12
+const POWER_ON_GLITCH_SEC := 0.96
+const POWER_ON_GLITCH_INTERVAL_SEC := 0.16
+const POWER_OFF_GLITCH_SEC := 0.48
+const POWER_GLITCH_INTERVAL_SEC := 0.08
 const START_SCALE := 2.2
 const END_SCALE := 0.35
 
@@ -52,6 +56,33 @@ static func brackets_visible(elapsed: float) -> bool:
 
 static func blink_visible(elapsed: float) -> bool:
 	return brackets_visible(elapsed)
+
+
+static func power_on_lit(elapsed: float) -> bool:
+	if elapsed >= POWER_ON_GLITCH_SEC:
+		return true
+	if elapsed <= 0.0:
+		return false
+	var step := int(floor((elapsed - 0.0001) / POWER_ON_GLITCH_INTERVAL_SEC))
+	return step % 2 == 1
+
+
+static func power_off_lit(off_elapsed: float) -> bool:
+	if off_elapsed >= POWER_OFF_GLITCH_SEC:
+		return false
+	if off_elapsed <= 0.0:
+		return true
+	var step := int(floor((off_elapsed - 0.0001) / POWER_GLITCH_INTERVAL_SEC))
+	return step % 2 == 0
+
+
+## Spot / HUD visibility during the main 10 s telegraph (excludes power-off shutdown).
+static func reticle_lit(elapsed: float) -> bool:
+	if not power_on_lit(elapsed):
+		return false
+	if is_blinking(elapsed):
+		return brackets_visible(elapsed)
+	return true
 
 
 static func frame_index_for_telegraph(elapsed: float, frame_count: int) -> int:
