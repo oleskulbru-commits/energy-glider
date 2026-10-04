@@ -2,10 +2,20 @@ class_name GlideMusic
 extends Node
 
 ## Sand-run bed. Fades in after the first E.O.N. pickup, and again after each
-## Try Again. Cycles the dune tracks, and steps aside for the Sun Eater theme.
-## The pause menu suspends it. The upgrade tower menu keeps it playing.
+## Try Again. Levels 1-4 cycle the calm tracks. From level 5, the current calm
+## track finishes, then the dune tracks take over. Steps aside for the Sun Eater
+## theme. The pause menu suspends it. The upgrade tower menu keeps it playing.
 
-const TRACKS: Array[AudioStream] = [
+const LATER_LEVEL := 5
+
+const EARLY_TRACKS: Array[AudioStream] = [
+	preload("res://assets/audio/music/gliding_levels_1_3.mp3"),
+	preload("res://assets/audio/music/gliding_levels_1_3_b.mp3"),
+	preload("res://assets/audio/music/desert_crossing_chillstep.mp3"),
+	preload("res://assets/audio/music/desert_crossing_2_chillstep.mp3"),
+]
+
+const LATER_TRACKS: Array[AudioStream] = [
 	preload("res://assets/audio/music/gliding_through_the_desert.mp3"),
 	preload("res://assets/audio/music/gliding_through_the_dunes.mp3"),
 	preload("res://assets/audio/music/mars_horizon.mp3"),
@@ -32,6 +42,8 @@ var _run_active := true
 var _heard_first_pickup := false
 var _fade_in_sec := ENTRANCE_FADE_SEC
 var _switching := false
+var _later_reached := false
+var _active_early := true
 
 
 func _ready() -> void:
@@ -40,11 +52,11 @@ func _ready() -> void:
 	_player = AudioStreamPlayer.new()
 	_player.name = "GlideTheme"
 	_player.process_mode = Node.PROCESS_MODE_PAUSABLE
-	for stream in TRACKS:
+	for stream in EARLY_TRACKS + LATER_TRACKS:
 		if stream is AudioStreamMP3:
 			(stream as AudioStreamMP3).loop = false
-	if not TRACKS.is_empty():
-		_player.stream = TRACKS[0]
+	if not EARLY_TRACKS.is_empty():
+		_player.stream = EARLY_TRACKS[0]
 	_player.volume_db = 0.0
 	_player.finished.connect(_on_track_finished)
 	add_child(_player)
@@ -56,6 +68,10 @@ func _process(delta: float) -> void:
 
 
 func _bind() -> void:
+	var progress := get_tree().get_first_node_in_group("level_progress")
+	if progress != null and progress.has_signal("level_changed"):
+		if not progress.level_changed.is_connected(_on_level_changed):
+			progress.level_changed.connect(_on_level_changed)
 	var eon := get_tree().get_first_node_in_group("eon_director")
 	if eon != null:
 		if eon.has_signal("eon_collected") and not eon.eon_collected.is_connected(_on_eon_collected):
@@ -80,7 +96,14 @@ func _on_eon_collected() -> void:
 	_start_life()
 
 
+func _on_level_changed(level: int) -> void:
+	if level >= LATER_LEVEL:
+		_later_reached = true
+
+
 func _on_attempt_started() -> void:
+	_later_reached = false
+	_active_early = true
 	_run_active = true
 	_fresh_start = true
 	_resume_position = -1.0
@@ -185,17 +208,36 @@ func _tick(delta: float) -> void:
 
 
 func _begin_playback() -> void:
-	if TRACKS.is_empty() or _player == null:
+	if _player == null:
 		_phase = Phase.IDLE
 		return
 	var from_position := 0.0
 	if _advance_on_resume:
-		_index = posmod(_index + 1, TRACKS.size())
 		_advance_on_resume = false
-	elif _resume_position >= 0.0 and _index >= 0:
+		if _should_leave_early():
+			_active_early = false
+			if LATER_TRACKS.is_empty():
+				_phase = Phase.IDLE
+				return
+			_index = randi() % LATER_TRACKS.size()
+		else:
+			var continuing := _playlist()
+			if continuing.is_empty():
+				_phase = Phase.IDLE
+				return
+			_index = posmod(_index + 1, continuing.size())
+	elif _resume_position >= 0.0 and _index >= 0 and not _playlist().is_empty():
 		from_position = _resume_position
 	else:
-		_index = randi() % TRACKS.size()
+		if _later_reached:
+			_active_early = false
+		else:
+			_active_early = true
+		var fresh := _playlist()
+		if fresh.is_empty():
+			_phase = Phase.IDLE
+			return
+		_index = randi() % fresh.size()
 	_resume_position = -1.0
 	_phase = Phase.FADING_IN
 	_fade_t = _fade_in_sec
@@ -231,7 +273,7 @@ func _boss_has_theme() -> bool:
 
 
 func _on_track_finished() -> void:
-	if _switching or _player == null or TRACKS.is_empty():
+	if _switching or _player == null:
 		return
 	if _phase == Phase.FADING_OUT or _phase == Phase.SUPPRESSED or not _run_active:
 		_advance_on_resume = true
@@ -239,20 +281,37 @@ func _on_track_finished() -> void:
 		return
 	if _phase != Phase.PLAYING and _phase != Phase.FADING_IN:
 		return
+	if _playlist().is_empty():
+		return
 	var volume := _player.volume_db
 	var fade_t := _fade_t
 	var phase := _phase
-	_start_track(_index + 1, 0.0)
+	if _should_leave_early():
+		_active_early = false
+		if LATER_TRACKS.is_empty():
+			return
+		_start_track(randi() % LATER_TRACKS.size(), 0.0)
+	else:
+		_start_track(_index + 1, 0.0)
 	_player.volume_db = volume
 	_fade_t = fade_t
 	_phase = phase
 
 
+func _playlist() -> Array[AudioStream]:
+	return EARLY_TRACKS if _active_early else LATER_TRACKS
+
+
+func _should_leave_early() -> bool:
+	return _active_early and _later_reached
+
+
 func _start_track(index: int, from_position: float) -> void:
-	if _player == null or TRACKS.is_empty():
+	var tracks := _playlist()
+	if _player == null or tracks.is_empty():
 		return
-	_index = posmod(index, TRACKS.size())
-	var stream := TRACKS[_index]
+	_index = posmod(index, tracks.size())
+	var stream := tracks[_index]
 	if stream is AudioStreamMP3:
 		(stream as AudioStreamMP3).loop = false
 	_switching = true

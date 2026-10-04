@@ -18,6 +18,9 @@ func _run() -> void:
 	_verify_upgrade_menu_keeps_music()
 	_verify_boss_handoff()
 	_verify_death()
+	_verify_level_gate()
+	_verify_boss_keeps_calm_track()
+	_verify_finished_calm_track_starts_later()
 	if _failed:
 		push_error("Glide music verification failed")
 		quit(1)
@@ -27,14 +30,36 @@ func _run() -> void:
 
 
 func _verify_tracks() -> void:
-	_fail_unless(GlideMusicScript.TRACKS.size() == 3, "Glide music should have three tracks")
-	var paths: PackedStringArray = []
-	for stream in GlideMusicScript.TRACKS:
-		_fail_unless(stream != null and not stream.loop, "Each glide track should play through once")
-		paths.append(stream.resource_path)
+	_fail_unless(GlideMusicScript.EARLY_TRACKS.size() == 4, "Levels 1-4 should have four calm tracks")
+	_fail_unless(GlideMusicScript.LATER_TRACKS.size() == 3, "Level 5 and beyond should have three dune tracks")
+	_fail_unless(GlideMusicScript.LATER_LEVEL == 5, "Dune tracks should unlock at level 5")
+	var early_paths: PackedStringArray = []
+	for stream in GlideMusicScript.EARLY_TRACKS:
+		_fail_unless(stream != null and not stream.loop, "Each calm track should play through once")
+		early_paths.append(stream.resource_path)
 	_fail_unless(
-		paths.has("res://assets/audio/music/mars_horizon.mp3"),
-		"Mars Horizon should sit in the glide playlist"
+		early_paths.has("res://assets/audio/music/gliding_levels_1_3.mp3"),
+		"The first calm track should be in the early playlist"
+	)
+	_fail_unless(
+		early_paths.has("res://assets/audio/music/gliding_levels_1_3_b.mp3"),
+		"The second calm track should be in the early playlist"
+	)
+	_fail_unless(
+		early_paths.has("res://assets/audio/music/desert_crossing_chillstep.mp3"),
+		"Desert Crossing should be in the levels 1-4 playlist"
+	)
+	_fail_unless(
+		early_paths.has("res://assets/audio/music/desert_crossing_2_chillstep.mp3"),
+		"Desert Crossing 2 should be in the levels 1-4 playlist"
+	)
+	var later_paths: PackedStringArray = []
+	for stream in GlideMusicScript.LATER_TRACKS:
+		_fail_unless(stream != null and not stream.loop, "Each dune track should play through once")
+		later_paths.append(stream.resource_path)
+	_fail_unless(
+		later_paths.has("res://assets/audio/music/mars_horizon.mp3"),
+		"Mars Horizon should sit in the dune playlist"
 	)
 	_fail_unless(
 		is_equal_approx(GlideMusicScript.ENTRANCE_FADE_SEC, 10.0),
@@ -82,7 +107,9 @@ func _verify_playlist() -> void:
 	var player := music.get_node("GlideTheme") as AudioStreamPlayer
 	_reach_full_volume(music)
 	var first := int(music.get("_index"))
-	var count := GlideMusicScript.TRACKS.size()
+	var count := GlideMusicScript.EARLY_TRACKS.size()
+	_fail_unless(bool(music.get("_active_early")), "A new run should start on the calm playlist")
+	_fail_unless(_is_early(player.stream), "A new run should play a calm track")
 	for step in count - 1:
 		music.call("_on_track_finished")
 		_fail_unless(player.playing, "The next glide track should start when one ends")
@@ -185,6 +212,93 @@ func _verify_death() -> void:
 	boss.free()
 
 
+func _verify_level_gate() -> void:
+	var music := _make_music()
+	var player := music.get_node("GlideTheme") as AudioStreamPlayer
+	_reach_full_volume(music)
+	var calm_stream := player.stream
+	var calm_index := int(music.get("_index"))
+	music.call("_on_level_changed", 4)
+	_fail_unless(not bool(music.get("_later_reached")), "Level 4 should keep the calm playlist")
+	music.call("_on_level_changed", GlideMusicScript.LATER_LEVEL)
+	_fail_unless(bool(music.get("_later_reached")), "Level 5 should arm the dune playlist")
+	_fail_unless(player.stream == calm_stream, "Crossing level 5 should let the calm track finish")
+	_fail_unless(int(music.get("_index")) == calm_index, "Crossing level 5 should keep the calm track index")
+	_fail_unless(bool(music.get("_active_early")), "The playing list should stay calm until the track ends")
+	music.call("_on_track_finished")
+	_fail_unless(not bool(music.get("_active_early")), "The next track should come from the dune playlist")
+	_fail_unless(_is_later(player.stream), "The track after level 5 should be a dune track")
+	_fail_unless(
+		player.stream == GlideMusicScript.LATER_TRACKS[int(music.get("_index"))],
+		"The dune handoff should play the chosen later track"
+	)
+	var later_index := int(music.get("_index"))
+	music.call("_on_track_finished")
+	_fail_unless(
+		int(music.get("_index")) == posmod(later_index + 1, GlideMusicScript.LATER_TRACKS.size()),
+		"Dune tracks should keep cycling after the handoff"
+	)
+	_fail_unless(_is_later(player.stream), "Later finishes should stay on the dune playlist")
+	music.call("_on_player_died", Vector3.ZERO)
+	music.call("_tick", GlideMusicScript.FADE_OUT_SEC)
+	music.call("_on_attempt_started")
+	music.call("_tick", GlideMusicScript.ENTRANCE_FADE_SEC)
+	_fail_unless(not bool(music.get("_later_reached")), "Try Again should clear the level 5 handoff")
+	_fail_unless(bool(music.get("_active_early")), "Try Again should return to the calm playlist")
+	_fail_unless(_is_early(player.stream), "Try Again should play a calm track")
+	music.free()
+
+
+func _verify_boss_keeps_calm_track() -> void:
+	var boss := BossDirectorScript.new()
+	root.add_child(boss)
+	var music := _make_music()
+	music.call("_bind")
+	var player := music.get_node("GlideTheme") as AudioStreamPlayer
+	_reach_full_volume(music)
+	var calm_stream := player.stream
+	var calm_index := int(music.get("_index"))
+	boss.call("_play_theme")
+	music.call("_on_boss_spawned", boss)
+	music.call("_tick", GlideMusicScript.FADE_OUT_SEC)
+	music.call("_on_level_changed", GlideMusicScript.LATER_LEVEL)
+	boss.call("_fade_theme")
+	boss.call("_tick_theme_fade", BossDirectorScript.THEME_FADE_SEC)
+	music.call("_tick", GlideMusicScript.RETURN_DELAY_SEC)
+	_fail_unless(player.playing, "The calm track should return after the Sun Eater theme")
+	_fail_unless(player.stream == calm_stream, "A boss handoff should resume the calm track")
+	_fail_unless(int(music.get("_index")) == calm_index, "A boss handoff should resume the calm index")
+	_fail_unless(bool(music.get("_active_early")), "The resumed track should still be the calm one")
+	music.call("_on_track_finished")
+	_fail_unless(not bool(music.get("_active_early")), "The dune playlist should start once the resumed calm track ends")
+	_fail_unless(_is_later(player.stream), "The track after the resumed calm track should be a dune track")
+	music.free()
+	boss.free()
+
+
+func _verify_finished_calm_track_starts_later() -> void:
+	var boss := BossDirectorScript.new()
+	root.add_child(boss)
+	var music := _make_music()
+	music.call("_bind")
+	var player := music.get_node("GlideTheme") as AudioStreamPlayer
+	_reach_full_volume(music)
+	boss.call("_play_theme")
+	music.call("_on_boss_spawned", boss)
+	music.call("_tick", GlideMusicScript.FADE_OUT_SEC)
+	music.call("_on_level_changed", GlideMusicScript.LATER_LEVEL)
+	music.call("_on_track_finished")
+	_fail_unless(bool(music.get("_advance_on_resume")), "A finished calm track should wait until the boss theme ends")
+	boss.call("_fade_theme")
+	boss.call("_tick_theme_fade", BossDirectorScript.THEME_FADE_SEC)
+	music.call("_tick", GlideMusicScript.RETURN_DELAY_SEC)
+	_fail_unless(player.playing, "Glide music should return after a calm track that ended during the boss")
+	_fail_unless(not bool(music.get("_active_early")), "A calm track that already ended should not restart")
+	_fail_unless(_is_later(player.stream), "The return should start the dune playlist")
+	music.free()
+	boss.free()
+
+
 func _reach_full_volume(music: GlideMusic) -> void:
 	music.call("_on_eon_collected")
 	music.call("_tick", GlideMusicScript.ENTRANCE_FADE_SEC)
@@ -194,6 +308,14 @@ func _make_music() -> GlideMusic:
 	var music := GlideMusicScript.new()
 	root.add_child(music)
 	return music
+
+
+func _is_early(stream: AudioStream) -> bool:
+	return GlideMusicScript.EARLY_TRACKS.has(stream)
+
+
+func _is_later(stream: AudioStream) -> bool:
+	return GlideMusicScript.LATER_TRACKS.has(stream)
 
 
 func _fail_unless(ok: bool, message: String) -> void:
