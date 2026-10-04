@@ -1,10 +1,16 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/upgrade_tower_menu.gd" id="1_menu"]
 [ext_resource type="Theme" path="res://themes/hud_theme.tres" id="2_theme"]
 [ext_resource type="Texture2D" uid="uid://cserivkeulajl" path="res://assets/ui/upgrade_menu/panel_frame.png" id="3_frame"]
 [ext_resource type="Script" uid="uid://chptb5hpp1pkl" path="res://scripts/ui/upgrade_frame_host.gd" id="4_host"]
 [ext_resource type="Texture2D" uid="uid://cbndjciv2gy2c" path="res://assets/ui/upgrade_menu/upgrade_card.png" id="5_card"]
+[ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/wait_until_dawn.png" id="6_wait"]
+[ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/wait_until_dawn_hover.png" id="7_wait_hover"]
+[ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/wait_until_dawn_selected.png" id="8_wait_selected"]
+[ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/keep_going.png" id="9_keep"]
+[ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/keep_going_hover.png" id="10_keep_hover"]
+[ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/keep_going_selected.png" id="11_keep_selected"]
 
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_card"]
 texture = ExtResource("5_card")
@@ -25,9 +31,33 @@ texture_margin_top = 88.0
 texture_margin_right = 320.0
 texture_margin_bottom = 80.0
 content_margin_left = 76.0
-content_margin_top = 32.0
+content_margin_top = 50.0
 content_margin_right = 76.0
 content_margin_bottom = 48.0
+draw_center = true
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_wait"]
+texture = ExtResource("6_wait")
+draw_center = true
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_wait_hover"]
+texture = ExtResource("7_wait_hover")
+draw_center = true
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_wait_selected"]
+texture = ExtResource("8_wait_selected")
+draw_center = true
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_keep"]
+texture = ExtResource("9_keep")
+draw_center = true
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_keep_hover"]
+texture = ExtResource("10_keep_hover")
+draw_center = true
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_keep_selected"]
+texture = ExtResource("11_keep_selected")
 draw_center = true
 
 [node name="UpgradeTowerMenu" type="CanvasLayer"]
@@ -92,6 +122,12 @@ layout_mode = 2
 theme_type_variation = &"HudStoppedTitle"
 text = "TOWER"
 horizontal_alignment = 1
+
+[node name="DiamondSlot" type="Control" parent="Root/Center/FrameHost/Panel/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+mouse_filter = 2
 
 [node name="HintLabel" type="Label" parent="Root/Center/FrameHost/Panel/VBox"]
 layout_mode = 2
@@ -358,14 +394,26 @@ alignment = 1
 
 [node name="WaitButton" type="Button" parent="Root/Center/FrameHost/Panel/VBox/Actions"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(220, 40)
+custom_minimum_size = Vector2(226, 38)
 layout_mode = 2
+size_flags_horizontal = 4
 disabled = true
-text = "Wait until dawn"
+tooltip_text = "Wait until dawn"
+theme_override_styles/normal = SubResource("StyleBoxTexture_wait_selected")
+theme_override_styles/hover = SubResource("StyleBoxTexture_wait_hover")
+theme_override_styles/pressed = SubResource("StyleBoxTexture_wait_hover")
+theme_override_styles/disabled = SubResource("StyleBoxTexture_wait")
+theme_override_styles/focus = SubResource("StyleBoxTexture_wait_selected")
 
 [node name="KeepButton" type="Button" parent="Root/Center/FrameHost/Panel/VBox/Actions"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(220, 40)
+custom_minimum_size = Vector2(218, 38)
 layout_mode = 2
+size_flags_horizontal = 4
 disabled = true
-text = "Keep going"
+tooltip_text = "Keep going"
+theme_override_styles/normal = SubResource("StyleBoxTexture_keep_selected")
+theme_override_styles/hover = SubResource("StyleBoxTexture_keep_hover")
+theme_override_styles/pressed = SubResource("StyleBoxTexture_keep_hover")
+theme_override_styles/disabled = SubResource("StyleBoxTexture_keep")
+theme_override_styles/focus = SubResource("StyleBoxTexture_keep_selected")

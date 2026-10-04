@@ -25,6 +25,17 @@ const ICON_FRAME_EPIC := preload("res://assets/ui/upgrade_menu/icon_frame_epic.p
 const ICON_FRAME_LEGENDARY := preload("res://assets/ui/upgrade_menu/icon_frame_legendary.png")
 const IconHostScript := preload("res://scripts/ui/upgrade_icon_host.gd")
 const PauseMenuScript = preload("res://scripts/ui/pause_menu.gd")
+const HEADER_ORNAMENT := preload("res://assets/ui/upgrade_menu/header_ornament.png")
+const HEADER_DIAMOND := preload("res://assets/ui/upgrade_menu/header_diamond.png")
+const HEADER_TEX := Vector2(990.0, 195.0)
+const HEADER_BAR_X0 := 19.0
+const HEADER_BAR_X1 := 970.0
+const HEADER_BAR_Y := 173.0
+const FRAME_SRC_W := 1024.0
+const FRAME_MARGIN_X := 320.0
+const FRAME_STROKE_L := 69.0
+const FRAME_STROKE_R := 954.0
+const FRAME_STROKE_Y := 37.0
 
 @onready var _root: Control = %Root
 @onready var _title: Label = %TitleLabel
@@ -40,6 +51,8 @@ var _card_buttons: Array[Button] = []
 var _card_frames: Array[Control] = []
 var _button_style := StyleBoxEmpty.new()
 var _glow: TextureRect
+var _header: TextureRect
+var _diamond: TextureRect
 
 
 func _ready() -> void:
@@ -59,7 +72,10 @@ func _ready() -> void:
 	_glow.visible = false
 	_glow.z_index = 1
 	_root.add_child(_glow)
+	_header = _ornament_rect("HeaderOrnament", HEADER_ORNAMENT)
+	_diamond = _ornament_rect("HeaderDiamond", HEADER_DIAMOND)
 	_root.resized.connect(_place_selection_glow)
+	_root.resized.connect(_place_header_ornament)
 
 
 func is_open() -> bool:
@@ -74,6 +90,7 @@ func open_for(tower: UpgradeTower, state: RunUpgradeState, rig: PlayerRig) -> vo
 	_refresh_cards()
 	visible = true
 	_root.visible = true
+	call_deferred("_place_header_ornament")
 	_set_glide_audible_while_paused(true)
 	get_tree().paused = true
 	var viewport := get_viewport()
@@ -149,7 +166,9 @@ func _refresh_cards() -> void:
 	if _wait_button != null:
 		_wait_button.visible = not bonus_stop
 		_wait_button.disabled = bonus_stop or not can_confirm
+		_wait_button.modulate = EMPTY_MODULATE if _wait_button.disabled else Color.WHITE
 	_keep_button.disabled = not can_confirm
+	_keep_button.modulate = EMPTY_MODULATE if _keep_button.disabled else Color.WHITE
 	if _tower != null:
 		if bonus_stop:
 			_title.text = "BONUS TOWER"
@@ -296,6 +315,53 @@ func _place_selection_glow() -> void:
 	_glow.visible = true
 
 
+func _ornament_rect(node_name: String, texture: Texture2D) -> TextureRect:
+	var rect := TextureRect.new()
+	rect.name = node_name
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rect.texture = texture
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_SCALE
+	rect.z_index = 2
+	rect.visible = false
+	_root.add_child(rect)
+	return rect
+
+
+func _place_header_ornament() -> void:
+	var host := _root.get_node_or_null("Center/FrameHost") as Control
+	if host == null or _header == null or host.size.x < 2.0:
+		return
+	var origin := host.global_position - _root.global_position
+	var stroke_l := _frame_display_x(FRAME_STROKE_L, host.size.x)
+	var stroke_r := _frame_display_x(FRAME_STROKE_R, host.size.x)
+	var scale := (stroke_r - stroke_l) / (HEADER_BAR_X1 - HEADER_BAR_X0)
+	_header.size = HEADER_TEX * scale
+	_header.position = origin + Vector2(
+		stroke_l - HEADER_BAR_X0 * scale,
+		FRAME_STROKE_Y - HEADER_BAR_Y * scale
+	)
+	_header.visible = true
+	var slot := _root.get_node_or_null("Center/FrameHost/Panel/VBox/DiamondSlot") as Control
+	var diamond_size := Vector2(104.0, 28.0)
+	_diamond.size = diamond_size
+	var diamond_y := origin.y + FRAME_STROKE_Y + 20.0
+	if slot != null and slot.size.y > 1.0:
+		diamond_y = slot.global_position.y - _root.global_position.y + (slot.size.y - diamond_size.y) * 0.5
+	_diamond.position = Vector2(origin.x + (host.size.x - diamond_size.x) * 0.5, diamond_y)
+	_diamond.visible = true
+
+
+func _frame_display_x(source_x: float, host_width: float) -> float:
+	var center_src := FRAME_SRC_W - FRAME_MARGIN_X * 2.0
+	var center_dst := host_width - FRAME_MARGIN_X * 2.0
+	if source_x <= FRAME_MARGIN_X:
+		return source_x
+	if source_x >= FRAME_SRC_W - FRAME_MARGIN_X:
+		return host_width - (FRAME_SRC_W - source_x)
+	return FRAME_MARGIN_X + (source_x - FRAME_MARGIN_X) * (center_dst / center_src)
+
+
 func _apply_bonus_label(wrapper: Node, id: StringName) -> void:
 	var bonus := wrapper.get_node_or_null("BonusLabel") as Label
 	if bonus == null:
@@ -370,6 +436,10 @@ func _close() -> void:
 	_root.visible = false
 	if _glow != null:
 		_glow.visible = false
+	if _header != null:
+		_header.visible = false
+	if _diamond != null:
+		_diamond.visible = false
 	get_tree().paused = false
 	_set_glide_audible_while_paused(false)
 	if _rig != null and PauseMenuScript.should_capture_look_after_unpause(get_tree()):
