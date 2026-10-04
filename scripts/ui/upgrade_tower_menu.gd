@@ -4,17 +4,26 @@ extends CanvasLayer
 signal closed
 
 const SELECTED_MODULATE := Color(1.0, 1.0, 1.0, 1.0)
-const IDLE_MODULATE := Color(0.92, 0.88, 0.8, 1.0)
 const EMPTY_MODULATE := Color(0.55, 0.52, 0.48, 1.0)
-const SELECTED_FRAME := Color(1.15, 1.15, 1.15, 1.0)
 const IDLE_FRAME := Color(1.0, 1.0, 1.0, 1.0)
 const EMPTY_FRAME := Color(0.55, 0.52, 0.48, 1.0)
+const GLOW_INSET_L := 0.034
+const GLOW_INSET_T := 0.063
+const GLOW_INSET_R := 0.036
+const GLOW_INSET_B := 0.059
+const SELECT_GLOW := preload("res://assets/ui/upgrade_menu/card_select_glow.png")
 const BORDER_BASE := preload("res://assets/ui/upgrade_menu/upgrade_card.png")
 const BORDER_COMMON := preload("res://assets/ui/upgrade_menu/card_border_common.png")
 const BORDER_UNCOMMON := preload("res://assets/ui/upgrade_menu/card_border_uncommon.png")
 const BORDER_RARE := preload("res://assets/ui/upgrade_menu/card_border_rare.png")
 const BORDER_EPIC := preload("res://assets/ui/upgrade_menu/card_border_epic.png")
 const BORDER_LEGENDARY := preload("res://assets/ui/upgrade_menu/card_border_legendary.png")
+const ICON_FRAME_COMMON := preload("res://assets/ui/upgrade_menu/icon_frame_common.png")
+const ICON_FRAME_UNCOMMON := preload("res://assets/ui/upgrade_menu/icon_frame_uncommon.png")
+const ICON_FRAME_RARE := preload("res://assets/ui/upgrade_menu/icon_frame_rare.png")
+const ICON_FRAME_EPIC := preload("res://assets/ui/upgrade_menu/icon_frame_epic.png")
+const ICON_FRAME_LEGENDARY := preload("res://assets/ui/upgrade_menu/icon_frame_legendary.png")
+const IconHostScript := preload("res://scripts/ui/upgrade_icon_host.gd")
 const PauseMenuScript = preload("res://scripts/ui/pause_menu.gd")
 
 @onready var _root: Control = %Root
@@ -30,6 +39,7 @@ var _selected_slot := -1
 var _card_buttons: Array[Button] = []
 var _card_frames: Array[Control] = []
 var _button_style := StyleBoxEmpty.new()
+var _glow: TextureRect
 
 
 func _ready() -> void:
@@ -40,6 +50,16 @@ func _ready() -> void:
 	_wait_button.pressed.connect(_on_wait_pressed)
 	_keep_button.pressed.connect(_on_keep_pressed)
 	_cache_cards()
+	_glow = TextureRect.new()
+	_glow.name = "SelectionGlow"
+	_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_glow.texture = SELECT_GLOW
+	_glow.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_glow.stretch_mode = TextureRect.STRETCH_SCALE
+	_glow.visible = false
+	_glow.z_index = 1
+	_root.add_child(_glow)
+	_root.resized.connect(_place_selection_glow)
 
 
 func is_open() -> bool:
@@ -75,6 +95,9 @@ func _cache_cards() -> void:
 		button.pressed.connect(_on_card_pressed.bind(slot))
 		for style_name in ["normal", "hover", "pressed", "disabled", "focus"]:
 			button.add_theme_stylebox_override(style_name, _button_style)
+		button.icon = null
+		button.expand_icon = false
+		_ensure_icon_host(button)
 		_card_buttons.append(button)
 		_card_frames.append(child as Control)
 
@@ -104,10 +127,11 @@ func _refresh_cards() -> void:
 			_apply_empty_card(button, wrapper)
 			continue
 		button.disabled = false
-		button.icon = UpgradeCatalog.icon_for(id)
+		button.icon = null
 		button.text = ""
 		button.tooltip_text = _card_tooltip(id)
-		button.modulate = SELECTED_MODULATE if i == _selected_slot else IDLE_MODULATE
+		button.modulate = SELECTED_MODULATE
+		_apply_icon(button, id)
 		_apply_selection_frame(i, i == _selected_slot, false, _border_for(id))
 		var rarity_label := wrapper.get_node_or_null("RarityLabel") as Label
 		if rarity_label != null:
@@ -131,6 +155,7 @@ func _refresh_cards() -> void:
 			_title.text = "BONUS TOWER"
 		else:
 			_title.text = "TOWER %d" % _tower.tower_index
+	call_deferred("_place_selection_glow")
 
 
 func _apply_empty_card(button: Button, wrapper: Node) -> void:
@@ -139,6 +164,7 @@ func _apply_empty_card(button: Button, wrapper: Node) -> void:
 	button.text = "Empty"
 	button.tooltip_text = "Empty"
 	button.modulate = EMPTY_MODULATE
+	_apply_icon(button, UpgradeCatalog.EMPTY_OFFER)
 	var slot := _card_buttons.find(button)
 	_apply_selection_frame(slot, false, true, BORDER_BASE)
 	var rarity_label := wrapper.get_node_or_null("RarityLabel") as Label
@@ -148,6 +174,62 @@ func _apply_empty_card(button: Button, wrapper: Node) -> void:
 	if label != null:
 		label.text = ""
 	_apply_bonus_label(wrapper, UpgradeCatalog.EMPTY_OFFER)
+
+
+func _icon_frame_for(id: StringName) -> Texture2D:
+	match UpgradeCatalog.rarity_of(id):
+		UpgradeCatalog.RARITY_UNCOMMON:
+			return ICON_FRAME_UNCOMMON
+		UpgradeCatalog.RARITY_RARE:
+			return ICON_FRAME_RARE
+		UpgradeCatalog.RARITY_EPIC:
+			return ICON_FRAME_EPIC
+		UpgradeCatalog.RARITY_LEGENDARY:
+			return ICON_FRAME_LEGENDARY
+		_:
+			return ICON_FRAME_COMMON
+
+
+func _ensure_icon_host(button: Button) -> Control:
+	var host := button.get_node_or_null("IconHost") as Control
+	if host != null:
+		return host
+	host = Control.new()
+	host.name = "IconHost"
+	host.set_script(IconHostScript)
+	host.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	host.set_anchors_preset(Control.PRESET_FULL_RECT)
+	host.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	host.grow_vertical = Control.GROW_DIRECTION_BOTH
+	var icon := TextureRect.new()
+	icon.name = "Icon"
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.clip_contents = true
+	host.add_child(icon)
+	var frame := TextureRect.new()
+	frame.name = "Frame"
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	frame.stretch_mode = TextureRect.STRETCH_SCALE
+	host.add_child(frame)
+	button.add_child(host)
+	return host
+
+
+func _apply_icon(button: Button, id: StringName) -> void:
+	var host := _ensure_icon_host(button)
+	var icon := host.get_node("Icon") as TextureRect
+	var frame := host.get_node("Frame") as TextureRect
+	if UpgradeCatalog.is_empty_offer(id):
+		icon.texture = null
+		frame.texture = null
+		host.visible = false
+		return
+	icon.texture = UpgradeCatalog.icon_for(id)
+	frame.texture = _icon_frame_for(id)
+	host.visible = true
 
 
 func _border_for(id: StringName) -> Texture2D:
@@ -179,7 +261,7 @@ func _style_for(texture: Texture2D) -> StyleBoxTexture:
 	return box
 
 
-func _apply_selection_frame(slot: int, selected: bool, empty: bool, border: Texture2D) -> void:
+func _apply_selection_frame(slot: int, _selected: bool, empty: bool, border: Texture2D) -> void:
 	if slot < 0 or slot >= _card_frames.size():
 		return
 	var frame := _card_frames[slot]
@@ -188,10 +270,30 @@ func _apply_selection_frame(slot: int, selected: bool, empty: bool, border: Text
 	frame.add_theme_stylebox_override("panel", _style_for(border if border != null else BORDER_BASE))
 	if empty:
 		frame.self_modulate = EMPTY_FRAME
-	elif selected:
-		frame.self_modulate = SELECTED_FRAME
 	else:
 		frame.self_modulate = IDLE_FRAME
+
+
+func _place_selection_glow() -> void:
+	if _glow == null:
+		return
+	if _selected_slot < 0 or _selected_slot >= _card_frames.size():
+		_glow.visible = false
+		return
+	var card := _card_frames[_selected_slot]
+	if card == null or not card.visible:
+		_glow.visible = false
+		return
+	var card_rect := card.get_global_rect()
+	var to_local := _root.get_global_transform_with_canvas().affine_inverse()
+	var origin := to_local * card_rect.position
+	var card_size := to_local * card_rect.end - origin
+	var inner_w := 1.0 - GLOW_INSET_L - GLOW_INSET_R
+	var inner_h := 1.0 - GLOW_INSET_T - GLOW_INSET_B
+	var glow_size := Vector2(card_size.x / inner_w, card_size.y / inner_h)
+	_glow.position = origin - Vector2(glow_size.x * GLOW_INSET_L, glow_size.y * GLOW_INSET_T)
+	_glow.size = glow_size
+	_glow.visible = true
 
 
 func _apply_bonus_label(wrapper: Node, id: StringName) -> void:
@@ -266,6 +368,8 @@ func _wait_until_dawn() -> void:
 func _close() -> void:
 	visible = false
 	_root.visible = false
+	if _glow != null:
+		_glow.visible = false
 	get_tree().paused = false
 	_set_glide_audible_while_paused(false)
 	if _rig != null and PauseMenuScript.should_capture_look_after_unpause(get_tree()):

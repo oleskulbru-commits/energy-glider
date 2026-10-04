@@ -71,24 +71,24 @@ func _verify_indexes_and_hp() -> void:
 	_fail_unless(BossDirectorScript.boss_ordinal(8) == 1, "First boss ordinal should be 1")
 	_fail_unless(BossDirectorScript.boss_ordinal(33) == 5, "Fifth boss ordinal should be 5")
 	_fail_unless(
-		BossDirectorScript.max_health_for_tower(8) == 5000,
-		"First boss should have 5000 HP"
+		BossDirectorScript.max_health_for_tower(8) == 7000,
+		"First boss should have 7000 HP"
 	)
 	_fail_unless(
-		BossDirectorScript.max_health_for_tower(9) == 10000,
-		"Second boss should have 10000 HP"
+		BossDirectorScript.max_health_for_tower(9) == 12000,
+		"Second boss should have 12000 HP"
 	)
 	_fail_unless(
-		BossDirectorScript.max_health_for_tower(17) == 15000,
-		"Third boss should have 15000 HP"
+		BossDirectorScript.max_health_for_tower(17) == 17000,
+		"Third boss should have 17000 HP"
 	)
 	_fail_unless(
-		BossDirectorScript.max_health_for_tower(25) == 20000,
-		"Fourth boss should have 20000 HP"
+		BossDirectorScript.max_health_for_tower(25) == 22000,
+		"Fourth boss should have 22000 HP"
 	)
 	_fail_unless(
-		BossDirectorScript.max_health_for_tower(33) == 25000,
-		"Fifth boss should have 25000 HP"
+		BossDirectorScript.max_health_for_tower(33) == 27000,
+		"Fifth boss should have 27000 HP"
 	)
 	_fail_unless(
 		BossDirectorScript.max_health_for_tower(7) == 0,

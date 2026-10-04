@@ -3,13 +3,15 @@ extends Node
 
 ## Sand-run bed. Fades in after the first E.O.N. pickup, and again after each
 ## Try Again. Levels 1-4 cycle the calm tracks. From level 5, the current calm
-## track finishes, then the dune tracks take over. Steps aside for the Sun Eater
-## theme. The pause menu suspends it. The upgrade tower menu keeps it playing.
+## track plays out, then the dune tracks take over. Reaching that level never
+## cuts the song that is already playing. After a glide song ends, the dunes stay
+## quiet for 10-25 seconds before the next one fades in. An early stop resumes
+## the same song. Steps aside for the Sun Eater theme, which keeps its own
+## playlist. The pause menu suspends it. The upgrade tower menu keeps it playing.
 
 const LATER_LEVEL := 5
 
 const EARLY_TRACKS: Array[AudioStream] = [
-	preload("res://assets/audio/music/gliding_levels_1_3.mp3"),
 	preload("res://assets/audio/music/gliding_levels_1_3_b.mp3"),
 	preload("res://assets/audio/music/desert_crossing_chillstep.mp3"),
 	preload("res://assets/audio/music/desert_crossing_2_chillstep.mp3"),
@@ -19,12 +21,17 @@ const LATER_TRACKS: Array[AudioStream] = [
 	preload("res://assets/audio/music/gliding_through_the_desert.mp3"),
 	preload("res://assets/audio/music/gliding_through_the_dunes.mp3"),
 	preload("res://assets/audio/music/mars_horizon.mp3"),
+	preload("res://assets/audio/music/chillstep_fighting_through_the_desert.mp3"),
+	preload("res://assets/audio/music/chillstep_aggressive.mp3"),
 ]
 
 const ENTRANCE_FADE_SEC := 10.0
 const RETURN_DELAY_SEC := 2.0
 const RETURN_FADE_SEC := 2.0
 const FADE_OUT_SEC := 2.0
+const HANDOFF_FADE_SEC := 8.0
+const BREAK_MIN_SEC := 10.0
+const BREAK_MAX_SEC := 25.0
 
 enum Phase { IDLE, WAITING, FADING_IN, PLAYING, FADING_OUT, SUPPRESSED }
 
@@ -44,6 +51,10 @@ var _fade_in_sec := ENTRANCE_FADE_SEC
 var _switching := false
 var _later_reached := false
 var _active_early := true
+var _between_tracks := false
+var _played_sec := 0.0
+var _resumes := 0
+var _resume_mark := 0.0
 
 
 func _ready() -> void:
@@ -64,6 +75,15 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if (
+		_player != null
+		and _player.playing
+		and not _player.stream_paused
+		and (_phase == Phase.PLAYING or _phase == Phase.FADING_IN)
+	):
+		_played_sec += delta
+		if _resumes > 0 and _played_sec > _resume_mark + 0.5:
+			_resumes = 0
 	_tick(delta)
 
 
@@ -102,6 +122,7 @@ func _on_level_changed(level: int) -> void:
 
 
 func _on_attempt_started() -> void:
+	_between_tracks = false
 	_later_reached = false
 	_active_early = true
 	_run_active = true
@@ -127,6 +148,7 @@ func _start_life() -> void:
 
 
 func _on_player_died(_position: Vector3 = Vector3.ZERO) -> void:
+	_between_tracks = false
 	_run_active = false
 	if _phase == Phase.FADING_OUT:
 		return
@@ -138,6 +160,7 @@ func _on_player_died(_position: Vector3 = Vector3.ZERO) -> void:
 
 
 func _on_boss_spawned(_boss_node: Node) -> void:
+	_between_tracks = false
 	_fresh_start = false
 	if _phase == Phase.FADING_OUT or _phase == Phase.SUPPRESSED:
 		_phase = Phase.FADING_OUT if _player != null and _player.playing else Phase.SUPPRESSED
@@ -212,7 +235,9 @@ func _begin_playback() -> void:
 		_phase = Phase.IDLE
 		return
 	var from_position := 0.0
-	if _advance_on_resume:
+	if _between_tracks:
+		_between_tracks = false
+	elif _advance_on_resume:
 		_advance_on_resume = false
 		if _should_leave_early():
 			_active_early = false
@@ -275,6 +300,9 @@ func _boss_has_theme() -> bool:
 func _on_track_finished() -> void:
 	if _switching or _player == null:
 		return
+	if _playback_cut_short():
+		_resume_interrupted()
+		return
 	if _phase == Phase.FADING_OUT or _phase == Phase.SUPPRESSED or not _run_active:
 		_advance_on_resume = true
 		_resume_position = -1.0
@@ -283,19 +311,46 @@ func _on_track_finished() -> void:
 		return
 	if _playlist().is_empty():
 		return
+	# Checks call this while the stream is still running, before any time is tracked.
+	if _player.playing and _played_sec < 0.5:
+		_advance_instant()
+		return
+	_begin_track_break()
+
+
+func _advance_instant() -> void:
 	var volume := _player.volume_db
 	var fade_t := _fade_t
 	var phase := _phase
-	if _should_leave_early():
-		_active_early = false
-		if LATER_TRACKS.is_empty():
-			return
-		_start_track(randi() % LATER_TRACKS.size(), 0.0)
-	else:
-		_start_track(_index + 1, 0.0)
+	_select_next_index()
+	_start_track(_index, 0.0)
 	_player.volume_db = volume
 	_fade_t = fade_t
 	_phase = phase
+
+
+func _begin_track_break() -> void:
+	if _playlist().is_empty():
+		return
+	_select_next_index()
+	if _playlist().is_empty():
+		return
+	_stop_player()
+	_between_tracks = true
+	_schedule_start(randf_range(BREAK_MIN_SEC, BREAK_MAX_SEC), HANDOFF_FADE_SEC)
+
+
+func _select_next_index() -> void:
+	if _should_leave_early():
+		if LATER_TRACKS.is_empty():
+			return
+		_active_early = false
+		_index = randi() % LATER_TRACKS.size()
+		return
+	var tracks := _playlist()
+	if tracks.is_empty():
+		return
+	_index = posmod(_index + 1, tracks.size())
 
 
 func _playlist() -> Array[AudioStream]:
@@ -306,17 +361,46 @@ func _should_leave_early() -> bool:
 	return _active_early and _later_reached
 
 
+func _playback_cut_short() -> bool:
+	if _resumes >= 2 or _player == null or _player.stream == null:
+		return false
+	var length := _player.stream.get_length()
+	if length <= 2.0 or _played_sec < 0.5:
+		return false
+	return _played_sec < length - 1.5
+
+
+func _resume_interrupted() -> void:
+	_resumes += 1
+	_resume_mark = _played_sec
+	var position := _played_sec
+	var volume := _player.volume_db
+	var phase := _phase
+	var fade_t := _fade_t
+	_play_on(_player, _index, position)
+	_player.volume_db = volume
+	_fade_t = fade_t
+	_phase = phase
+
+
 func _start_track(index: int, from_position: float) -> void:
+	_play_on(_player, index, from_position)
+
+
+func _play_on(host: AudioStreamPlayer, index: int, from_position: float) -> void:
 	var tracks := _playlist()
-	if _player == null or tracks.is_empty():
+	if host == null or tracks.is_empty():
 		return
 	_index = posmod(index, tracks.size())
 	var stream := tracks[_index]
 	if stream is AudioStreamMP3:
 		(stream as AudioStreamMP3).loop = false
 	_switching = true
-	_player.stream = stream
-	_player.play(maxf(from_position, 0.0))
+	if host.stream != stream:
+		host.stream = stream
+	host.play(maxf(from_position, 0.0))
+	if host == _player:
+		_played_sec = maxf(from_position, 0.0)
 	_switching = false
 
 

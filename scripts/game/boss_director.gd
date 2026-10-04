@@ -20,6 +20,7 @@ const SUN_EATER_THEMES: Array[AudioStream] = [
 const BOSS_TOWER_INDEXES: Array[int] = [8, 9, 17, 25, 33]
 const BOSS_INTERVAL := 8
 const HP_PER_ORDINAL := 5000
+const HP_BONUS := 2000
 const SPAWN_TRIGGER_EAST_M := 200.0
 const SPAWN_EAST_OF_TOWER_M := 100.0
 const THEME_FADE_SEC := 10.0
@@ -100,7 +101,7 @@ static func max_health_for_tower(tower_index: int) -> int:
 	var ordinal := boss_ordinal(tower_index)
 	if ordinal <= 0:
 		return 0
-	return HP_PER_ORDINAL * ordinal
+	return HP_PER_ORDINAL * ordinal + HP_BONUS
 
 
 static func spawn_x_for_tower(tower_x: float) -> float:

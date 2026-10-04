@@ -21,6 +21,9 @@ func _run() -> void:
 	_verify_level_gate()
 	_verify_boss_keeps_calm_track()
 	_verify_finished_calm_track_starts_later()
+	_verify_track_break()
+	_verify_early_stop_resumes()
+	_verify_level_crossing_does_not_cut()
 	if _failed:
 		push_error("Glide music verification failed")
 		quit(1)
@@ -30,20 +33,16 @@ func _run() -> void:
 
 
 func _verify_tracks() -> void:
-	_fail_unless(GlideMusicScript.EARLY_TRACKS.size() == 4, "Levels 1-4 should have four calm tracks")
-	_fail_unless(GlideMusicScript.LATER_TRACKS.size() == 3, "Level 5 and beyond should have three dune tracks")
+	_fail_unless(GlideMusicScript.EARLY_TRACKS.size() == 3, "Levels 1-4 should have three calm tracks")
+	_fail_unless(GlideMusicScript.LATER_TRACKS.size() == 5, "Level 5 and beyond should have five dune tracks")
 	_fail_unless(GlideMusicScript.LATER_LEVEL == 5, "Dune tracks should unlock at level 5")
 	var early_paths: PackedStringArray = []
 	for stream in GlideMusicScript.EARLY_TRACKS:
 		_fail_unless(stream != null and not stream.loop, "Each calm track should play through once")
 		early_paths.append(stream.resource_path)
 	_fail_unless(
-		early_paths.has("res://assets/audio/music/gliding_levels_1_3.mp3"),
-		"The first calm track should be in the early playlist"
-	)
-	_fail_unless(
 		early_paths.has("res://assets/audio/music/gliding_levels_1_3_b.mp3"),
-		"The second calm track should be in the early playlist"
+		"The calm gliding track should be in the early playlist"
 	)
 	_fail_unless(
 		early_paths.has("res://assets/audio/music/desert_crossing_chillstep.mp3"),
@@ -60,6 +59,14 @@ func _verify_tracks() -> void:
 	_fail_unless(
 		later_paths.has("res://assets/audio/music/mars_horizon.mp3"),
 		"Mars Horizon should sit in the dune playlist"
+	)
+	_fail_unless(
+		later_paths.has("res://assets/audio/music/chillstep_fighting_through_the_desert.mp3"),
+		"Fighting Through the Desert should sit in the dune playlist"
+	)
+	_fail_unless(
+		later_paths.has("res://assets/audio/music/chillstep_aggressive.mp3"),
+		"Aggressive chillstep should sit in the dune playlist"
 	)
 	_fail_unless(
 		is_equal_approx(GlideMusicScript.ENTRANCE_FADE_SEC, 10.0),
@@ -297,6 +304,87 @@ func _verify_finished_calm_track_starts_later() -> void:
 	_fail_unless(_is_later(player.stream), "The return should start the dune playlist")
 	music.free()
 	boss.free()
+
+
+func _verify_track_break() -> void:
+	var music := _make_music()
+	var player := music.get_node("GlideTheme") as AudioStreamPlayer
+	_reach_full_volume(music)
+	var first := int(music.get("_index"))
+	music.set("_played_sec", player.stream.get_length() - 0.2)
+	player.stop()
+	music.call("_on_track_finished")
+	_fail_unless(not player.playing, "A finished glide song should leave silence")
+	_fail_unless(
+		int(music.get("_phase")) == GlideMusicScript.Phase.WAITING,
+		"The next song should wait out the gap"
+	)
+	var gap := float(music.get("_wait_t"))
+	_fail_unless(
+		gap >= GlideMusicScript.BREAK_MIN_SEC and gap <= GlideMusicScript.BREAK_MAX_SEC,
+		"The gap between glide songs should last between 10 and 25 seconds"
+	)
+	music.call("_tick", gap - 0.05)
+	_fail_unless(not player.playing, "Silence should hold until the gap ends")
+	music.call("_tick", 0.1)
+	_fail_unless(player.playing, "The next song should start when the gap ends")
+	_fail_unless(player.volume_db < -20.0, "The next song should fade in")
+	_fail_unless(
+		int(music.get("_index")) == posmod(first + 1, GlideMusicScript.EARLY_TRACKS.size()),
+		"The gap should lead into the next calm track"
+	)
+	music.free()
+
+
+func _verify_early_stop_resumes() -> void:
+	var music := _make_music()
+	var player := music.get_node("GlideTheme") as AudioStreamPlayer
+	_reach_full_volume(music)
+	var stream := player.stream
+	var index := int(music.get("_index"))
+	music.set("_played_sec", 20.0)
+	player.stop()
+	music.call("_on_track_finished")
+	_fail_unless(player.stream == stream, "Stopping early should keep the same track")
+	_fail_unless(int(music.get("_index")) == index, "Stopping early should not advance the playlist")
+	_fail_unless(player.playing, "Stopping early should resume the same track")
+	music.set("_played_sec", player.stream.get_length() - 0.2)
+	player.stop()
+	music.call("_on_track_finished")
+	_fail_unless(not player.playing, "A finished track should stay silent through the gap")
+	_fail_unless(
+		int(music.get("_index")) == posmod(index + 1, GlideMusicScript.EARLY_TRACKS.size()),
+		"A track that actually finished should still advance"
+	)
+	music.call("_tick", float(music.get("_wait_t")))
+	_fail_unless(player.volume_db < -20.0, "The next track should fade in after the gap")
+	music.free()
+
+
+func _verify_level_crossing_does_not_cut() -> void:
+	var music := _make_music()
+	var player := music.get_node("GlideTheme") as AudioStreamPlayer
+	_reach_full_volume(music)
+	var stream := player.stream
+	var index := int(music.get("_index"))
+	music.call("_on_level_changed", GlideMusicScript.LATER_LEVEL)
+	music.set("_played_sec", 40.0)
+	player.stop()
+	music.call("_on_track_finished")
+	_fail_unless(bool(music.get("_later_reached")), "Level 5 should still arm the dune playlist")
+	_fail_unless(player.stream == stream, "Passing the dune threshold mid-song should keep that song")
+	_fail_unless(int(music.get("_index")) == index, "Passing the dune threshold mid-song should keep the index")
+	_fail_unless(bool(music.get("_active_early")), "The dune playlist should wait until the calm song actually ends")
+	_fail_unless(player.playing, "An early stop after the threshold should resume the calm song")
+	music.set("_played_sec", player.stream.get_length() - 0.2)
+	player.stop()
+	music.call("_on_track_finished")
+	_fail_unless(not player.playing, "The dune handoff should wait through the gap")
+	_fail_unless(not bool(music.get("_active_early")), "A calm song that really ended should hand off to the dunes")
+	music.call("_tick", float(music.get("_wait_t")))
+	_fail_unless(_is_later(player.stream), "The dune handoff should play a dune track")
+	_fail_unless(player.volume_db < -20.0, "The dune handoff should fade in")
+	music.free()
 
 
 func _reach_full_volume(music: GlideMusic) -> void:
