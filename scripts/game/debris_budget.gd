@@ -106,9 +106,10 @@ func _rate_limit_remaining() -> int:
 
 func _room_for_priority(priority: Priority) -> int:
 	var active := active_count()
-	if _is_high_priority(priority):
-		return maxi(MAX_ACTIVE - active, RESERVE_FOR_KILL - active)
-	return MAX_ACTIVE - active
+	var cap := MAX_ACTIVE
+	if not _is_high_priority(priority):
+		cap -= RESERVE_FOR_KILL
+	return maxi(cap - active, 0)
 
 
 func _is_high_priority(priority: Priority) -> bool:

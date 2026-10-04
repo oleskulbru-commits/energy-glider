@@ -2036,8 +2036,6 @@ func is_solar_charging() -> bool:
 
 
 func is_sail_deployed() -> bool:
-	if not is_grounded():
-		return false
 	return _input != null and _input.is_sail_deployed()
 
 
