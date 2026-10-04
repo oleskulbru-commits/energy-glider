@@ -6,9 +6,15 @@ signal closed
 const SELECTED_MODULATE := Color(1.0, 1.0, 1.0, 1.0)
 const IDLE_MODULATE := Color(0.92, 0.88, 0.8, 1.0)
 const EMPTY_MODULATE := Color(0.55, 0.52, 0.48, 1.0)
-const SELECTED_FRAME := Color(1.22, 1.12, 0.86, 1.0)
+const SELECTED_FRAME := Color(1.15, 1.15, 1.15, 1.0)
 const IDLE_FRAME := Color(1.0, 1.0, 1.0, 1.0)
 const EMPTY_FRAME := Color(0.55, 0.52, 0.48, 1.0)
+const BORDER_BASE := preload("res://assets/ui/upgrade_menu/upgrade_card.png")
+const BORDER_COMMON := preload("res://assets/ui/upgrade_menu/card_border_common.png")
+const BORDER_UNCOMMON := preload("res://assets/ui/upgrade_menu/card_border_uncommon.png")
+const BORDER_RARE := preload("res://assets/ui/upgrade_menu/card_border_rare.png")
+const BORDER_EPIC := preload("res://assets/ui/upgrade_menu/card_border_epic.png")
+const BORDER_LEGENDARY := preload("res://assets/ui/upgrade_menu/card_border_legendary.png")
 const PauseMenuScript = preload("res://scripts/ui/pause_menu.gd")
 
 @onready var _root: Control = %Root
@@ -102,7 +108,7 @@ func _refresh_cards() -> void:
 		button.text = ""
 		button.tooltip_text = _card_tooltip(id)
 		button.modulate = SELECTED_MODULATE if i == _selected_slot else IDLE_MODULATE
-		_apply_selection_frame(i, i == _selected_slot, false)
+		_apply_selection_frame(i, i == _selected_slot, false, _border_for(id))
 		var rarity_label := wrapper.get_node_or_null("RarityLabel") as Label
 		if rarity_label != null:
 			rarity_label.text = UpgradeCatalog.rarity_display_name(id)
@@ -134,7 +140,7 @@ func _apply_empty_card(button: Button, wrapper: Node) -> void:
 	button.tooltip_text = "Empty"
 	button.modulate = EMPTY_MODULATE
 	var slot := _card_buttons.find(button)
-	_apply_selection_frame(slot, false, true)
+	_apply_selection_frame(slot, false, true, BORDER_BASE)
 	var rarity_label := wrapper.get_node_or_null("RarityLabel") as Label
 	if rarity_label != null:
 		rarity_label.text = ""
@@ -144,12 +150,42 @@ func _apply_empty_card(button: Button, wrapper: Node) -> void:
 	_apply_bonus_label(wrapper, UpgradeCatalog.EMPTY_OFFER)
 
 
-func _apply_selection_frame(slot: int, selected: bool, empty: bool) -> void:
+func _border_for(id: StringName) -> Texture2D:
+	match UpgradeCatalog.rarity_of(id):
+		UpgradeCatalog.RARITY_UNCOMMON:
+			return BORDER_UNCOMMON
+		UpgradeCatalog.RARITY_RARE:
+			return BORDER_RARE
+		UpgradeCatalog.RARITY_EPIC:
+			return BORDER_EPIC
+		UpgradeCatalog.RARITY_LEGENDARY:
+			return BORDER_LEGENDARY
+		_:
+			return BORDER_COMMON
+
+
+func _style_for(texture: Texture2D) -> StyleBoxTexture:
+	var box := StyleBoxTexture.new()
+	box.texture = texture
+	box.texture_margin_left = 20.0
+	box.texture_margin_top = 20.0
+	box.texture_margin_right = 20.0
+	box.texture_margin_bottom = 22.0
+	box.content_margin_left = 12.0
+	box.content_margin_top = 8.0
+	box.content_margin_right = 12.0
+	box.content_margin_bottom = 16.0
+	box.draw_center = true
+	return box
+
+
+func _apply_selection_frame(slot: int, selected: bool, empty: bool, border: Texture2D) -> void:
 	if slot < 0 or slot >= _card_frames.size():
 		return
 	var frame := _card_frames[slot]
 	if frame == null:
 		return
+	frame.add_theme_stylebox_override("panel", _style_for(border if border != null else BORDER_BASE))
 	if empty:
 		frame.self_modulate = EMPTY_FRAME
 	elif selected:

@@ -97,7 +97,16 @@ func open(rig: PlayerRig) -> void:
 	_fade_dir = 1
 	visible = true
 	_root.visible = true
-	_center.visible = false
+	_center.visible = true
+	# Keep the theme audible while the tree is paused so the master fade can finish.
+	_hold_music(true)
+	get_tree().paused = true
+	var viewport := get_viewport()
+	if viewport != null:
+		viewport.gui_disable_input = false
+	if _rig != null:
+		_rig.release_look_mouse()
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func close() -> void:
@@ -107,33 +116,26 @@ func close() -> void:
 		return
 	_center.visible = false
 	_fade_dir = -1
-	_hold_music(true)
+	# Unpause before releasing the music hold, so the stream does not click off.
+	get_tree().paused = false
+	_hold_music(false)
+	if _rig != null and should_capture_look_after_unpause(get_tree()):
+		_rig.capture_look_mouse()
 
 
 func _complete_pause() -> void:
 	_fade_dir = 0
 	_apply_amount(1.0)
 	_hold_music(false)
-	get_tree().paused = true
-	_center.visible = true
-	var viewport := get_viewport()
-	if viewport != null:
-		viewport.gui_disable_input = false
-	if _rig != null:
-		_rig.release_look_mouse()
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func _complete_resume() -> void:
 	_fade_dir = 0
 	_apply_amount(0.0)
-	get_tree().paused = false
 	_hold_music(false)
 	visible = false
 	_root.visible = false
 	_center.visible = false
-	if _rig != null and should_capture_look_after_unpause(get_tree()):
-		_rig.capture_look_mouse()
 	_rig = null
 
 
