@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3]
+[gd_scene load_steps=23 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/upgrade_tower_menu.gd" id="1_menu"]
 [ext_resource type="Theme" path="res://themes/hud_theme.tres" id="2_theme"]
@@ -11,6 +11,9 @@
 [ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/keep_going.png" id="9_keep"]
 [ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/keep_going_hover.png" id="10_keep_hover"]
 [ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/keep_going_selected.png" id="11_keep_selected"]
+[ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/wait_until_dawn_moon.png" id="12_moon"]
+[ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/keep_going_chevrons.png" id="13_chevrons"]
+[ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/choose_one_upgrade.png" id="14_choose"]
 
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_card"]
 texture = ExtResource("5_card")
@@ -129,11 +132,14 @@ custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 mouse_filter = 2
 
-[node name="HintLabel" type="Label" parent="Root/Center/FrameHost/Panel/VBox"]
+[node name="HintLabel" type="TextureRect" parent="Root/Center/FrameHost/Panel/VBox"]
+custom_minimum_size = Vector2(412, 28)
 layout_mode = 2
-theme_type_variation = &"HudMuted"
-text = "Choose one upgrade"
-horizontal_alignment = 1
+size_flags_horizontal = 4
+mouse_filter = 2
+texture = ExtResource("14_choose")
+expand_mode = 1
+stretch_mode = 5
 
 [node name="Cards" type="HBoxContainer" parent="Root/Center/FrameHost/Panel/VBox"]
 unique_name_in_owner = true
@@ -394,7 +400,7 @@ alignment = 1
 
 [node name="WaitButton" type="Button" parent="Root/Center/FrameHost/Panel/VBox/Actions"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(226, 38)
+custom_minimum_size = Vector2(271, 38)
 layout_mode = 2
 size_flags_horizontal = 4
 disabled = true
@@ -405,9 +411,20 @@ theme_override_styles/pressed = SubResource("StyleBoxTexture_wait_hover")
 theme_override_styles/disabled = SubResource("StyleBoxTexture_wait")
 theme_override_styles/focus = SubResource("StyleBoxTexture_wait_selected")
 
+[node name="Moon" type="TextureRect" parent="Root/Center/FrameHost/Panel/VBox/Actions/WaitButton"]
+layout_mode = 0
+offset_left = 40.0
+offset_top = 7.0
+offset_right = 64.0
+offset_bottom = 31.0
+mouse_filter = 2
+texture = ExtResource("12_moon")
+expand_mode = 1
+stretch_mode = 5
+
 [node name="KeepButton" type="Button" parent="Root/Center/FrameHost/Panel/VBox/Actions"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(218, 38)
+custom_minimum_size = Vector2(262, 38)
 layout_mode = 2
 size_flags_horizontal = 4
 disabled = true
@@ -417,3 +434,14 @@ theme_override_styles/hover = SubResource("StyleBoxTexture_keep_hover")
 theme_override_styles/pressed = SubResource("StyleBoxTexture_keep_hover")
 theme_override_styles/disabled = SubResource("StyleBoxTexture_keep")
 theme_override_styles/focus = SubResource("StyleBoxTexture_keep_selected")
+
+[node name="Chevrons" type="TextureRect" parent="Root/Center/FrameHost/Panel/VBox/Actions/KeepButton"]
+layout_mode = 0
+offset_left = 168.0
+offset_top = 8.0
+offset_right = 199.0
+offset_bottom = 30.0
+mouse_filter = 2
+texture = ExtResource("13_chevrons")
+expand_mode = 1
+stretch_mode = 5

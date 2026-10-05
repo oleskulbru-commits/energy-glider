@@ -272,6 +272,26 @@ static func bounce_tick_damage(base: int, hop_index: int) -> int:
 	return maxi(1, int(round(float(base) * pow(BOUNCE_DAMAGE_KEEP, hop))))
 
 
+## Closest enemy still in front. Other beams' claims are skipped so a passed
+## lock does not stack every beam on the same crawler. Magnets still steal.
+static func pick_active_target(
+	pills: Array,
+	origin: Vector3,
+	facing: Vector3,
+	range_m: float,
+	exclude: Dictionary
+) -> Node3D:
+	var magnet := WeaponTargeting.find_magnet(pills, origin, facing, range_m)
+	if magnet != null:
+		return magnet
+	var candidates: Array[Node3D] = []
+	for pill in AutoRifle.collect_candidates(pills, origin, facing, range_m):
+		if exclude.has(pill.get_instance_id()):
+			continue
+		candidates.append(pill)
+	return AutoRifle.closest_candidate(candidates, origin)
+
+
 ## Primary lock only. Bounce hops may still overlap other beams' targets.
 static func pick_unique_target(
 	pills: Array,

@@ -27,10 +27,10 @@ const IconHostScript := preload("res://scripts/ui/upgrade_icon_host.gd")
 const PauseMenuScript = preload("res://scripts/ui/pause_menu.gd")
 const HEADER_ORNAMENT := preload("res://assets/ui/upgrade_menu/header_ornament.png")
 const HEADER_DIAMOND := preload("res://assets/ui/upgrade_menu/header_diamond.png")
-const HEADER_TEX := Vector2(990.0, 195.0)
-const HEADER_BAR_X0 := 19.0
+const HEADER_TEX := Vector2(996.0, 181.0)
+const HEADER_BAR_X0 := 24.0
 const HEADER_BAR_X1 := 970.0
-const HEADER_BAR_Y := 173.0
+const HEADER_BAR_Y := 163.0
 const FRAME_SRC_W := 1024.0
 const FRAME_MARGIN_X := 320.0
 const FRAME_STROKE_L := 69.0
@@ -343,7 +343,7 @@ func _place_header_ornament() -> void:
 	)
 	_header.visible = true
 	var slot := _root.get_node_or_null("Center/FrameHost/Panel/VBox/DiamondSlot") as Control
-	var diamond_size := Vector2(104.0, 28.0)
+	var diamond_size := Vector2(104.0, 26.0)
 	_diamond.size = diamond_size
 	var diamond_y := origin.y + FRAME_STROKE_Y + 20.0
 	if slot != null and slot.size.y > 1.0:
