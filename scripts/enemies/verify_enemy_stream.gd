@@ -243,22 +243,42 @@ func _verify_charger() -> void:
 func _verify_leaper() -> void:
 	_fail_unless(LeaperPillScript.MAX_HEALTH == SwarmPillScript.MAX_HEALTH, "Leaper HP should mirror crawler")
 	_fail_unless(is_equal_approx(LeaperPillScript.MOVE_SPEED, 8.0), "Leaper chase speed should be 8 m/s")
-	_fail_unless(is_equal_approx(LeaperPillScript.LEAP_RANGE_M, 15.0), "Leap range should be 15 m")
-	_fail_unless(is_equal_approx(LeaperPillScript.LEAP_MAX_M, 50.0), "Leap travel should cap at 50 m")
+	_fail_unless(is_equal_approx(LeaperPillScript.LEAP_RANGE_MIN_M, 175.0), "Nearest jump should be 175 m")
+	_fail_unless(is_equal_approx(LeaperPillScript.LEAP_RANGE_M, 200.0), "A 200 m jump is the air-time baseline")
+	_fail_unless(is_equal_approx(LeaperPillScript.LEAP_RANGE_MAX_M, 225.0), "Farthest jump should be 225 m")
 	var leaper_ahead := LeaperPillScript.spawn_ahead_range()
-	_fail_unless(is_equal_approx(leaper_ahead.x, 120.0), "Leapers should spawn no closer than 120 m")
 	_fail_unless(
-		is_equal_approx(leaper_ahead.y, SwarmPillScript.SPAWN_AHEAD_MAX_M),
-		"Leaper spawn max should match the ground-monster far edge"
+		is_equal_approx(leaper_ahead.x, LeaperPillScript.LEAP_RANGE_MAX_M)
+		and is_equal_approx(leaper_ahead.y, LeaperPillScript.LEAP_RANGE_MAX_M),
+		"Leapers should spawn at the far end of the jump band"
+	)
+	_fail_unless(is_equal_approx(LeaperPillScript.CHARGE_SEC, 1.0), "Charge should last 1 s")
+	var long_loft := LeaperPillScript.loft_for_span(Vector3.ZERO, Vector3(200.0, 0.0, 0.0))
+	_fail_unless(is_equal_approx(long_loft, 48.0), "A 200 m leap should loft 48 m at the control point")
+	var long_mid := DroneRocket.arc_position(Vector3.ZERO, Vector3(200.0, 0.0, 0.0), 0.5, long_loft)
+	_fail_unless(
+		is_equal_approx(long_mid.y, 24.0),
+		"A 200 m leap should crest about 24 m so it reads as an arc"
+	)
+	var short_loft := LeaperPillScript.loft_for_span(Vector3.ZERO, Vector3(10.0, 0.0, 0.0))
+	_fail_unless(
+		is_equal_approx(short_loft, LeaperPillScript.LOFT_MIN_M),
+		"A short leap should keep a small hop instead of a mortar arc"
+	)
+	_fail_unless(is_equal_approx(LeaperPillScript.LEAP_SEC, 2.0), "A 200 m leap should last 2 s")
+	_fail_unless(
+		is_equal_approx(LeaperPillScript.leap_sec_for_range(200.0), 2.0),
+		"Air time at 200 m should be 2 s"
 	)
 	_fail_unless(
-		leaper_ahead.x > LeaperPillScript.LEAP_RANGE_M,
-		"Leaper spawn min should be outside leap range so they crawl in first"
+		is_equal_approx(LeaperPillScript.leap_sec_for_range(225.0), 2.25),
+		"Air time at 225 m should be 12.5% longer"
 	)
-	_fail_unless(is_equal_approx(LeaperPillScript.CHARGE_SEC, 1.5), "Charge should last 1.5 s")
-	_fail_unless(is_equal_approx(LeaperPillScript.LEAP_SEC, 1.0), "Leap should last 1 s")
+	_fail_unless(
+		is_equal_approx(LeaperPillScript.leap_sec_for_range(175.0), 1.75),
+		"Air time at 175 m should be 12.5% shorter"
+	)
 	_fail_unless(is_equal_approx(LeaperPillScript.RECOVER_SEC, 0.5), "Recover should last 0.5 s")
-	_fail_unless(is_equal_approx(LeaperPillScript.LEAP_COOLDOWN_SEC, 7.0), "Leap cooldown should be 7 s")
 	_fail_unless(is_equal_approx(LeaperPillScript.SPLASH_RADIUS_M, 2.0), "Splash radius should be 2 m")
 	_fail_unless(
 		LeaperPillScript.landing_damage_for(true, true, SwarmPillScript.CONTACT_DAMAGE)
@@ -307,27 +327,23 @@ func _verify_leaper() -> void:
 		origin, Vector3(-80.0, 2.0, 0.0), Vector3(-30.0, 0.0, 10.0)
 	)
 	_fail_unless(
-		is_equal_approx(Vector2(far_aim.x, far_aim.z).length(), 50.0),
-		"A leap at a player 80 m away should land 50 m out"
+		is_equal_approx(far_aim.x, -140.0) and is_equal_approx(far_aim.z, 20.0),
+		"A leap at a player 80 m away should lead two seconds of velocity with no travel cap"
 	)
-	_fail_unless(far_aim.x < 0.0, "A far leap should still go toward the player")
-	_fail_unless(
-		is_equal_approx(far_aim.z, 0.0),
-		"A far leap should aim at the player, not lead their velocity"
-	)
+	_fail_unless(is_equal_approx(far_aim.y, 0.0), "Aim should keep the leaper's Y")
 	var near_aim: Vector3 = LeaperPillScript.landing_aim_xz(
 		origin, Vector3(-10.0, 2.0, 0.0), Vector3.ZERO
 	)
 	_fail_unless(
-		is_equal_approx(near_aim.x, -10.0),
-		"A leap inside 50 m should still intercept the player"
+		is_equal_approx(near_aim.x, -10.0) and is_equal_approx(near_aim.z, 0.0),
+		"A stationary player should be intercepted at their current XZ"
 	)
 	var led_aim: Vector3 = LeaperPillScript.landing_aim_xz(
 		origin, Vector3(-10.0, 2.0, 0.0), Vector3(-80.0, 0.0, 0.0)
 	)
 	_fail_unless(
-		is_equal_approx(Vector2(led_aim.x, led_aim.z).length(), 50.0),
-		"Lead that would overshoot 50 m should clamp to 50 m"
+		is_equal_approx(led_aim.x, -170.0) and is_equal_approx(led_aim.z, 0.0),
+		"Lead past the old 50 m cap should still reach the intercept"
 	)
 
 	var slope_normal := Vector3(0.4, 0.9, 0.0).normalized()
@@ -442,36 +458,44 @@ func _verify_leaper() -> void:
 
 
 	_fail_unless(
-		LeaperPillScript.can_begin_charge(15.0, 0.0),
-		"A leaper at 15 m with cooldown ready should start charging"
+		LeaperPillScript.can_begin_charge(175.0, false, 175.0),
+		"A leaper at its 175 m roll should start charging"
 	)
 	_fail_unless(
-		not LeaperPillScript.can_begin_charge(15.01, 0.0),
-		"A leaper past 15 m should not start a charge"
+		not LeaperPillScript.can_begin_charge(175.01, false, 175.0),
+		"A leaper past its 175 m roll should not start a charge"
 	)
 	_fail_unless(
-		not LeaperPillScript.can_begin_charge(10.0, 1.0),
-		"A leaper on cooldown should not start a charge"
+		LeaperPillScript.can_begin_charge(225.0, false, 225.0),
+		"A leaper at its 225 m roll should start charging"
 	)
 	_fail_unless(
-		LeaperPillScript.charge_committed(true, 80.0),
-		"A started charge should stay committed if the player leaves 15 m"
+		not LeaperPillScript.can_begin_charge(225.01, false, 225.0),
+		"A leaper past its 225 m roll should not start a charge"
 	)
 	_fail_unless(
-		not LeaperPillScript.can_begin_charge(80.0, 0.0),
-		"Leaving 15 m should still block a fresh charge"
+		not LeaperPillScript.can_begin_charge(10.0, true),
+		"A leaper that has already jumped should not charge again"
+	)
+	_fail_unless(
+		LeaperPillScript.charge_committed(true, 250.0),
+		"A started charge should stay committed if the player pulls away"
+	)
+	_fail_unless(
+		not LeaperPillScript.can_begin_charge(225.01, false, 225.0),
+		"Leaving its rolled distance should still block a fresh charge"
 	)
 	_fail_unless(
 		LeaperPillScript.can_begin_charge(
-			LeaperPillScript.range_distance(Vector3(9.0, 0.0, 0.0), Vector3.ZERO), 0.0
+			LeaperPillScript.range_distance(Vector3(9.0, 0.0, 0.0), Vector3.ZERO), false
 		),
 		"A player 9 m away on the ground should be inside the leap sphere"
 	)
 	_fail_unless(
 		not LeaperPillScript.can_begin_charge(
-			LeaperPillScript.range_distance(Vector3(0.0, 16.0, 0.0), Vector3.ZERO), 0.0
+			LeaperPillScript.range_distance(Vector3(0.0, 201.0, 0.0), Vector3.ZERO), false
 		),
-		"A player 16 m straight up should be outside the leap sphere"
+		"A player 201 m straight up should be outside the leap sphere"
 	)
 
 	var land := Vector3.ZERO
