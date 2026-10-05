@@ -8,15 +8,18 @@ const GroundReticleScript := preload("res://scripts/enemies/ground_reticle.gd")
 const MOVE_SPEED := 8.0
 const PILL_COLOR := Color(0.58, 0.18, 0.92)
 const RETICLE_COLOR := Color(0.72, 0.28, 0.98, 0.9)
-const LEAP_RANGE_M := 15.0
-const LEAP_MAX_M := 50.0
-const SPAWN_AHEAD_MIN_M := 120.0
-const CHARGE_SEC := 1.5
-const LEAP_SEC := 1.0
+const LEAP_RANGE_MIN_M := 175.0
+const LEAP_RANGE_M := 200.0
+const LEAP_RANGE_MAX_M := 225.0
+const CHARGE_SEC := 1.0
+## Air time at LEAP_RANGE_M. Other distances scale by distance / LEAP_RANGE_M.
+const LEAP_SEC := 2.0
 const RECOVER_SEC := 0.5
-const LEAP_COOLDOWN_SEC := 7.0
 const SPLASH_RADIUS_M := 2.0
-const LOFT_PEAK_M := 4.0
+## Bezier control height above the higher end. The pill crests at half of this.
+## 0.24 per meter of travel puts a 200 m leap about 24 m up, clear of the dunes.
+const LOFT_PER_METER := 0.24
+const LOFT_MIN_M := 8.0
 const PILL_MESH_RADIUS := 0.38
 const PILL_MESH_HEIGHT := 1.05
 ## Match glider idle settle: below this tangent speed, lead as if the board is still.
@@ -32,7 +35,9 @@ var _pill: MeshInstance3D
 var _charge_left := 0.0
 var _leap_t := 0.0
 var _recover_left := 0.0
-var _cooldown_left := 0.0
+var _has_leapt := false
+var _jump_range_m := LEAP_RANGE_M
+var _leap_sec := LEAP_SEC
 var _leap_origin := Vector3.ZERO
 var _leap_impact := Vector3.ZERO
 var _reticle: GroundReticle
@@ -43,6 +48,8 @@ func _ready() -> void:
 	add_to_group("leaper_pill")
 	_ensure_pill_visual()
 	move_speed = MOVE_SPEED
+	_jump_range_m = _rng.randf_range(LEAP_RANGE_MIN_M, LEAP_RANGE_MAX_M)
+	_leap_sec = leap_sec_for_range(_jump_range_m)
 
 
 func configure(terrain: TerrainManager, target: Node3D, _speed: float = MOVE_SPEED) -> void:
@@ -83,8 +90,6 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 		return
 
-	_cooldown_left = maxf(_cooldown_left - delta, 0.0)
-
 	if leap_state == LeapState.LEAP:
 		_tick_leap(delta)
 		return
@@ -108,7 +113,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _tick_chase(delta: float) -> void:
-	if can_begin_charge(_distance_to_target(), _cooldown_left):
+	if can_begin_charge(_distance_to_target(), _has_leapt, _jump_range_m):
 		_begin_charge()
 		_tick_charge(delta)
 		return
@@ -156,7 +161,7 @@ func _tick_charge(delta: float) -> void:
 
 func _begin_leap() -> void:
 	leap_state = LeapState.LEAP
-	_cooldown_left = LEAP_COOLDOWN_SEC
+	_has_leapt = true
 	_leap_t = 0.0
 	_leap_origin = global_position
 	_leap_impact = landing_point_for(
@@ -164,7 +169,8 @@ func _begin_leap() -> void:
 		_target.global_position,
 		_target_velocity(),
 		_terrain,
-		_collision_bottom_y
+		_collision_bottom_y,
+		_leap_sec
 	)
 	motion_mode = MOTION_MODE_FLOATING
 	_hit_velocity = Vector3.ZERO
@@ -173,12 +179,14 @@ func _begin_leap() -> void:
 
 
 func _tick_leap(delta: float) -> void:
-	_leap_t += delta / LEAP_SEC
+	_leap_t += delta / _leap_sec
 	if _leap_t >= 1.0:
 		global_position = _leap_impact
 		_on_landed()
 		return
-	global_position = DroneRocket.arc_position(_leap_origin, _leap_impact, _leap_t, LOFT_PEAK_M)
+	global_position = DroneRocket.arc_position(
+		_leap_origin, _leap_impact, _leap_t, loft_for_span(_leap_origin, _leap_impact)
+	)
 	var along := Vector3(_leap_impact.x - _leap_origin.x, 0.0, _leap_impact.z - _leap_origin.z)
 	if along.length_squared() > 0.0001:
 		_align_airborne(along.normalized())
@@ -240,7 +248,7 @@ func _place_landing_reticle() -> void:
 		return
 	var reticle: GroundReticle = GroundReticleScript.new()
 	parent.add_child(reticle)
-	reticle.place(_leap_impact, LEAP_SEC, _terrain, RETICLE_COLOR)
+	reticle.place(_leap_impact, _leap_sec, _terrain, RETICLE_COLOR)
 	_reticle = reticle
 
 
@@ -378,6 +386,17 @@ static func lead_velocity_xz(
 	return Vector3(tangent.x, 0.0, tangent.z)
 
 
+static func leap_sec_for_range(
+	range_m: float, base_range_m: float = LEAP_RANGE_M, base_sec: float = LEAP_SEC
+) -> float:
+	return base_sec * (range_m / base_range_m)
+
+
+static func loft_for_span(origin: Vector3, impact: Vector3) -> float:
+	var flat := Vector2(impact.x - origin.x, impact.z - origin.z).length()
+	return maxf(LOFT_MIN_M, flat * LOFT_PER_METER)
+
+
 static func intercept_xz(player_pos: Vector3, player_vel: Vector3, lead_sec: float) -> Vector3:
 	return Vector3(
 		player_pos.x + player_vel.x * lead_sec,
@@ -390,27 +409,10 @@ static func landing_aim_xz(
 	origin: Vector3,
 	player_pos: Vector3,
 	player_vel: Vector3,
-	max_m: float = LEAP_MAX_M,
 	lead_sec: float = LEAP_SEC
 ) -> Vector3:
-	var to_player := Vector3(player_pos.x - origin.x, 0.0, player_pos.z - origin.z)
-	var player_dist := to_player.length()
-	var dir := Vector3.ZERO
-	var travel := 0.0
-	if player_dist > max_m:
-		dir = to_player / player_dist
-		travel = max_m
-	else:
-		var predicted := intercept_xz(player_pos, player_vel, lead_sec)
-		var to_pred := Vector3(predicted.x - origin.x, 0.0, predicted.z - origin.z)
-		var pred_dist := to_pred.length()
-		if pred_dist > 0.0001:
-			dir = to_pred / pred_dist
-			travel = minf(pred_dist, max_m)
-		elif player_dist > 0.0001:
-			dir = to_player / player_dist
-			travel = player_dist
-	return Vector3(origin.x + dir.x * travel, origin.y, origin.z + dir.z * travel)
+	var predicted := intercept_xz(player_pos, player_vel, lead_sec)
+	return Vector3(predicted.x, origin.y, predicted.z)
 
 
 static func landing_point_for(
@@ -419,9 +421,9 @@ static func landing_point_for(
 	player_vel: Vector3,
 	terrain: TerrainManager,
 	collision_bottom_y: float,
-	max_m: float = LEAP_MAX_M
+	lead_sec: float = LEAP_SEC
 ) -> Vector3:
-	var aim := landing_aim_xz(origin, player_pos, player_vel, max_m)
+	var aim := landing_aim_xz(origin, player_pos, player_vel, lead_sec)
 	var land_y := aim.y
 	if terrain != null:
 		land_y = terrain.sample_height(aim.x, aim.z)
@@ -437,9 +439,9 @@ static func range_distance(player_pos: Vector3, pill_pos: Vector3) -> float:
 
 
 static func can_begin_charge(
-	dist_m: float, cooldown_left: float, range_m: float = LEAP_RANGE_M
+	dist_m: float, has_leapt: bool = false, range_m: float = LEAP_RANGE_M
 ) -> bool:
-	return cooldown_left <= 0.0 and dist_m <= range_m
+	return not has_leapt and dist_m <= range_m
 
 
 static func charge_committed(started: bool, _dist_m: float, _range_m: float = LEAP_RANGE_M) -> bool:
@@ -488,4 +490,4 @@ static func landing_owns_hit(
 
 
 static func spawn_ahead_range() -> Vector2:
-	return Vector2(SPAWN_AHEAD_MIN_M, SPAWN_AHEAD_MAX_M)
+	return Vector2(LEAP_RANGE_MAX_M, LEAP_RANGE_MAX_M)
