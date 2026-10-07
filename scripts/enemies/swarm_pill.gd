@@ -12,6 +12,7 @@ const EnemyHitFragmentVfxScript := preload("res://scripts/vfx/enemy_hit_fragment
 const RunDamageStatsScript := preload("res://scripts/game/run_damage_stats.gd")
 const SandParticleVfxScript := preload("res://scripts/vfx/sand_particle_vfx.gd")
 const UpgradeCatalogScript := preload("res://scripts/game/upgrade_catalog.gd")
+const VestigeDropScript := preload("res://scripts/game/vestige_drop.gd")
 
 const SAND_MARKER_NAMES := [
 	"DigDustAnchor",
@@ -827,6 +828,7 @@ func _die(from_pos: Vector3, weapon_family: StringName = &"") -> void:
 		DEATH_BURST_MAX_SHARDS,
 		DebrisBudgetScript.Priority.DEATH_BURST
 	)
+	VestigeDropScript.try_from_corpse(get_tree(), global_position, from_pos, _terrain)
 	died.emit()
 	queue_free()
 

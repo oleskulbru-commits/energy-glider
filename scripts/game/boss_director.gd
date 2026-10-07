@@ -7,17 +7,23 @@ extends Node3D
 signal boss_spawned(boss: Node)
 signal boss_health_changed(current: int, max_hp: int)
 signal boss_despawned
+signal theme_fade_finished
 
 const SunEaterScene := preload("res://scenes/enemies/sun_eater.tscn")
 const EonDirectorScript := preload("res://scripts/game/eon_director.gd")
-const SunEaterTheme := preload("res://assets/audio/music/the_sun_eater_emerges.mp3")
+const SUN_EATER_THEMES: Array[AudioStream] = [
+	preload("res://assets/audio/music/the_sun_eater_emerges.mp3"),
+	preload("res://assets/audio/music/the_sun_eater_2.mp3"),
+	preload("res://assets/audio/music/the_sun_eater_3.mp3"),
+]
 
 const BOSS_TOWER_INDEXES: Array[int] = [8, 9, 17, 25, 33]
 const BOSS_INTERVAL := 8
 const HP_PER_ORDINAL := 5000
+const HP_BONUS := 2000
 const SPAWN_TRIGGER_EAST_M := 200.0
 const SPAWN_EAST_OF_TOWER_M := 100.0
-const THEME_FADE_SEC := 5.0
+const THEME_FADE_SEC := 10.0
 
 @export var player_rig_path: NodePath
 @export var terrain_manager_path: NodePath
@@ -32,7 +38,11 @@ var _living: SunEater
 var _living_tower_index := 0
 var _defeated: Dictionary = {}
 var _theme: AudioStreamPlayer
+var _theme_index := -1
 var _theme_fade_t := -1.0
+var _theme_playlist_active := false
+var _theme_switching := false
+var _theme_audible_while_paused := false
 var _player_death_hooked := false
 
 
@@ -48,11 +58,17 @@ func _ready() -> void:
 		_visit = get_node_or_null(tower_visit_path) as TowerVisitController
 	_theme = AudioStreamPlayer.new()
 	_theme.name = "SunEaterTheme"
-	_theme.stream = SunEaterTheme
-	if _theme.stream is AudioStreamMP3:
-		(_theme.stream as AudioStreamMP3).loop = true
+	for stream in SUN_EATER_THEMES:
+		if stream is AudioStreamMP3:
+			(stream as AudioStreamMP3).loop = false
+	_theme.stream = SUN_EATER_THEMES[0]
 	_theme.volume_db = 0.0
+	_theme.finished.connect(_on_theme_finished)
 	add_child(_theme)
+	var fade_clock := ThemeFadeClock.new()
+	fade_clock.name = "ThemeFadeClock"
+	fade_clock.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(fade_clock)
 	call_deferred("_bind_director")
 
 
@@ -65,10 +81,9 @@ func _bind_director() -> void:
 		_eon.attempt_started.connect(reset_living_boss)
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	_ensure_player_death_hook()
 	_try_spawn()
-	_tick_theme_fade(delta)
 
 
 static func is_boss_tower(tower_index: int) -> bool:
@@ -86,7 +101,7 @@ static func max_health_for_tower(tower_index: int) -> int:
 	var ordinal := boss_ordinal(tower_index)
 	if ordinal <= 0:
 		return 0
-	return HP_PER_ORDINAL * ordinal
+	return HP_PER_ORDINAL * ordinal + HP_BONUS
 
 
 static func spawn_x_for_tower(tower_x: float) -> float:
@@ -229,18 +244,59 @@ func _tower_by_index(index: int) -> UpgradeTower:
 	return null
 
 
-func _play_theme() -> void:
-	if _theme == null:
+func _play_theme(theme_index: int = -1) -> void:
+	if _theme == null or SUN_EATER_THEMES.is_empty():
 		return
+	var index := theme_index
+	if index < 0 or index >= SUN_EATER_THEMES.size():
+		index = randi() % SUN_EATER_THEMES.size()
+	_theme_playlist_active = true
 	_theme_fade_t = -1.0
+	_apply_theme_process_mode()
 	_theme.volume_db = 0.0
+	_start_theme_at(index)
+
+
+func _start_theme_at(index: int) -> void:
+	if _theme == null or SUN_EATER_THEMES.is_empty():
+		return
+	_theme_index = posmod(index, SUN_EATER_THEMES.size())
+	var stream := SUN_EATER_THEMES[_theme_index]
+	if stream is AudioStreamMP3:
+		(stream as AudioStreamMP3).loop = false
+	_theme_switching = true
+	_theme.stream = stream
 	_theme.play()
+	_theme_switching = false
+
+
+func _on_theme_finished() -> void:
+	if _theme_switching or not _theme_playlist_active or _theme == null:
+		return
+	if SUN_EATER_THEMES.is_empty():
+		return
+	var volume := _theme.volume_db
+	var mode := _theme.process_mode
+	_start_theme_at(_theme_index + 1)
+	_theme.volume_db = volume
+	_theme.process_mode = mode
+
+
+func is_theme_playing() -> bool:
+	return _theme != null and _theme.playing
+
+
+func set_audible_while_paused(audible: bool) -> void:
+	_theme_audible_while_paused = audible
+	_apply_theme_process_mode()
 
 
 func _fade_theme() -> void:
 	if _theme == null or not _theme.playing or _theme_fade_t >= 0.0:
 		return
+	# The upgrade menu pauses the tree on the next frame. Stay audible through that pause.
 	_theme_fade_t = THEME_FADE_SEC
+	_apply_theme_process_mode()
 	_theme.volume_db = 0.0
 
 
@@ -249,11 +305,23 @@ func _tick_theme_fade(delta: float) -> void:
 		return
 	_theme_fade_t = maxf(_theme_fade_t - delta, 0.0)
 	if _theme_fade_t <= 0.0:
+		_theme_playlist_active = false
 		_theme.stop()
 		_theme.volume_db = 0.0
 		_theme_fade_t = -1.0
+		_apply_theme_process_mode()
+		theme_fade_finished.emit()
 		return
 	_theme.volume_db = linear_to_db(_theme_fade_t / THEME_FADE_SEC)
+
+
+func _apply_theme_process_mode() -> void:
+	if _theme == null:
+		return
+	var through_pause := _theme_audible_while_paused or _theme_fade_t >= 0.0
+	_theme.process_mode = (
+		Node.PROCESS_MODE_ALWAYS if through_pause else Node.PROCESS_MODE_PAUSABLE
+	)
 
 
 func _ensure_player_death_hook() -> void:
@@ -274,6 +342,14 @@ func _on_player_run_ended() -> void:
 	if str(player.call("get_end_reason")) != "death":
 		return
 	_fade_theme()
+
+
+class ThemeFadeClock extends Node:
+	func _process(delta: float) -> void:
+		var director := get_parent() as BossDirector
+		if director == null:
+			return
+		director._tick_theme_fade(delta)
 
 
 func _player_body() -> Node3D:

@@ -6,6 +6,9 @@ extends SubViewportContainer
 
 
 func _ready() -> void:
+	var window := get_window()
+	if window != null:
+		window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	texture_filter = TEXTURE_FILTER_NEAREST

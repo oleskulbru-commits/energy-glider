@@ -1,0 +1,190 @@
+[gd_scene load_steps=22 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/main_menu.gd" id="1_menu"]
+[ext_resource type="Shader" path="res://shaders/black_key.gdshader" id="2_key"]
+[ext_resource type="Shader" path="res://shaders/hover_glow.gdshader" id="2_hover"]
+[ext_resource type="Texture2D" path="res://assets/ui/main_menu/background.jpg" id="3_bg"]
+[ext_resource type="Texture2D" path="res://assets/ui/main_menu/play.jpg" id="4_play"]
+[ext_resource type="Texture2D" path="res://assets/ui/main_menu/unlocks.png" id="5_unlocks"]
+[ext_resource type="Texture2D" path="res://assets/ui/main_menu/quit.png" id="6_quit"]
+[ext_resource type="Texture2D" path="res://assets/ui/main_menu/hover_glow.png" id="7_glow"]
+[ext_resource type="Texture2D" path="res://assets/ui/main_menu/hover_glow_small.png" id="7_glow_small"]
+[ext_resource type="Texture2D" path="res://assets/ui/main_menu/vestiges.jpg" id="8_vestiges"]
+[ext_resource type="FontFile" path="res://assets/fonts/Rajdhani-Bold.ttf" id="9_font"]
+[ext_resource type="AudioStream" path="res://assets/audio/ui/main_menu_theme.mp3" id="10_theme"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_key"]
+shader = ExtResource("2_key")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_hover"]
+shader = ExtResource("2_hover")
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_btn"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_play"]
+atlas = ExtResource("4_play")
+region = Rect2(8, 56, 1008, 216)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_unlocks"]
+atlas = ExtResource("5_unlocks")
+region = Rect2(8, 84, 1008, 168)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_quit"]
+atlas = ExtResource("6_quit")
+region = Rect2(8, 78, 1008, 184)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_glow"]
+atlas = ExtResource("7_glow")
+region = Rect2(8, 48, 1008, 230)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_glow_small"]
+atlas = ExtResource("7_glow_small")
+region = Rect2(8, 60, 1008, 216)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_vestiges"]
+atlas = ExtResource("8_vestiges")
+region = Rect2(176, 106, 738, 798)
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_menu")
+play_hover_texture = SubResource("AtlasTexture_glow")
+small_hover_texture = SubResource("AtlasTexture_glow_small")
+
+[node name="Background" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("3_bg")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="HoverGlow" type="TextureRect" parent="."]
+unique_name_in_owner = true
+visible = false
+z_index = 1
+layout_mode = 0
+mouse_filter = 2
+material = SubResource("ShaderMaterial_hover")
+texture = SubResource("AtlasTexture_glow")
+expand_mode = 1
+stretch_mode = 0
+
+[node name="Buttons" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 9
+anchor_bottom = 1.0
+offset_left = 72.0
+offset_right = 832.0
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="PlayButton" type="TextureButton" parent="Buttons"]
+unique_name_in_owner = true
+modulate = Color(0.58, 0.52, 0.44, 1)
+custom_minimum_size = Vector2(760, 163)
+layout_mode = 2
+focus_neighbor_top = NodePath("../QuitButton")
+focus_neighbor_bottom = NodePath("../UnlocksButton")
+focus_next = NodePath("../UnlocksButton")
+focus_previous = NodePath("../QuitButton")
+mouse_default_cursor_shape = 2
+texture_normal = SubResource("AtlasTexture_play")
+ignore_texture_size = true
+stretch_mode = 5
+material = SubResource("ShaderMaterial_key")
+theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
+
+[node name="UnlocksButton" type="TextureButton" parent="Buttons"]
+unique_name_in_owner = true
+modulate = Color(0.58, 0.52, 0.44, 1)
+custom_minimum_size = Vector2(760, 127)
+layout_mode = 2
+focus_neighbor_top = NodePath("../PlayButton")
+focus_neighbor_bottom = NodePath("../QuitButton")
+focus_next = NodePath("../QuitButton")
+focus_previous = NodePath("../PlayButton")
+mouse_default_cursor_shape = 2
+texture_normal = SubResource("AtlasTexture_unlocks")
+ignore_texture_size = true
+stretch_mode = 5
+material = SubResource("ShaderMaterial_key")
+theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
+
+[node name="QuitButton" type="TextureButton" parent="Buttons"]
+unique_name_in_owner = true
+modulate = Color(0.58, 0.52, 0.44, 1)
+custom_minimum_size = Vector2(760, 139)
+layout_mode = 2
+focus_neighbor_top = NodePath("../UnlocksButton")
+focus_neighbor_bottom = NodePath("../PlayButton")
+focus_next = NodePath("../PlayButton")
+focus_previous = NodePath("../UnlocksButton")
+mouse_default_cursor_shape = 2
+texture_normal = SubResource("AtlasTexture_quit")
+ignore_texture_size = true
+stretch_mode = 5
+material = SubResource("ShaderMaterial_key")
+theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
+
+[node name="Vestiges" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -360.0
+offset_top = 28.0
+offset_right = -40.0
+offset_bottom = 148.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_override_constants/separation = 12
+alignment = 2
+
+[node name="VestigesLabel" type="Label" parent="Vestiges"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_colors/font_color = Color(0.97, 0.94, 0.86, 1)
+theme_override_fonts/font = ExtResource("9_font")
+theme_override_font_sizes/font_size = 54
+text = "0"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="VestigesIcon" type="TextureRect" parent="Vestiges"]
+custom_minimum_size = Vector2(102, 110)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+material = SubResource("ShaderMaterial_key")
+texture = SubResource("AtlasTexture_vestiges")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="MenuTheme" type="AudioStreamPlayer" parent="."]
+unique_name_in_owner = true
+stream = ExtResource("10_theme")

@@ -158,7 +158,6 @@ func _close() -> void:
 	if _rig != null and PauseMenuScript.should_capture_look_after_unpause(get_tree()):
 		_rig.capture_look_mouse()
 	_schedule_eon_voice()
-	get_tree().call_group("gameplay_music", "start_run_music")
 
 
 func _set_weapon_overlay_input_blocked(blocked: bool) -> void:

@@ -24,16 +24,11 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/pause_menu.tscn" id="23_pause_menu"]
 [ext_resource type="Script" path="res://scripts/world/bonus_tower_garrison.gd" id="24_garrison"]
 [ext_resource type="Script" path="res://scripts/game/boss_director.gd" id="25_boss"]
-[ext_resource type="Script" path="res://scripts/audio/gameplay_music.gd" id="25_gameplay_music"]
-[ext_resource type="AudioStream" uid="uid://djbrwqnhdw2t7" path="res://assets/sound/music/Mars Horizon.mp3" id="26_mars_horizon"]
+[ext_resource type="Script" uid="uid://br2ltprnynwxd" path="res://scripts/game/glide_music.gd" id="26_glide_music"]
+[ext_resource type="Script" path="res://scripts/game/vestige_wallet.gd" id="27_vestige"]
+[ext_resource type="PackedScene" path="res://scenes/ui/vestige_corner.tscn" id="28_vestige_corner"]
 
 [node name="GameWorld" type="Node3D"]
-
-[node name="GameplayMusic" type="AudioStreamPlayer" parent="."]
-script = ExtResource("25_gameplay_music")
-stream = ExtResource("26_mars_horizon")
-music_stream = ExtResource("26_mars_horizon")
-volume_db = -18.0
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = ExtResource("19_env")
@@ -65,6 +60,9 @@ script = ExtResource("13_expedition")
 player_rig_path = NodePath("../PlayerRig")
 run_score_path = NodePath("../RunScore")
 day_night_path = NodePath("../DayNightCycle")
+
+[node name="VestigeWallet" type="Node" parent="."]
+script = ExtResource("27_vestige")
 
 [node name="EonDirector" type="Node" parent="."]
 script = ExtResource("15_eon")
@@ -119,10 +117,15 @@ terrain_manager_path = NodePath("../TerrainManager")
 eon_director_path = NodePath("../EonDirector")
 tower_visit_path = NodePath("../TowerVisitController")
 
+[node name="GlideMusic" type="Node" parent="."]
+script = ExtResource("26_glide_music")
+
 [node name="RunUpgradeState" type="Node" parent="."]
 script = ExtResource("19_upgrades")
 
 [node name="UpgradeTowerMenu" parent="." instance=ExtResource("21_upgrade_menu")]
+
+[node name="VestigeCorner" parent="." instance=ExtResource("28_vestige_corner")]
 
 [node name="WeaponSelectMenu" parent="." instance=ExtResource("22_weapon_select")]
 

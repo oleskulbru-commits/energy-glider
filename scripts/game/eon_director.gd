@@ -243,13 +243,42 @@ func request_try_again() -> void:
 
 
 const RUN_SESSION_PATH := "user://run_session.cfg"
+const MAIN_MENU_SCENE := "res://scenes/ui/main_menu.tscn"
+
+
+func request_main_menu() -> void:
+	_deposit_vestige_run()
+	var tree := get_tree()
+	if tree == null:
+		return
+	tree.paused = false
+	tree.change_scene_to_file(MAIN_MENU_SCENE)
 
 
 func request_restart() -> void:
+	_deposit_vestige_run()
 	var cfg := ConfigFile.new()
 	cfg.set_value("terrain", "world_seed", randi())
 	cfg.save(RUN_SESSION_PATH)
 	get_tree().reload_current_scene()
+
+
+func _deposit_vestige_run() -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	var wallet := tree.get_first_node_in_group("vestige_wallet")
+	if wallet != null and wallet.has_method("deposit_run"):
+		wallet.deposit_run()
+
+
+func _clear_vestige_spheres() -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	var wallet := tree.get_first_node_in_group("vestige_wallet")
+	if wallet != null and wallet.has_method("clear_uncollected"):
+		wallet.clear_uncollected()
 
 
 func kill_player_for_debug() -> void:
@@ -322,6 +351,7 @@ func _on_player_run_ended() -> void:
 		return
 	if awaiting_death_choice:
 		return
+	_clear_vestige_spheres()
 	death_position = _rig.get_tracking_position() if _rig != null else Vector3.ZERO
 	# Only re-drop at death if the E.O.N was collected this attempt (despawned).
 	# If it is already on the ground awaiting pickup, leave it where it is.
@@ -331,6 +361,8 @@ func _on_player_run_ended() -> void:
 	if should_apply_integrity_loss_on_death(_run_bootstrapped):
 		integrity = apply_death_integrity_loss(integrity)
 		integrity_changed.emit(integrity)
+		if integrity <= 0:
+			_deposit_vestige_run()
 	if death_overlay_delay_sec <= 0.0:
 		death_fade_active = true
 		_show_death_overlay()

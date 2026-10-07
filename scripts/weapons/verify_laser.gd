@@ -20,6 +20,7 @@ func _run() -> void:
 	_verify_dead_hop_does_not_freeze()
 	_verify_bounce_crits_are_independent()
 	_verify_unique_primary_locks()
+	_verify_idle_beam_follows_active_targets()
 	_verify_chamber_semantics()
 	print("Laser verification passed.")
 	quit(0)
@@ -257,6 +258,46 @@ func _verify_bounce_crits_are_independent() -> void:
 		"A later bounce should still be able to crit on its own"
 	)
 	bullet.free()
+
+
+func _verify_idle_beam_follows_active_targets() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1
+	var passed: SwarmPill = SwarmPillScript.new()
+	var ahead: SwarmPill = SwarmPillScript.new()
+	var closer: SwarmPill = SwarmPillScript.new()
+	root.add_child(passed)
+	root.add_child(ahead)
+	root.add_child(closer)
+	# Godot forward is -Z. +Z is behind the glider.
+	passed.global_position = Vector3(0.0, 0.0, 8.0)
+	ahead.global_position = Vector3(0.0, 0.0, -20.0)
+	closer.global_position = Vector3(0.0, 0.0, -8.0)
+	var beam: LaserBeam = LaserBeamScript.new()
+	root.add_child(beam)
+	beam.begin(2.0, passed, 0.0, 0.0, rng, 0, 20.0, [passed, ahead], 45.0)
+	var before: float = beam.get("_fire_left")
+	beam.advance(0.016, Vector3.ZERO, Vector3.FORWARD, [passed, ahead], rng, 0.0, 0.0, 45.0)
+	_fail_unless(
+		beam.get("_target") == ahead,
+		"Idle laser should leave a target it has passed and finish the shot on one still in front"
+	)
+	_fail_unless(
+		not beam.finished and float(beam.get("_fire_left")) < before,
+		"Retargeting should keep the remaining fire time"
+	)
+	beam.begin(2.0, ahead, 0.0, 0.0, rng, 0, 20.0, [passed, ahead, closer], 45.0)
+	beam.advance(
+		0.016, Vector3.ZERO, Vector3.FORWARD, [passed, ahead, closer], rng, 0.0, 0.0, 45.0
+	)
+	_fail_unless(
+		beam.get("_target") == closer,
+		"Idle laser should move to the closest enemy still in front"
+	)
+	beam.free()
+	passed.free()
+	ahead.free()
+	closer.free()
 
 
 func _verify_unique_primary_locks() -> void:

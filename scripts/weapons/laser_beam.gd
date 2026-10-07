@@ -76,8 +76,8 @@ func advance(
 	var owner := get_parent() as AutoLaser
 	if owner != null and owner.is_weapon_aiming():
 		_follow_aim_lock(origin, facing, pills, rng)
-	elif not _is_target_alive():
-		_retarget(origin, facing, pills, rng)
+	else:
+		_follow_active_targets(origin, facing, pills, rng)
 	if _is_target_alive():
 		_show_beam(origin, _aim_point())
 		_show_hops()
@@ -121,17 +121,22 @@ func _follow_aim_lock(
 	_rebuild_hops(pills, rng)
 
 
-func _retarget(
+## Idle beams keep a lock only while it is still in front. Once it is passed,
+## the rest of the shot moves to the closest enemy that is still active.
+func _follow_active_targets(
 	origin: Vector3, facing: Vector3, pills: Array, rng: RandomNumberGenerator
 ) -> void:
 	var owner := get_parent() as AutoLaser
 	var exclude: Dictionary = {}
 	if owner != null:
-		owner._release_primary(self)
 		exclude = owner._claimed_lock_ids()
-	var next := AutoLaser.pick_unique_target(
-		pills, origin, facing, _acquire_range, exclude, rng
-	)
+		if _is_target_alive():
+			exclude.erase(_target.get_instance_id())
+	var next := AutoLaser.pick_active_target(pills, origin, facing, _acquire_range, exclude)
+	if next == _target:
+		return
+	if owner != null:
+		owner._release_primary(self)
 	_target = next
 	if owner != null and next != null:
 		owner._claim_primary(self, next)
