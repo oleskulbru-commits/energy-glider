@@ -42,19 +42,19 @@ func _verify_quota() -> void:
 
 func _verify_chance() -> void:
 	_fail_unless(
-		is_equal_approx(VestigeDropScript.drop_chance(1, 0), 0.25),
-		"The first tower in a band should drop at 25%"
+		is_equal_approx(VestigeDropScript.drop_chance(1, 0), 0.125),
+		"The first tower in a band should drop at 12.5%"
 	)
 	_fail_unless(
-		is_equal_approx(VestigeDropScript.drop_chance(8, 0), 0.12),
-		"The eighth tower in a band should drop at 12%"
+		is_equal_approx(VestigeDropScript.drop_chance(8, 0), 0.06),
+		"The eighth tower in a band should drop at 6%"
 	)
 	_fail_unless(
-		is_equal_approx(VestigeDropScript.drop_chance(9, 0), 0.25),
+		is_equal_approx(VestigeDropScript.drop_chance(9, 0), 0.125),
 		"Tower 9 should use the high chance again"
 	)
 	_fail_unless(
-		is_equal_approx(VestigeDropScript.drop_chance(16, 0), 0.12),
+		is_equal_approx(VestigeDropScript.drop_chance(16, 0), 0.06),
 		"Tower 16 should use the low on-budget chance"
 	)
 	_fail_unless(
@@ -65,8 +65,8 @@ func _verify_chance() -> void:
 		is_equal_approx(VestigeDropScript.drop_chance(9, 2), VestigeDropScript.PITY_CHANCE),
 		"After two drops, tower 9 should fall to the pity chance"
 	)
-	_fail_unless(VestigeDropScript.should_drop(1, 0, 0.249), "A roll under 25% should drop")
-	_fail_unless(not VestigeDropScript.should_drop(1, 0, 0.25), "A roll at 25% should miss")
+	_fail_unless(VestigeDropScript.should_drop(1, 0, 0.124), "A roll under 12.5% should drop")
+	_fail_unless(not VestigeDropScript.should_drop(1, 0, 0.125), "A roll at 12.5% should miss")
 	_fail_unless(VestigeDropScript.should_drop(1, 1, 0.004), "Pity should still allow a rare drop")
 	_fail_unless(not VestigeDropScript.should_drop(1, 1, 0.005), "A roll at the pity chance should miss")
 

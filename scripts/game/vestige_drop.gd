@@ -4,8 +4,8 @@ extends RefCounted
 ## Ground-kill Vestige rolls. Quota is spent when the sphere drops, not when it is picked up.
 
 const BAND_SIZE := 8
-const CHANCE_PLACE_1 := 0.25
-const CHANCE_PLACE_8 := 0.12
+const CHANCE_PLACE_1 := 0.125
+const CHANCE_PLACE_8 := 0.06
 const PITY_CHANCE := 0.005
 
 const VestigeWalletScript := preload("res://scripts/game/vestige_wallet.gd")
