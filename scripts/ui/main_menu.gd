@@ -16,6 +16,7 @@ var vestiges: int = 0
 
 @onready var _play_button: TextureButton = %PlayButton
 @onready var _unlocks_button: TextureButton = %UnlocksButton
+@onready var _options_button: TextureButton = %OptionsButton
 @onready var _quit_button: TextureButton = %QuitButton
 @onready var _hover_glow: TextureRect = %HoverGlow
 @onready var _vestiges_label: Label = %VestigesLabel
@@ -31,11 +32,12 @@ var _starting_game := false
 func _ready() -> void:
 	_cover_window()
 	get_tree().root.size_changed.connect(_cover_window)
-	_buttons = [_play_button, _unlocks_button, _quit_button]
+	_buttons = [_play_button, _unlocks_button, _options_button, _quit_button]
 	vestiges = VestigeBankScript.get_total()
 	_vestiges_label.text = str(vestiges)
 	_play_button.pressed.connect(_on_play_pressed)
 	_unlocks_button.pressed.connect(_on_unlocks_pressed)
+	_options_button.pressed.connect(_on_options_pressed)
 	_quit_button.pressed.connect(_on_quit_pressed)
 	for button in _buttons:
 		button.mouse_entered.connect(_on_button_mouse_entered.bind(button))
@@ -91,6 +93,10 @@ func _start_game() -> void:
 
 
 func _on_unlocks_pressed() -> void:
+	pass
+
+
+func _on_options_pressed() -> void:
 	pass
 
 
