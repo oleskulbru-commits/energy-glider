@@ -339,6 +339,7 @@ func _die(from_pos: Vector3, _weapon_family: StringName = &"") -> void:
 		collision.disabled = true
 	if _pill != null:
 		_pill.visible = false
+	VestigeDropScript.try_from_corpse(get_tree(), global_position, from_pos, _terrain)
 	died.emit()
 	queue_free()
 

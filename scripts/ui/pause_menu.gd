@@ -7,6 +7,7 @@ const FADE_SEC := 0.5
 @onready var _dim: ColorRect = %Dim
 @onready var _center: Control = %Center
 @onready var _resume_button: Button = %ResumeButton
+@onready var _main_menu_button: Button = %MainMenuButton
 
 var _rig: PlayerRig
 var _fade_dir := 0
@@ -30,6 +31,7 @@ func _ready() -> void:
 	if _master_bus >= 0:
 		_master_db = AudioServer.get_bus_volume_db(_master_bus)
 	_resume_button.pressed.connect(_on_resume_pressed)
+	_main_menu_button.pressed.connect(_on_main_menu_pressed)
 
 
 func _process(delta: float) -> void:
@@ -199,3 +201,16 @@ func _find_player_rig() -> PlayerRig:
 
 func _on_resume_pressed() -> void:
 	close()
+
+
+func _on_main_menu_pressed() -> void:
+	_fade_dir = 0
+	_apply_amount(0.0)
+	_hold_music(false)
+	var tree := get_tree()
+	if tree == null:
+		return
+	tree.paused = false
+	var director := tree.get_first_node_in_group("eon_director")
+	if director != null and director.has_method("request_main_menu"):
+		director.request_main_menu()

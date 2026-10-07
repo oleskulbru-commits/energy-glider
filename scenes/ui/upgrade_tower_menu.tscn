@@ -35,9 +35,9 @@ texture_margin_top = 88.0
 texture_margin_right = 320.0
 texture_margin_bottom = 80.0
 content_margin_left = 76.0
-content_margin_top = 50.0
+content_margin_top = 66.0
 content_margin_right = 76.0
-content_margin_bottom = 48.0
+content_margin_bottom = 34.0
 draw_center = true
 
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_wait"]
@@ -96,6 +96,7 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_top = 160.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 0

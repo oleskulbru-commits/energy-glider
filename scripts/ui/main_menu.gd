@@ -1,6 +1,7 @@
 extends Control
 
 const GAME_SCENE := "res://scenes/main.tscn"
+const VestigeBankScript := preload("res://scripts/game/vestige_bank.gd")
 const REST_MODULATE := Color(0.58, 0.52, 0.44, 1.0)
 const LIT_MODULATE := Color(1.0, 1.0, 1.0, 1.0)
 const GLOW_PAD_SCALE := 0.06
@@ -31,6 +32,7 @@ func _ready() -> void:
 	_cover_window()
 	get_tree().root.size_changed.connect(_cover_window)
 	_buttons = [_play_button, _unlocks_button, _quit_button]
+	vestiges = VestigeBankScript.get_total()
 	_vestiges_label.text = str(vestiges)
 	_play_button.pressed.connect(_on_play_pressed)
 	_unlocks_button.pressed.connect(_on_unlocks_pressed)

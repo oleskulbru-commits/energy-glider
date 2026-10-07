@@ -25,6 +25,8 @@
 [ext_resource type="Script" path="res://scripts/world/bonus_tower_garrison.gd" id="24_garrison"]
 [ext_resource type="Script" path="res://scripts/game/boss_director.gd" id="25_boss"]
 [ext_resource type="Script" uid="uid://br2ltprnynwxd" path="res://scripts/game/glide_music.gd" id="26_glide_music"]
+[ext_resource type="Script" path="res://scripts/game/vestige_wallet.gd" id="27_vestige"]
+[ext_resource type="PackedScene" path="res://scenes/ui/vestige_corner.tscn" id="28_vestige_corner"]
 
 [node name="GameWorld" type="Node3D"]
 
@@ -58,6 +60,9 @@ script = ExtResource("13_expedition")
 player_rig_path = NodePath("../PlayerRig")
 run_score_path = NodePath("../RunScore")
 day_night_path = NodePath("../DayNightCycle")
+
+[node name="VestigeWallet" type="Node" parent="."]
+script = ExtResource("27_vestige")
 
 [node name="EonDirector" type="Node" parent="."]
 script = ExtResource("15_eon")
@@ -119,6 +124,8 @@ script = ExtResource("26_glide_music")
 script = ExtResource("19_upgrades")
 
 [node name="UpgradeTowerMenu" parent="." instance=ExtResource("21_upgrade_menu")]
+
+[node name="VestigeCorner" parent="." instance=ExtResource("28_vestige_corner")]
 
 [node name="WeaponSelectMenu" parent="." instance=ExtResource("22_weapon_select")]
 
