@@ -88,6 +88,11 @@ func _verify_wallet_spends_on_drop() -> void:
 	wallet.call("_on_player_died", Vector3.ZERO)
 	_fail_unless(sphere.is_queued_for_deletion(), "Death should clear uncollected spheres")
 	_fail_unless(wallet.get_balance() == 1, "Death should keep the collected balance")
+	var late := VestigePickupScript.new()
+	root.add_child(late)
+	late.discard()
+	late.call("_collect")
+	_fail_unless(wallet.get_balance() == 1, "A sphere discarded at run end should not be collected")
 	wallet.free()
 
 

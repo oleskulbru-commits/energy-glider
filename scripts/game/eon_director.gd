@@ -272,6 +272,15 @@ func _deposit_vestige_run() -> void:
 		wallet.deposit_run()
 
 
+func _clear_vestige_spheres() -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	var wallet := tree.get_first_node_in_group("vestige_wallet")
+	if wallet != null and wallet.has_method("clear_uncollected"):
+		wallet.clear_uncollected()
+
+
 func kill_player_for_debug() -> void:
 	var glider := _get_glider()
 	if glider != null and not glider.is_run_ended():
@@ -342,6 +351,7 @@ func _on_player_run_ended() -> void:
 		return
 	if awaiting_death_choice:
 		return
+	_clear_vestige_spheres()
 	death_position = _rig.get_tracking_position() if _rig != null else Vector3.ZERO
 	# Only re-drop at death if the E.O.N was collected this attempt (despawned).
 	# If it is already on the ground awaiting pickup, leave it where it is.

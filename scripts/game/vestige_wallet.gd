@@ -52,7 +52,9 @@ func clear_uncollected() -> void:
 	if tree == null:
 		return
 	for node in tree.get_nodes_in_group("vestige_pickup"):
-		if node != null and is_instance_valid(node):
+		if node != null and is_instance_valid(node) and node.has_method("discard"):
+			node.discard()
+		elif node != null and is_instance_valid(node):
 			node.queue_free()
 
 

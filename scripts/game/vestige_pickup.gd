@@ -84,6 +84,9 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if _collected:
 		return
+	if _run_has_ended():
+		discard()
+		return
 	if _is_abandoned():
 		queue_free()
 		return
@@ -118,6 +121,12 @@ func _tick_pull(delta: float) -> void:
 		_collect()
 		return
 	global_position += to / dist * PULL_SPEED * delta
+
+
+func discard() -> void:
+	_collected = true
+	set_physics_process(false)
+	queue_free()
 
 
 func _collect() -> void:
@@ -160,6 +169,11 @@ func _is_abandoned() -> bool:
 		global_position,
 		DESPAWN_BEHIND_M
 	)
+
+
+func _run_has_ended() -> bool:
+	var body := _player_body()
+	return body != null and body.has_method("is_run_ended") and body.is_run_ended()
 
 
 func _player_body() -> Node3D:
