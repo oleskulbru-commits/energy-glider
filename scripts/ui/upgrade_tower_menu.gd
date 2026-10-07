@@ -38,7 +38,6 @@ const FRAME_STROKE_R := 954.0
 const FRAME_STROKE_Y := 37.0
 
 @onready var _root: Control = %Root
-@onready var _title: Label = %TitleLabel
 @onready var _cards: HBoxContainer = %Cards
 @onready var _wait_button: Button = %WaitButton
 @onready var _keep_button: Button = %KeepButton
@@ -169,11 +168,6 @@ func _refresh_cards() -> void:
 		_wait_button.modulate = EMPTY_MODULATE if _wait_button.disabled else Color.WHITE
 	_keep_button.disabled = not can_confirm
 	_keep_button.modulate = EMPTY_MODULATE if _keep_button.disabled else Color.WHITE
-	if _tower != null:
-		if bonus_stop:
-			_title.text = "BONUS TOWER"
-		else:
-			_title.text = "TOWER %d" % _tower.tower_index
 	call_deferred("_place_selection_glow")
 
 

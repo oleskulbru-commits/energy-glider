@@ -69,8 +69,12 @@ func _verify_tracks() -> void:
 		"Aggressive chillstep should sit in the dune playlist"
 	)
 	_fail_unless(
+		is_equal_approx(GlideMusicScript.OPENING_FADE_SEC, 30.0),
+		"The first song should fade in over 30 seconds from game start"
+	)
+	_fail_unless(
 		is_equal_approx(GlideMusicScript.ENTRANCE_FADE_SEC, 10.0),
-		"Glide music should fade in over 10 seconds"
+		"Try Again should fade the first song in over 10 seconds"
 	)
 	_fail_unless(is_equal_approx(GlideMusicScript.FADE_OUT_SEC, 2.0), "Glide music should fade out over 2 seconds")
 
@@ -83,19 +87,17 @@ func _verify_delayed_fade_in() -> void:
 		player.process_mode == Node.PROCESS_MODE_PAUSABLE,
 		"The pause menu should be able to suspend glide music"
 	)
-	_fail_unless(not player.playing, "Glide music should stay silent before the E.O.N. is picked up")
-	music.call("_tick", 30.0)
-	_fail_unless(not player.playing, "Time passing should not start glide music before the first pickup")
-	music.call("_on_attempt_started")
-	music.call("_tick", GlideMusicScript.ENTRANCE_FADE_SEC)
-	_fail_unless(not player.playing, "Try Again before the first pickup should stay silent")
+	_fail_unless(player.playing, "The first song should start at game start")
+	_fail_unless(player.volume_db < -20.0, "The opening fade should start quiet")
+	music.call("_tick", GlideMusicScript.OPENING_FADE_SEC * 0.5)
+	_fail_unless(player.volume_db < -3.0, "The opening fade should still be going after 15 seconds")
 	music.call("_on_eon_collected")
-	_fail_unless(player.playing, "Glide music should start when the E.O.N. is picked up")
-	_fail_unless(player.volume_db < -20.0, "Glide music should start quiet and fade in")
-	music.call("_tick", GlideMusicScript.ENTRANCE_FADE_SEC * 0.5)
-	_fail_unless(player.volume_db < -3.0, "Glide music should still be fading halfway through the entrance")
-	music.call("_tick", GlideMusicScript.ENTRANCE_FADE_SEC * 0.5)
-	_fail_unless(is_equal_approx(player.volume_db, 0.0), "Glide music should reach full volume")
+	_fail_unless(
+		player.volume_db < -3.0,
+		"Picking up the E.O.N. should not restart the opening fade"
+	)
+	music.call("_tick", GlideMusicScript.OPENING_FADE_SEC * 0.5)
+	_fail_unless(is_equal_approx(player.volume_db, 0.0), "The opening fade should reach full volume after 30 seconds")
 	_fail_unless(int(music.get("_phase")) == GlideMusicScript.Phase.PLAYING, "Fade in should settle into playback")
 	music.call("_on_eon_collected")
 	_fail_unless(is_equal_approx(player.volume_db, 0.0), "Picking the E.O.N. up again should not restart the fade")
@@ -388,8 +390,7 @@ func _verify_level_crossing_does_not_cut() -> void:
 
 
 func _reach_full_volume(music: GlideMusic) -> void:
-	music.call("_on_eon_collected")
-	music.call("_tick", GlideMusicScript.ENTRANCE_FADE_SEC)
+	music.call("_tick", GlideMusicScript.OPENING_FADE_SEC)
 
 
 func _make_music() -> GlideMusic:

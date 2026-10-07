@@ -1,4 +1,4 @@
-[gd_scene load_steps=23 format=3]
+[gd_scene load_steps=24 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/upgrade_tower_menu.gd" id="1_menu"]
 [ext_resource type="Theme" path="res://themes/hud_theme.tres" id="2_theme"]
@@ -14,6 +14,7 @@
 [ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/wait_until_dawn_moon.png" id="12_moon"]
 [ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/keep_going_chevrons.png" id="13_chevrons"]
 [ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/choose_one_upgrade.png" id="14_choose"]
+[ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/upgrade_tower_title.png" id="15_title"]
 
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_card"]
 texture = ExtResource("5_card")
@@ -119,12 +120,14 @@ theme_override_styles/panel = SubResource("StyleBoxTexture_frame")
 layout_mode = 2
 theme_override_constants/separation = 4
 
-[node name="TitleLabel" type="Label" parent="Root/Center/FrameHost/Panel/VBox"]
-unique_name_in_owner = true
+[node name="TitleArt" type="TextureRect" parent="Root/Center/FrameHost/Panel/VBox"]
+custom_minimum_size = Vector2(420, 40)
 layout_mode = 2
-theme_type_variation = &"HudStoppedTitle"
-text = "TOWER"
-horizontal_alignment = 1
+size_flags_horizontal = 4
+mouse_filter = 2
+texture = ExtResource("15_title")
+expand_mode = 1
+stretch_mode = 5
 
 [node name="DiamondSlot" type="Control" parent="Root/Center/FrameHost/Panel/VBox"]
 unique_name_in_owner = true

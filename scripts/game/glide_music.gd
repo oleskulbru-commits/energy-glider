@@ -1,8 +1,9 @@
 class_name GlideMusic
 extends Node
 
-## Sand-run bed. Fades in after the first E.O.N. pickup, and again after each
-## Try Again. Levels 1-4 cycle the calm tracks. From level 5, the current calm
+## Sand-run bed. The first song fades in over 30 seconds from game start, before
+## the E.O.N. is picked up. Try Again fades the first song in over the normal
+## entrance. Levels 1-4 cycle the calm tracks. From level 5, the current calm
 ## track plays out, then the dune tracks take over. Reaching that level never
 ## cuts the song that is already playing. After a glide song ends, the dunes stay
 ## quiet for 10-25 seconds before the next one fades in. An early stop resumes
@@ -25,6 +26,7 @@ const LATER_TRACKS: Array[AudioStream] = [
 	preload("res://assets/audio/music/chillstep_aggressive.mp3"),
 ]
 
+const OPENING_FADE_SEC := 30.0
 const ENTRANCE_FADE_SEC := 10.0
 const RETURN_DELAY_SEC := 2.0
 const RETURN_FADE_SEC := 2.0
@@ -72,6 +74,7 @@ func _ready() -> void:
 	_player.finished.connect(_on_track_finished)
 	add_child(_player)
 	call_deferred("_bind")
+	_start_opening()
 
 
 func _process(delta: float) -> void:
@@ -130,13 +133,20 @@ func _on_attempt_started() -> void:
 	_resume_position = -1.0
 	_advance_on_resume = false
 	_stop_player()
-	if not _heard_first_pickup:
-		_phase = Phase.IDLE
-		return
+	_heard_first_pickup = true
 	if _boss != null and _boss.is_theme_playing():
 		_phase = Phase.SUPPRESSED
 		return
 	_start_life()
+
+
+func _start_opening() -> void:
+	_heard_first_pickup = true
+	_run_active = true
+	_fresh_start = true
+	_resume_position = -1.0
+	_advance_on_resume = false
+	_schedule_start(0.0, OPENING_FADE_SEC)
 
 
 func _start_life() -> void:
