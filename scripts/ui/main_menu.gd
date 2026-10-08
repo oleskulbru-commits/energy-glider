@@ -79,6 +79,7 @@ func _ready() -> void:
 	_hover_glow.modulate.a = 0.0
 	_hover_glow.visible = false
 	resized.connect(_place_glow_if_hovered)
+	_sync_mute_all_from_bus()
 	_mute_all.toggled.connect(_on_mute_all_toggled)
 	_play_menu_theme()
 	call_deferred("_focus_play")
@@ -198,6 +199,16 @@ func _close_options() -> void:
 
 func _on_quit_pressed() -> void:
 	get_tree().quit()
+
+
+func _sync_mute_all_from_bus() -> void:
+	var muted := false
+	var bus := AudioServer.get_bus_index("Master")
+	if bus >= 0:
+		muted = AudioServer.is_bus_mute(bus)
+	_mute_all.set_pressed_no_signal(muted)
+	for row: VolumeSlider in [_master_volume, _music_volume, _sfx_volume, _ui_volume]:
+		row.set_counted(not muted)
 
 
 func _on_mute_all_toggled(muted: bool) -> void:
