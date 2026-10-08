@@ -58,6 +58,7 @@ func _ready() -> void:
 		_visit = get_node_or_null(tower_visit_path) as TowerVisitController
 	_theme = AudioStreamPlayer.new()
 	_theme.name = "SunEaterTheme"
+	_theme.bus = &"Music"
 	for stream in SUN_EATER_THEMES:
 		if stream is AudioStreamMP3:
 			(stream as AudioStreamMP3).loop = false

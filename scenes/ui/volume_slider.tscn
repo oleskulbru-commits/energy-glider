@@ -1,0 +1,98 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/volume_slider.gd" id="1_slider"]
+[ext_resource type="FontFile" path="res://assets/fonts/Rajdhani-Medium.ttf" id="2_medium"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/slider_track.png" id="3_track"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/slider_fill.png" id="4_fill"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/slider_knob.png" id="5_knob"]
+
+[sub_resource type="FontVariation" id="FontVariation_label"]
+base_font = ExtResource("2_medium")
+spacing_glyph = 4
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_track"]
+atlas = ExtResource("3_track")
+region = Rect2(32, 153, 960, 35)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_fill"]
+atlas = ExtResource("4_fill")
+region = Rect2(32, 153, 960, 35)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_knob"]
+atlas = ExtResource("5_knob")
+region = Rect2(366, 365, 288, 293)
+
+[node name="VolumeSlider" type="Control"]
+layout_mode = 0
+offset_right = 768.0
+offset_bottom = 28.0
+mouse_filter = 2
+script = ExtResource("1_slider")
+
+[node name="Title" type="Label" parent="."]
+layout_mode = 0
+offset_top = -58.0
+offset_right = 504.0
+offset_bottom = -14.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.93, 0.8, 0.55, 1)
+theme_override_fonts/font = SubResource("FontVariation_label")
+theme_override_font_sizes/font_size = 30
+text = "MASTER VOLUME"
+vertical_alignment = 1
+
+[node name="Track" type="TextureRect" parent="."]
+layout_mode = 0
+offset_right = 768.0
+offset_bottom = 28.0
+mouse_filter = 2
+texture = SubResource("AtlasTexture_track")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="FillClip" type="Control" parent="."]
+clip_contents = true
+layout_mode = 0
+offset_right = 768.0
+offset_bottom = 28.0
+mouse_filter = 2
+
+[node name="Fill" type="TextureRect" parent="FillClip"]
+layout_mode = 0
+offset_right = 768.0
+offset_bottom = 28.0
+mouse_filter = 2
+texture = SubResource("AtlasTexture_fill")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Knob" type="TextureRect" parent="."]
+layout_mode = 0
+offset_left = 736.0
+offset_top = -18.5
+offset_right = 800.0
+offset_bottom = 46.5
+mouse_filter = 2
+texture = SubResource("AtlasTexture_knob")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Percent" type="Label" parent="."]
+layout_mode = 0
+offset_left = 804.0
+offset_top = -8.0
+offset_right = 892.0
+offset_bottom = 36.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.93, 0.8, 0.55, 1)
+theme_override_fonts/font = SubResource("FontVariation_label")
+theme_override_font_sizes/font_size = 28
+text = "100%"
+vertical_alignment = 1
+
+[node name="Hit" type="Control" parent="."]
+layout_mode = 0
+offset_left = -32.0
+offset_top = -22.0
+offset_right = 800.0
+offset_bottom = 50.0

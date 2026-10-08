@@ -65,6 +65,7 @@ func _ready() -> void:
 	_player = AudioStreamPlayer.new()
 	_player.name = "GlideTheme"
 	_player.process_mode = Node.PROCESS_MODE_PAUSABLE
+	_player.bus = &"Music"
 	for stream in EARLY_TRACKS + LATER_TRACKS:
 		if stream is AudioStreamMP3:
 			(stream as AudioStreamMP3).loop = false

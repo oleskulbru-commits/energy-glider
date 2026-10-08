@@ -21,6 +21,7 @@ var vestiges: int = 0
 @onready var _vestiges: HBoxContainer = %Vestiges
 @onready var _vestiges_label: Label = %VestigesLabel
 @onready var _options_menu: Control = %OptionsMenu
+@onready var _audio_menu: Control = %AudioMenu
 @onready var _gameplay_button: TextureButton = %GameplayButton
 @onready var _controls_button: TextureButton = %ControlsButton
 @onready var _audio_button: TextureButton = %AudioButton
@@ -35,6 +36,7 @@ var _glow_tween: Tween
 var _theme_fade_tween: Tween
 var _starting_game := false
 var _options_open := false
+var _audio_open := false
 
 
 func _ready() -> void:
@@ -57,6 +59,7 @@ func _ready() -> void:
 	_play_button.pressed.connect(_on_play_pressed)
 	_unlocks_button.pressed.connect(_on_unlocks_pressed)
 	_options_button.pressed.connect(_on_options_pressed)
+	_audio_button.pressed.connect(_open_audio)
 	_back_button.pressed.connect(_close_options)
 	_quit_button.pressed.connect(_on_quit_pressed)
 	for button in _buttons:
@@ -119,7 +122,13 @@ func _on_options_pressed() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if not _options_open or not event.is_action_pressed("ui_cancel"):
+	if not event.is_action_pressed("ui_cancel"):
+		return
+	if _audio_open:
+		_close_audio()
+		get_viewport().set_input_as_handled()
+		return
+	if not _options_open:
 		return
 	_close_options()
 	get_viewport().set_input_as_handled()
@@ -137,9 +146,33 @@ func _open_options() -> void:
 	_gameplay_button.grab_focus()
 
 
+func _open_audio() -> void:
+	if not _options_open or _audio_open:
+		return
+	_audio_open = true
+	_hovered_button = null
+	_fade_glow(0.0)
+	_options_menu.visible = false
+	_audio_menu.visible = true
+	var focus_owner := get_viewport().gui_get_focus_owner()
+	if focus_owner != null:
+		focus_owner.release_focus()
+
+
+func _close_audio() -> void:
+	if not _audio_open:
+		return
+	_audio_open = false
+	_audio_menu.visible = false
+	_options_menu.visible = true
+	_audio_button.grab_focus()
+
+
 func _close_options() -> void:
 	if not _options_open:
 		return
+	_audio_open = false
+	_audio_menu.visible = false
 	_options_open = false
 	_hovered_button = null
 	_fade_glow(0.0)

@@ -1,4 +1,4 @@
-[gd_scene load_steps=38 format=3]
+[gd_scene load_steps=47 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/main_menu.gd" id="1_menu"]
 [ext_resource type="Shader" path="res://shaders/black_key.gdshader" id="2_key"]
@@ -12,8 +12,13 @@
 [ext_resource type="Texture2D" path="res://assets/ui/main_menu/hover_glow_small.png" id="7_glow_small"]
 [ext_resource type="Texture2D" path="res://assets/ui/main_menu/vestiges.jpg" id="8_vestiges"]
 [ext_resource type="FontFile" path="res://assets/fonts/Rajdhani-Bold.ttf" id="9_font"]
+[ext_resource type="FontFile" path="res://assets/fonts/Rajdhani-Medium.ttf" id="9_medium"]
 [ext_resource type="AudioStream" path="res://assets/audio/ui/main_menu_theme.mp3" id="10_theme"]
 [ext_resource type="Texture2D" path="res://assets/ui/options_menu/heading.png" id="11_heading"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/audio_heading.png" id="11_audio_heading"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/settings_panel.png" id="11_panel"]
+[ext_resource type="PackedScene" path="res://scenes/ui/volume_slider.tscn" id="11_slider"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/divider.png" id="11_divider"]
 [ext_resource type="Texture2D" path="res://assets/ui/options_menu/gameplay.png" id="12_gameplay"]
 [ext_resource type="Texture2D" path="res://assets/ui/options_menu/controls.png" id="13_controls"]
 [ext_resource type="Texture2D" path="res://assets/ui/options_menu/audio.png" id="14_audio"]
@@ -60,6 +65,22 @@ region = Rect2(176, 106, 738, 798)
 [sub_resource type="AtlasTexture" id="AtlasTexture_heading"]
 atlas = ExtResource("11_heading")
 region = Rect2(49, 29, 920, 296)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_audio_heading"]
+atlas = ExtResource("11_audio_heading")
+region = Rect2(85, 41, 870, 251)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_panel"]
+atlas = ExtResource("11_panel")
+region = Rect2(36, 94, 952, 739)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_divider"]
+atlas = ExtResource("11_divider")
+region = Rect2(58, 191, 916, 12)
+
+[sub_resource type="FontVariation" id="FontVariation_breadcrumb"]
+base_font = ExtResource("9_medium")
+spacing_glyph = 4
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_gameplay"]
 atlas = ExtResource("12_gameplay")
@@ -382,6 +403,100 @@ theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
 theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
 theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
 
+[node name="AudioMenu" type="Control" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Heading" type="TextureRect" parent="AudioMenu"]
+layout_mode = 0
+offset_left = 72.0
+offset_top = 0.0
+offset_right = 756.0
+offset_bottom = 197.0
+mouse_filter = 2
+texture = SubResource("AtlasTexture_audio_heading")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Breadcrumb" type="Label" parent="AudioMenu"]
+layout_mode = 0
+offset_left = 238.0
+offset_top = 156.0
+offset_right = 640.0
+offset_bottom = 188.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.93, 0.8, 0.55, 1)
+theme_override_fonts/font = SubResource("FontVariation_breadcrumb")
+theme_override_font_sizes/font_size = 22
+text = "OPTIONS / AUDIO"
+vertical_alignment = 1
+
+[node name="SettingsPanel" type="TextureRect" parent="AudioMenu"]
+layout_mode = 0
+offset_left = 72.0
+offset_top = 204.0
+offset_right = 1024.0
+offset_bottom = 943.0
+mouse_filter = 2
+texture = SubResource("AtlasTexture_panel")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="MasterVolume" parent="AudioMenu/SettingsPanel" instance=ExtResource("11_slider")]
+layout_mode = 0
+offset_left = 56.0
+offset_top = 106.0
+offset_right = 824.0
+offset_bottom = 134.0
+bus_name = "Master"
+title = "MASTER VOLUME"
+
+[node name="MusicVolume" parent="AudioMenu/SettingsPanel" instance=ExtResource("11_slider")]
+layout_mode = 0
+offset_left = 56.0
+offset_top = 234.0
+offset_right = 824.0
+offset_bottom = 262.0
+bus_name = "Music"
+title = "MUSIC"
+
+[node name="SfxVolume" parent="AudioMenu/SettingsPanel" instance=ExtResource("11_slider")]
+layout_mode = 0
+offset_left = 56.0
+offset_top = 362.0
+offset_right = 824.0
+offset_bottom = 390.0
+bus_name = "SFX"
+title = "SOUND EFFECTS"
+
+[node name="UiVolume" parent="AudioMenu/SettingsPanel" instance=ExtResource("11_slider")]
+layout_mode = 0
+offset_left = 56.0
+offset_top = 490.0
+offset_right = 824.0
+offset_bottom = 518.0
+bus_name = "UI"
+title = "UI SOUNDS"
+
+[node name="Divider" type="TextureRect" parent="AudioMenu/SettingsPanel"]
+layout_mode = 0
+offset_left = 56.0
+offset_top = 572.0
+offset_right = 948.0
+offset_bottom = 584.0
+mouse_filter = 2
+texture = SubResource("AtlasTexture_divider")
+expand_mode = 1
+stretch_mode = 5
+
 [node name="MenuTheme" type="AudioStreamPlayer" parent="."]
 unique_name_in_owner = true
 stream = ExtResource("10_theme")
+bus = &"Music"
