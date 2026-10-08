@@ -55,7 +55,7 @@ func _apply_session_seed() -> void:
 		world_seed = int(cfg.get_value("terrain", "world_seed"))
 	cfg.set_value("terrain", "world_seed", world_seed)
 	cfg.save(RUN_SESSION_PATH)
-	LevelRunScript.generate(world_seed)
+	LevelRunScript.ensure(world_seed)
 
 
 func _prewarm_height_cache() -> void:

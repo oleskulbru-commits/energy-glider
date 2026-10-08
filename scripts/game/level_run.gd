@@ -11,6 +11,7 @@ static var _segments: Array = []
 static var _distances: Array[float] = []
 static var _tower_offsets: Array[float] = []
 static var _journey_m: float = 0.0
+static var _run_lock := Mutex.new()
 
 
 static func ensure(world_seed: int) -> void:
@@ -20,6 +21,12 @@ static func ensure(world_seed: int) -> void:
 
 
 static func generate(world_seed: int) -> void:
+	_run_lock.lock()
+	_apply_generate(world_seed)
+	_run_lock.unlock()
+
+
+static func _apply_generate(world_seed: int) -> void:
 	_seed = world_seed
 	_segments = LevelRunGeneratorScript.generate(world_seed)
 	_distances.clear()
@@ -62,25 +69,34 @@ static func journey_length_m() -> float:
 
 static func segment_at_index(index: int) -> LevelRunSegmentScript:
 	_ensure_fallback()
+	_run_lock.lock()
 	var clamped := clampi(index, 1, _segments.size())
-	return _segments[clamped - 1] as LevelRunSegmentScript
+	var segment := _segments[clamped - 1] as LevelRunSegmentScript
+	_run_lock.unlock()
+	return segment
 
 
 ## Segment containing this westbound distance (0 at origin, positive west).
 static func segment_at_west_m(west_m: float) -> LevelRunSegmentScript:
 	_ensure_fallback()
+	_run_lock.lock()
 	var remaining := maxf(west_m, 0.0)
+	var picked: LevelRunSegmentScript = _segments[_segments.size() - 1] as LevelRunSegmentScript
 	for i in _segments.size():
 		var segment: LevelRunSegmentScript = _segments[i]
 		if remaining <= segment.length_m or i == _segments.size() - 1:
-			return segment
+			picked = segment
+			break
 		remaining -= segment.length_m
-	return _segments[_segments.size() - 1] as LevelRunSegmentScript
+	_run_lock.unlock()
+	return picked
 
 
 static func segment_east_west_x(level: int) -> Vector2:
 	_ensure_fallback()
-	var offsets := _tower_offsets
+	_run_lock.lock()
+	var offsets: Array[float] = _tower_offsets.duplicate()
+	_run_lock.unlock()
 	if offsets.is_empty():
 		return Vector2(0.0, -1000.0)
 	var clamped := clampi(level, 1, offsets.size())
@@ -107,4 +123,7 @@ static func level_at_world_x(world_x: float, origin_x: float = 0.0) -> int:
 static func _ensure_fallback() -> void:
 	if not _segments.is_empty():
 		return
-	generate(42)
+	_run_lock.lock()
+	if _segments.is_empty():
+		_apply_generate(42)
+	_run_lock.unlock()

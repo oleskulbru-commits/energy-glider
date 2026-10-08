@@ -315,9 +315,13 @@ transitions = ["Start", "enter", SubResource("AnimationNodeStateMachineTransitio
 xfade_time = 0.05
 xfade_curve = SubResource("Curve_ybsss")
 
+[sub_resource type="Curve" id="Curve_jump_takeoff"]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.12, 0.92), 0.0, 0.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 3
+
 [sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_2r46f"]
-xfade_time = 0.05
-xfade_curve = SubResource("Curve_ybsss")
+xfade_time = 0.1
+xfade_curve = SubResource("Curve_jump_takeoff")
 
 [sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_o5vgb"]
 xfade_time = 0.5
@@ -348,8 +352,8 @@ xfade_time = 0.5
 xfade_curve = SubResource("Curve_ybsss")
 
 [sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_h2nwd"]
-xfade_time = 0.05
-xfade_curve = SubResource("Curve_ybsss")
+xfade_time = 0.1
+xfade_curve = SubResource("Curve_jump_takeoff")
 
 [sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_c4any"]
 xfade_time = 0.5
@@ -424,8 +428,8 @@ xfade_time = 0.5
 xfade_curve = SubResource("Curve_ybsss")
 
 [sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_krhfx"]
-xfade_time = 0.2
-xfade_curve = SubResource("Curve_ybsss")
+xfade_time = 0.1
+xfade_curve = SubResource("Curve_jump_takeoff")
 
 [sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_u4i03"]
 xfade_time = 0.2
@@ -480,8 +484,8 @@ xfade_time = 0.5
 xfade_curve = SubResource("Curve_ybsss")
 
 [sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_1ujso"]
-xfade_time = 0.05
-xfade_curve = SubResource("Curve_ybsss")
+xfade_time = 0.1
+xfade_curve = SubResource("Curve_jump_takeoff")
 
 [sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_uqaaa"]
 xfade_time = 0.2

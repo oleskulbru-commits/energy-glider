@@ -521,6 +521,10 @@ func _try_spawn_hit_sparks(
 	pass
 
 
+func spawns_climb_dust() -> bool:
+	return true
+
+
 func get_climb_dust_preset() -> SandParticleVfx.BurstPreset:
 	return SandParticleVfx.BurstPreset.CLIMB
 

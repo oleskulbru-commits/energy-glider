@@ -4,6 +4,7 @@ extends SwarmPill
 ## Leaper fodder: climbs out of sand, chases, then intercept-leaps once.
 
 const GroundReticleScript := preload("res://scripts/enemies/ground_reticle.gd")
+const SandImpactDustScript := preload("res://scripts/enemies/sand_impact_dust.gd")
 
 const MOVE_SPEED := 8.0
 const PILL_COLOR := Color(0.58, 0.18, 0.92)
@@ -41,6 +42,9 @@ var _practice_run_left := 0.0
 var _pill: MeshInstance3D
 var _leaper_anim: LeaperAnimController
 var _charge_left := 0.0
+var _charge_duration := 0.0
+var _charge_speed_start := 0.0
+var _charge_dir := Vector3.ZERO
 var _leap_t := 0.0
 var _recover_left := 0.0
 var _has_leapt := false
@@ -193,15 +197,24 @@ func _tick_chase(delta: float) -> void:
 
 func _begin_charge() -> void:
 	leap_state = LeapState.CHARGE
-	_charge_left = CHARGE_SEC
-	velocity = Vector3.ZERO
+	_charge_dir = _charge_heading()
+	_charge_speed_start = _charge_entry_speed()
+	_charge_duration = _charge_duration_sec()
+	_charge_left = _charge_duration
 	if _leaper_anim != null:
 		_leaper_anim.play_stop_run()
 
 
 func _tick_charge(delta: float) -> void:
-	_charge_left = maxf(_charge_left - delta, 0.0)
-	velocity = Vector3.ZERO
+	if _charge_duration <= 0.001:
+		_charge_duration = _charge_duration_sec()
+	if _charge_dir.length_squared() <= 0.0001:
+		_charge_dir = _charge_heading()
+	if _charge_speed_start <= 0.001:
+		_charge_speed_start = _charge_entry_speed()
+	var duration := maxf(_charge_duration, 0.001)
+	var coast_frac := _charge_left / duration
+	velocity = _charge_dir * (_charge_speed_start * coast_frac)
 	velocity += _hit_velocity
 	_hit_velocity = _hit_velocity.move_toward(
 		Vector3.ZERO,
@@ -209,10 +222,40 @@ func _tick_charge(delta: float) -> void:
 	)
 	move_and_slide()
 	_snap_to_terrain()
-	_orient_toward_target()
+	if _charge_dir.length_squared() > 0.0001:
+		_align_to_terrain(_charge_dir)
+	else:
+		_orient_toward_target()
 	_update_contact(delta)
+	_charge_left = maxf(_charge_left - delta, 0.0)
 	if _charge_left <= 0.0:
 		_begin_leap()
+
+
+func _charge_duration_sec() -> float:
+	if _leaper_anim != null:
+		var clip_sec := _leaper_anim.stop_run_duration()
+		if clip_sec > 0.001:
+			return clip_sec
+	return CHARGE_SEC
+
+
+func _charge_heading() -> Vector3:
+	if practice_in_place and practice_facing.length_squared() > 0.0001:
+		return practice_facing
+	if _last_seek_dir.length_squared() > 0.0001:
+		return _last_seek_dir.normalized()
+	var to_target := _flat_seek_to_target()
+	if to_target.length_squared() > 0.0001:
+		return to_target.normalized()
+	return Vector3(1.0, 0.0, 0.0)
+
+
+func _charge_entry_speed() -> float:
+	var flat := Vector3(velocity.x, 0.0, velocity.z)
+	if flat.length_squared() > 0.01:
+		return flat.length()
+	return _get_move_speed()
 
 
 func _begin_leap() -> void:
@@ -261,6 +304,7 @@ func _on_landed() -> void:
 	motion_mode = MOTION_MODE_GROUNDED
 	_clear_reticle()
 	_snap_to_terrain()
+	_spawn_landing_dust()
 	_apply_landing_hit()
 	leap_state = LeapState.RECOVER
 	_recover_left = RECOVER_SEC
@@ -280,6 +324,47 @@ func _tick_recover(delta: float) -> void:
 		leap_state = LeapState.CHASE
 		if _leaper_anim != null:
 			_leaper_anim.set_run_speed(_get_move_speed())
+
+
+func spawns_climb_dust() -> bool:
+	return false
+
+
+func get_landing_dust_preset() -> SandParticleVfx.BurstPreset:
+	return SandParticleVfx.BurstPreset.HEAVY
+
+
+func get_landing_dust_scale_mult() -> float:
+	return get_sand_burst_scale_mult() * 1.5
+
+
+func get_landing_dust_shake_strength() -> float:
+	return 0.35
+
+
+func get_landing_dust_shake_radius_m() -> float:
+	return 24.0
+
+
+func _spawn_landing_dust() -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	var impact_pos := global_position
+	var skin := get_node_or_null("Visual") as Node3D
+	if skin != null:
+		var dig := skin.get_node_or_null("DigDustAnchor") as Node3D
+		if dig != null:
+			impact_pos = dig.global_position
+	SandImpactDustScript.spawn(
+		tree,
+		impact_pos,
+		_terrain,
+		get_landing_dust_preset(),
+		get_landing_dust_scale_mult(),
+		get_landing_dust_shake_strength(),
+		get_landing_dust_shake_radius_m()
+	)
 
 
 func _apply_landing_hit() -> void:
@@ -435,6 +520,12 @@ func _leap_loft_m() -> float:
 		var flat_end := _leap_origin + practice_facing * LEAP_RANGE_M
 		return loft_for_span(_leap_origin, flat_end)
 	return loft_for_span(_leap_origin, _leap_impact)
+
+
+func leap_motion_direction() -> Vector3:
+	if leap_state != LeapState.LEAP:
+		return Vector3.ZERO
+	return DroneRocket.arc_velocity(_leap_origin, _leap_impact, _leap_t, _leap_loft_m())
 
 
 func _flat_facing(dir: Vector3) -> Vector3:

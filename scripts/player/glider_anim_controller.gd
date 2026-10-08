@@ -52,6 +52,8 @@ const JUMP_FINISH_EPSILON := 0.05
 const JUMP_CHARGE_XFADE := 0.5
 const JUMP_CHARGE_ENTER_XFADE := 0.12
 const JUMP_ENTER_XFADE := 0.05
+## Must match body SM transition xfade on loco/grounded/brake -> jump in glider_anim_state_machine.tres.
+const JUMP_FROM_GROUND_XFADE := 0.1
 const JUMP_FROM_LOCO_XFADE := AIR_XFADE
 ## Max wait for body playback to settle on jump after travel() (boost->jump xfade).
 const JUMP_ENTRY_SETTLE_SEC := AIR_XFADE + 0.15
@@ -168,7 +170,7 @@ func get_body_root_state() -> StringName:
 func can_accept_body_jump() -> bool:
 	if _tree == null or _glider == null or _root_playback == null:
 		return false
-	if _nested_exit_active:
+	if _nested_exit_active and (_glider == null or not _glider.is_gliding()):
 		return false
 	if _is_jump_entry_active():
 		return false
@@ -185,12 +187,15 @@ func can_accept_body_jump() -> bool:
 func apply_jump_trigger_immediate() -> void:
 	if _tree == null or _glider == null or _root_playback == null:
 		return
+	if _glider.is_gliding():
+		_abort_loco_exit_for_jump()
 	if not can_accept_body_jump():
 		return
 	if not _glider.consume_jump_anim_trigger():
 		return
 	var prev_root := _root_state
 	_discard_pending_boost_triggers()
+	_locomotion_crossfade_warm = false
 	_snap_jump_entry = true
 	_jump_root_lock = true
 	if _glider.is_boost_active() or prev_root == &"boost":
@@ -354,6 +359,13 @@ func _process(_delta: float) -> void:
 				_sync_boost_nested_on_failed_exit()
 		elif next_root == &"grounded" and prev_root == &"locomotion":
 			deferred_exit = _try_begin_loco_exit()
+		if (
+			entered_locomotion
+			and not deferred_exit
+			and prev_root in [&"landing", &"glide", &"jump"]
+		):
+			_locomotion_crossfade_warm = true
+			_warm_locomotion_for_landing_exit(steer, strafe)
 		if not deferred_exit:
 			_root_state = next_root
 		if _root_playback != null and not deferred_exit:
@@ -413,9 +425,6 @@ func _process(_delta: float) -> void:
 			elif prev_root == &"brake":
 				_locomotion_crossfade_warm = true
 				_warm_locomotion_for_brake_exit(steer, strafe)
-			elif prev_root == &"landing":
-				_locomotion_crossfade_warm = true
-				_warm_locomotion_for_landing_exit(steer, strafe)
 			else:
 				_restart_locomotion(steer, strafe)
 
@@ -561,8 +570,8 @@ func _jump_entry_xfade(from_state: StringName) -> float:
 			return JUMP_ENTER_XFADE
 		&"boost":
 			return JUMP_FROM_LOCO_XFADE
-		&"grounded", &"locomotion", &"brake":
-			return JUMP_FROM_LOCO_XFADE
+		&"grounded", &"locomotion", &"brake", &"landing":
+			return JUMP_FROM_GROUND_XFADE
 		_:
 			return JUMP_ENTER_XFADE
 
@@ -578,12 +587,20 @@ func _apply_jump_root(from_state: StringName) -> void:
 	if from_charge and not boost_takeoff:
 		# jump_charge and jump share Eve_Jump; travel() can stall on the same clip.
 		_apply_root_start(&"jump")
+	elif boost_takeoff or from_boost:
+		_apply_root_travel(
+			&"jump",
+			_jump_entry_xfade(from_state if from_boost else &"boost")
+		)
+	elif from_state in [&"landing", &"locomotion", &"grounded", &"brake"]:
+		# start() = Eve_Jump at seek 0 same frame as physics (landing->jump has no SM edge).
+		_apply_root_start(&"jump")
 	else:
-		_apply_root_travel(&"jump", _jump_entry_xfade(from_state if from_boost else &"boost" if boost_takeoff else from_state))
+		_apply_root_travel(&"jump", _jump_entry_xfade(from_state))
 	_jump_from_boost_takeoff = boost_takeoff
 	_jump_root_lock = true
 	_jump_elapsed = 0.0
-	_jump_entry_in_flight = true
+	_jump_entry_in_flight = _uses_long_jump_entry_settle(from_state, boost_takeoff)
 	_jump_entry_realtime = 0.0
 
 
@@ -591,6 +608,16 @@ func _is_jump_entry_active() -> bool:
 	if _jump_entry_in_flight:
 		return true
 	return _is_root_blend_active(&"jump")
+
+
+func _uses_long_jump_entry_settle(from_state: StringName, boost_takeoff: bool) -> bool:
+	if boost_takeoff:
+		return true
+	if from_state == &"boost":
+		return true
+	if from_state == &"jump_charge":
+		return true
+	return false
 
 
 func _tick_jump_entry_watchdog(delta: float) -> void:
@@ -860,6 +887,8 @@ func is_landing_anim_blocking_jump() -> bool:
 
 
 func _landing_blocks_jump() -> bool:
+	if _glider != null and _glider.is_gliding():
+		return false
 	if _root_playback == null:
 		if _glider != null and _glider.is_landing() and _glider.is_grounded():
 			return true
@@ -895,6 +924,10 @@ func _pick_root_state(speed: float) -> StringName:
 	if _glider.is_run_ended():
 		return &"death"
 	if _is_jump_entry_active():
+		if _root_state == &"glide" and _is_jump_air_phase_finished():
+			_jump_entry_in_flight = false
+			_jump_root_lock = false
+			return &"glide"
 		return &"jump"
 	var current := _root_playback.get_current_node() if _root_playback != null else &""
 	var boost_sub := _boost_playback.get_current_node() if _boost_playback != null else &""
@@ -913,6 +946,8 @@ func _pick_root_state(speed: float) -> StringName:
 			_discard_pending_boost_triggers()
 			return at_end_exit
 	if _glider.is_landing() and current != &"locomotion":
+		if current == &"jump" and not _is_jump_air_phase_finished():
+			return &"jump"
 		var brake_exit := _landing_brake_exit_state(speed)
 		if brake_exit != &"":
 			_discard_pending_boost_triggers()
@@ -1018,7 +1053,15 @@ func _landing_exit_state(speed: float) -> StringName:
 
 
 func _should_transition_jump_to_glide() -> bool:
-	return _glider.is_gliding() and not _jump_entry_in_flight and _is_jump_clip_finished()
+	if not _glider.is_gliding():
+		return false
+	var duration := _jump_clip_duration()
+	if _root_state == &"glide":
+		if duration > 0.0 and _jump_elapsed >= duration - JUMP_FINISH_EPSILON:
+			return true
+	if duration > 0.0 and _jump_elapsed >= duration * 0.85 - JUMP_FINISH_EPSILON:
+		return not _jump_entry_in_flight or _jump_entry_realtime >= JUMP_ENTRY_SETTLE_SEC
+	return not _jump_entry_in_flight and _is_jump_clip_finished()
 
 
 func _jump_finished_exit_state(_speed: float) -> StringName:
@@ -1088,6 +1131,13 @@ func _jump_clip_duration() -> float:
 	if clip_length <= 0.0 or jump_time_scale <= 0.0:
 		return 0.0
 	return clip_length / jump_time_scale
+
+
+func _is_jump_air_phase_finished() -> bool:
+	var duration := _jump_clip_duration()
+	if duration <= 0.0:
+		return true
+	return _jump_elapsed >= duration - JUMP_FINISH_EPSILON
 
 
 func _is_jump_clip_finished() -> bool:
@@ -1904,6 +1954,16 @@ func _finish_boost_exit(steer: float, strafe: float) -> void:
 		_advance_animation_tree(0.0)
 	elif _glider.is_boost_anim_pending():
 		_glider.consume_boost_anim_trigger()
+
+
+func _abort_loco_exit_for_jump() -> void:
+	if not _nested_exit_active or _nested_exit_kind != &"locomotion":
+		return
+	_nested_exit_active = false
+	_nested_exit_kind = &""
+	_nested_exit_started_at = -1.0
+	_pending_root_after_exit = &""
+	_reset_loco_exit_params()
 
 
 func _finish_loco_exit() -> void:

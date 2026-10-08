@@ -1153,6 +1153,7 @@ func _execute_jump() -> void:
 	)
 	_airborne_time = 0.0
 	_state = State.GLIDING
+	_landing_stabilize_timer = 0.0
 	_jump_cooldown = GliderPhysicsScript.JUMP_COOLDOWN
 	_jump_landing_grace_timer = GliderPhysicsScript.JUMP_LANDING_GRACE
 	_jump_anim_pending = true

@@ -128,18 +128,23 @@ func _run() -> void:
 		pill.leap_state = LeaperPill.LeapState.LEAP
 		pill._leap_origin = pill.global_position
 		pill._leap_impact = pill.global_position + Vector3(20.0, 0.0, 0.0)
-		await process_frame
-		await process_frame
+		pill._leap_t = 0.35
+		anim.play_leap(2.0)
 		var streak_fx := air_streaks.get_node_or_null("Streaks") as CPUParticles3D
 		_fail_unless(streak_fx != null, "Leaper air streaks should spawn a particle emitter")
-		_fail_unless(streak_fx != null and streak_fx.emitting, "Air streaks should emit during leap")
-		pill.leap_state = LeaperPill.LeapState.CHASE
-		await process_frame
-		await process_frame
+		var streak_node := await _wait_for_state(playback, [&"jump", &"air"], 0.8)
 		_fail_unless(
-			streak_fx != null and not streak_fx.emitting,
-			"Air streaks should stop after landing"
+			streak_node == &"jump" or streak_node == &"air",
+			"Streak test should reach jump or air (got %s)" % streak_node
 		)
+		await process_frame
+		await process_frame
+		_fail_unless(streak_fx.emitting, "Air streaks should emit during jump/air")
+		pill.leap_state = LeaperPill.LeapState.CHASE
+		for _i in 12:
+			air_streaks.call("_physics_process", 1.0 / 60.0)
+			await process_frame
+		_fail_unless(not streak_fx.emitting, "Air streaks should stop outside jump/air")
 
 	if not _ok:
 		return

@@ -17,7 +17,8 @@ const REFERENCE_SPEED := SwarmPill.DEFAULT_SPEED
 @export var dig_dust_anchor_path: NodePath = ^"DigDustAnchor"
 
 var _player: AnimationPlayer
-var _spawn_active := true
+var _spawn_active := false
+var _spawn_begun := false
 var _terrain: TerrainManager
 var _host: Node3D
 var _dig_anchor: Node3D
@@ -29,6 +30,7 @@ func configure_sand(terrain: TerrainManager, host: Node3D) -> void:
 	_terrain = terrain
 	_host = host
 	_dig_anchor = get_node_or_null(dig_dust_anchor_path) as Node3D
+	_try_begin_spawn()
 
 
 func _ready() -> void:
@@ -37,10 +39,15 @@ func _ready() -> void:
 		_dig_anchor = get_node_or_null(dig_dust_anchor_path) as Node3D
 	if _player == null:
 		push_warning("CrawlerAnimController: AnimationPlayer not found at %s" % animation_player_path)
-		_finish_spawn()
 		return
 	if not _player.animation_finished.is_connected(_on_animation_finished):
 		_player.animation_finished.connect(_on_animation_finished)
+
+
+func _try_begin_spawn() -> void:
+	if _spawn_begun or _host == null:
+		return
+	_spawn_begun = true
 	begin_spawn()
 
 
@@ -65,7 +72,7 @@ func begin_spawn() -> void:
 
 
 func is_spawn_active() -> bool:
-	return _spawn_active
+	return not _spawn_begun or _spawn_active
 
 
 func set_move_speed(speed: float) -> void:
@@ -103,6 +110,8 @@ func _finish_spawn() -> void:
 func _spawn_climb_dust() -> void:
 	var tree := get_tree()
 	if tree == null:
+		return
+	if _host is SwarmPill and not (_host as SwarmPill).spawns_climb_dust():
 		return
 	var anchor: Node3D = _dig_anchor if _dig_anchor != null else _host
 	if anchor == null:

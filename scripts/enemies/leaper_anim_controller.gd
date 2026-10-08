@@ -43,7 +43,8 @@ const AUTO_XFADE := 0.08
 var _tree: AnimationTree
 var _player: AnimationPlayer
 var _playback: AnimationNodeStateMachinePlayback
-var _spawn_active := true
+var _spawn_active := false
+var _spawn_begun := false
 var _recover_active := false
 var _recover_seen_land := false
 var _terrain: TerrainManager
@@ -57,6 +58,7 @@ func configure_sand(terrain: TerrainManager, host: Node3D) -> void:
 	_terrain = terrain
 	_host = host
 	_dig_anchor = get_node_or_null(dig_dust_anchor_path) as Node3D
+	_try_begin_spawn()
 
 
 func _enter_tree() -> void:
@@ -76,6 +78,12 @@ func _ready() -> void:
 		_tree.animation_finished.connect(_on_animation_finished)
 	elif _player != null and not _player.animation_finished.is_connected(_on_animation_finished):
 		_player.animation_finished.connect(_on_animation_finished)
+
+
+func _try_begin_spawn() -> void:
+	if _spawn_begun or _host == null:
+		return
+	_spawn_begun = true
 	begin_spawn()
 
 
@@ -93,7 +101,12 @@ func begin_spawn() -> void:
 
 
 func is_spawn_active() -> bool:
-	return _spawn_active
+	return not _spawn_begun or _spawn_active
+
+
+func is_air_streak_active() -> bool:
+	var node := _current_state()
+	return node == STATE_JUMP or node == STATE_AIR
 
 
 func is_recover_active() -> bool:
@@ -112,6 +125,10 @@ func set_run_speed(speed: float) -> void:
 
 func play_stop_run() -> void:
 	_travel(STATE_STOP_RUN)
+
+
+func stop_run_duration() -> float:
+	return _clip_length(ANIM_STOP_RUN)
 
 
 func play_leap(air_sec: float) -> void:
@@ -202,13 +219,15 @@ func _spawn_climb_dust() -> void:
 	var tree := get_tree()
 	if tree == null:
 		return
+	if _host is SwarmPill and not (_host as SwarmPill).spawns_climb_dust():
+		return
 	var anchor: Node3D = _dig_anchor if _dig_anchor != null else _host
 	if anchor == null:
 		return
-	var preset := SandParticleVfxScript.BurstPreset.CLIMB
+	var preset := SandParticleVfxScript.BurstPreset.DEATH
 	var scale_mult := 1.0
-	var shake_strength := 0.22
-	var shake_radius_m := 18.0
+	var shake_strength := 0.0
+	var shake_radius_m := 0.0
 	if _host is SwarmPill:
 		var pill := _host as SwarmPill
 		preset = pill.get_climb_dust_preset()
