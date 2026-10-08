@@ -213,7 +213,7 @@ omni_attenuation = 1.1
 mesh = ExtResource("16_y3yyn")
 
 [node name="Body" parent="Model/GliderRoot/Hero_Rig/Skeleton3D" parent_id_path=PackedInt32Array(678267291, 836889355) index="1" unique_id=630886925]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -6.3061714e-05, 0, -0.0006263256)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.00046753883, -0.0014650822, -0.00067967176)
 mesh = ExtResource("17_fpiwe")
 skin = ExtResource("18_e2bcg")
 

@@ -1,17 +1,34 @@
-[gd_scene load_steps=22 format=3]
+[gd_scene load_steps=55 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/main_menu.gd" id="1_menu"]
 [ext_resource type="Shader" path="res://shaders/black_key.gdshader" id="2_key"]
 [ext_resource type="Shader" path="res://shaders/hover_glow.gdshader" id="2_hover"]
 [ext_resource type="Texture2D" path="res://assets/ui/main_menu/background.jpg" id="3_bg"]
-[ext_resource type="Texture2D" path="res://assets/ui/main_menu/play.jpg" id="4_play"]
+[ext_resource type="Texture2D" path="res://assets/ui/main_menu/play.png" id="4_play"]
 [ext_resource type="Texture2D" path="res://assets/ui/main_menu/unlocks.png" id="5_unlocks"]
+[ext_resource type="Texture2D" path="res://assets/ui/main_menu/options.png" id="5_options"]
 [ext_resource type="Texture2D" path="res://assets/ui/main_menu/quit.png" id="6_quit"]
 [ext_resource type="Texture2D" path="res://assets/ui/main_menu/hover_glow.png" id="7_glow"]
 [ext_resource type="Texture2D" path="res://assets/ui/main_menu/hover_glow_small.png" id="7_glow_small"]
 [ext_resource type="Texture2D" path="res://assets/ui/main_menu/vestiges.jpg" id="8_vestiges"]
 [ext_resource type="FontFile" path="res://assets/fonts/Rajdhani-Bold.ttf" id="9_font"]
+[ext_resource type="FontFile" path="res://assets/fonts/Rajdhani-Medium.ttf" id="9_medium"]
 [ext_resource type="AudioStream" path="res://assets/audio/ui/main_menu_theme.mp3" id="10_theme"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/heading.png" id="11_heading"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/audio_heading.png" id="11_audio_heading"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/settings_panel.png" id="11_panel"]
+[ext_resource type="PackedScene" path="res://scenes/ui/volume_slider.tscn" id="11_slider"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/divider.png" id="11_divider"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/mute_off.png" id="11_mute"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/mute_on.png" id="11_mute_on"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/audio_back.png" id="11_audio_back"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/restore_defaults.png" id="11_restore"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/gameplay.png" id="12_gameplay"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/controls.png" id="13_controls"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/audio.png" id="14_audio"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/graphics.png" id="15_graphics"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/accessibility.png" id="16_access"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/back.png" id="17_back"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_key"]
 shader = ExtResource("2_key")
@@ -23,11 +40,15 @@ shader = ExtResource("2_hover")
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_play"]
 atlas = ExtResource("4_play")
-region = Rect2(8, 56, 1008, 216)
+region = Rect2(17, 82, 989, 176)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_unlocks"]
 atlas = ExtResource("5_unlocks")
 region = Rect2(8, 84, 1008, 168)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_options"]
+atlas = ExtResource("5_options")
+region = Rect2(26, 85, 973, 160)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_quit"]
 atlas = ExtResource("6_quit")
@@ -44,6 +65,66 @@ region = Rect2(8, 60, 1008, 216)
 [sub_resource type="AtlasTexture" id="AtlasTexture_vestiges"]
 atlas = ExtResource("8_vestiges")
 region = Rect2(176, 106, 738, 798)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_heading"]
+atlas = ExtResource("11_heading")
+region = Rect2(49, 29, 920, 296)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_audio_heading"]
+atlas = ExtResource("11_audio_heading")
+region = Rect2(85, 41, 870, 251)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_panel"]
+atlas = ExtResource("11_panel")
+region = Rect2(36, 94, 952, 739)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_divider"]
+atlas = ExtResource("11_divider")
+region = Rect2(58, 191, 916, 12)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_mute"]
+atlas = ExtResource("11_mute")
+region = Rect2(81, 47, 861, 270)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_mute_on"]
+atlas = ExtResource("11_mute_on")
+region = Rect2(86, 47, 853, 267)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_audio_back"]
+atlas = ExtResource("11_audio_back")
+region = Rect2(87, 120, 847, 136)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_restore"]
+atlas = ExtResource("11_restore")
+region = Rect2(87, 119, 848, 137)
+
+[sub_resource type="FontVariation" id="FontVariation_breadcrumb"]
+base_font = ExtResource("9_medium")
+spacing_glyph = 4
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_gameplay"]
+atlas = ExtResource("12_gameplay")
+region = Rect2(11, 82, 1002, 166)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_controls"]
+atlas = ExtResource("13_controls")
+region = Rect2(10, 82, 1003, 166)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_audio"]
+atlas = ExtResource("14_audio")
+region = Rect2(10, 81, 1000, 165)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_graphics"]
+atlas = ExtResource("15_graphics")
+region = Rect2(11, 82, 1002, 166)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_access"]
+atlas = ExtResource("16_access")
+region = Rect2(10, 82, 1003, 165)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_back"]
+atlas = ExtResource("17_back")
+region = Rect2(89, 114, 845, 207)
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -80,6 +161,7 @@ expand_mode = 1
 stretch_mode = 0
 
 [node name="Buttons" type="VBoxContainer" parent="."]
+unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 9
 anchor_bottom = 1.0
@@ -92,8 +174,7 @@ alignment = 1
 
 [node name="PlayButton" type="TextureButton" parent="Buttons"]
 unique_name_in_owner = true
-modulate = Color(0.58, 0.52, 0.44, 1)
-custom_minimum_size = Vector2(760, 163)
+custom_minimum_size = Vector2(760, 135)
 layout_mode = 2
 focus_neighbor_top = NodePath("../QuitButton")
 focus_neighbor_bottom = NodePath("../UnlocksButton")
@@ -103,7 +184,6 @@ mouse_default_cursor_shape = 2
 texture_normal = SubResource("AtlasTexture_play")
 ignore_texture_size = true
 stretch_mode = 5
-material = SubResource("ShaderMaterial_key")
 theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
 theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
 theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
@@ -112,12 +192,11 @@ theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
 
 [node name="UnlocksButton" type="TextureButton" parent="Buttons"]
 unique_name_in_owner = true
-modulate = Color(0.58, 0.52, 0.44, 1)
 custom_minimum_size = Vector2(760, 127)
 layout_mode = 2
 focus_neighbor_top = NodePath("../PlayButton")
-focus_neighbor_bottom = NodePath("../QuitButton")
-focus_next = NodePath("../QuitButton")
+focus_neighbor_bottom = NodePath("../OptionsButton")
+focus_next = NodePath("../OptionsButton")
 focus_previous = NodePath("../PlayButton")
 mouse_default_cursor_shape = 2
 texture_normal = SubResource("AtlasTexture_unlocks")
@@ -130,15 +209,33 @@ theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
 theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
 theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
 
+[node name="OptionsButton" type="TextureButton" parent="Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(690, 110)
+layout_mode = 2
+size_flags_horizontal = 4
+focus_neighbor_top = NodePath("../UnlocksButton")
+focus_neighbor_bottom = NodePath("../QuitButton")
+focus_next = NodePath("../QuitButton")
+focus_previous = NodePath("../UnlocksButton")
+mouse_default_cursor_shape = 2
+texture_normal = SubResource("AtlasTexture_options")
+ignore_texture_size = true
+stretch_mode = 5
+theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
+
 [node name="QuitButton" type="TextureButton" parent="Buttons"]
 unique_name_in_owner = true
-modulate = Color(0.58, 0.52, 0.44, 1)
 custom_minimum_size = Vector2(760, 139)
 layout_mode = 2
-focus_neighbor_top = NodePath("../UnlocksButton")
+focus_neighbor_top = NodePath("../OptionsButton")
 focus_neighbor_bottom = NodePath("../PlayButton")
 focus_next = NodePath("../PlayButton")
-focus_previous = NodePath("../UnlocksButton")
+focus_previous = NodePath("../OptionsButton")
 mouse_default_cursor_shape = 2
 texture_normal = SubResource("AtlasTexture_quit")
 ignore_texture_size = true
@@ -151,6 +248,7 @@ theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
 theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
 
 [node name="Vestiges" type="HBoxContainer" parent="."]
+unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
@@ -185,6 +283,310 @@ texture = SubResource("AtlasTexture_vestiges")
 expand_mode = 1
 stretch_mode = 5
 
+[node name="OptionsMenu" type="Control" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Heading" type="TextureRect" parent="OptionsMenu"]
+layout_mode = 0
+offset_left = 72.0
+offset_top = 0.0
+offset_right = 756.0
+offset_bottom = 220.0
+mouse_filter = 2
+texture = SubResource("AtlasTexture_heading")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Rows" type="VBoxContainer" parent="OptionsMenu"]
+layout_mode = 0
+offset_left = 72.0
+offset_top = 236.0
+offset_right = 832.0
+offset_bottom = 1072.0
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="GameplayButton" type="TextureButton" parent="OptionsMenu/Rows"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(760, 126)
+layout_mode = 2
+focus_neighbor_top = NodePath("../BackButton")
+focus_neighbor_bottom = NodePath("../ControlsButton")
+focus_next = NodePath("../ControlsButton")
+focus_previous = NodePath("../BackButton")
+mouse_default_cursor_shape = 2
+texture_normal = SubResource("AtlasTexture_gameplay")
+ignore_texture_size = true
+stretch_mode = 5
+theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
+
+[node name="ControlsButton" type="TextureButton" parent="OptionsMenu/Rows"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(760, 126)
+layout_mode = 2
+focus_neighbor_top = NodePath("../GameplayButton")
+focus_neighbor_bottom = NodePath("../AudioButton")
+focus_next = NodePath("../AudioButton")
+focus_previous = NodePath("../GameplayButton")
+mouse_default_cursor_shape = 2
+texture_normal = SubResource("AtlasTexture_controls")
+ignore_texture_size = true
+stretch_mode = 5
+theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
+
+[node name="AudioButton" type="TextureButton" parent="OptionsMenu/Rows"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(760, 126)
+layout_mode = 2
+focus_neighbor_top = NodePath("../ControlsButton")
+focus_neighbor_bottom = NodePath("../GraphicsButton")
+focus_next = NodePath("../GraphicsButton")
+focus_previous = NodePath("../ControlsButton")
+mouse_default_cursor_shape = 2
+texture_normal = SubResource("AtlasTexture_audio")
+ignore_texture_size = true
+stretch_mode = 5
+theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
+
+[node name="GraphicsButton" type="TextureButton" parent="OptionsMenu/Rows"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(760, 126)
+layout_mode = 2
+focus_neighbor_top = NodePath("../AudioButton")
+focus_neighbor_bottom = NodePath("../AccessibilityButton")
+focus_next = NodePath("../AccessibilityButton")
+focus_previous = NodePath("../AudioButton")
+mouse_default_cursor_shape = 2
+texture_normal = SubResource("AtlasTexture_graphics")
+ignore_texture_size = true
+stretch_mode = 5
+theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
+
+[node name="AccessibilityButton" type="TextureButton" parent="OptionsMenu/Rows"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(760, 126)
+layout_mode = 2
+focus_neighbor_top = NodePath("../GraphicsButton")
+focus_neighbor_bottom = NodePath("../BackButton")
+focus_next = NodePath("../BackButton")
+focus_previous = NodePath("../GraphicsButton")
+mouse_default_cursor_shape = 2
+texture_normal = SubResource("AtlasTexture_access")
+ignore_texture_size = true
+stretch_mode = 5
+theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
+
+[node name="BackButton" type="TextureButton" parent="OptionsMenu/Rows"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(500, 122)
+layout_mode = 2
+size_flags_horizontal = 0
+focus_neighbor_top = NodePath("../AccessibilityButton")
+focus_neighbor_bottom = NodePath("../GameplayButton")
+focus_next = NodePath("../GameplayButton")
+focus_previous = NodePath("../AccessibilityButton")
+mouse_default_cursor_shape = 2
+texture_normal = SubResource("AtlasTexture_back")
+ignore_texture_size = true
+stretch_mode = 5
+theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
+
+[node name="AudioMenu" type="Control" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Heading" type="TextureRect" parent="AudioMenu"]
+layout_mode = 0
+offset_left = 72.0
+offset_top = 0.0
+offset_right = 756.0
+offset_bottom = 197.0
+mouse_filter = 2
+texture = SubResource("AtlasTexture_audio_heading")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Breadcrumb" type="Label" parent="AudioMenu"]
+layout_mode = 0
+offset_left = 238.0
+offset_top = 156.0
+offset_right = 640.0
+offset_bottom = 188.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.93, 0.8, 0.55, 1)
+theme_override_fonts/font = SubResource("FontVariation_breadcrumb")
+theme_override_font_sizes/font_size = 22
+text = "OPTIONS / AUDIO"
+vertical_alignment = 1
+
+[node name="SettingsPanel" type="TextureRect" parent="AudioMenu"]
+layout_mode = 0
+offset_left = 72.0
+offset_top = 204.0
+offset_right = 1024.0
+offset_bottom = 943.0
+mouse_filter = 2
+texture = SubResource("AtlasTexture_panel")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="MasterVolume" parent="AudioMenu/SettingsPanel" instance=ExtResource("11_slider")]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 56.0
+offset_top = 88.0
+offset_right = 824.0
+offset_bottom = 116.0
+bus_name = "Master"
+title = "MASTER VOLUME"
+
+[node name="MusicVolume" parent="AudioMenu/SettingsPanel" instance=ExtResource("11_slider")]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 56.0
+offset_top = 196.0
+offset_right = 824.0
+offset_bottom = 224.0
+bus_name = "Music"
+title = "MUSIC"
+
+[node name="SfxVolume" parent="AudioMenu/SettingsPanel" instance=ExtResource("11_slider")]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 56.0
+offset_top = 304.0
+offset_right = 824.0
+offset_bottom = 332.0
+bus_name = "SFX"
+title = "SOUND EFFECTS"
+
+[node name="UiVolume" parent="AudioMenu/SettingsPanel" instance=ExtResource("11_slider")]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 56.0
+offset_top = 412.0
+offset_right = 824.0
+offset_bottom = 440.0
+bus_name = "UI"
+title = "UI SOUNDS"
+
+[node name="Divider" type="TextureRect" parent="AudioMenu/SettingsPanel"]
+layout_mode = 0
+offset_left = 56.0
+offset_top = 488.0
+offset_right = 948.0
+offset_bottom = 498.0
+mouse_filter = 2
+texture = SubResource("AtlasTexture_divider")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="MuteAllLabel" type="Label" parent="AudioMenu/SettingsPanel"]
+layout_mode = 0
+offset_left = 56.0
+offset_top = 530.0
+offset_right = 210.0
+offset_bottom = 566.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.93, 0.8, 0.55, 1)
+theme_override_fonts/font = SubResource("FontVariation_breadcrumb")
+theme_override_font_sizes/font_size = 26
+text = "MUTE ALL"
+vertical_alignment = 1
+
+[node name="MuteAllToggle" type="TextureButton" parent="AudioMenu/SettingsPanel"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 208.0
+offset_top = 526.0
+offset_right = 352.0
+offset_bottom = 570.0
+mouse_default_cursor_shape = 2
+toggle_mode = true
+texture_normal = SubResource("AtlasTexture_mute")
+texture_pressed = SubResource("AtlasTexture_mute_on")
+ignore_texture_size = true
+stretch_mode = 5
+theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
+
+[node name="AudioBackButton" type="TextureButton" parent="AudioMenu/SettingsPanel"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 56.0
+offset_top = 598.0
+offset_right = 467.0
+offset_bottom = 664.0
+mouse_default_cursor_shape = 2
+texture_normal = SubResource("AtlasTexture_audio_back")
+ignore_texture_size = true
+stretch_mode = 5
+theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
+
+[node name="RestoreDefaultsButton" type="TextureButton" parent="AudioMenu/SettingsPanel"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 488.0
+offset_top = 598.0
+offset_right = 896.0
+offset_bottom = 664.0
+mouse_default_cursor_shape = 2
+texture_normal = SubResource("AtlasTexture_restore")
+ignore_texture_size = true
+stretch_mode = 5
+theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
+
 [node name="MenuTheme" type="AudioStreamPlayer" parent="."]
 unique_name_in_owner = true
 stream = ExtResource("10_theme")
+bus = &"Music"

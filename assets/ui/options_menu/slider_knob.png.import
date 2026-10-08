@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cjscxgi1so3g4"
-path="res://.godot/imported/play.jpg-7c4aa6532fd5497e61290bc6fdd47e1b.ctex"
+uid="uid://c8knob2ringxy"
+path="res://.godot/imported/slider_knob.png-483fff17c196efcdf028ea21fec46f94.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/ui/main_menu/play.jpg"
-dest_files=["res://.godot/imported/play.jpg-7c4aa6532fd5497e61290bc6fdd47e1b.ctex"]
+source_file="res://assets/ui/options_menu/slider_knob.png"
+dest_files=["res://.godot/imported/slider_knob.png-483fff17c196efcdf028ea21fec46f94.ctex"]
 
 [params]
 
