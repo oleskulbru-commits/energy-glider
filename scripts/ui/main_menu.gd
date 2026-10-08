@@ -2,8 +2,6 @@ extends Control
 
 const GAME_SCENE := "res://scenes/main.tscn"
 const VestigeBankScript := preload("res://scripts/game/vestige_bank.gd")
-const REST_MODULATE := Color(0.58, 0.52, 0.44, 1.0)
-const LIT_MODULATE := Color(1.0, 1.0, 1.0, 1.0)
 const GLOW_PAD_SCALE := 0.06
 const GLOW_FADE_TIME := 0.22
 const MENU_THEME_DELAY := 2.0
@@ -14,12 +12,21 @@ const MENU_THEME_FADE_TIME := 1.0
 
 var vestiges: int = 0
 
+@onready var _buttons_box: VBoxContainer = %Buttons
 @onready var _play_button: TextureButton = %PlayButton
 @onready var _unlocks_button: TextureButton = %UnlocksButton
 @onready var _options_button: TextureButton = %OptionsButton
 @onready var _quit_button: TextureButton = %QuitButton
 @onready var _hover_glow: TextureRect = %HoverGlow
+@onready var _vestiges: HBoxContainer = %Vestiges
 @onready var _vestiges_label: Label = %VestigesLabel
+@onready var _options_menu: Control = %OptionsMenu
+@onready var _gameplay_button: TextureButton = %GameplayButton
+@onready var _controls_button: TextureButton = %ControlsButton
+@onready var _audio_button: TextureButton = %AudioButton
+@onready var _graphics_button: TextureButton = %GraphicsButton
+@onready var _accessibility_button: TextureButton = %AccessibilityButton
+@onready var _back_button: TextureButton = %BackButton
 @onready var _menu_theme: AudioStreamPlayer = %MenuTheme
 
 var _buttons: Array[TextureButton] = []
@@ -27,23 +34,34 @@ var _hovered_button: TextureButton
 var _glow_tween: Tween
 var _theme_fade_tween: Tween
 var _starting_game := false
+var _options_open := false
 
 
 func _ready() -> void:
 	_cover_window()
 	get_tree().root.size_changed.connect(_cover_window)
-	_buttons = [_play_button, _unlocks_button, _options_button, _quit_button]
+	_buttons = [
+		_play_button,
+		_unlocks_button,
+		_options_button,
+		_quit_button,
+		_gameplay_button,
+		_controls_button,
+		_audio_button,
+		_graphics_button,
+		_accessibility_button,
+		_back_button,
+	]
 	vestiges = VestigeBankScript.get_total()
 	_vestiges_label.text = str(vestiges)
 	_play_button.pressed.connect(_on_play_pressed)
 	_unlocks_button.pressed.connect(_on_unlocks_pressed)
 	_options_button.pressed.connect(_on_options_pressed)
+	_back_button.pressed.connect(_close_options)
 	_quit_button.pressed.connect(_on_quit_pressed)
 	for button in _buttons:
 		button.mouse_entered.connect(_on_button_mouse_entered.bind(button))
 		button.mouse_exited.connect(_on_button_mouse_exited.bind(button))
-		button.focus_entered.connect(_on_button_focused.bind(button))
-		button.focus_exited.connect(_refresh_button_modulate.bind(button))
 	_hover_glow.modulate.a = 0.0
 	_hover_glow.visible = false
 	resized.connect(_place_glow_if_hovered)
@@ -97,7 +115,38 @@ func _on_unlocks_pressed() -> void:
 
 
 func _on_options_pressed() -> void:
-	pass
+	_open_options()
+
+
+func _input(event: InputEvent) -> void:
+	if not _options_open or not event.is_action_pressed("ui_cancel"):
+		return
+	_close_options()
+	get_viewport().set_input_as_handled()
+
+
+func _open_options() -> void:
+	if _options_open or _starting_game:
+		return
+	_options_open = true
+	_hovered_button = null
+	_fade_glow(0.0)
+	_buttons_box.visible = false
+	_vestiges.visible = false
+	_options_menu.visible = true
+	_gameplay_button.grab_focus()
+
+
+func _close_options() -> void:
+	if not _options_open:
+		return
+	_options_open = false
+	_hovered_button = null
+	_fade_glow(0.0)
+	_options_menu.visible = false
+	_buttons_box.visible = true
+	_vestiges.visible = true
+	_options_button.grab_focus()
 
 
 func _on_quit_pressed() -> void:
@@ -145,18 +194,9 @@ func _fade_out_if_idle() -> void:
 	_fade_glow(0.0)
 
 
-func _on_button_focused(button: TextureButton) -> void:
-	_refresh_button_modulate(button)
-
-
 func _place_glow_if_hovered() -> void:
 	if _hovered_button != null:
 		_place_glow(_hovered_button)
-
-
-func _refresh_button_modulate(button: TextureButton) -> void:
-	var lit := button.has_focus() or button.is_hovered()
-	button.modulate = LIT_MODULATE if lit else REST_MODULATE
 
 
 func _place_glow(button: TextureButton) -> void:
