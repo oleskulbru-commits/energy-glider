@@ -2,9 +2,9 @@ extends SceneTree
 
 const ArenaScene := preload("res://scenes/test/enemy_test_arena.tscn")
 const CrawlerTestSpawnerScript := preload("res://scripts/enemies/crawler_test_spawner.gd")
-const DroneTestSpawnerScript := preload("res://scripts/enemies/drone_test_spawner.gd")
-const LaserDroneScript := preload("res://scripts/enemies/laser_drone.gd")
+const LeaperTestSpawnerScript := preload("res://scripts/enemies/leaper_test_spawner.gd")
 const SwarmPillScript := preload("res://scripts/enemies/swarm_pill.gd")
+const LeaperPillScript := preload("res://scripts/enemies/leaper_pill.gd")
 const UpgradeCatalogScript := preload("res://scripts/game/upgrade_catalog.gd")
 
 
@@ -24,69 +24,94 @@ func _run() -> void:
 
 	var state := arena.get_node_or_null("RunUpgradeState") as RunUpgradeState
 	_fail_unless(state != null, "Missing RunUpgradeState in test arena")
-	state.grant_starter(UpgradeCatalogScript.FAMILY_RIFLE)
 
 	_fail_unless(
 		arena.process_mode == Node.PROCESS_MODE_PAUSABLE,
 		"EnemyTestArena should use PROCESS_MODE_PAUSABLE so pause freezes enemies"
 	)
+	_fail_unless(
+		arena.get_node_or_null("DroneTestSpawner") == null,
+		"Test arena should not spawn drones"
+	)
 
-	await process_frame
-	await process_frame
-	await process_frame
+	var leaper_spawner := arena.get_node_or_null("LeaperTestSpawner") as LeaperTestSpawnerScript
+	_fail_unless(leaper_spawner != null, "Missing LeaperTestSpawner")
+	_fail_unless(
+		is_equal_approx(leaper_spawner.spawn_distance_m, LeaperPillScript.LEAP_RANGE_MAX_M),
+		"Test leaper should spawn at leap range"
+	)
 
-	spawner = arena.get_node_or_null("CrawlerTestSpawner") as CrawlerTestSpawnerScript
-	_fail_unless(spawner != null, "Missing CrawlerTestSpawner after arena ready")
+	for _i in 60:
+		await process_frame
+		if spawner._active != null and leaper_spawner._active != null:
+			break
+
 	_assert_crawler_spawned(spawner._active)
+	_assert_leaper_spawned(leaper_spawner._active)
+	if spawner._active == null or leaper_spawner._active == null:
+		return
 
-	var drone_spawner := arena.get_node_or_null("DroneTestSpawner") as DroneTestSpawnerScript
-	_fail_unless(drone_spawner != null, "Missing DroneTestSpawner")
-	_fail_unless(not drone_spawner.spawn_mg, "Test arena should not spawn MG drones")
-	_fail_unless(drone_spawner.spawn_laser, "Test arena should spawn laser drones")
-	_fail_unless(not drone_spawner.spawn_missile, "Test arena should not spawn missile drones")
-	_assert_laser_spawned(drone_spawner._active_laser)
+	state.grant_starter(UpgradeCatalogScript.FAMILY_RIFLE)
 
-	var first_id := spawner._active.get_instance_id()
+	var crawler_id := spawner._active.get_instance_id()
 	_fail_unless(
 		spawner._active.take_damage(999, Vector3(1.0, 0.0, 0.0)),
 		"Lethal damage should kill test crawler"
 	)
-	for _i in 4:
-		await process_frame
-
-	var second: SwarmPillScript = await _await_respawn(spawner, first_id)
-	if second == null:
+	var crawler_again: SwarmPillScript = await _await_active(spawner, crawler_id)
+	if crawler_again == null:
 		push_error("Spawner did not respawn crawler after despawn")
 		quit(1)
 		return
-	_assert_crawler_spawned(second)
+	_assert_crawler_spawned(crawler_again)
+
+	var leaper_id := leaper_spawner._active.get_instance_id()
+	_fail_unless(
+		leaper_spawner._active.take_damage(999, Vector3(1.0, 0.0, 0.0)),
+		"Lethal damage should kill test leaper"
+	)
+	var leaper_again: LeaperPillScript = await _await_active(leaper_spawner, leaper_id)
+	if leaper_again == null:
+		push_error("Spawner did not respawn leaper after despawn")
+		quit(1)
+		return
+	_assert_leaper_spawned(leaper_again)
 
 	print("Enemy test arena verification passed.")
 	quit(0)
 
 
-func _assert_laser_spawned(drone: LaserDroneScript) -> void:
-	_fail_unless(drone != null, "Spawner did not spawn laser drone")
-	_fail_unless(is_instance_valid(drone), "Laser drone invalid")
-	_fail_unless(drone.is_alive(), "Spawned laser drone should be alive")
+func _assert_leaper_spawned(pill: LeaperPillScript) -> void:
+	if not _fail_unless(pill != null, "Spawner did not spawn leaper"):
+		return
+	if not _fail_unless(is_instance_valid(pill), "Leaper invalid"):
+		return
+	_fail_unless(pill.is_alive(), "Spawned leaper should be alive")
+	_fail_unless(pill.is_in_group("leaper_pill"), "Test leaper should join leaper_pill")
+	_fail_unless(pill.get_node_or_null("Visual") != null, "Test leaper should keep the skinned visual")
 
 
 func _assert_crawler_spawned(pill: SwarmPillScript) -> void:
-	_fail_unless(pill != null, "Spawner did not spawn crawler")
-	_fail_unless(is_instance_valid(pill), "Crawler invalid")
+	if not _fail_unless(pill != null, "Spawner did not spawn crawler"):
+		return
+	if not _fail_unless(is_instance_valid(pill), "Crawler invalid"):
+		return
 	_fail_unless(pill.is_alive(), "Spawned crawler should be alive")
 
 
-func _await_respawn(spawner: CrawlerTestSpawnerScript, first_id: int) -> SwarmPillScript:
-	for _i in 120:
+func _await_active(spawner: Node, first_id: int) -> SwarmPillScript:
+	var deadline_msec := Time.get_ticks_msec() + 4000
+	while Time.get_ticks_msec() < deadline_msec:
 		await process_frame
-		var active := spawner._active
+		var active: SwarmPillScript = spawner.get("_active") as SwarmPillScript
 		if active != null and is_instance_valid(active) and active.get_instance_id() != first_id:
 			return active
 	return null
 
 
-func _fail_unless(condition: bool, message: String) -> void:
-	if not condition:
-		push_error(message)
-		quit(1)
+func _fail_unless(condition: bool, message: String) -> bool:
+	if condition:
+		return true
+	push_error(message)
+	quit(1)
+	return false

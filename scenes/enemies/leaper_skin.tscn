@@ -1,0 +1,25 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" uid="uid://o5klxmtwrw0o" path="res://assets/3dmodels/enemies/leaper/leaper_animated_v001.glb" id="1_leaper"]
+[ext_resource type="Script" path="res://scripts/enemies/leaper_anim_controller.gd" id="2_anim"]
+[ext_resource type="Script" path="res://scripts/enemies/leaper_air_streaks.gd" id="3_streaks"]
+
+[node name="LeaperSkin" type="Node3D"]
+
+[node name="Model" parent="." instance=ExtResource("1_leaper")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="DigDustAnchor" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.04, 0)
+
+[node name="AnimationTree" type="AnimationTree" parent="."]
+anim_player = NodePath("../Model/AnimationPlayer")
+active = false
+callback_mode_process = 1
+
+[node name="LeaperAnimController" type="Node" parent="."]
+script = ExtResource("2_anim")
+
+[node name="LeaperAirStreaks" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, 0)
+script = ExtResource("3_streaks")

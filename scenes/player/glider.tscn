@@ -30,14 +30,16 @@ shape = SubResource("BoxShape3D_glider")
 
 [node name="GliderSkin" parent="Visual" unique_id=846332631 instance=ExtResource("13_skin")]
 
+[node name="HullSpeedStreaks" type="Node3D" parent="Visual"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.12, 0)
+script = ExtResource("16_speed_streaks")
+hull_mode = true
+
 [node name="Camera3D" type="Camera3D" parent="." unique_id=239739927]
 transform = Transform3D(1, 0, 0, 0, 0.9659258, 0.25881904, 0, -0.25881904, 0.9659258, 0, 4, 10)
 top_level = true
 attributes = ExtResource("17_cam_attrs")
 script = ExtResource("14_camera")
-
-[node name="SpeedWindStreaks" type="Node3D" parent="Camera3D" unique_id=872418256]
-script = ExtResource("16_speed_streaks")
 
 [node name="HoverDust" type="Node3D" parent="." unique_id=1087170788]
 script = ExtResource("9_hover_dust")

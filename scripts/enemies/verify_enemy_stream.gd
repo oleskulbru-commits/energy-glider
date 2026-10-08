@@ -569,8 +569,14 @@ func _verify_leaper() -> void:
 		is_equal_approx(purple.move_speed, LeaperPillScript.MOVE_SPEED),
 		"configure should keep 8 m/s even if passed crawler speed"
 	)
-	var pill := purple.get_node_or_null("Pill") as MeshInstance3D
-	_fail_unless(pill != null, "Leaper should have a purple capsule visual")
+	var visual := purple.get_node_or_null("Visual") as Node3D
+	_fail_unless(visual != null, "Leaper should instance the imported skin under Visual")
+	_fail_unless(visual.get_node_or_null("Model") != null, "Leaper skin should instance the GLB as Model")
+	_fail_unless(
+		visual.find_child("LeaperAnimController", true, false) != null,
+		"Leaper skin should include LeaperAnimController"
+	)
+	_fail_unless(purple.get_node_or_null("Pill") == null, "Leaper should not keep the capsule mesh")
 	purple.free()
 
 

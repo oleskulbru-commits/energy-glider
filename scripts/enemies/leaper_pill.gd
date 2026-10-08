@@ -1,7 +1,7 @@
 class_name LeaperPill
 extends SwarmPill
 
-## Purple pill fodder: chases a bit faster than crawlers, then intercept-leaps.
+## Leaper fodder: climbs out of sand, chases, then intercept-leaps once.
 
 const GroundReticleScript := preload("res://scripts/enemies/ground_reticle.gd")
 
@@ -22,6 +22,9 @@ const LOFT_PER_METER := 0.24
 const LOFT_MIN_M := 8.0
 const PILL_MESH_RADIUS := 0.38
 const PILL_MESH_HEIGHT := 1.05
+## Target standing height in meters after undoing the imported armature shrink.
+const LEAPER_LIVING_SCALE := 1.15
+const LEAPER_RIG_PATH := "Visual/Model/Leaper_Rig"
 ## Match glider idle settle: below this tangent speed, lead as if the board is still.
 const LEAD_IDLE_SPEED_MPS := 0.35
 ## Vertical slop so a glider clipping the capsule still counts as a touch.
@@ -31,7 +34,12 @@ const CONTACT_Y_ABOVE_M := 1.5
 enum LeapState { CHASE, CHARGE, LEAP, RECOVER }
 
 var leap_state: int = LeapState.CHASE
+var practice_lane := false
+var practice_in_place := false
+var practice_facing := Vector3(1.0, 0.0, 0.0)
+var _practice_run_left := 0.0
 var _pill: MeshInstance3D
+var _leaper_anim: LeaperAnimController
 var _charge_left := 0.0
 var _leap_t := 0.0
 var _recover_left := 0.0
@@ -46,6 +54,9 @@ var _reticle: GroundReticle
 func _ready() -> void:
 	super._ready()
 	add_to_group("leaper_pill")
+	_leaper_anim = _find_leaper_anim()
+	if _leaper_anim != null and not _leaper_anim.spawn_finished.is_connected(_on_spawn_finished):
+		_leaper_anim.spawn_finished.connect(_on_spawn_finished)
 	_ensure_pill_visual()
 	move_speed = MOVE_SPEED
 	_jump_range_m = _rng.randf_range(LEAP_RANGE_MIN_M, LEAP_RANGE_MAX_M)
@@ -54,12 +65,13 @@ func _ready() -> void:
 
 func configure(terrain: TerrainManager, target: Node3D, _speed: float = MOVE_SPEED) -> void:
 	super.configure(terrain, target, MOVE_SPEED)
+	if _leaper_anim != null:
+		_leaper_anim.configure_sand(terrain, self)
 
 
 func _ensure_pill_visual() -> void:
-	var old_visual := get_node_or_null("Visual")
-	if old_visual != null:
-		old_visual.queue_free()
+	if get_node_or_null("Visual") != null:
+		return
 	_pill = get_node_or_null("Pill") as MeshInstance3D
 	if _pill == null:
 		_pill = MeshInstance3D.new()
@@ -79,15 +91,52 @@ func _ensure_pill_visual() -> void:
 	_pill.material_override = mat
 
 
+func enable_practice_lane(in_place: bool = false, facing: Vector3 = Vector3.RIGHT, run_lead_m: float = 50.0) -> void:
+	practice_lane = true
+	practice_in_place = in_place
+	_jump_range_m = LEAP_RANGE_M
+	_leap_sec = LEAP_SEC
+	_has_leapt = false
+	leap_state = LeapState.CHASE
+	if in_place:
+		practice_facing = _flat_facing(facing)
+		_practice_run_left = run_lead_m / maxf(MOVE_SPEED, 0.001)
+
+
+func set_practice_facing(facing: Vector3) -> void:
+	practice_facing = _flat_facing(facing)
+
+
+func reset_for_next_hop(run_lead_m: float = 50.0) -> void:
+	_has_leapt = false
+	leap_state = LeapState.CHASE
+	_charge_left = 0.0
+	_recover_left = 0.0
+	_leap_sec = LEAP_SEC
+	if practice_in_place:
+		_practice_run_left = run_lead_m / maxf(MOVE_SPEED, 0.001)
+
+
 func _physics_process(delta: float) -> void:
 	if _target == null or not is_instance_valid(_target):
+		if practice_lane:
+			return
 		queue_free()
 		return
 
-	if not _blocks_behind_despawn() and is_behind_facing(
-		_target.global_position, _target_facing_xz(), global_position
+	if (
+		not practice_lane
+		and not _blocks_behind_despawn()
+		and is_behind_facing(_target.global_position, _target_facing_xz(), global_position)
 	):
 		queue_free()
+		return
+
+	if _is_spawn_active():
+		velocity = Vector3.ZERO
+		move_and_slide()
+		_snap_to_terrain()
+		_align_to_terrain(_flat_seek_to_target())
 		return
 
 	if leap_state == LeapState.LEAP:
@@ -113,6 +162,10 @@ func _physics_process(delta: float) -> void:
 
 
 func _tick_chase(delta: float) -> void:
+	if practice_in_place:
+		_tick_chase_in_place(delta)
+		return
+
 	if can_begin_charge(_distance_to_target(), _has_leapt, _jump_range_m):
 		_begin_charge()
 		_tick_charge(delta)
@@ -135,12 +188,15 @@ func _tick_chase(delta: float) -> void:
 	_snap_to_terrain()
 	_align_to_terrain(_flat_velocity_dir())
 	_update_contact(delta)
+	_sync_anim_speed()
 
 
 func _begin_charge() -> void:
 	leap_state = LeapState.CHARGE
 	_charge_left = CHARGE_SEC
 	velocity = Vector3.ZERO
+	if _leaper_anim != null:
+		_leaper_anim.play_stop_run()
 
 
 func _tick_charge(delta: float) -> void:
@@ -164,18 +220,24 @@ func _begin_leap() -> void:
 	_has_leapt = true
 	_leap_t = 0.0
 	_leap_origin = global_position
-	_leap_impact = landing_point_for(
-		_leap_origin,
-		_target.global_position,
-		_target_velocity(),
-		_terrain,
-		_collision_bottom_y,
-		_leap_sec
-	)
+	if practice_in_place:
+		_leap_impact = _practice_landing_point(_leap_origin)
+	else:
+		_leap_impact = landing_point_for(
+			_leap_origin,
+			_target.global_position,
+			_target_velocity(),
+			_terrain,
+			_collision_bottom_y,
+			_leap_sec
+		)
 	motion_mode = MOTION_MODE_FLOATING
 	_hit_velocity = Vector3.ZERO
 	velocity = Vector3.ZERO
-	_place_landing_reticle()
+	if not practice_in_place:
+		_place_landing_reticle()
+	if _leaper_anim != null:
+		_leaper_anim.play_leap(_leap_sec)
 
 
 func _tick_leap(delta: float) -> void:
@@ -184,12 +246,13 @@ func _tick_leap(delta: float) -> void:
 		global_position = _leap_impact
 		_on_landed()
 		return
-	global_position = DroneRocket.arc_position(
-		_leap_origin, _leap_impact, _leap_t, loft_for_span(_leap_origin, _leap_impact)
-	)
+	var loft := _leap_loft_m()
+	global_position = DroneRocket.arc_position(_leap_origin, _leap_impact, _leap_t, loft)
 	var along := Vector3(_leap_impact.x - _leap_origin.x, 0.0, _leap_impact.z - _leap_origin.z)
 	if along.length_squared() > 0.0001:
 		_align_airborne(along.normalized())
+	elif practice_in_place and practice_facing.length_squared() > 0.0001:
+		_align_airborne(practice_facing)
 	if not _landing_owns_hit():
 		_update_contact(delta)
 
@@ -201,6 +264,9 @@ func _on_landed() -> void:
 	_apply_landing_hit()
 	leap_state = LeapState.RECOVER
 	_recover_left = RECOVER_SEC
+	if _leaper_anim != null:
+		_leaper_anim.play_land()
+		_recover_left = maxf(_recover_left, _leaper_anim.recover_duration())
 
 
 func _tick_recover(delta: float) -> void:
@@ -210,11 +276,15 @@ func _tick_recover(delta: float) -> void:
 	_snap_to_terrain()
 	_orient_toward_target()
 	_update_contact(delta)
-	if _recover_left <= 0.0:
+	if _recover_left <= 0.0 and (_leaper_anim == null or not _leaper_anim.is_recover_active()):
 		leap_state = LeapState.CHASE
+		if _leaper_anim != null:
+			_leaper_anim.set_run_speed(_get_move_speed())
 
 
 func _apply_landing_hit() -> void:
+	if practice_lane:
+		return
 	if _target == null or not is_instance_valid(_target):
 		return
 	var player_pos := _target.global_position
@@ -297,6 +367,8 @@ func _target_ground_normal() -> Vector3:
 
 
 func _is_touching_target() -> bool:
+	if practice_lane:
+		return false
 	if _target == null or not is_instance_valid(_target):
 		return false
 	return is_body_contact(
@@ -331,28 +403,93 @@ func _blocks_behind_despawn() -> bool:
 	return leap_state == LeapState.CHARGE or leap_state == LeapState.LEAP
 
 
+func _tick_chase_in_place(delta: float) -> void:
+	_practice_run_left = maxf(_practice_run_left - delta, 0.0)
+	velocity = Vector3.ZERO
+	move_and_slide()
+	_snap_to_terrain()
+	if practice_facing.length_squared() > 0.0001:
+		_align_to_terrain(practice_facing)
+	_update_contact(delta)
+	_sync_anim_speed()
+	if _has_leapt:
+		return
+	if _practice_run_left <= 0.0:
+		_begin_charge()
+		_tick_charge(delta)
+
+
+func _practice_landing_point(origin: Vector3) -> Vector3:
+	var land_y := origin.y
+	if _terrain != null:
+		land_y = _terrain.sample_height(origin.x, origin.z)
+	return Vector3(
+		origin.x,
+		land_y - _collision_bottom_y + GROUND_CLEARANCE_M,
+		origin.z
+	)
+
+
+func _leap_loft_m() -> float:
+	if practice_in_place:
+		var flat_end := _leap_origin + practice_facing * LEAP_RANGE_M
+		return loft_for_span(_leap_origin, flat_end)
+	return loft_for_span(_leap_origin, _leap_impact)
+
+
+func _flat_facing(dir: Vector3) -> Vector3:
+	var flat := Vector3(dir.x, 0.0, dir.z)
+	if flat.length_squared() < 0.0001:
+		return Vector3(1.0, 0.0, 0.0)
+	return flat.normalized()
+
+
 func _die(from_pos: Vector3, _weapon_family: StringName = &"") -> void:
 	_clear_reticle()
 	set_physics_process(false)
 	var collision := get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if collision != null:
 		collision.disabled = true
+	var visual := get_node_or_null("Visual") as Node3D
+	if visual != null:
+		visual.visible = false
 	if _pill != null:
 		_pill.visible = false
 	died.emit()
 	queue_free()
 
 
-func _apply_visual_scale() -> void:
+func _apply_hitbox_scale() -> void:
 	pass
+
+
+func _apply_visual_scale() -> void:
+	var model := get_node_or_null("Visual/Model") as Node3D
+	if model == null:
+		return
+	var rig := get_node_or_null(LEAPER_RIG_PATH) as Node3D
+	var armature := 1.0
+	if rig != null:
+		armature = absf(rig.transform.basis.get_scale().x)
+	var s := LEAPER_LIVING_SCALE / maxf(armature, 0.0001)
+	model.scale = Vector3(s, s, s)
 
 
 func _sync_anim_speed() -> void:
-	pass
+	if _leaper_anim == null or _is_spawn_active():
+		return
+	_leaper_anim.set_run_speed(_get_move_speed())
 
 
 func _is_spawn_active() -> bool:
-	return false
+	return _leaper_anim != null and _leaper_anim.is_spawn_active()
+
+
+func _find_leaper_anim() -> LeaperAnimController:
+	var skin := get_node_or_null("Visual")
+	if skin == null:
+		return null
+	return skin.find_child("LeaperAnimController", true, false) as LeaperAnimController
 
 
 static func is_body_contact(

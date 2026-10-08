@@ -688,17 +688,21 @@ func _verify_impact_camera_shake() -> void:
 func _verify_speed_wind_streaks() -> void:
 	var cap := GliderPhysicsScript.flat_max_speed(false, 0.0)
 	_fail_unless(
-		is_equal_approx(SpeedWindStreaksScript.compute_speed_streak_blend(cap * 0.5, cap), 0.0),
-		"Speed streak blend should be zero below threshold"
+		is_equal_approx(SpeedWindStreaksScript.compute_speed_streak_blend(cap * 0.2, cap), 0.0),
+		"Speed streak blend should be zero well below cruise"
+	)
+	_fail_unless(
+		SpeedWindStreaksScript.compute_speed_streak_blend(cap * 0.5, cap) > 0.0,
+		"Speed streaks should be visible at mid cruise"
 	)
 	_fail_unless(
 		is_equal_approx(SpeedWindStreaksScript.compute_speed_streak_blend(cap, cap), 1.0),
 		"Speed streak blend should reach full strength at cap"
 	)
 	_fail_unless(
-		SpeedWindStreaksScript.compute_speed_streak_blend(cap * 0.94, cap)
-			< SpeedWindStreaksScript.compute_speed_streak_blend(cap * 0.97, cap),
-		"Speed streak blend should increase monotonically near cap"
+		SpeedWindStreaksScript.compute_speed_streak_blend(cap * 0.5, cap)
+			< SpeedWindStreaksScript.compute_speed_streak_blend(cap * 0.75, cap),
+		"Speed streak blend should increase through cruise"
 	)
 
 	var streak_source := FileAccess.get_file_as_string("res://scripts/player/speed_wind_streaks.gd")
@@ -706,10 +710,22 @@ func _verify_speed_wind_streaks() -> void:
 		streak_source.find("flat_max_speed") != -1,
 		"SpeedWindStreaks should use mode speed cap"
 	)
+	_fail_unless(
+		streak_source.find("radial_smoke_puff.png") != -1,
+		"Speed streaks should use the sand puff texture"
+	)
+	_fail_unless(
+		streak_source.find("particle_flag_align_y") != -1,
+		"Hull streaks should align along travel"
+	)
 	var glider_scene := FileAccess.get_file_as_string("res://scenes/player/glider.tscn")
 	_fail_unless(
-		glider_scene.find("SpeedWindStreaks") != -1,
-		"Glider scene should include SpeedWindStreaks under camera"
+		glider_scene.find("[node name=\"SpeedWindStreaks\"") == -1,
+		"Glider camera should not emit speed particles"
+	)
+	_fail_unless(
+		glider_scene.find("HullSpeedStreaks") != -1,
+		"Glider should keep hull speed streaks"
 	)
 
 	var cam := GliderCameraScript.new()
