@@ -154,7 +154,6 @@ func _open_options() -> void:
 	_hovered_button = null
 	_fade_glow(0.0)
 	_buttons_box.visible = false
-	_vestiges.visible = false
 	_options_menu.visible = true
 	_gameplay_button.grab_focus()
 
@@ -193,7 +192,6 @@ func _close_options() -> void:
 	_fade_glow(0.0)
 	_options_menu.visible = false
 	_buttons_box.visible = true
-	_vestiges.visible = true
 	_options_button.grab_focus()
 
 

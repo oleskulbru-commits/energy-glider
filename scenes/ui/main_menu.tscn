@@ -247,42 +247,6 @@ theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
 theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
 theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
 
-[node name="Vestiges" type="HBoxContainer" parent="."]
-unique_name_in_owner = true
-layout_mode = 1
-anchors_preset = 1
-anchor_left = 1.0
-anchor_right = 1.0
-offset_left = -360.0
-offset_top = 28.0
-offset_right = -40.0
-offset_bottom = 148.0
-grow_horizontal = 0
-mouse_filter = 2
-theme_override_constants/separation = 12
-alignment = 2
-
-[node name="VestigesLabel" type="Label" parent="Vestiges"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 4
-theme_override_colors/font_color = Color(0.97, 0.94, 0.86, 1)
-theme_override_fonts/font = ExtResource("9_font")
-theme_override_font_sizes/font_size = 54
-text = "0"
-horizontal_alignment = 2
-vertical_alignment = 1
-
-[node name="VestigesIcon" type="TextureRect" parent="Vestiges"]
-custom_minimum_size = Vector2(102, 110)
-layout_mode = 2
-size_flags_vertical = 4
-mouse_filter = 2
-material = SubResource("ShaderMaterial_key")
-texture = SubResource("AtlasTexture_vestiges")
-expand_mode = 1
-stretch_mode = 5
-
 [node name="OptionsMenu" type="Control" parent="."]
 unique_name_in_owner = true
 visible = false
@@ -585,6 +549,42 @@ theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
 theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
 theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
 theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
+
+[node name="Vestiges" type="HBoxContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -360.0
+offset_top = 28.0
+offset_right = -40.0
+offset_bottom = 148.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_override_constants/separation = 12
+alignment = 2
+
+[node name="VestigesLabel" type="Label" parent="Vestiges"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_colors/font_color = Color(0.97, 0.94, 0.86, 1)
+theme_override_fonts/font = ExtResource("9_font")
+theme_override_font_sizes/font_size = 54
+text = "0"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="VestigesIcon" type="TextureRect" parent="Vestiges"]
+custom_minimum_size = Vector2(102, 110)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+material = SubResource("ShaderMaterial_key")
+texture = SubResource("AtlasTexture_vestiges")
+expand_mode = 1
+stretch_mode = 5
 
 [node name="MenuTheme" type="AudioStreamPlayer" parent="."]
 unique_name_in_owner = true
