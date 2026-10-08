@@ -1,4 +1,4 @@
-[gd_scene load_steps=47 format=3]
+[gd_scene load_steps=55 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/main_menu.gd" id="1_menu"]
 [ext_resource type="Shader" path="res://shaders/black_key.gdshader" id="2_key"]
@@ -19,6 +19,10 @@
 [ext_resource type="Texture2D" path="res://assets/ui/options_menu/settings_panel.png" id="11_panel"]
 [ext_resource type="PackedScene" path="res://scenes/ui/volume_slider.tscn" id="11_slider"]
 [ext_resource type="Texture2D" path="res://assets/ui/options_menu/divider.png" id="11_divider"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/mute_off.png" id="11_mute"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/mute_on.png" id="11_mute_on"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/audio_back.png" id="11_audio_back"]
+[ext_resource type="Texture2D" path="res://assets/ui/options_menu/restore_defaults.png" id="11_restore"]
 [ext_resource type="Texture2D" path="res://assets/ui/options_menu/gameplay.png" id="12_gameplay"]
 [ext_resource type="Texture2D" path="res://assets/ui/options_menu/controls.png" id="13_controls"]
 [ext_resource type="Texture2D" path="res://assets/ui/options_menu/audio.png" id="14_audio"]
@@ -77,6 +81,22 @@ region = Rect2(36, 94, 952, 739)
 [sub_resource type="AtlasTexture" id="AtlasTexture_divider"]
 atlas = ExtResource("11_divider")
 region = Rect2(58, 191, 916, 12)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_mute"]
+atlas = ExtResource("11_mute")
+region = Rect2(81, 47, 861, 270)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_mute_on"]
+atlas = ExtResource("11_mute_on")
+region = Rect2(86, 47, 853, 267)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_audio_back"]
+atlas = ExtResource("11_audio_back")
+region = Rect2(87, 120, 847, 136)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_restore"]
+atlas = ExtResource("11_restore")
+region = Rect2(87, 119, 848, 137)
 
 [sub_resource type="FontVariation" id="FontVariation_breadcrumb"]
 base_font = ExtResource("9_medium")
@@ -450,51 +470,121 @@ expand_mode = 1
 stretch_mode = 5
 
 [node name="MasterVolume" parent="AudioMenu/SettingsPanel" instance=ExtResource("11_slider")]
+unique_name_in_owner = true
 layout_mode = 0
 offset_left = 56.0
-offset_top = 106.0
+offset_top = 88.0
 offset_right = 824.0
-offset_bottom = 134.0
+offset_bottom = 116.0
 bus_name = "Master"
 title = "MASTER VOLUME"
 
 [node name="MusicVolume" parent="AudioMenu/SettingsPanel" instance=ExtResource("11_slider")]
+unique_name_in_owner = true
 layout_mode = 0
 offset_left = 56.0
-offset_top = 234.0
+offset_top = 196.0
 offset_right = 824.0
-offset_bottom = 262.0
+offset_bottom = 224.0
 bus_name = "Music"
 title = "MUSIC"
 
 [node name="SfxVolume" parent="AudioMenu/SettingsPanel" instance=ExtResource("11_slider")]
+unique_name_in_owner = true
 layout_mode = 0
 offset_left = 56.0
-offset_top = 362.0
+offset_top = 304.0
 offset_right = 824.0
-offset_bottom = 390.0
+offset_bottom = 332.0
 bus_name = "SFX"
 title = "SOUND EFFECTS"
 
 [node name="UiVolume" parent="AudioMenu/SettingsPanel" instance=ExtResource("11_slider")]
+unique_name_in_owner = true
 layout_mode = 0
 offset_left = 56.0
-offset_top = 490.0
+offset_top = 412.0
 offset_right = 824.0
-offset_bottom = 518.0
+offset_bottom = 440.0
 bus_name = "UI"
 title = "UI SOUNDS"
 
 [node name="Divider" type="TextureRect" parent="AudioMenu/SettingsPanel"]
 layout_mode = 0
 offset_left = 56.0
-offset_top = 572.0
+offset_top = 488.0
 offset_right = 948.0
-offset_bottom = 584.0
+offset_bottom = 498.0
 mouse_filter = 2
 texture = SubResource("AtlasTexture_divider")
 expand_mode = 1
 stretch_mode = 5
+
+[node name="MuteAllLabel" type="Label" parent="AudioMenu/SettingsPanel"]
+layout_mode = 0
+offset_left = 56.0
+offset_top = 530.0
+offset_right = 210.0
+offset_bottom = 566.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.93, 0.8, 0.55, 1)
+theme_override_fonts/font = SubResource("FontVariation_breadcrumb")
+theme_override_font_sizes/font_size = 26
+text = "MUTE ALL"
+vertical_alignment = 1
+
+[node name="MuteAllToggle" type="TextureButton" parent="AudioMenu/SettingsPanel"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 208.0
+offset_top = 526.0
+offset_right = 352.0
+offset_bottom = 570.0
+mouse_default_cursor_shape = 2
+toggle_mode = true
+texture_normal = SubResource("AtlasTexture_mute")
+texture_pressed = SubResource("AtlasTexture_mute_on")
+ignore_texture_size = true
+stretch_mode = 5
+theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
+
+[node name="AudioBackButton" type="TextureButton" parent="AudioMenu/SettingsPanel"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 56.0
+offset_top = 598.0
+offset_right = 467.0
+offset_bottom = 664.0
+mouse_default_cursor_shape = 2
+texture_normal = SubResource("AtlasTexture_audio_back")
+ignore_texture_size = true
+stretch_mode = 5
+theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
+
+[node name="RestoreDefaultsButton" type="TextureButton" parent="AudioMenu/SettingsPanel"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 488.0
+offset_top = 598.0
+offset_right = 896.0
+offset_bottom = 664.0
+mouse_default_cursor_shape = 2
+texture_normal = SubResource("AtlasTexture_restore")
+ignore_texture_size = true
+stretch_mode = 5
+theme_override_styles/normal = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_btn")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_btn")
 
 [node name="MenuTheme" type="AudioStreamPlayer" parent="."]
 unique_name_in_owner = true

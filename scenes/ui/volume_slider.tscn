@@ -31,13 +31,13 @@ script = ExtResource("1_slider")
 
 [node name="Title" type="Label" parent="."]
 layout_mode = 0
-offset_top = -58.0
+offset_top = -48.0
 offset_right = 504.0
-offset_bottom = -14.0
+offset_bottom = -12.0
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.93, 0.8, 0.55, 1)
 theme_override_fonts/font = SubResource("FontVariation_label")
-theme_override_font_sizes/font_size = 30
+theme_override_font_sizes/font_size = 26
 text = "MASTER VOLUME"
 vertical_alignment = 1
 
@@ -68,10 +68,10 @@ stretch_mode = 5
 
 [node name="Knob" type="TextureRect" parent="."]
 layout_mode = 0
-offset_left = 736.0
-offset_top = -18.5
-offset_right = 800.0
-offset_bottom = 46.5
+offset_left = 740.0
+offset_top = -16.5
+offset_right = 796.0
+offset_bottom = 40.5
 mouse_filter = 2
 texture = SubResource("AtlasTexture_knob")
 expand_mode = 1
@@ -80,19 +80,19 @@ stretch_mode = 5
 [node name="Percent" type="Label" parent="."]
 layout_mode = 0
 offset_left = 804.0
-offset_top = -8.0
+offset_top = -6.0
 offset_right = 892.0
-offset_bottom = 36.0
+offset_bottom = 30.0
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.93, 0.8, 0.55, 1)
 theme_override_fonts/font = SubResource("FontVariation_label")
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 24
 text = "100%"
 vertical_alignment = 1
 
 [node name="Hit" type="Control" parent="."]
 layout_mode = 0
-offset_left = -32.0
-offset_top = -22.0
-offset_right = 800.0
-offset_bottom = 50.0
+offset_left = -28.0
+offset_top = -20.0
+offset_right = 796.0
+offset_bottom = 44.0

@@ -1,7 +1,9 @@
+class_name VolumeSlider
 extends Control
 
 const DEFAULT_VOLUME := 1.0
 const SILENT_DB := -80.0
+const DIMMED := Color(0.45, 0.42, 0.38, 1)
 
 @export var bus_name := "Master"
 @export var title := "MASTER VOLUME"
@@ -16,6 +18,14 @@ const SILENT_DB := -80.0
 
 var _volume := DEFAULT_VOLUME
 var _dragging := false
+
+
+func set_counted(counted: bool) -> void:
+	modulate = Color.WHITE if counted else DIMMED
+
+
+func set_volume(value: float) -> void:
+	_apply_volume(value)
 
 
 func _ready() -> void:

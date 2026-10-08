@@ -29,6 +29,13 @@ var vestiges: int = 0
 @onready var _accessibility_button: TextureButton = %AccessibilityButton
 @onready var _back_button: TextureButton = %BackButton
 @onready var _menu_theme: AudioStreamPlayer = %MenuTheme
+@onready var _mute_all: TextureButton = %MuteAllToggle
+@onready var _audio_back_button: TextureButton = %AudioBackButton
+@onready var _restore_defaults_button: TextureButton = %RestoreDefaultsButton
+@onready var _master_volume: VolumeSlider = %MasterVolume
+@onready var _music_volume: VolumeSlider = %MusicVolume
+@onready var _sfx_volume: VolumeSlider = %SfxVolume
+@onready var _ui_volume: VolumeSlider = %UiVolume
 
 var _buttons: Array[TextureButton] = []
 var _hovered_button: TextureButton
@@ -53,6 +60,8 @@ func _ready() -> void:
 		_graphics_button,
 		_accessibility_button,
 		_back_button,
+		_audio_back_button,
+		_restore_defaults_button,
 	]
 	vestiges = VestigeBankScript.get_total()
 	_vestiges_label.text = str(vestiges)
@@ -61,6 +70,8 @@ func _ready() -> void:
 	_options_button.pressed.connect(_on_options_pressed)
 	_audio_button.pressed.connect(_open_audio)
 	_back_button.pressed.connect(_close_options)
+	_audio_back_button.pressed.connect(_close_audio)
+	_restore_defaults_button.pressed.connect(_on_restore_defaults_pressed)
 	_quit_button.pressed.connect(_on_quit_pressed)
 	for button in _buttons:
 		button.mouse_entered.connect(_on_button_mouse_entered.bind(button))
@@ -68,6 +79,7 @@ func _ready() -> void:
 	_hover_glow.modulate.a = 0.0
 	_hover_glow.visible = false
 	resized.connect(_place_glow_if_hovered)
+	_mute_all.toggled.connect(_on_mute_all_toggled)
 	_play_menu_theme()
 	call_deferred("_focus_play")
 
@@ -163,6 +175,8 @@ func _close_audio() -> void:
 	if not _audio_open:
 		return
 	_audio_open = false
+	_hovered_button = null
+	_fade_glow(0.0)
 	_audio_menu.visible = false
 	_options_menu.visible = true
 	_audio_button.grab_focus()
@@ -184,6 +198,23 @@ func _close_options() -> void:
 
 func _on_quit_pressed() -> void:
 	get_tree().quit()
+
+
+func _on_mute_all_toggled(muted: bool) -> void:
+	var bus := AudioServer.get_bus_index("Master")
+	if bus >= 0:
+		AudioServer.set_bus_mute(bus, muted)
+	for row: VolumeSlider in [_master_volume, _music_volume, _sfx_volume, _ui_volume]:
+		row.set_counted(not muted)
+
+
+func _on_restore_defaults_pressed() -> void:
+	for row: VolumeSlider in [_master_volume, _music_volume, _sfx_volume, _ui_volume]:
+		row.set_volume(1.0)
+	if _mute_all.button_pressed:
+		_mute_all.button_pressed = false
+	else:
+		_on_mute_all_toggled(false)
 
 
 func _play_menu_theme() -> void:
