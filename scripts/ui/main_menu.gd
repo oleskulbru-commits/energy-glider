@@ -2,6 +2,7 @@ extends Control
 
 const GAME_SCENE := "res://scenes/main.tscn"
 const VestigeBankScript := preload("res://scripts/game/vestige_bank.gd")
+const GameSettingsScript := preload("res://scripts/game/game_settings.gd")
 const GLOW_PAD_SCALE := 0.06
 const GLOW_FADE_TIME := 0.22
 const MENU_THEME_DELAY := 2.0
@@ -47,6 +48,7 @@ var _audio_open := false
 
 
 func _ready() -> void:
+	GameSettingsScript.apply()
 	_cover_window()
 	get_tree().root.size_changed.connect(_cover_window)
 	_buttons = [
@@ -200,30 +202,23 @@ func _on_quit_pressed() -> void:
 
 
 func _sync_mute_all_from_bus() -> void:
-	var muted := false
-	var bus := AudioServer.get_bus_index("Master")
-	if bus >= 0:
-		muted = AudioServer.is_bus_mute(bus)
+	var muted := GameSettingsScript.is_muted()
 	_mute_all.set_pressed_no_signal(muted)
 	for row: VolumeSlider in [_master_volume, _music_volume, _sfx_volume, _ui_volume]:
 		row.set_counted(not muted)
 
 
 func _on_mute_all_toggled(muted: bool) -> void:
-	var bus := AudioServer.get_bus_index("Master")
-	if bus >= 0:
-		AudioServer.set_bus_mute(bus, muted)
+	GameSettingsScript.set_muted(muted)
 	for row: VolumeSlider in [_master_volume, _music_volume, _sfx_volume, _ui_volume]:
 		row.set_counted(not muted)
 
 
 func _on_restore_defaults_pressed() -> void:
+	GameSettingsScript.restore_audio_defaults()
 	for row: VolumeSlider in [_master_volume, _music_volume, _sfx_volume, _ui_volume]:
-		row.set_volume(1.0)
-	if _mute_all.button_pressed:
-		_mute_all.button_pressed = false
-	else:
-		_on_mute_all_toggled(false)
+		row.set_volume(GameSettingsScript.DEFAULT_VOLUME)
+	_sync_mute_all_from_bus()
 
 
 func _play_menu_theme() -> void:

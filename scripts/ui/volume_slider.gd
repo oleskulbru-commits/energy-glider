@@ -1,8 +1,8 @@
 class_name VolumeSlider
 extends Control
 
+const GameSettingsScript := preload("res://scripts/game/game_settings.gd")
 const DEFAULT_VOLUME := 1.0
-const SILENT_DB := -80.0
 const DIMMED := Color(0.45, 0.42, 0.38, 1)
 
 @export var bus_name := "Master"
@@ -32,7 +32,7 @@ func _ready() -> void:
 	set_process_input(false)
 	_title.text = title
 	_hit.gui_input.connect(_on_gui_input)
-	_show_volume(_volume_from_bus())
+	_show_volume(GameSettingsScript.volume(bus_name))
 
 
 func _notification(what: int) -> void:
@@ -72,25 +72,9 @@ func _set_volume_from_global(global_position: Vector2) -> void:
 	_apply_volume(value)
 
 
-func _volume_from_bus() -> float:
-	var bus := AudioServer.get_bus_index(bus_name)
-	if bus < 0:
-		return DEFAULT_VOLUME
-	var db := AudioServer.get_bus_volume_db(bus)
-	if db <= SILENT_DB:
-		return 0.0
-	return clampf(db_to_linear(db), 0.0, 1.0)
-
-
 func _apply_volume(value: float) -> void:
 	_show_volume(value)
-	var bus := AudioServer.get_bus_index(bus_name)
-	if bus < 0:
-		return
-	if _volume <= 0.0:
-		AudioServer.set_bus_volume_db(bus, SILENT_DB)
-	else:
-		AudioServer.set_bus_volume_db(bus, linear_to_db(_volume))
+	GameSettingsScript.set_volume(bus_name, _volume)
 
 
 func _show_volume(value: float) -> void:
