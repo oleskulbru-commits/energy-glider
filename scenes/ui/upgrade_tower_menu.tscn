@@ -1,44 +1,31 @@
-[gd_scene load_steps=24 format=3]
+[gd_scene load_steps=19 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/upgrade_tower_menu.gd" id="1_menu"]
 [ext_resource type="Theme" path="res://themes/hud_theme.tres" id="2_theme"]
-[ext_resource type="Texture2D" uid="uid://cserivkeulajl" path="res://assets/ui/upgrade_menu/panel_frame.png" id="3_frame"]
+[ext_resource type="Script" path="res://scripts/ui/upgrade_panel_frame.gd" id="3_frame"]
 [ext_resource type="Script" uid="uid://chptb5hpp1pkl" path="res://scripts/ui/upgrade_frame_host.gd" id="4_host"]
 [ext_resource type="Texture2D" uid="uid://cbndjciv2gy2c" path="res://assets/ui/upgrade_menu/upgrade_card.png" id="5_card"]
 [ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/wait_until_dawn.png" id="6_wait"]
 [ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/wait_until_dawn_hover.png" id="7_wait_hover"]
 [ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/wait_until_dawn_selected.png" id="8_wait_selected"]
-[ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/keep_going.png" id="9_keep"]
-[ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/keep_going_hover.png" id="10_keep_hover"]
-[ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/keep_going_selected.png" id="11_keep_selected"]
+[ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/keep_going_rewards.png" id="9_keep"]
 [ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/wait_until_dawn_moon.png" id="12_moon"]
-[ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/keep_going_chevrons.png" id="13_chevrons"]
 [ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/choose_one_upgrade.png" id="14_choose"]
 [ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/upgrade_tower_title.png" id="15_title"]
 
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_card"]
 texture = ExtResource("5_card")
-texture_margin_left = 20.0
-texture_margin_top = 20.0
-texture_margin_right = 20.0
-texture_margin_bottom = 22.0
-content_margin_left = 12.0
-content_margin_top = 8.0
-content_margin_right = 12.0
-content_margin_bottom = 16.0
+content_margin_left = 24.0
+content_margin_top = 18.0
+content_margin_right = 24.0
+content_margin_bottom = 32.0
 draw_center = true
 
-[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_frame"]
-texture = ExtResource("3_frame")
-texture_margin_left = 320.0
-texture_margin_top = 88.0
-texture_margin_right = 320.0
-texture_margin_bottom = 80.0
-content_margin_left = 76.0
-content_margin_top = 66.0
-content_margin_right = 76.0
-content_margin_bottom = 34.0
-draw_center = true
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_panel"]
+content_margin_left = 122.0
+content_margin_top = 96.0
+content_margin_right = 122.0
+content_margin_bottom = 64.0
 
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_wait"]
 texture = ExtResource("6_wait")
@@ -52,16 +39,12 @@ draw_center = true
 texture = ExtResource("8_wait_selected")
 draw_center = true
 
+[sub_resource type="AtlasTexture" id="AtlasTexture_keep"]
+atlas = ExtResource("9_keep")
+region = Rect2(31, 88, 953, 158)
+
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_keep"]
-texture = ExtResource("9_keep")
-draw_center = true
-
-[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_keep_hover"]
-texture = ExtResource("10_keep_hover")
-draw_center = true
-
-[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_keep_selected"]
-texture = ExtResource("11_keep_selected")
+texture = SubResource("AtlasTexture_keep")
 draw_center = true
 
 [node name="UpgradeTowerMenu" type="CanvasLayer"]
@@ -91,52 +74,48 @@ grow_vertical = 2
 mouse_filter = 0
 color = Color(0.02, 0.02, 0.03, 0.72)
 
-[node name="Center" type="CenterContainer" parent="Root"]
+[node name="Center" type="Control" parent="Root"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 0
+mouse_filter = 2
 
 [node name="FrameHost" type="Container" parent="Root/Center"]
-custom_minimum_size = Vector2(1180, 394)
-layout_mode = 2
+custom_minimum_size = Vector2(1760, 840)
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -880.0
+offset_top = -340.0
+offset_right = 880.0
+offset_bottom = 500.0
+grow_horizontal = 2
+grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("4_host")
 
+[node name="FrameArt" type="Control" parent="Root/Center/FrameHost"]
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("3_frame")
+
 [node name="Panel" type="PanelContainer" parent="Root/Center/FrameHost"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+layout_mode = 2
 mouse_filter = 0
-theme_override_styles/panel = SubResource("StyleBoxTexture_frame")
+theme_override_styles/panel = SubResource("StyleBoxEmpty_panel")
 
 [node name="VBox" type="VBoxContainer" parent="Root/Center/FrameHost/Panel"]
 layout_mode = 2
-theme_override_constants/separation = 4
-
-[node name="TitleArt" type="TextureRect" parent="Root/Center/FrameHost/Panel/VBox"]
-custom_minimum_size = Vector2(420, 40)
-layout_mode = 2
-size_flags_horizontal = 4
-mouse_filter = 2
-texture = ExtResource("15_title")
-expand_mode = 1
-stretch_mode = 5
-
-[node name="DiamondSlot" type="Control" parent="Root/Center/FrameHost/Panel/VBox"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 28)
-layout_mode = 2
-mouse_filter = 2
+theme_override_constants/separation = 12
 
 [node name="HintLabel" type="TextureRect" parent="Root/Center/FrameHost/Panel/VBox"]
-custom_minimum_size = Vector2(412, 28)
+custom_minimum_size = Vector2(880, 60)
 layout_mode = 2
 size_flags_horizontal = 4
 mouse_filter = 2
@@ -144,31 +123,40 @@ texture = ExtResource("14_choose")
 expand_mode = 1
 stretch_mode = 5
 
+[node name="TitleArt" type="TextureRect" parent="Root/Center/FrameHost/Panel/VBox"]
+custom_minimum_size = Vector2(500, 48)
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+texture = ExtResource("15_title")
+expand_mode = 1
+stretch_mode = 5
+
 [node name="Cards" type="HBoxContainer" parent="Root/Center/FrameHost/Panel/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 16
+theme_override_constants/separation = 20
 alignment = 1
 
 [node name="Card0" type="PanelContainer" parent="Root/Center/FrameHost/Panel/VBox/Cards"]
-custom_minimum_size = Vector2(130, 198)
+custom_minimum_size = Vector2(236, 360)
 layout_mode = 2
 clip_contents = true
 theme_override_styles/panel = SubResource("StyleBoxTexture_card")
 
 [node name="Inner" type="VBoxContainer" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card0"]
 layout_mode = 2
-theme_override_constants/separation = 4
+theme_override_constants/separation = 8
 
 [node name="RarityLabel" type="Label" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card0/Inner"]
 layout_mode = 2
 theme_type_variation = &"HudStoppedTitle"
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 22
 text = "COMMON"
 horizontal_alignment = 1
 
 [node name="Button" type="Button" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card0/Inner"]
-custom_minimum_size = Vector2(64, 64)
+custom_minimum_size = Vector2(170, 170)
 layout_mode = 2
 size_flags_vertical = 3
 icon_alignment = 1
@@ -177,7 +165,7 @@ expand_icon = true
 [node name="NameLabel" type="Label" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card0/Inner"]
 layout_mode = 2
 theme_type_variation = &"HudValue"
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 22
 text = "+1 projectile"
 horizontal_alignment = 1
 autowrap_mode = 3
@@ -187,29 +175,29 @@ visible = false
 custom_minimum_size = Vector2(0, 0)
 layout_mode = 2
 theme_type_variation = &"HudMuted"
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 18
 horizontal_alignment = 1
 autowrap_mode = 3
 
 [node name="Card1" type="PanelContainer" parent="Root/Center/FrameHost/Panel/VBox/Cards"]
-custom_minimum_size = Vector2(130, 198)
+custom_minimum_size = Vector2(236, 360)
 layout_mode = 2
 clip_contents = true
 theme_override_styles/panel = SubResource("StyleBoxTexture_card")
 
 [node name="Inner" type="VBoxContainer" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card1"]
 layout_mode = 2
-theme_override_constants/separation = 4
+theme_override_constants/separation = 8
 
 [node name="RarityLabel" type="Label" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card1/Inner"]
 layout_mode = 2
 theme_type_variation = &"HudStoppedTitle"
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 22
 text = "COMMON"
 horizontal_alignment = 1
 
 [node name="Button" type="Button" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card1/Inner"]
-custom_minimum_size = Vector2(64, 64)
+custom_minimum_size = Vector2(170, 170)
 layout_mode = 2
 size_flags_vertical = 3
 icon_alignment = 1
@@ -218,7 +206,7 @@ expand_icon = true
 [node name="NameLabel" type="Label" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card1/Inner"]
 layout_mode = 2
 theme_type_variation = &"HudValue"
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 22
 text = "+1 projectile"
 horizontal_alignment = 1
 autowrap_mode = 3
@@ -228,29 +216,29 @@ visible = false
 custom_minimum_size = Vector2(0, 0)
 layout_mode = 2
 theme_type_variation = &"HudMuted"
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 18
 horizontal_alignment = 1
 autowrap_mode = 3
 
 [node name="Card2" type="PanelContainer" parent="Root/Center/FrameHost/Panel/VBox/Cards"]
-custom_minimum_size = Vector2(130, 198)
+custom_minimum_size = Vector2(236, 360)
 layout_mode = 2
 clip_contents = true
 theme_override_styles/panel = SubResource("StyleBoxTexture_card")
 
 [node name="Inner" type="VBoxContainer" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card2"]
 layout_mode = 2
-theme_override_constants/separation = 4
+theme_override_constants/separation = 8
 
 [node name="RarityLabel" type="Label" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card2/Inner"]
 layout_mode = 2
 theme_type_variation = &"HudStoppedTitle"
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 22
 text = "COMMON"
 horizontal_alignment = 1
 
 [node name="Button" type="Button" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card2/Inner"]
-custom_minimum_size = Vector2(64, 64)
+custom_minimum_size = Vector2(170, 170)
 layout_mode = 2
 size_flags_vertical = 3
 icon_alignment = 1
@@ -259,7 +247,7 @@ expand_icon = true
 [node name="NameLabel" type="Label" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card2/Inner"]
 layout_mode = 2
 theme_type_variation = &"HudValue"
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 22
 text = "+1 projectile"
 horizontal_alignment = 1
 autowrap_mode = 3
@@ -269,29 +257,29 @@ visible = false
 custom_minimum_size = Vector2(0, 0)
 layout_mode = 2
 theme_type_variation = &"HudMuted"
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 18
 horizontal_alignment = 1
 autowrap_mode = 3
 
 [node name="Card3" type="PanelContainer" parent="Root/Center/FrameHost/Panel/VBox/Cards"]
-custom_minimum_size = Vector2(130, 198)
+custom_minimum_size = Vector2(236, 360)
 layout_mode = 2
 clip_contents = true
 theme_override_styles/panel = SubResource("StyleBoxTexture_card")
 
 [node name="Inner" type="VBoxContainer" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card3"]
 layout_mode = 2
-theme_override_constants/separation = 4
+theme_override_constants/separation = 8
 
 [node name="RarityLabel" type="Label" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card3/Inner"]
 layout_mode = 2
 theme_type_variation = &"HudStoppedTitle"
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 22
 text = "COMMON"
 horizontal_alignment = 1
 
 [node name="Button" type="Button" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card3/Inner"]
-custom_minimum_size = Vector2(64, 64)
+custom_minimum_size = Vector2(170, 170)
 layout_mode = 2
 size_flags_vertical = 3
 icon_alignment = 1
@@ -300,7 +288,7 @@ expand_icon = true
 [node name="NameLabel" type="Label" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card3/Inner"]
 layout_mode = 2
 theme_type_variation = &"HudValue"
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 22
 text = "+1 projectile"
 horizontal_alignment = 1
 autowrap_mode = 3
@@ -310,29 +298,29 @@ visible = false
 custom_minimum_size = Vector2(0, 0)
 layout_mode = 2
 theme_type_variation = &"HudMuted"
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 18
 horizontal_alignment = 1
 autowrap_mode = 3
 
 [node name="Card4" type="PanelContainer" parent="Root/Center/FrameHost/Panel/VBox/Cards"]
-custom_minimum_size = Vector2(130, 198)
+custom_minimum_size = Vector2(236, 360)
 layout_mode = 2
 clip_contents = true
 theme_override_styles/panel = SubResource("StyleBoxTexture_card")
 
 [node name="Inner" type="VBoxContainer" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card4"]
 layout_mode = 2
-theme_override_constants/separation = 4
+theme_override_constants/separation = 8
 
 [node name="RarityLabel" type="Label" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card4/Inner"]
 layout_mode = 2
 theme_type_variation = &"HudStoppedTitle"
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 22
 text = "COMMON"
 horizontal_alignment = 1
 
 [node name="Button" type="Button" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card4/Inner"]
-custom_minimum_size = Vector2(64, 64)
+custom_minimum_size = Vector2(170, 170)
 layout_mode = 2
 size_flags_vertical = 3
 icon_alignment = 1
@@ -341,7 +329,7 @@ expand_icon = true
 [node name="NameLabel" type="Label" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card4/Inner"]
 layout_mode = 2
 theme_type_variation = &"HudValue"
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 22
 text = "+1 projectile"
 horizontal_alignment = 1
 autowrap_mode = 3
@@ -351,29 +339,29 @@ visible = false
 custom_minimum_size = Vector2(0, 0)
 layout_mode = 2
 theme_type_variation = &"HudMuted"
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 18
 horizontal_alignment = 1
 autowrap_mode = 3
 
 [node name="Card5" type="PanelContainer" parent="Root/Center/FrameHost/Panel/VBox/Cards"]
-custom_minimum_size = Vector2(130, 198)
+custom_minimum_size = Vector2(236, 360)
 layout_mode = 2
 clip_contents = true
 theme_override_styles/panel = SubResource("StyleBoxTexture_card")
 
 [node name="Inner" type="VBoxContainer" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card5"]
 layout_mode = 2
-theme_override_constants/separation = 4
+theme_override_constants/separation = 8
 
 [node name="RarityLabel" type="Label" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card5/Inner"]
 layout_mode = 2
 theme_type_variation = &"HudStoppedTitle"
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 22
 text = "COMMON"
 horizontal_alignment = 1
 
 [node name="Button" type="Button" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card5/Inner"]
-custom_minimum_size = Vector2(64, 64)
+custom_minimum_size = Vector2(170, 170)
 layout_mode = 2
 size_flags_vertical = 3
 icon_alignment = 1
@@ -382,7 +370,7 @@ expand_icon = true
 [node name="NameLabel" type="Label" parent="Root/Center/FrameHost/Panel/VBox/Cards/Card5/Inner"]
 layout_mode = 2
 theme_type_variation = &"HudValue"
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 22
 text = "+1 projectile"
 horizontal_alignment = 1
 autowrap_mode = 3
@@ -392,18 +380,24 @@ visible = false
 custom_minimum_size = Vector2(0, 0)
 layout_mode = 2
 theme_type_variation = &"HudMuted"
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 18
 horizontal_alignment = 1
 autowrap_mode = 3
 
+[node name="Flex" type="Control" parent="Root/Center/FrameHost/Panel/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 2.0
+mouse_filter = 2
+
 [node name="Actions" type="HBoxContainer" parent="Root/Center/FrameHost/Panel/VBox"]
 layout_mode = 2
-theme_override_constants/separation = 24
+theme_override_constants/separation = 36
 alignment = 1
 
 [node name="WaitButton" type="Button" parent="Root/Center/FrameHost/Panel/VBox/Actions"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(271, 38)
+custom_minimum_size = Vector2(500, 70)
 layout_mode = 2
 size_flags_horizontal = 4
 disabled = true
@@ -415,11 +409,15 @@ theme_override_styles/disabled = SubResource("StyleBoxTexture_wait")
 theme_override_styles/focus = SubResource("StyleBoxTexture_wait_selected")
 
 [node name="Moon" type="TextureRect" parent="Root/Center/FrameHost/Panel/VBox/Actions/WaitButton"]
-layout_mode = 0
-offset_left = 40.0
-offset_top = 7.0
-offset_right = 64.0
-offset_bottom = 31.0
+layout_mode = 1
+anchor_left = 0.14
+anchor_top = 0.5
+anchor_right = 0.14
+anchor_bottom = 0.5
+offset_left = -18.0
+offset_top = -18.0
+offset_right = 18.0
+offset_bottom = 18.0
 mouse_filter = 2
 texture = ExtResource("12_moon")
 expand_mode = 1
@@ -427,24 +425,18 @@ stretch_mode = 5
 
 [node name="KeepButton" type="Button" parent="Root/Center/FrameHost/Panel/VBox/Actions"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(262, 38)
+custom_minimum_size = Vector2(520, 86)
 layout_mode = 2
 size_flags_horizontal = 4
 disabled = true
 tooltip_text = "Keep going"
-theme_override_styles/normal = SubResource("StyleBoxTexture_keep_selected")
-theme_override_styles/hover = SubResource("StyleBoxTexture_keep_hover")
-theme_override_styles/pressed = SubResource("StyleBoxTexture_keep_hover")
+theme_override_styles/normal = SubResource("StyleBoxTexture_keep")
+theme_override_styles/hover = SubResource("StyleBoxTexture_keep")
+theme_override_styles/pressed = SubResource("StyleBoxTexture_keep")
 theme_override_styles/disabled = SubResource("StyleBoxTexture_keep")
-theme_override_styles/focus = SubResource("StyleBoxTexture_keep_selected")
+theme_override_styles/focus = SubResource("StyleBoxTexture_keep")
 
-[node name="Chevrons" type="TextureRect" parent="Root/Center/FrameHost/Panel/VBox/Actions/KeepButton"]
-layout_mode = 0
-offset_left = 168.0
-offset_top = 8.0
-offset_right = 199.0
-offset_bottom = 30.0
+[node name="BelowActions" type="Control" parent="Root/Center/FrameHost/Panel/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
 mouse_filter = 2
-texture = ExtResource("13_chevrons")
-expand_mode = 1
-stretch_mode = 5

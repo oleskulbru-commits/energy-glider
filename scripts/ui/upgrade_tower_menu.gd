@@ -27,15 +27,10 @@ const IconHostScript := preload("res://scripts/ui/upgrade_icon_host.gd")
 const PauseMenuScript = preload("res://scripts/ui/pause_menu.gd")
 const HEADER_ORNAMENT := preload("res://assets/ui/upgrade_menu/header_ornament.png")
 const HEADER_DIAMOND := preload("res://assets/ui/upgrade_menu/header_diamond.png")
-const HEADER_TEX := Vector2(996.0, 181.0)
-const HEADER_BAR_X0 := 24.0
-const HEADER_BAR_X1 := 970.0
-const HEADER_BAR_Y := 163.0
-const FRAME_SRC_W := 1024.0
-const FRAME_MARGIN_X := 320.0
-const FRAME_STROKE_L := 69.0
-const FRAME_STROKE_R := 954.0
-const FRAME_STROKE_Y := 37.0
+const ARCH_SCALE := 1.12
+const ARCH_SRC := Rect2(360, 0, 276, 166)
+const BAR_SRC := Rect2(0, 162, 996, 18)
+const DIAMOND_SIZE := Vector2(168, 42)
 
 @onready var _root: Control = %Root
 @onready var _cards: HBoxContainer = %Cards
@@ -51,6 +46,7 @@ var _card_frames: Array[Control] = []
 var _button_style := StyleBoxEmpty.new()
 var _glow: TextureRect
 var _header: TextureRect
+var _header_bar: TextureRect
 var _diamond: TextureRect
 
 
@@ -71,7 +67,8 @@ func _ready() -> void:
 	_glow.visible = false
 	_glow.z_index = 1
 	_root.add_child(_glow)
-	_header = _ornament_rect("HeaderOrnament", HEADER_ORNAMENT)
+	_header_bar = _ornament_rect("HeaderBar", _atlas(HEADER_ORNAMENT, BAR_SRC))
+	_header = _ornament_rect("HeaderOrnament", _atlas(HEADER_ORNAMENT, ARCH_SRC))
 	_diamond = _ornament_rect("HeaderDiamond", HEADER_DIAMOND)
 	_root.resized.connect(_place_selection_glow)
 	_root.resized.connect(_place_header_ornament)
@@ -262,14 +259,10 @@ func _border_for(id: StringName) -> Texture2D:
 func _style_for(texture: Texture2D) -> StyleBoxTexture:
 	var box := StyleBoxTexture.new()
 	box.texture = texture
-	box.texture_margin_left = 20.0
-	box.texture_margin_top = 20.0
-	box.texture_margin_right = 20.0
-	box.texture_margin_bottom = 22.0
-	box.content_margin_left = 12.0
-	box.content_margin_top = 8.0
-	box.content_margin_right = 12.0
-	box.content_margin_bottom = 16.0
+	box.content_margin_left = 24.0
+	box.content_margin_top = 18.0
+	box.content_margin_right = 24.0
+	box.content_margin_bottom = 32.0
 	box.draw_center = true
 	return box
 
@@ -309,6 +302,13 @@ func _place_selection_glow() -> void:
 	_glow.visible = true
 
 
+func _atlas(texture: Texture2D, region: Rect2) -> AtlasTexture:
+	var atlas := AtlasTexture.new()
+	atlas.atlas = texture
+	atlas.region = region
+	return atlas
+
+
 func _ornament_rect(node_name: String, texture: Texture2D) -> TextureRect:
 	var rect := TextureRect.new()
 	rect.name = node_name
@@ -324,36 +324,32 @@ func _ornament_rect(node_name: String, texture: Texture2D) -> TextureRect:
 
 func _place_header_ornament() -> void:
 	var host := _root.get_node_or_null("Center/FrameHost") as Control
-	if host == null or _header == null or host.size.x < 2.0:
+	var frame := host.get_node_or_null("FrameArt") if host != null else null
+	if host == null or frame == null or _header == null or host.size.x < 2.0:
+		return
+	if not frame.has_method("top_stroke_y") or not frame.has_method("top_bar_span"):
 		return
 	var origin := host.global_position - _root.global_position
-	var stroke_l := _frame_display_x(FRAME_STROKE_L, host.size.x)
-	var stroke_r := _frame_display_x(FRAME_STROKE_R, host.size.x)
-	var scale := (stroke_r - stroke_l) / (HEADER_BAR_X1 - HEADER_BAR_X0)
-	_header.size = HEADER_TEX * scale
+	var stroke_y: float = frame.top_stroke_y()
+	var span: Vector2 = frame.top_bar_span()
+	var seat_y := stroke_y + 28.0
+	var bar_h := 20.0
+	_header_bar.position = origin + Vector2(span.x, seat_y - bar_h)
+	_header_bar.size = Vector2(span.y - span.x, bar_h)
+	_header_bar.visible = true
+	var arch_size := ARCH_SRC.size * ARCH_SCALE
+	_header.size = arch_size
 	_header.position = origin + Vector2(
-		stroke_l - HEADER_BAR_X0 * scale,
-		FRAME_STROKE_Y - HEADER_BAR_Y * scale
+		(host.size.x - arch_size.x) * 0.5,
+		seat_y - arch_size.y
 	)
 	_header.visible = true
-	var slot := _root.get_node_or_null("Center/FrameHost/Panel/VBox/DiamondSlot") as Control
-	var diamond_size := Vector2(104.0, 26.0)
-	_diamond.size = diamond_size
-	var diamond_y := origin.y + FRAME_STROKE_Y + 20.0
-	if slot != null and slot.size.y > 1.0:
-		diamond_y = slot.global_position.y - _root.global_position.y + (slot.size.y - diamond_size.y) * 0.5
-	_diamond.position = Vector2(origin.x + (host.size.x - diamond_size.x) * 0.5, diamond_y)
+	_diamond.size = DIAMOND_SIZE
+	_diamond.position = origin + Vector2(
+		(host.size.x - DIAMOND_SIZE.x) * 0.5,
+		seat_y - DIAMOND_SIZE.y * 0.85
+	)
 	_diamond.visible = true
-
-
-func _frame_display_x(source_x: float, host_width: float) -> float:
-	var center_src := FRAME_SRC_W - FRAME_MARGIN_X * 2.0
-	var center_dst := host_width - FRAME_MARGIN_X * 2.0
-	if source_x <= FRAME_MARGIN_X:
-		return source_x
-	if source_x >= FRAME_SRC_W - FRAME_MARGIN_X:
-		return host_width - (FRAME_SRC_W - source_x)
-	return FRAME_MARGIN_X + (source_x - FRAME_MARGIN_X) * (center_dst / center_src)
 
 
 func _apply_bonus_label(wrapper: Node, id: StringName) -> void:
@@ -432,6 +428,8 @@ func _close() -> void:
 		_glow.visible = false
 	if _header != null:
 		_header.visible = false
+	if _header_bar != null:
+		_header_bar.visible = false
 	if _diamond != null:
 		_diamond.visible = false
 	get_tree().paused = false

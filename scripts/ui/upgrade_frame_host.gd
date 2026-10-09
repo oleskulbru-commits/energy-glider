@@ -1,8 +1,8 @@
 extends Container
 
-## Holds the upgrade panel at the frame artwork's size.
-## The side diamonds sit in the vertical middle of the art, so a taller
-## panel would stretch them. Children are fitted to this rect instead.
+## Fits the frame art and the panel contents to one rect.
+## The frame script stretches only the straight edges, so this rect can be
+## taller than the source artwork without squashing the side diamonds.
 
 
 func _get_minimum_size() -> Vector2:
