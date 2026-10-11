@@ -3,6 +3,7 @@ extends Node
 
 const UpgradeCatalogScript = preload("res://scripts/game/upgrade_catalog.gd")
 const BonusTowerPlannerScript = preload("res://scripts/game/bonus_tower_planner.gd")
+const KeepGoingRewardsScript = preload("res://scripts/game/keep_going_rewards.gd")
 
 ## Stacks and weapons persist across Try Again. New Game reloads the scene.
 ## Taken tower slots (including weapon bundles) stay Empty for the world seed.
@@ -47,6 +48,7 @@ var _laser_bundle := WeaponBundle.new()
 var _tesla_bundle := WeaponBundle.new()
 var _rocket_bundle := WeaponBundle.new()
 var _shotgun_bundle := WeaponBundle.new()
+var keep_going_rewards = KeepGoingRewardsScript.new()
 
 
 class WeaponBundle:
@@ -87,6 +89,8 @@ func _connect_director() -> void:
 
 func _on_player_died(_position: Vector3) -> void:
 	clear_visited_this_life()
+	if keep_going_rewards != null:
+		keep_going_rewards.note_death()
 
 
 func reset_run() -> void:

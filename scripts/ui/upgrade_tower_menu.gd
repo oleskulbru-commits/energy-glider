@@ -31,6 +31,9 @@ const ARCH_SCALE := 1.12
 const ARCH_SRC := Rect2(360, 0, 276, 166)
 const BAR_SRC := Rect2(0, 162, 996, 18)
 const DIAMOND_SIZE := Vector2(168, 42)
+const REWARD_SLOT_X := [0.604, 0.771, 0.936]
+const REWARD_SLOT_Y := 0.60
+const REWARD_SLOT_SCALE := 0.09
 
 @onready var _root: Control = %Root
 @onready var _cards: HBoxContainer = %Cards
@@ -48,6 +51,7 @@ var _glow: TextureRect
 var _header: TextureRect
 var _header_bar: TextureRect
 var _diamond: TextureRect
+var _reward_slots: Array[TextureRect] = []
 
 
 func _ready() -> void:
@@ -72,6 +76,7 @@ func _ready() -> void:
 	_diamond = _ornament_rect("HeaderDiamond", HEADER_DIAMOND)
 	_root.resized.connect(_place_selection_glow)
 	_root.resized.connect(_place_header_ornament)
+	_build_reward_slots()
 
 
 func is_open() -> bool:
@@ -83,6 +88,7 @@ func open_for(tower: UpgradeTower, state: RunUpgradeState, rig: PlayerRig) -> vo
 	_state = state
 	_rig = rig
 	_selected_slot = -1
+	_resolve_keep_going_arrival()
 	_refresh_cards()
 	visible = true
 	_root.visible = true
@@ -165,6 +171,7 @@ func _refresh_cards() -> void:
 		_wait_button.modulate = EMPTY_MODULATE if _wait_button.disabled else Color.WHITE
 	_keep_button.disabled = not can_confirm
 	_keep_button.modulate = EMPTY_MODULATE if _keep_button.disabled else Color.WHITE
+	_refresh_reward_slots()
 	call_deferred("_place_selection_glow")
 
 
@@ -403,9 +410,69 @@ func _confirm_and_close(wait_until_dawn: bool) -> void:
 			var picked := _state.pick_offer(_tower.tower_index, _selected_slot)
 			took_unlock = UpgradeCatalog.is_weapon_unlock(picked)
 		_state.note_visit_outcome(took_unlock)
+		_commit_keep_going(wait_until_dawn)
 	if wait_until_dawn and _tower != null and not _tower.is_bonus:
 		_wait_until_dawn()
 	_close()
+
+
+func _resolve_keep_going_arrival() -> void:
+	if _state == null or _tower == null or _state.keep_going_rewards == null:
+		return
+	_state.keep_going_rewards.arrive(_tower.tower_index, _tower.is_bonus)
+
+
+func _commit_keep_going(wait_until_dawn: bool) -> void:
+	if _state == null or _tower == null or _state.keep_going_rewards == null:
+		return
+	if wait_until_dawn:
+		_state.keep_going_rewards.wait_until_dawn()
+	else:
+		_state.keep_going_rewards.keep_going(_tower.tower_index, _tower.is_bonus)
+
+
+func _build_reward_slots() -> void:
+	for i in REWARD_SLOT_X.size():
+		var slot := TextureRect.new()
+		slot.name = "RewardSlot%d" % i
+		slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		slot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		slot.visible = false
+		_keep_button.add_child(slot)
+		_reward_slots.append(slot)
+	if not _keep_button.resized.is_connected(_layout_reward_slots):
+		_keep_button.resized.connect(_layout_reward_slots)
+	_layout_reward_slots()
+
+
+func _layout_reward_slots() -> void:
+	if _keep_button == null:
+		return
+	var side := _keep_button.size.x * REWARD_SLOT_SCALE
+	for i in _reward_slots.size():
+		var slot := _reward_slots[i]
+		slot.size = Vector2(side, side)
+		slot.position = Vector2(
+			_keep_button.size.x * REWARD_SLOT_X[i] - side * 0.5,
+			_keep_button.size.y * REWARD_SLOT_Y - side * 0.5
+		)
+
+
+func _refresh_reward_slots() -> void:
+	_layout_reward_slots()
+	var tier := -1
+	var icon: Texture2D = null
+	if _state != null and _tower != null and _state.keep_going_rewards != null:
+		var rewards = _state.keep_going_rewards
+		tier = rewards.shown_tier(_tower.tower_index, _tower.is_bonus)
+		if tier >= 0:
+			icon = rewards.icon_for(rewards.preview_id(_tower.tower_index, _tower.is_bonus))
+	for i in _reward_slots.size():
+		var slot := _reward_slots[i]
+		var show := icon != null and i == tier
+		slot.visible = show
+		slot.texture = icon if show else null
 
 
 func _wait_until_dawn() -> void:

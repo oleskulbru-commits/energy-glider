@@ -84,7 +84,7 @@ grow_vertical = 2
 mouse_filter = 2
 
 [node name="FrameHost" type="Container" parent="Root/Center"]
-custom_minimum_size = Vector2(1760, 840)
+custom_minimum_size = Vector2(1760, 886)
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -92,9 +92,9 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -880.0
-offset_top = -340.0
+offset_top = -366.0
 offset_right = 880.0
-offset_bottom = 500.0
+offset_bottom = 520.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
@@ -425,7 +425,7 @@ stretch_mode = 5
 
 [node name="KeepButton" type="Button" parent="Root/Center/FrameHost/Panel/VBox/Actions"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(520, 86)
+custom_minimum_size = Vector2(893, 148)
 layout_mode = 2
 size_flags_horizontal = 4
 disabled = true
