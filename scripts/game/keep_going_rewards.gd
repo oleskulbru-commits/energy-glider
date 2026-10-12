@@ -12,15 +12,19 @@ const TIER_GOLD := 2
 const TIER_COUNT := 3
 const FIRST_TOWER := 1
 const LAST_TOWER := 40
+const VESTIGE := &"vestige"
+const VESTIGE_ICON := preload("res://assets/ui/upgrade_menu/reward_vestige.jpg")
 
 var roll_salt := 0
 var applied: Array[StringName] = []
+var last_payout_amount := 0
 
 var _streak := TIER_BRONZE
 var _promise_tower := -1
 var _promise_tier := -1
 var _promise_id := StringName()
 var _rolls: Dictionary = {}
+var _amounts: Dictionary = {}
 var _pools: Array[PackedStringArray] = [
 	PackedStringArray(),
 	PackedStringArray(),
@@ -32,6 +36,10 @@ var _sealed := false
 
 func _init() -> void:
 	roll_salt = randi()
+	set_pool(TIER_BRONZE, PackedStringArray([VESTIGE]))
+	set_pool(TIER_SILVER, PackedStringArray([VESTIGE]))
+	set_pool(TIER_GOLD, PackedStringArray([VESTIGE]))
+	register_icon(VESTIGE, VESTIGE_ICON)
 
 
 func set_pool(tier: int, ids: PackedStringArray) -> void:
@@ -55,6 +63,7 @@ func note_death() -> void:
 	_streak = TIER_BRONZE
 	_clear_promise()
 	_rolls.clear()
+	_amounts.clear()
 
 
 func is_sealed() -> bool:
@@ -70,6 +79,7 @@ func promise_tower() -> int:
 
 
 func arrive(tower_index: int, is_bonus: bool) -> StringName:
+	last_payout_amount = 0
 	if _sealed or not _is_west_tower(tower_index, is_bonus):
 		return &""
 	if _promise_tower != tower_index:
@@ -77,7 +87,7 @@ func arrive(tower_index: int, is_bonus: bool) -> StringName:
 	var paid := _promise_id
 	var paid_tier := _promise_tier
 	_clear_promise()
-	apply(paid)
+	apply(paid, paid_tier, tower_index)
 	if paid_tier >= TIER_GOLD:
 		_streak = TIER_BRONZE
 	else:
@@ -90,6 +100,22 @@ func preview_id(tower_index: int, is_bonus: bool) -> StringName:
 	if tier < 0:
 		return &""
 	return _roll(tower_index + 1, tier)
+
+
+func preview_amount(tower_index: int, is_bonus: bool) -> int:
+	var tier := shown_tier(tower_index, is_bonus)
+	if tier < 0:
+		return 0
+	_roll(tower_index + 1, tier)
+	return int(_amounts.get(_roll_key(tower_index + 1, tier), 0))
+
+
+func paid_id(tower_index: int, tier: int, is_bonus: bool) -> StringName:
+	if _sealed or not _is_west_tower(tower_index, is_bonus):
+		return &""
+	if tier < 0 or tier >= _streak:
+		return &""
+	return _roll(tower_index, tier)
 
 
 func shown_tier(tower_index: int, is_bonus: bool) -> int:
@@ -119,10 +145,33 @@ func peek_roll(pay_tower: int, tier: int) -> StringName:
 	return _rolls.get(_roll_key(pay_tower, tier), &"") as StringName
 
 
-func apply(id: StringName) -> void:
+func apply(id: StringName, tier: int = -1, pay_tower: int = -1) -> void:
 	if id == &"":
 		return
 	applied.append(id)
+	var key := _roll_key(pay_tower, tier)
+	if pay_tower >= 0 and _amounts.has(key):
+		last_payout_amount = int(_amounts[key])
+	else:
+		last_payout_amount = amount_for(id, tier)
+
+
+func amount_for(id: StringName, tier: int, rng: RandomNumberGenerator = null) -> int:
+	if id != VESTIGE:
+		return 0
+	if tier == TIER_GOLD:
+		return 10
+	var choices := PackedInt32Array()
+	if tier == TIER_BRONZE:
+		choices = PackedInt32Array([1, 2, 3])
+	elif tier == TIER_SILVER:
+		choices = PackedInt32Array([4, 5, 6])
+	else:
+		return 0
+	var index := randi() % choices.size()
+	if rng != null:
+		index = rng.randi_range(0, choices.size() - 1)
+	return int(choices[index])
 
 
 func _clear_promise() -> void:
@@ -148,6 +197,8 @@ func _roll(pay_tower: int, tier: int) -> StringName:
 		rng.seed = absi(roll_salt) * 1000003 + pay_tower * 9176 + tier * 13
 		id = pool[rng.randi_range(0, pool.size() - 1)]
 	_rolls[key] = id
+	if id != &"" and not _amounts.has(key):
+		_amounts[key] = amount_for(id, tier)
 	return id
 
 

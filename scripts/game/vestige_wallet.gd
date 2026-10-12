@@ -32,7 +32,14 @@ func note_drop(level: int) -> void:
 
 
 func collect_one() -> void:
-	balance += 1
+	add(1)
+
+
+func add(amount: int) -> void:
+	var gained := maxi(amount, 0)
+	if gained == 0:
+		return
+	balance += gained
 	balance_changed.emit(balance)
 
 

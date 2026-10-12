@@ -13,7 +13,7 @@ func _run() -> void:
 	failed = _check_wait_keeps_rolls() or failed
 	failed = _check_death_seals_until_next_run() or failed
 	failed = _check_bonus_towers() or failed
-	failed = _check_empty_catalog_advances() or failed
+	failed = _check_vestige_reward() or failed
 	failed = _check_icons_only_when_registered() or failed
 	if failed:
 		push_error("Keep Going reward verification failed")
@@ -179,19 +179,61 @@ func _check_bonus_towers() -> bool:
 	return false
 
 
-func _check_empty_catalog_advances() -> bool:
+func _check_vestige_reward() -> bool:
 	var rewards: KeepGoingRewards = KeepGoingRewardsScript.new()
-	rewards.keep_going(8, false)
-	if rewards.arrive(9, false) != &"":
-		push_error("an empty catalog should pay an empty id")
+	if rewards.preview_id(1, false) != KeepGoingRewards.VESTIGE:
+		push_error("a fresh roller should show the vestige reward")
 		return true
-	if not rewards.applied.is_empty():
-		push_error("an empty id should not be applied")
+	if rewards.icon_for(KeepGoingRewards.VESTIGE) == null:
+		push_error("the vestige reward should have its crystal icon")
+		return true
+	if rewards.amount_for(&"bronze_a", KeepGoingRewards.TIER_BRONZE) != 0:
+		push_error("an unknown reward should pay nothing")
+		return true
+	if not _covers_choices(rewards, KeepGoingRewards.TIER_BRONZE, [1, 2, 3]):
+		push_error("bronze vestige should pay 1, 2, or 3 with each amount appearing")
+		return true
+	if not _covers_choices(rewards, KeepGoingRewards.TIER_SILVER, [4, 5, 6]):
+		push_error("silver vestige should pay 4, 5, or 6 with each amount appearing")
+		return true
+	for _i in 20:
+		if rewards.amount_for(KeepGoingRewards.VESTIGE, KeepGoingRewards.TIER_GOLD) != 10:
+			push_error("gold vestige should always pay 10")
+			return true
+	var shown := rewards.preview_amount(8, false)
+	if shown < 1 or shown > 3:
+		push_error("the bronze square should show 1, 2, or 3 vestiges")
+		return true
+	if rewards.preview_amount(8, false) != shown:
+		push_error("the shown vestige count should stay put")
+		return true
+	rewards.keep_going(8, false)
+	if rewards.arrive(9, false) != KeepGoingRewards.VESTIGE:
+		push_error("arrival should pay the promised vestige reward")
+		return true
+	if rewards.last_payout_amount != shown:
+		push_error("arrival should pay the vestige count shown on the square")
+		return true
+	if rewards.paid_id(9, KeepGoingRewards.TIER_BRONZE, false) != KeepGoingRewards.VESTIGE:
+		push_error("the paid bronze square should keep its vestige icon")
 		return true
 	if rewards.shown_tier(9, false) != KeepGoingRewards.TIER_SILVER:
-		push_error("an empty catalog should still reveal the next tier")
+		push_error("paying bronze vestige should reveal silver")
 		return true
 	return false
+
+
+func _covers_choices(rewards: KeepGoingRewards, tier: int, choices: Array) -> bool:
+	var seen := {}
+	for _i in 90:
+		var amount := rewards.amount_for(KeepGoingRewards.VESTIGE, tier)
+		if not choices.has(amount):
+			return false
+		seen[amount] = true
+	for choice in choices:
+		if not seen.has(choice):
+			return false
+	return true
 
 
 func _check_icons_only_when_registered() -> bool:

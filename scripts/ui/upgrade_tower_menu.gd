@@ -34,6 +34,10 @@ const DIAMOND_SIZE := Vector2(168, 42)
 const REWARD_SLOT_X := [0.604, 0.771, 0.936]
 const REWARD_SLOT_Y := 0.60
 const REWARD_SLOT_SCALE := 0.09
+const REWARD_FRAME_SCALE := 0.125
+const CLAIMED_TIP := "This reward has been claimed."
+const OFFER_TIP := "Reach the next tower to get: %d vestiges"
+const CLAIMED_MARK := preload("res://assets/ui/upgrade_menu/reward_claimed.png")
 
 @onready var _root: Control = %Root
 @onready var _cards: HBoxContainer = %Cards
@@ -51,7 +55,13 @@ var _glow: TextureRect
 var _header: TextureRect
 var _header_bar: TextureRect
 var _diamond: TextureRect
-var _reward_slots: Array[TextureRect] = []
+var _reward_slots: Array[Control] = []
+var _reward_icons: Array[TextureRect] = []
+var _reward_checks: Array[TextureRect] = []
+var _keep_rest_style: StyleBox
+var _keep_hover_style: StyleBox
+var _reward_tip: PanelContainer
+var _reward_tip_label: Label
 
 
 func _ready() -> void:
@@ -417,9 +427,9 @@ func _confirm_and_close(wait_until_dawn: bool) -> void:
 
 
 func _resolve_keep_going_arrival() -> void:
-	if _state == null or _tower == null or _state.keep_going_rewards == null:
+	if _state == null or _tower == null:
 		return
-	_state.keep_going_rewards.arrive(_tower.tower_index, _tower.is_bonus)
+	_state.pay_keep_going_arrival(_tower.tower_index, _tower.is_bonus)
 
 
 func _commit_keep_going(wait_until_dawn: bool) -> void:
@@ -432,47 +442,155 @@ func _commit_keep_going(wait_until_dawn: bool) -> void:
 
 
 func _build_reward_slots() -> void:
+	_keep_rest_style = _keep_button.get_theme_stylebox("normal")
+	_keep_hover_style = _keep_button.get_theme_stylebox("hover")
 	for i in REWARD_SLOT_X.size():
-		var slot := TextureRect.new()
+		var slot := Control.new()
 		slot.name = "RewardSlot%d" % i
 		slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		slot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		slot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		slot.visible = false
+		slot.mouse_entered.connect(_on_reward_slot_mouse_entered.bind(slot))
+		slot.mouse_exited.connect(_on_reward_slot_mouse_exited)
+		slot.gui_input.connect(_on_reward_slot_input)
+		var icon := TextureRect.new()
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		slot.add_child(icon)
+		var mark := TextureRect.new()
+		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mark.texture = CLAIMED_MARK
+		mark.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		mark.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		mark.visible = false
+		slot.add_child(mark)
 		_keep_button.add_child(slot)
 		_reward_slots.append(slot)
+		_reward_icons.append(icon)
+		_reward_checks.append(mark)
 	if not _keep_button.resized.is_connected(_layout_reward_slots):
 		_keep_button.resized.connect(_layout_reward_slots)
+	_build_reward_tip()
 	_layout_reward_slots()
 
 
 func _layout_reward_slots() -> void:
 	if _keep_button == null:
 		return
-	var side := _keep_button.size.x * REWARD_SLOT_SCALE
+	var frame := _keep_button.size.x * REWARD_FRAME_SCALE
+	var icon_side := _keep_button.size.x * REWARD_SLOT_SCALE
+	var inset := (frame - icon_side) * 0.5
 	for i in _reward_slots.size():
 		var slot := _reward_slots[i]
-		slot.size = Vector2(side, side)
+		slot.size = Vector2(frame, frame)
 		slot.position = Vector2(
-			_keep_button.size.x * REWARD_SLOT_X[i] - side * 0.5,
-			_keep_button.size.y * REWARD_SLOT_Y - side * 0.5
+			_keep_button.size.x * REWARD_SLOT_X[i] - frame * 0.5,
+			_keep_button.size.y * REWARD_SLOT_Y - frame * 0.5
 		)
+		var icon := _reward_icons[i]
+		icon.position = Vector2(inset, inset)
+		icon.size = Vector2(icon_side, icon_side)
+		var mark := _reward_checks[i]
+		mark.position = icon.position
+		mark.size = icon.size
 
 
 func _refresh_reward_slots() -> void:
 	_layout_reward_slots()
-	var tier := -1
-	var icon: Texture2D = null
+	var rewards = null
+	var open_tier := -1
 	if _state != null and _tower != null and _state.keep_going_rewards != null:
-		var rewards = _state.keep_going_rewards
-		tier = rewards.shown_tier(_tower.tower_index, _tower.is_bonus)
-		if tier >= 0:
-			icon = rewards.icon_for(rewards.preview_id(_tower.tower_index, _tower.is_bonus))
+		rewards = _state.keep_going_rewards
+		open_tier = rewards.shown_tier(_tower.tower_index, _tower.is_bonus)
 	for i in _reward_slots.size():
 		var slot := _reward_slots[i]
-		var show := icon != null and i == tier
+		var icon_tex: Texture2D = null
+		var claimed := false
+		var tip := ""
+		if rewards != null and open_tier >= 0:
+			if i < open_tier:
+				icon_tex = rewards.icon_for(rewards.paid_id(_tower.tower_index, i, _tower.is_bonus))
+				claimed = icon_tex != null
+				if claimed:
+					tip = CLAIMED_TIP
+			elif i == open_tier:
+				icon_tex = rewards.icon_for(rewards.preview_id(_tower.tower_index, _tower.is_bonus))
+				if icon_tex != null:
+					tip = OFFER_TIP % rewards.preview_amount(_tower.tower_index, _tower.is_bonus)
+		var show := icon_tex != null
 		slot.visible = show
-		slot.texture = icon if show else null
+		slot.set_meta("reward_tip", tip)
+		slot.tooltip_text = ""
+		slot.mouse_filter = Control.MOUSE_FILTER_STOP if show else Control.MOUSE_FILTER_IGNORE
+		_reward_icons[i].texture = icon_tex
+		_reward_checks[i].visible = claimed
+
+
+func _build_reward_tip() -> void:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.07, 0.05, 0.03, 0.96)
+	style.border_color = Color(0.86, 0.68, 0.28, 1.0)
+	style.set_border_width_all(3)
+	style.set_content_margin_all(28)
+	style.set_corner_radius_all(4)
+	_reward_tip = PanelContainer.new()
+	_reward_tip.name = "RewardTip"
+	_reward_tip.visible = false
+	_reward_tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_reward_tip.z_index = 20
+	_reward_tip.add_theme_stylebox_override("panel", style)
+	_reward_tip_label = Label.new()
+	_reward_tip_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_reward_tip_label.add_theme_font_size_override("font_size", 36)
+	_reward_tip_label.add_theme_color_override("font_color", Color(0.97, 0.92, 0.78, 1.0))
+	_reward_tip.add_child(_reward_tip_label)
+	_root.add_child(_reward_tip)
+
+
+func _show_reward_tip(slot: Control) -> void:
+	if _reward_tip == null:
+		return
+	var text := str(slot.get_meta("reward_tip", ""))
+	if text.is_empty():
+		_hide_reward_tip()
+		return
+	_reward_tip_label.text = text
+	_reward_tip.visible = true
+	var box := _reward_tip.get_combined_minimum_size()
+	var origin := slot.global_position - _root.global_position
+	var x := origin.x + slot.size.x * 0.5 - box.x * 0.5
+	var y := origin.y - box.y - 18.0
+	x = clampf(x, 24.0, maxf(24.0, _root.size.x - box.x - 24.0))
+	if y < 24.0:
+		y = origin.y + slot.size.y + 18.0
+	_reward_tip.position = Vector2(x, y)
+	_reward_tip.size = box
+
+
+func _hide_reward_tip() -> void:
+	if _reward_tip != null:
+		_reward_tip.visible = false
+
+
+func _on_reward_slot_mouse_entered(slot: Control) -> void:
+	if _keep_button != null and not _keep_button.disabled and _keep_hover_style != null:
+		_keep_button.add_theme_stylebox_override("normal", _keep_hover_style)
+	_show_reward_tip(slot)
+
+
+func _on_reward_slot_mouse_exited() -> void:
+	if _keep_button != null and _keep_rest_style != null:
+		_keep_button.add_theme_stylebox_override("normal", _keep_rest_style)
+	_hide_reward_tip()
+
+
+func _on_reward_slot_input(event: InputEvent) -> void:
+	if _keep_button == null or _keep_button.disabled:
+		return
+	if event is InputEventMouseButton:
+		var mouse := event as InputEventMouseButton
+		if mouse.pressed and mouse.button_index == MOUSE_BUTTON_LEFT:
+			_on_keep_pressed()
 
 
 func _wait_until_dawn() -> void:
@@ -489,6 +607,7 @@ func _wait_until_dawn() -> void:
 
 
 func _close() -> void:
+	_hide_reward_tip()
 	visible = false
 	_root.visible = false
 	if _glow != null:

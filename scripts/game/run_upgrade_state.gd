@@ -4,6 +4,7 @@ extends Node
 const UpgradeCatalogScript = preload("res://scripts/game/upgrade_catalog.gd")
 const BonusTowerPlannerScript = preload("res://scripts/game/bonus_tower_planner.gd")
 const KeepGoingRewardsScript = preload("res://scripts/game/keep_going_rewards.gd")
+const VestigeWalletScript = preload("res://scripts/game/vestige_wallet.gd")
 
 ## Stacks and weapons persist across Try Again. New Game reloads the scene.
 ## Taken tower slots (including weapon bundles) stay Empty for the world seed.
@@ -91,6 +92,18 @@ func _on_player_died(_position: Vector3) -> void:
 	clear_visited_this_life()
 	if keep_going_rewards != null:
 		keep_going_rewards.note_death()
+
+
+func pay_keep_going_arrival(tower_index: int, is_bonus: bool) -> void:
+	if keep_going_rewards == null:
+		return
+	var id: StringName = keep_going_rewards.arrive(tower_index, is_bonus)
+	var amount: int = keep_going_rewards.last_payout_amount
+	if id == &"" or amount <= 0:
+		return
+	var wallet = VestigeWalletScript.find(get_tree())
+	if wallet != null and wallet.has_method("add"):
+		wallet.add(amount)
 
 
 func reset_run() -> void:
