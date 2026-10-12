@@ -1,4 +1,4 @@
-[gd_scene load_steps=19 format=3]
+[gd_scene load_steps=22 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/upgrade_tower_menu.gd" id="1_menu"]
 [ext_resource type="Theme" path="res://themes/hud_theme.tres" id="2_theme"]
@@ -9,6 +9,7 @@
 [ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/wait_until_dawn_hover.png" id="7_wait_hover"]
 [ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/wait_until_dawn_selected.png" id="8_wait_selected"]
 [ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/keep_going_rewards.png" id="9_keep"]
+[ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/keep_going_rewards_hover.png" id="16_keep_hover"]
 [ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/wait_until_dawn_moon.png" id="12_moon"]
 [ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/choose_one_upgrade.png" id="14_choose"]
 [ext_resource type="Texture2D" path="res://assets/ui/upgrade_menu/upgrade_tower_title.png" id="15_title"]
@@ -45,6 +46,14 @@ region = Rect2(31, 88, 953, 158)
 
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_keep"]
 texture = SubResource("AtlasTexture_keep")
+draw_center = true
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_keep_hover"]
+atlas = ExtResource("16_keep_hover")
+region = Rect2(31, 88, 953, 158)
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_keep_hover"]
+texture = SubResource("AtlasTexture_keep_hover")
 draw_center = true
 
 [node name="UpgradeTowerMenu" type="CanvasLayer"]
@@ -397,9 +406,10 @@ alignment = 1
 
 [node name="WaitButton" type="Button" parent="Root/Center/FrameHost/Panel/VBox/Actions"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(500, 70)
+custom_minimum_size = Vector2(500, 103)
 layout_mode = 2
 size_flags_horizontal = 4
+size_flags_vertical = 4
 disabled = true
 tooltip_text = "Wait until dawn"
 theme_override_styles/normal = SubResource("StyleBoxTexture_wait_selected")
@@ -431,8 +441,8 @@ size_flags_horizontal = 4
 disabled = true
 tooltip_text = "Keep going"
 theme_override_styles/normal = SubResource("StyleBoxTexture_keep")
-theme_override_styles/hover = SubResource("StyleBoxTexture_keep")
-theme_override_styles/pressed = SubResource("StyleBoxTexture_keep")
+theme_override_styles/hover = SubResource("StyleBoxTexture_keep_hover")
+theme_override_styles/pressed = SubResource("StyleBoxTexture_keep_hover")
 theme_override_styles/disabled = SubResource("StyleBoxTexture_keep")
 theme_override_styles/focus = SubResource("StyleBoxTexture_keep")
 
