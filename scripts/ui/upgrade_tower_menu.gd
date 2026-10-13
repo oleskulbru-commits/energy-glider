@@ -456,14 +456,17 @@ func _build_reward_slots() -> void:
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.z_index = 1
 		slot.add_child(icon)
 		var mark := TextureRect.new()
 		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		mark.texture = CLAIMED_MARK
 		mark.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		mark.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		mark.z_index = 2
 		mark.visible = false
-		slot.add_child(mark)
+		icon.add_child(mark)
+		mark.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		_keep_button.add_child(slot)
 		_reward_slots.append(slot)
 		_reward_icons.append(icon)
@@ -490,9 +493,6 @@ func _layout_reward_slots() -> void:
 		var icon := _reward_icons[i]
 		icon.position = Vector2(inset, inset)
 		icon.size = Vector2(icon_side, icon_side)
-		var mark := _reward_checks[i]
-		mark.position = icon.position
-		mark.size = icon.size
 
 
 func _refresh_reward_slots() -> void:
